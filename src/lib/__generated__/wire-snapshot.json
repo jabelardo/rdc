@@ -1,0 +1,76 @@
+{
+  "emptyStatusResult": {
+    "doConflictedFilesExist": false,
+    "files": [],
+    "isCherryPickingHeadFound": false,
+    "mergeHeadFound": false,
+    "squashMsgFound": false
+  },
+  "manualConflict": {
+    "entry": {
+      "action": "deleted-by-them",
+      "kind": "conflicted",
+      "them": "D",
+      "us": "U"
+    },
+    "kind": "Conflicted"
+  },
+  "modified": {
+    "kind": "Modified"
+  },
+  "modifiedSubmodule": {
+    "kind": "Modified",
+    "submoduleStatus": {
+      "commitChanged": false,
+      "modifiedChanges": true,
+      "untrackedChanges": false
+    }
+  },
+  "renamed": {
+    "kind": "Renamed",
+    "oldPath": "before",
+    "renameIncludesModifications": true
+  },
+  "resolvedTextConflict": {
+    "conflictMarkerCount": 0,
+    "entry": {
+      "action": "both-added",
+      "kind": "conflicted",
+      "them": "A",
+      "us": "A"
+    },
+    "kind": "Conflicted"
+  },
+  "statusResult": {
+    "branchAheadBehind": {
+      "ahead": 2,
+      "behind": 1
+    },
+    "currentBranch": "main",
+    "currentTip": "abc123",
+    "currentUpstreamBranch": "origin/main",
+    "doConflictedFilesExist": false,
+    "files": [
+      {
+        "path": "src/thing.ts",
+        "startsUnselected": false,
+        "status": {
+          "kind": "Modified"
+        }
+      }
+    ],
+    "isCherryPickingHeadFound": false,
+    "mergeHeadFound": false,
+    "squashMsgFound": false
+  },
+  "textConflict": {
+    "conflictMarkerCount": 3,
+    "entry": {
+      "action": "both-modified",
+      "kind": "conflicted",
+      "them": "U",
+      "us": "U"
+    },
+    "kind": "Conflicted"
+  }
+}

@@ -24,6 +24,7 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 use crate::diff::get_binary_paths;
 use crate::diff_check::get_files_with_conflict_markers;
@@ -43,66 +44,106 @@ use crate::status_parser::{
 const CONFLICT_STATUS_CODES: [&str; 7] = ["DD", "AU", "UD", "UA", "DU", "AA", "UU"];
 
 /// How far ahead/behind a branch is relative to its upstream.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AheadBehind {
     pub ahead: u32,
     pub behind: u32,
 }
 
 /// How the app presents a changed file.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Internally tagged on `kind`, which reproduces the original TypeScript discriminated union
+/// (`{ kind: AppFileStatusKind.Modified, … }`) exactly — the variant names already match the
+/// ported `AppFileStatusKind` values.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all_fields = "camelCase")]
 pub enum AppFileStatus {
     New {
+        #[serde(skip_serializing_if = "Option::is_none")]
         submodule_status: Option<SubmoduleStatus>,
     },
     Modified {
+        #[serde(skip_serializing_if = "Option::is_none")]
         submodule_status: Option<SubmoduleStatus>,
     },
     Deleted {
+        #[serde(skip_serializing_if = "Option::is_none")]
         submodule_status: Option<SubmoduleStatus>,
     },
     Copied {
         old_path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
         submodule_status: Option<SubmoduleStatus>,
         rename_includes_modifications: bool,
     },
     Renamed {
         old_path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
         submodule_status: Option<SubmoduleStatus>,
         rename_includes_modifications: bool,
     },
     Untracked {
+        #[serde(skip_serializing_if = "Option::is_none")]
         submodule_status: Option<SubmoduleStatus>,
     },
     Conflicted(ConflictedFileStatus),
 }
 
+/// The porcelain status for an unmerged entry.
+///
+/// Mirrors `UnmergedEntry` in the ported `src/models/status.ts`, which is a member of the `FileEntry`
+/// union and therefore carries `kind: 'conflicted'`. Serde's internally-tagged *struct*
+/// representation emits that constant tag, with `rename` supplying the lowercase name.
+///
+/// This is a separate type from the parser's [`crate::status_parser::FileEntry::Conflicted`] on
+/// purpose: that one is an internal parsing detail and isn't serialized, whereas this crosses the
+/// IPC boundary and so has to match the TypeScript byte for byte.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename = "conflicted", rename_all = "camelCase")]
+pub struct UnmergedEntry {
+    pub action: UnmergedEntrySummary,
+    pub us: GitStatusEntry,
+    pub them: GitStatusEntry,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub submodule_status: Option<SubmoduleStatus>,
+}
+
 /// A conflict, and whether we can count markers in it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Untagged, because in the original these were two shapes of the *same* `Conflicted` kind,
+/// distinguished by whether `conflictMarkerCount` is present (`isConflictWithMarkers` tested for
+/// exactly that). Tagging it would introduce a discriminator the TypeScript side never had.
+///
+/// The conflict details sit **nested under `entry`**, not flattened alongside `conflictMarkerCount`.
+/// That mirrors the original's `parseConflictedState`, which assigned the whole `UnmergedEntry`
+/// through — and it matters, because `src/lib/status.ts` consumes the ported `AppFileStatus` and
+/// would not typecheck against a flattened shape.
+///
+/// Note the original's `ConflictsWithMarkers.submoduleStatus` is deliberately not represented:
+/// the type permits it, but `parseConflictedState` never sets it — the submodule status a conflict
+/// carries is the one inside `entry`.
+///
+/// `WithMarkers` must stay first: untagged deserialization tries variants in declaration order, and
+/// `Manual` would happily match a payload that has a marker count by ignoring the extra field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged, rename_all_fields = "camelCase")]
 pub enum ConflictedFileStatus {
     /// A text conflict, with the number of leftover markers found.
     ///
     /// Only produced for both-added/both-modified conflicts in non-binary files, which are the
     /// ones where git writes markers into the working copy.
     WithMarkers {
-        action: UnmergedEntrySummary,
-        us: GitStatusEntry,
-        them: GitStatusEntry,
-        submodule_status: Option<SubmoduleStatus>,
+        entry: UnmergedEntry,
         conflict_marker_count: usize,
     },
     /// A conflict the user has to resolve by choosing a side — either because it isn't a
     /// content conflict, or because the file is binary and has no markers to count.
-    Manual {
-        action: UnmergedEntrySummary,
-        us: GitStatusEntry,
-        them: GitStatusEntry,
-        submodule_status: Option<SubmoduleStatus>,
-    },
+    Manual { entry: UnmergedEntry },
 }
 
 /// One changed path, as git sees it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StatusFileChange {
     /// Path relative to the repository root.
     pub path: String,
@@ -116,14 +157,20 @@ pub struct StatusFileChange {
 }
 
 /// The status of a repository.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StatusResult {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub current_branch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub current_upstream_branch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub current_tip: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub branch_ahead_behind: Option<AheadBehind>,
     pub merge_head_found: bool,
     pub squash_msg_found: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rebase_internal_state: Option<RebaseInternalState>,
     pub is_cherry_picking_head_found: bool,
     /// Changed paths, in the order git reported them.
@@ -429,12 +476,16 @@ fn to_conflicted_status(
         .iter()
         .any(|binary| binary == path);
 
+    let entry = UnmergedEntry {
+        action,
+        us,
+        them,
+        submodule_status,
+    };
+
     if has_markers {
         ConflictedFileStatus::WithMarkers {
-            action,
-            us,
-            them,
-            submodule_status,
+            entry,
             conflict_marker_count: conflict_details
                 .conflict_counts_by_path
                 .get(path)
@@ -442,12 +493,7 @@ fn to_conflicted_status(
                 .unwrap_or(0),
         }
     } else {
-        ConflictedFileStatus::Manual {
-            action,
-            us,
-            them,
-            submodule_status,
-        }
+        ConflictedFileStatus::Manual { entry }
     }
 }
 
@@ -747,11 +793,10 @@ mod tests {
 
         match &conflicted.status {
             AppFileStatus::Conflicted(ConflictedFileStatus::WithMarkers {
-                action,
+                entry,
                 conflict_marker_count,
-                ..
             }) => {
-                assert_eq!(*action, UnmergedEntrySummary::BothModified);
+                assert_eq!(entry.action, UnmergedEntrySummary::BothModified);
                 assert!(
                     *conflict_marker_count > 0,
                     "a text conflict should have countable markers"

@@ -14,6 +14,7 @@
 
 use std::path::Path;
 
+use serde::{Deserialize, Serialize};
 use tokio::fs;
 
 /// Whether a merge is in progress (`MERGE_HEAD` exists).
@@ -45,7 +46,8 @@ async fn path_exists(path: impl AsRef<Path>) -> bool {
 }
 
 /// What git records about an in-progress rebase.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RebaseInternalState {
     /// The branch whose commits are being rebased.
     pub target_branch: String,

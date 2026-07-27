@@ -1,0 +1,22 @@
+[package]
+name = "trampoline"
+version = "0.1.0"
+edition = "2021"
+description = "Credential/askpass bridge between git and rdc — replaces desktop-plus's vendored desktop-trampoline C binary plus app/src/lib/trampoline/**"
+
+[lib]
+name = "trampoline"
+path = "src/lib.rs"
+
+# The binary git actually invokes (as GIT_ASKPASS, SSH_ASKPASS or a credential helper).
+# Deliberately tiny: it connects, forwards argv/env/stdin, prints the reply.
+[[bin]]
+name = "rdc-trampoline"
+path = "src/bin/rdc-trampoline.rs"
+
+[dependencies]
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["net", "io-util", "rt", "macros", "sync"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "process", "io-util"] }

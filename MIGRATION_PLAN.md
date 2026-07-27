@@ -566,9 +566,56 @@ uses the ambient `Electron` namespace. That one is Phase 3.
 | `popup-manager` | `models/popup.ts` → UI dialogs **and** `Electron.Certificate` | 5 / 7 |
 | `stats-store`, `app-store-test-harness` | `lib/stores/**` | 7 |
 
-**Next:** the natural continuation is `crates/trampoline` (unblocks `ssh`, and `deleteRemoteBranch`
-and the remote git operations all wait on it), or the rest of `lib/git/**`:
-commit/checkout/merge/rebase/stash/push/pull/fetch/log/remote/tag.
+**✅ DONE — `crates/trampoline`, plus `ssh` recovered. 240 Rust tests; deferred list now 5.**
+
+`crates/trampoline` replaces **two** things at once, which is the improvement this phase promised:
+the vendored `desktop-trampoline` **C binary** (a node-gyp native addon built per platform) and the
+TypeScript half in `app/src/lib/trampoline/**`. One Rust crate, one toolchain.
+
+git can't prompt a GUI for credentials, so it spawns a helper and reads the answer from its stdout.
+rdc points `GIT_ASKPASS`/`SSH_ASKPASS`/the credential helper at `rdc-trampoline`, which forwards its
+argv, environment and stdin to the app over loopback and prints the reply:
+
+```text
+ git ──spawns──> rdc-trampoline ──TCP 127.0.0.1──> rdc (TrampolineServer)
+  ^                    │                                    │
+  └───── stdout ───────┘<──────────── reply ───────────────┘
+```
+
+- `protocol.rs` — the NUL-framed wire format, ported from `trampoline-command-parser.ts` and the C
+  client. NUL framing is load-bearing: prompts span multiple lines and argv can contain anything but
+  NUL. Environment entries split on the **first** `=` so values may contain `=`.
+- `token.rs` — the security boundary. The port is on loopback but **any local process can connect**,
+  so a per-operation random token is what distinguishes git-invoked-by-us from anything that found
+  the port. Comparison is constant-time (the original's `Set.has` was not), and `scoped()` revokes via
+  a drop guard so it survives an unwind.
+- `server.rs` — accepts, authenticates, dispatches to injected handlers, one task per connection so a
+  slow prompt can't block another git process.
+- `bin/rdc-trampoline.rs` — deliberately dumb. One subtlety: it reads stdin **only** for the
+  credential helper. Askpass invocations get no stdin, and reading unconditionally would block until
+  git closed the pipe — deadlocking the prompt. There's a timeout-guarded regression test for it.
+
+**Handlers are deliberately out of scope**: deciding which account to use, prompting, and storing
+credentials need account state and UI, so they arrive with Phase 3/7. The server takes handlers as
+injected closures precisely to keep that boundary clean.
+
+**Verification worth noting**: besides 36 unit tests there are **7 end-to-end tests that spawn the
+real compiled binary** (via `CARGO_BIN_EXE_`) against a real server. Unit tests exercising each half
+against the other in-process cannot catch a mismatch in argv handling, environment forwarding, the
+stdin decision, or how the reply reaches stdout — which is exactly where a two-process protocol
+breaks.
+
+`ssh` was recovered separately and cheaply: `parseAddSSHHostPrompt` is a pure regex parser that sat
+in `lib/ssh/ssh.ts` next to `getSSHEnvironment`, which imports the trampoline paths and `fs`. Sixth
+instance of the co-located-declaration pattern; extracted to `lib/ssh/ssh-host-prompt.ts` (4 tests).
+
+**Remaining 5:** `ipc-contract` and `format-commit-message` (Phase 3, IPC), `popup-manager`
+(Phase 5/7), `stats-store` and `app-store-test-harness` (Phase 7).
+
+**Next:** the rest of `lib/git/**` —
+commit/checkout/merge/rebase/stash/push/pull/fetch/log/remote/tag. The remote ones
+(push/pull/fetch/clone, and `deleteRemoteBranch`) can now use the trampoline for credentials, though
+they need the handlers to be wired up in Phase 3 before they work end to end.
 
 **Note for Phase 3:** the status types carry no `serde`/`specta` derives yet. They will need them
 to cross IPC, but the representation is an IPC decision, so it belongs with the binding-generation
@@ -584,11 +631,76 @@ work rather than being guessed at now.
 
 </details>
 
-### Phase 3 — IPC surface → Tauri commands
+### Phase 3 — IPC surface → Tauri commands — **first vertical slice DONE**
+
+The first command is wired end to end: `get_status` runs git in Rust and renders in React.
+
+**Decisions settled by the slice, each of which was blocking:**
+- **Native Tauri IPC, no codegen** (see the struck-through item below), with a wire-contract test as
+  the mitigation.
+- **Serialization shapes chosen so the already-ported TypeScript is reused, not duplicated.**
+  `GitStatusEntry` serializes to its single characters (`'M'`), `UnmergedEntrySummary` to kebab-case,
+  `AppFileStatusKind` to PascalCase — exactly the values in `src/models/status.ts`. `AppFileStatus`
+  uses serde's **internally tagged** representation, which reproduces the original TypeScript
+  discriminated union (`{ kind: 'Modified', … }`) precisely; `ConflictedFileStatus` is **untagged**,
+  because the original distinguished its two shapes by the *presence* of `conflictMarkerCount` rather
+  than a discriminator.
+- **`Option` fields are omitted, not `null`**, matching TypeScript optional properties under
+  `strictNullChecks`.
+- **Errors keep their classification.** Tauri requires the error type to implement `Serialize`, and
+  the usual `.map_err(|e| e.to_string())` would discard the work in `git_error_kind.rs`. Commands
+  return a `CommandError { message, kind, isAuthFailure }` instead, so the UI can branch on a
+  specific failure without parsing prose — which is also what keeps user-facing wording in the
+  frontend, per the `getDescriptionForError` decision.
+- **Streaming uses Channels, not events.** Tauri's docs are explicit that events are not for
+  high-throughput data. So the original's `processCallback`/`onTerminalOutputAvailable` — git progress
+  and terminal output during push/pull/fetch — maps to a `Channel`, not `app.emit`. Worth knowing
+  before those commands are written.
+
+Also committed the generator for `git_error_kind.rs`
+(`crates/git-ops/scripts/generate-git-error-kind.mjs`), which previously lived only in a scratch
+directory even though the generated file told you to re-run it. The TypeScript `GitErrorKind` enum is
+likewise derived from the Rust source rather than hand-typed, so its 60 variants can't drift.
+
+**Next in this phase:** the remaining `ipc-shared.ts` channel inventory, and the trampoline handlers
+(the transport is done; the handlers need account state).
+
+<details><summary>original phase description</summary>
 - `app/src/lib/ipc-shared.ts` declares 77 channels — treat this as the literal spec. Build a table (in `MIGRATION_MAP.md`) of channel → Tauri command/event, and knock them out systematically rather than ad hoc as UI needs them.
 - Request/response channels (`ipcMain.handle`) → `#[tauri::command]` + `invoke`.
-- Main→renderer push channels (`webContents.send`) → `app.emit()` + `listen()`.
-- **Improvement**: adopt `tauri-specta` (or `ts-rs`) to generate TS bindings + types directly from Rust command signatures. The current hand-synced `ipc-shared.ts` channel list is exactly the kind of manually-maintained contract this eliminates — do it from day one of Phase 3 rather than retrofitting later.
+- Main→renderer push channels (`webContents.send`) → `app.emit()` + `listen()`, or a **Channel** for
+  anything streaming (git progress, terminal output).
+
+</details>
+- ~~**Improvement**: adopt `tauri-specta` (or `ts-rs`)~~ — **DECIDED AGAINST after prototyping
+  ts-rs against the real types.** ts-rs emits string-literal unions (`"M"`) where the ported models
+  use `enum`, and TypeScript string enums are nominal — so its output is not assignable to
+  `src/models/status.ts`. The deeper reason: a Rust→TS generator assumes Rust owns the domain model,
+  but here the 50+ ported types in `src/models/**` own it. Full evaluation in `MIGRATION_MAP.md` §8.
+  **rdc uses Tauri's native IPC**: `#[tauri::command]` + `invoke`, with events and Channels for the Rust→frontend
+  direction. No binding generator, no extra dependency.
+
+  The tradeoff is real and needs a mitigation, since a hand-written TypeScript contract is the very
+  thing criticised about `ipc-shared.ts`. The mitigation went through two rounds, and the first was
+  not enough:
+
+  - `crates/git-ops/tests/wire_contract.rs` pins the exact JSON of every boundary type, and
+    `src/App.test.tsx` pins the command name and camelCase argument names. This caught a real
+    mistake immediately — `#[serde(rename_all)]` on an enum renames *variants*, not fields, so the
+    conflict types were emitting `conflict_marker_count`.
+  - **But pinning Rust against JSON written in the same file is not pinning it against the domain
+    model.** A conflict shape passed every one of those assertions while being unusable by
+    `src/lib/status.ts`: the Rust flattened `action`/`us`/`them`, the ported `models/status.ts` nests
+    them under `entry`, and the Rust, its test, and `git-ipc.ts`'s own redeclared type were all
+    wrong together. Two definitions of one domain concept is what made it invisible.
+  - The fix closes the loop with no hand-copied JSON: Rust **emits** its real serializer output to
+    `src/lib/__generated__/wire-snapshot.json`, and `src/lib/git-ipc.test.ts` compares it to fixtures
+    annotated with the ported types — so `tsc` checks the shape against `src/models/**` and the
+    assertion checks it against Rust. Neither side can drift alone. Verified by reintroducing the
+    flattened shape and watching the suite go red.
+
+  The rule that came out of it: **if a type already exists in `src/models/**`, the IPC layer imports
+  it — never redeclares it.**
 
 ### Phase 3.5 — Wayland/X11 reality on the primary target (decided ahead of schedule, in Phase 0)
 

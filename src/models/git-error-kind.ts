@@ -1,0 +1,73 @@
+/**
+ * Classified git failures, mirroring `GitErrorKind` in
+ * `src-tauri/crates/git-ops/src/git_error_kind.rs`.
+ *
+ * The Rust enum is itself generated from dugite's error table (see
+ * `crates/git-ops/scripts/generate-git-error-kind.mjs`), and serde serializes each variant as its
+ * name — so these string values *are* the wire representation. A command rejection carries one of
+ * them as `kind`, which is what lets the UI branch on a specific failure without parsing prose.
+ *
+ * Derived from the Rust source rather than typed by hand, so the 60 variants cannot drift apart.
+ */
+export enum GitErrorKind {
+  BadConfigValue = 'BadConfigValue',
+  SSHKeyAuditUnverified = 'SSHKeyAuditUnverified',
+  SSHAuthenticationFailed = 'SSHAuthenticationFailed',
+  SSHPermissionDenied = 'SSHPermissionDenied',
+  HTTPSAuthenticationFailed = 'HTTPSAuthenticationFailed',
+  RemoteDisconnection = 'RemoteDisconnection',
+  HostDown = 'HostDown',
+  RebaseConflicts = 'RebaseConflicts',
+  MergeConflicts = 'MergeConflicts',
+  HTTPSRepositoryNotFound = 'HTTPSRepositoryNotFound',
+  SSHRepositoryNotFound = 'SSHRepositoryNotFound',
+  PushNotFastForward = 'PushNotFastForward',
+  BranchDeletionFailed = 'BranchDeletionFailed',
+  DefaultBranchDeletionFailed = 'DefaultBranchDeletionFailed',
+  RevertConflicts = 'RevertConflicts',
+  EmptyRebasePatch = 'EmptyRebasePatch',
+  NoMatchingRemoteBranch = 'NoMatchingRemoteBranch',
+  NoExistingRemoteBranch = 'NoExistingRemoteBranch',
+  NothingToCommit = 'NothingToCommit',
+  NoSubmoduleMapping = 'NoSubmoduleMapping',
+  SubmoduleRepositoryDoesNotExist = 'SubmoduleRepositoryDoesNotExist',
+  InvalidSubmoduleSHA = 'InvalidSubmoduleSHA',
+  LocalPermissionDenied = 'LocalPermissionDenied',
+  InvalidMerge = 'InvalidMerge',
+  InvalidRebase = 'InvalidRebase',
+  NonFastForwardMergeIntoEmptyHead = 'NonFastForwardMergeIntoEmptyHead',
+  PatchDoesNotApply = 'PatchDoesNotApply',
+  BranchAlreadyExists = 'BranchAlreadyExists',
+  BadRevision = 'BadRevision',
+  NotAGitRepository = 'NotAGitRepository',
+  CannotMergeUnrelatedHistories = 'CannotMergeUnrelatedHistories',
+  LFSAttributeDoesNotMatch = 'LFSAttributeDoesNotMatch',
+  BranchRenameFailed = 'BranchRenameFailed',
+  PathDoesNotExist = 'PathDoesNotExist',
+  InvalidObjectName = 'InvalidObjectName',
+  OutsideRepository = 'OutsideRepository',
+  LockFileAlreadyExists = 'LockFileAlreadyExists',
+  NoMergeToAbort = 'NoMergeToAbort',
+  LocalChangesOverwritten = 'LocalChangesOverwritten',
+  UnresolvedConflicts = 'UnresolvedConflicts',
+  GPGFailedToSignData = 'GPGFailedToSignData',
+  ConflictModifyDeletedInBranch = 'ConflictModifyDeletedInBranch',
+  PushWithFileSizeExceedingLimit = 'PushWithFileSizeExceedingLimit',
+  HexBranchNameRejected = 'HexBranchNameRejected',
+  ForcePushRejected = 'ForcePushRejected',
+  InvalidRefLength = 'InvalidRefLength',
+  ProtectedBranchRequiresReview = 'ProtectedBranchRequiresReview',
+  ProtectedBranchForcePush = 'ProtectedBranchForcePush',
+  ProtectedBranchDeleteRejected = 'ProtectedBranchDeleteRejected',
+  ProtectedBranchRequiredStatus = 'ProtectedBranchRequiredStatus',
+  PushWithPrivateEmail = 'PushWithPrivateEmail',
+  ConfigLockFileAlreadyExists = 'ConfigLockFileAlreadyExists',
+  RemoteAlreadyExists = 'RemoteAlreadyExists',
+  TagAlreadyExists = 'TagAlreadyExists',
+  MergeWithLocalChanges = 'MergeWithLocalChanges',
+  RebaseWithLocalChanges = 'RebaseWithLocalChanges',
+  MergeCommitNoMainlineOption = 'MergeCommitNoMainlineOption',
+  UnsafeDirectory = 'UnsafeDirectory',
+  PathExistsButNotInRef = 'PathExistsButNotInRef',
+  PushWithSecretDetected = 'PushWithSecretDetected',
+}

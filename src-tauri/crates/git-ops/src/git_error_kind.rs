@@ -1,7 +1,7 @@
 //! Classification of git failures from stderr.
 //!
-//! GENERATED — do not edit by hand. Regenerate with the script recorded in MIGRATION_MAP.md if
-//! dugite's table changes.
+//! GENERATED — do not edit by hand. Regenerate with `scripts/generate-git-error-kind.mjs` (see
+//! that file for usage) when upgrading the dugite version this is derived from.
 //!
 //! The [`GitErrorKind`] variants and the pattern table below are reproduced verbatim from
 //! dugite v3.2.2 (`build/lib/errors.js`), which is what `desktop-plus` used via
@@ -20,11 +20,12 @@
 use std::sync::OnceLock;
 
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 /// A git failure recognized from stderr.
 ///
 /// Mirrors dugite's `GitError` enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum GitErrorKind {
     BadConfigValue,
     SSHKeyAuditUnverified,

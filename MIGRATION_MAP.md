@@ -137,6 +137,8 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/rev-parse.ts` | `crates/git-ops/src/rev_parse.rs` — **done**: `RepositoryType` (`Regular`/`Bare`/`Missing`/`Unsafe`), `get_repository_type`, and the upstream-ref helpers. | 2 |
 | `lib/helpers/default-branch.ts` (`getDefaultBranch`/`setDefaultBranch`) | **now unblocked** by `config.rs`'s `GlobalConfig`, but still outstanding: the `"main"` fallback is app policy that belongs above the git layer, so wire it up there rather than inside `git-ops`. | 2 |
 | `lib/status-parser.ts` + the status types from `models/status.ts` | `crates/git-ops/src/status_parser.rs` — **done**. **Supersedes the Phase 1 TypeScript port**: `src/lib/status-parser.ts` and its test are deleted, as is `src/lib/split-buffer.ts` (its only consumer was that parser, and it is Node `Buffer`-based so unusable in a webview). Decision recorded in `MIGRATION_PLAN.md` Phase 2: since `lib/git/status.ts` becomes a Rust command, parsing had to move with it, or Rust would ship raw porcelain over IPC for the frontend to interpret. | 2 |
+| `lib/trampoline/**` (11 files) + the vendored `desktop-trampoline` C binary | `src-tauri/crates/trampoline/` — **done** for the transport: `protocol.rs`, `token.rs`, `server.rs`, `client.rs` and the `rdc-trampoline` binary. **Handlers outstanding** (`trampoline-askpass-handler.ts`, `trampoline-credential-helper.ts`, `trampoline-ui-helper.ts`, `find-account.ts`) — they need account state and UI, so Phase 3/7. One Rust crate replaces both the C binary and the TypeScript half. | 2 |
+| `lib/ssh/ssh.ts` (`parseAddSSHHostPrompt` only) | `rdc/src/lib/ssh/ssh-host-prompt.ts` — **done**. `getSSHEnvironment` stays with the trampoline/shell work; it produces `SSH_ASKPASS`/`GIT_SSH_COMMAND` pointing at the trampoline binary. | 2 / 4 |
 | `lib/git/status.ts` | `crates/git-ops/src/status.rs` — **done**: `get_status`, `StatusResult`, `AppFileStatus`, `ConflictedFileStatus`, header parsing and conflict-detail gathering. Returns git facts only; `WorkingDirectoryFileChange`/`DiffSelection`/`WorkingDirectoryStatus` stay frontend (see §8). | 2 |
 | `lib/git/merge.ts` (`isMergeHeadSet`, `isSquashMsgSet`), `lib/git/cherry-pick.ts` (`isCherryPickHeadFound`), `lib/git/rebase.ts` (`isRebaseHeadSet`, `getRebaseInternalState`) + `models/rebase.ts` (`RebaseInternalState`) | `crates/git-ops/src/operation_state.rs` — **done**. Collected into one module because these are the marker-file checks `status` needs and nothing else from those (154/499/627-line) files; the rest lands with each module's own port. | 2 |
 | `lib/git/diff-check.ts` | `crates/git-ops/src/diff_check.rs` — **done**. | 2 |
@@ -174,7 +176,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | Old path | New path | Note | Phase |
 |---|---|---|---|
 | `lib/ipc-renderer.ts` | *(deleted, not ported)* | superseded entirely by `@tauri-apps/api/core` `invoke`/`listen` | 3 |
-| `lib/ipc-shared.ts` | `rdc/MIGRATION_MAP.md` §7 channel table, then generated types via `tauri-specta` | 3 |
+| `lib/ipc-shared.ts` | `rdc/MIGRATION_MAP.md` §7 channel table; hand-written `src/lib/*-ipc.ts` wrappers over native `invoke` (**no** codegen — see §8) | 3 |
 | `lib/app-shell.ts` | `rdc/src/lib/app-shell.ts` | thin wrapper, becomes `invoke('reveal_in_file_manager', …)` etc. | 3 |
 | `lib/stores/app-store.ts` | `rdc/src/lib/stores/app-store.ts` | **keep this file and its shape** (Phase 7 principle) — only its direct OS-touching calls change to `invoke` | 7 |
 | `lib/stores/git-store.ts` | `rdc/src/lib/stores/git-store.ts` | same | 7 |
@@ -267,8 +269,8 @@ Copilot feature is actually migrated; the type could also just be declared local
 Also ported (Step 2): `diff-parser` → `src/lib/diff-parser.test.ts`, alongside
 `src/lib/diff-parser.ts` and the new `src/lib/diff-hunks.ts` (see §8).
 
-**Blocked** (6, was 15): `ipc-contract`, `popup-manager`, `ssh`, `format-commit-message`,
-`stats-store`, `app-store-test-harness`. All six are now genuinely phase-gated rather than blocked by
+**Blocked** (5, was 15): `ipc-contract`, `popup-manager`, `format-commit-message`, `stats-store`,
+`app-store-test-harness`. All six are now genuinely phase-gated rather than blocked by
 layering — what each needs, and in which phase, is tabulated in `MIGRATION_PLAN.md`.
 
 **Recovered (2):**
@@ -301,13 +303,104 @@ its direction (request/response vs main→renderer push), and its target Tauri
 command/event name. Do it as a dedicated pass over `ipc-shared.ts` rather than ad hoc as UI
 components get ported, per `MIGRATION_PLAN.md` Phase 3.
 
+Each row's TypeScript wrapper lives in a `src/lib/*-ipc.ts` module grouped by domain, and the JSON
+shape of everything it carries is pinned by a wire-contract test on the Rust side.
+
 | Channel | Direction | Tauri command/event | Status |
 |---|---|---|---|
-| _(TBD — populate at Phase 3 kickoff)_ | | | |
+| _(no direct equivalent — new)_ | request/response | `get_status` → `src/lib/git-ipc.ts` `getStatus()` | **done** |
+| _(remaining 77 — populate as each is ported)_ | | | |
 
 ---
 
 ## 8. Deliberate deviations from a verbatim port
+
+### IPC uses Tauri's native mechanism, with no binding generator
+
+**Evaluated and decided, not assumed.** ts-rs was prototyped against the real types before this was
+settled; the prototype is why the answer is no. See "Why not a generator" below.
+
+
+The plan originally called for `tauri-specta`/`ts-rs` to generate TypeScript from the Rust command
+signatures. rdc instead uses **plain `#[tauri::command]` + `invoke`**, with events and Channels for
+the Rust→frontend direction.
+
+The cost is that `src/lib/git-ipc.ts` is hand-written, which is the same manual-contract problem
+`ipc-shared.ts` had. The mitigation is that **the contract is enforced in Rust**:
+`crates/git-ops/tests/wire_contract.rs` asserts the exact JSON of every type crossing the boundary,
+and `src/App.test.tsx` pins the command name and its camelCase argument names. A rename on either
+side fails a test rather than silently producing `undefined` in the webview.
+
+Two consequences worth knowing before writing more commands:
+
+- **Commands return `CommandError`, not `String`.** Tauri requires the error type to `Serialize`;
+  the reflexive `.map_err(|e| e.to_string())` would discard `GitErrorKind`. `CommandError` keeps the
+  classified `kind` alongside the message, which is what allows user-facing wording to stay in the
+  frontend (see `getDescriptionForError` below).
+- **Streaming output uses a `Channel`, not `app.emit`.** Tauri's docs say events are unsuited to
+  high-throughput data, so the original's `processCallback` / `onTerminalOutputAvailable` — progress
+  during push/pull/fetch — maps to a Channel argument on the command.
+
+#### Why not a generator
+
+The candidates, checked in July 2026:
+
+| | Generates | Status | Native `invoke`? |
+|---|---|---|---|
+| **ts-rs** | types only | 12.0.1 stable, 4.0M dl/90d | yes |
+| **tauri-specta** | types + command wrappers + events | 2.0.0-**rc.25**, 445k dl/90d | no — replaces `generate_handler!` |
+| **typeshare** | types only | 1.0.5, static analysis | yes |
+| **tauri-bindgen** (official org) | WIT bindings | "under heavy development", not on crates.io | n/a |
+
+There is no official Tauri answer, so "idiomatic" means convention, not endorsement. `tauri-specta`
+is healthy but swaps `tauri::generate_handler!` for its own builder and a generated `commands.*`
+client — that *is* the generator layer we're avoiding. `typeshare` loses cross-crate information,
+and our boundary types live in `git-ops` and surface through the app crate.
+
+**ts-rs was the real candidate, and it fails on a specific, structural mismatch.** It handles every
+serde representation we use correctly — the internally-tagged struct emits `kind: "conflicted"`, the
+untagged enum works, `rename_all_fields` works, `skip_serializing_if` + `default` yields `?:`. But its
+output is *not assignable to the ported models*, because it emits string-literal unions where the
+ported TypeScript uses `enum`:
+
+```
+export type GitStatusEntry = "M" | "A" | "U"       // ts-rs
+export enum GitStatusEntry { Modified = 'M', … }   // ported models/status.ts
+```
+
+TypeScript string enums are **nominal**. `"Modified"` is not assignable to
+`AppFileStatusKind.Modified`, so the generated `AppFileStatus` cannot stand in for the ported one —
+verified with `tsc`, not assumed. It also emits `T | null` for `Option` where the ported types use
+optional properties.
+
+The underlying reason is a premise clash, and it is specific to this project. **A Rust→TS generator
+assumes Rust owns the domain model. Here TypeScript owns it**: `src/models/**` holds 50+ types ported
+from the original — `commit.ts`, `branch.ts`, `remote.ts`, `stash-entry.ts`, `submodule.ts` — which
+are exactly what the remaining commands return, and which the ported UI already consumes. Generating
+would mean either a second definition of every domain type (the bug above, now automated) or
+rewriting ported models to suit the generator. Both are worse than writing the wrapper by hand.
+
+#### What replaces the generator
+
+The problem was never that types are hand-written — it was that **nothing compared the wire shape to
+the domain model**. That is now a closed loop with no hand-copied JSON:
+
+1. `wire_contract.rs` emits Rust's real serializer output to
+   `src/lib/__generated__/wire-snapshot.json` (regenerate with `UPDATE_WIRE_SNAPSHOT=1`).
+2. `src/lib/git-ipc.test.ts` declares fixtures **annotated with the ported types**, so `tsc` rejects
+   any shape `src/models/**` would not accept.
+3. That test asserts each fixture equals its snapshot entry, and runs the ported consumers
+   (`mapStatus`, `isConflictWithMarkers`) over them.
+
+Rust drifting from the domain model fails step 3; a fixture edited to match a bad shape fails step 2.
+Verified by reintroducing the flattened conflict into the snapshot and confirming the suite goes red.
+
+Serialization was also chosen to **reuse the already-ported TypeScript enums** rather than duplicate
+them: `AppFileStatus` is `#[serde(tag = "kind")]` (internally tagged), which reproduces the original
+discriminated union exactly, while `ConflictedFileStatus` is `untagged` because the original
+discriminated its two shapes by the presence of `conflictMarkerCount`. `Option` fields use
+`skip_serializing_if` so they are absent rather than `null`, matching TS optional properties.
+
 
 Every change made to ported code, so nobody has to diff against `desktop-plus` to find them.
 
@@ -334,6 +427,9 @@ tree, Electron, and `lib/stores`:
 | `src/models/accessible-message.ts` | added `import type { JSX } from 'react'` | React 19 removed the global `JSX` namespace the file relied on under React 16. `models/banner.ts` has the same issue and will need the same fix whenever it's unblocked. |
 | `crates/git-ops/src/init.rs` (Phase 2) | `init_repository` takes `default_branch` as a parameter; the original `initGitRepository(path)` called `getDefaultBranch()` internally | That helper reads the user's **global** `init.defaultBranch` and falls back to `"main"` — ambient machine configuration plus app policy, reached from inside a low-level git call. It made the function's result depend on the developer's machine, and made the original test tautological: it asserted the branch equalled `getDefaultBranch()`, the very function the code called, so it could not have caught the argument being ignored. Resolution now belongs to the caller; the config lookup + fallback lands with `config.rs`. |
 | `crates/git-ops/src/add.rs` (Phase 2) | test asserts via `git ls-files -u` instead of the app's status parser | The original used `getStatusOrThrow`, and `lib/git/status.ts` isn't ported. Querying git's index directly is the same behavioural claim ("no longer an unmerged entry") while using git as the oracle rather than another unported module. |
+| `crates/trampoline/src/token.rs` (Phase 2) | constant-time token comparison, where the original used `Set.has` | The token is the only thing separating git-invoked-by-us from any other local process that found the loopback port, so a timing oracle on a live token is worth closing — it costs nothing. Also `scoped()` revokes through a drop guard rather than a `finally`, so revocation survives a panic/unwind as well as an error. |
+| `crates/trampoline/src/bin/rdc-trampoline.rs` (Phase 2) | reads stdin **only** for the credential helper | Askpass invocations are given no stdin. Reading it unconditionally would block until git closed the pipe, deadlocking the credential prompt — the kind of bug that only appears in the two-process case, so there is a timeout-guarded end-to-end test for it. Diagnostics go to stderr, never stdout, because git treats the binary's stdout as the credential itself. |
+| `rdc/src/lib/ssh/ssh-host-prompt.ts` (Phase 2) | `parseAddSSHHostPrompt` extracted out of `lib/ssh/ssh.ts` | **Sixth instance of the co-located-declaration pattern.** A pure regex parser sat next to `getSSHEnvironment`, which imports the trampoline paths and `pathExists` (`fs`), so the test for the parser was blocked behind the whole trampoline module. |
 | `rdc/src/lib/multi-commit-operation.ts` (Phase 2) | two parameter types **narrowed to the subset each function reads** | The originals declared `IRepositoryState` and `IMultiCommitOperationState` from the 1,319-line `app-state.ts`, but the functions read only `state.branchesState` and `state.step.kind`. Naming the god-module types meant two field reads depended on the whole module — and through it on `lib/git/config` and `ui/lib/application-theme`. TypeScript is structurally typed, so **callers are unaffected**: a full `IRepositoryState` still satisfies `RepositoryStateForChooseBranch`. Naming a large state type when you read one field of it is how a god module acquires its gravity — worth checking for elsewhere. |
 | `rdc/src/models/repository.ts` (Phase 2) | **redesigned**: `Repository` is a plain data type. `url` is a readonly constructor field instead of a self-resolving getter, and `resolvedGitDir` is removed. | The original `url` getter was synchronous but fired an un-awaited `getRemotes()` subprocess, so the first read always returned `null`, every read before it settled spawned *another* `git remote`, and the promise had no `.catch`. Making `url` data means **a data type cannot do IO, so the bug is unrepresentable rather than fixed**. `url` is excluded from `hash` on purpose: two repositories differing only in a value fetched from git are the same repository. `resolvedGitDir` was `gitDir ?? join(path, '.git')`, wrong for worktrees/submodules where `.git` is a file; every consumer was in `lib/git/**` or `git-store.ts` (all Rust-bound) and Rust resolves it properly via `rev_parse::resolve_git_dir`. Unblocked 5 tests. |
 | `rdc/src/lib/path-utils.ts` (Phase 2) | a local `basename` replaces Node's `path` in three models | Node's `path` doesn't exist in a webview and a polyfill isn't worth two `basename` calls. Tested against `node:path/posix` rather than hand-written expectations, which caught a real surprise: Node compares the suffix to the **entire path**, so `basename('.git', '.git')` is `''` while `basename('/foo/.git', '.git')` is `'.git'`. Reproduced deliberately, since callers may rely on it. Deliberately provides **no `normalize`/`resolve`** — `..`-beyond-root, drive letters and UNC paths are where hand-rolled path code goes wrong, so those belong in Rust's `std::path`. |

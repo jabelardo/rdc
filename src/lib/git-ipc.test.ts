@@ -1,0 +1,184 @@
+import { describe, expect, it } from 'vitest'
+import type { AppFileStatus } from '../models/status'
+import {
+  AppFileStatusKind,
+  GitStatusEntry,
+  UnmergedEntrySummary,
+  isConflictWithMarkers,
+  isManualConflict,
+} from '../models/status'
+import { mapStatus } from './status'
+import type { IStatusResult } from './git-ipc'
+import snapshot from './__generated__/wire-snapshot.json'
+
+/**
+ * Proves the Rust wire shape is usable by the ported domain model.
+ *
+ * Two contract tests already existed and both missed a real bug.
+ * `crates/git-ops/tests/wire_contract.rs` pins Rust against JSON written in that same file, and
+ * `App.test.tsx` pins the `invoke` call. A conflict shape satisfied both while being impossible for
+ * `src/lib/status.ts` to consume, because the Rust and its expectations were wrong together.
+ *
+ * The missing link was a check against `src/models/**`. This file is it, and the chain has no
+ * hand-copied JSON in it:
+ *
+ * 1. `wire-snapshot.json` is **emitted by Rust** from the real serializer, not typed out here.
+ * 2. The fixtures below are annotated with the ported types, so `tsc` rejects any shape the domain
+ *    model would not accept.
+ * 3. Each fixture is asserted equal to its snapshot entry.
+ *
+ * So a Rust change that drifts from the ported model fails step 3, and a fixture edited to match a
+ * bad shape fails step 2. Neither can pass alone.
+ *
+ * Regenerate the snapshot after a deliberate shape change:
+ *
+ *     UPDATE_WIRE_SNAPSHOT=1 cargo test -p git-ops --test wire_contract
+ *
+ * Note this is also why the fixtures are typed rather than cast. `as AppFileStatus` would assert the
+ * shape instead of checking it, which defeats the entire purpose of step 2.
+ */
+
+// --- fixtures: annotated with the ported types, compared to Rust's own output ---
+
+const modified: AppFileStatus = {
+  kind: AppFileStatusKind.Modified,
+}
+
+const modifiedSubmodule: AppFileStatus = {
+  kind: AppFileStatusKind.Modified,
+  submoduleStatus: {
+    commitChanged: false,
+    modifiedChanges: true,
+    untrackedChanges: false,
+  },
+}
+
+const renamed: AppFileStatus = {
+  kind: AppFileStatusKind.Renamed,
+  oldPath: 'before',
+  renameIncludesModifications: true,
+}
+
+const textConflict: AppFileStatus = {
+  kind: AppFileStatusKind.Conflicted,
+  entry: {
+    kind: 'conflicted',
+    action: UnmergedEntrySummary.BothModified,
+    us: GitStatusEntry.UpdatedButUnmerged,
+    them: GitStatusEntry.UpdatedButUnmerged,
+  },
+  conflictMarkerCount: 3,
+}
+
+const resolvedTextConflict: AppFileStatus = {
+  kind: AppFileStatusKind.Conflicted,
+  entry: {
+    kind: 'conflicted',
+    action: UnmergedEntrySummary.BothAdded,
+    us: GitStatusEntry.Added,
+    them: GitStatusEntry.Added,
+  },
+  conflictMarkerCount: 0,
+}
+
+const manualConflict: AppFileStatus = {
+  kind: AppFileStatusKind.Conflicted,
+  entry: {
+    kind: 'conflicted',
+    action: UnmergedEntrySummary.DeletedByThem,
+    us: GitStatusEntry.UpdatedButUnmerged,
+    them: GitStatusEntry.Deleted,
+  },
+}
+
+const statusResult: IStatusResult = {
+  currentBranch: 'main',
+  currentUpstreamBranch: 'origin/main',
+  currentTip: 'abc123',
+  branchAheadBehind: { ahead: 2, behind: 1 },
+  mergeHeadFound: false,
+  squashMsgFound: false,
+  isCherryPickingHeadFound: false,
+  files: [
+    {
+      path: 'src/thing.ts',
+      status: { kind: AppFileStatusKind.Modified },
+      startsUnselected: false,
+    },
+  ],
+  doConflictedFilesExist: false,
+}
+
+const emptyStatusResult: IStatusResult = {
+  mergeHeadFound: false,
+  squashMsgFound: false,
+  isCherryPickingHeadFound: false,
+  files: [],
+  doConflictedFilesExist: false,
+}
+
+describe('the git IPC wire shape', () => {
+  it('matches what Rust actually serializes', () => {
+    // The fixtures are type-checked against src/models/**; the snapshot comes from the Rust
+    // serializer. Equality here is what ties the two together.
+    const cases: ReadonlyArray<[string, unknown]> = [
+      ['modified', modified],
+      ['modifiedSubmodule', modifiedSubmodule],
+      ['renamed', renamed],
+      ['textConflict', textConflict],
+      ['resolvedTextConflict', resolvedTextConflict],
+      ['manualConflict', manualConflict],
+      ['statusResult', statusResult],
+      ['emptyStatusResult', emptyStatusResult],
+    ]
+
+    for (const [name, fixture] of cases) {
+      expect(snapshot[name as keyof typeof snapshot], name).toEqual(fixture)
+    }
+  })
+
+  it('covers every case the snapshot contains', () => {
+    // Guards against a new Rust case being added to the snapshot without a typed fixture here,
+    // which would otherwise silently skip the type check for it.
+    expect(Object.keys(snapshot).sort()).toEqual([
+      'emptyStatusResult',
+      'manualConflict',
+      'modified',
+      'modifiedSubmodule',
+      'renamed',
+      'resolvedTextConflict',
+      'statusResult',
+      'textConflict',
+    ])
+  })
+
+  it('omits absent optionals rather than sending null', () => {
+    // TypeScript optional properties and `T | null` are different types; Rust uses
+    // skip_serializing_if to produce the former.
+    expect('submoduleStatus' in snapshot.modified).toBe(false)
+    expect('currentBranch' in snapshot.emptyStatusResult).toBe(false)
+  })
+
+  it('is consumable by the ported mapStatus', () => {
+    expect(mapStatus(modified)).toBe('Modified')
+    expect(mapStatus(renamed)).toBe('Renamed')
+  })
+
+  it('lets the ported type-guards discriminate the two conflict shapes', () => {
+    // The original discriminated on the *presence* of conflictMarkerCount rather than a tag, so
+    // this is what breaks first if the untagged representation is ever changed.
+    expect(isConflictWithMarkers(textConflict)).toBe(true)
+    expect(isManualConflict(textConflict)).toBe(false)
+
+    expect(isConflictWithMarkers(manualConflict)).toBe(false)
+    expect(isManualConflict(manualConflict)).toBe(true)
+  })
+
+  it('distinguishes an unresolved conflict from a resolved one by the marker count', () => {
+    // mapStatus reaches through to `conflictMarkerCount`, so a flattened or renamed field would
+    // silently report every conflict as unresolved.
+    expect(mapStatus(textConflict)).toBe('Conflicted')
+    expect(mapStatus(resolvedTextConflict)).toBe('Resolved')
+    expect(mapStatus(manualConflict)).toBe('Conflicted')
+  })
+})

@@ -23,20 +23,33 @@
 use std::sync::OnceLock;
 
 use regex::Regex;
+use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
 
 /// A single-character index/working-tree state from porcelain output.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Serializes to the same single-character values as the ported
+/// `src/models/status.ts` enum, so the existing TypeScript type is reused rather than duplicated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GitStatusEntry {
+    #[serde(rename = "M")]
     Modified,
+    #[serde(rename = "A")]
     Added,
+    #[serde(rename = "D")]
     Deleted,
+    #[serde(rename = "R")]
     Renamed,
+    #[serde(rename = "C")]
     Copied,
+    #[serde(rename = ".")]
     Unchanged,
+    #[serde(rename = "?")]
     Untracked,
+    #[serde(rename = "!")]
     Ignored,
+    #[serde(rename = "U")]
     UpdatedButUnmerged,
 }
 
@@ -58,7 +71,8 @@ impl GitStatusEntry {
 }
 
 /// How a submodule differs, decoded from the four-character `S<c><m><u>` code.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SubmoduleStatus {
     /// The submodule's checked-out commit differs from the one recorded in the superproject.
     pub commit_changed: bool,
@@ -69,7 +83,10 @@ pub struct SubmoduleStatus {
 }
 
 /// Which side did what, for a conflicted entry.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Serializes to the kebab-case values the ported TypeScript enum uses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum UnmergedEntrySummary {
     AddedByUs,
     DeletedByUs,
@@ -81,7 +98,8 @@ pub enum UnmergedEntrySummary {
 }
 
 /// How an ordinary (non-renamed, non-conflicted) change should be presented.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum OrdinaryChange {
     Added,
     Modified,

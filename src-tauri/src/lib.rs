@@ -1,8 +1,5 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+// The IPC surface lives in `commands`; see that module for the conventions.
+mod commands;
 
 // WebKitGTK's native-Wayland GPU compositing path has known unresolved
 // crash/render bugs as of 2026 (e.g. tauri-apps/wry#1727), and Wayland is
@@ -26,7 +23,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![commands::git::get_status])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

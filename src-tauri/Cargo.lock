@@ -1282,6 +1282,8 @@ name = "git-ops"
 version = "0.1.0"
 dependencies = [
  "regex",
+ "serde",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.19",
  "tokio",
@@ -2614,11 +2616,13 @@ checksum = "20675572f6f24e9e76ef639bc5552774ed45f1c30e2951e1e99c59888861c539"
 name = "rdc"
 version = "0.1.0"
 dependencies = [
+ "git-ops",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "trampoline",
 ]
 
 [[package]]
@@ -3891,6 +3895,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db97caf9d906fbde555dd62fa95ddba9eecfd14cb388e4f491a66d74cd5fb79a"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "trampoline"
+version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.19",
+ "tokio",
 ]
 
 [[package]]
