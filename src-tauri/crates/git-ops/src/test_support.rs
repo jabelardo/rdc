@@ -32,11 +32,7 @@ impl TempRepository {
 /// Panicking is correct here: a failure means the test environment is broken, not that the
 /// behaviour under test is wrong.
 fn run(cwd: &Path, args: &[&str]) {
-    let output = Command::new("git")
-        .args(args)
-        .current_dir(cwd)
-        .output()
-        .unwrap_or_else(|e| panic!("failed to run `git {}`: {e}", args.join(" ")));
+    let output = run_allowing_failure(cwd, args);
 
     assert!(
         output.status.success(),
@@ -45,6 +41,19 @@ fn run(cwd: &Path, args: &[&str]) {
         output.status,
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+/// Runs a setup command that is *expected* to be able to fail, returning its output.
+///
+/// Needed for steps like a deliberately conflicting `git merge`, which exits non-zero by design.
+/// The TypeScript helpers got this for free because dugite's `exec` returns a result rather than
+/// throwing; here the distinction has to be explicit.
+fn run_allowing_failure(cwd: &Path, args: &[&str]) -> std::process::Output {
+    Command::new("git")
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .unwrap_or_else(|e| panic!("failed to run `git {}`: {e}", args.join(" ")))
 }
 
 /// Applies the deterministic config every test repository gets.
@@ -160,4 +169,70 @@ fn rename_git_dirs(root: &Path) {
             rename_git_dirs(&path);
         }
     }
+}
+
+/// Writes a file and commits it.
+///
+/// Stands in for the `makeCommit` helper in `app/test/helpers/repository-scaffolding.ts`.
+pub fn commit_file(repo: &Path, name: &str, contents: &str, message: &str) {
+    std::fs::write(repo.join(name), contents)
+        .unwrap_or_else(|e| panic!("failed to write {name}: {e}"));
+    run(repo, &["add", "--", name]);
+    run(repo, &["commit", "-m", message]);
+}
+
+/// Builds a repository with a merge conflict in a file named `foo`.
+///
+/// Ported from `setupConflictedRepo` in `app/test/helpers/repositories.ts`: two divergent commits
+/// touch the same file, then a merge is attempted.
+///
+/// Note the merge target is `main`, whereas the original merged `master` — see
+/// [`empty_repository`] for why the branch name differs.
+pub async fn conflicted_repository() -> TempRepository {
+    let repo = empty_repository().await;
+    let path = repo.path();
+
+    commit_file(&path, "foo", "", "first");
+
+    // Branch from the first commit without checking out, so the histories diverge.
+    run(&path, &["branch", "other-branch"]);
+    commit_file(&path, "foo", "b1", "second");
+
+    run(&path, &["checkout", "other-branch"]);
+    commit_file(&path, "foo", "b2", "third");
+
+    // Expected to fail: this is the conflict the fixture exists to produce.
+    let merge = run_allowing_failure(&path, &["merge", "main"]);
+    assert!(
+        !merge.status.success(),
+        "the merge was supposed to conflict but succeeded; the setup no longer produces a \
+         conflicted repository"
+    );
+
+    repo
+}
+
+/// Paths with unmerged (conflicted) entries in the index.
+///
+/// Uses git as the oracle — `git ls-files -u` lists unmerged entries — so tests don't have to go
+/// through the app's status parser, which is not part of this crate.
+pub async fn unmerged_paths(repo: &Path) -> Vec<String> {
+    let output = crate::exec::git(
+        &["ls-files", "-u", "-z"],
+        repo,
+        "test-support",
+        crate::exec::GitOptions::default(),
+    )
+    .await
+    .expect("ls-files -u should succeed in a repository");
+
+    let mut paths: Vec<String> = String::from_utf8_lossy(&output.stdout)
+        .split('\0')
+        .filter(|entry| !entry.is_empty())
+        // Each record is "<mode> <sha> <stage>\t<path>"; the same path appears once per stage.
+        .filter_map(|entry| entry.split_once('\t').map(|(_, path)| path.to_owned()))
+        .collect();
+    paths.sort();
+    paths.dedup();
+    paths
 }

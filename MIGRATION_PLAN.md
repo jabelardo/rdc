@@ -276,9 +276,136 @@ is ~140 lines of English strings. Rust returns the typed `GitErrorKind`; mapping
 text belongs in the UI (Phase 7), where it can be localized. Porting English into the backend
 would be a step backwards.
 
-**Next:** port the first real command modules against the harness, starting with the ones whose
-tests need no fixture (`init`, `add`), then the fixture-backed ones (`config`, `rev-parse`,
-`branch`, `status`).
+**Also landed (third slice, 59 Rust tests): the first two command modules.**
+- `init.rs` — `init_repository(path, default_branch)`. The branch is a **parameter**, not resolved
+  internally: the original's `getDefaultBranch()` reads the user's global `init.defaultBranch` with
+  a `"main"` fallback, which is ambient machine state plus app policy reached from inside a git
+  primitive. It also made the original test tautological — it compared the result against the very
+  function the code called, so it could not detect the argument being ignored.
+- `add.rs` — `add_conflicted_file(repository, file)`, taking plain paths rather than the frontend
+  `Repository`/`WorkingDirectoryFileChange` models. `file` goes after `--` so a path resembling a
+  revision can't be misread. Built as `OsStr` since Unix paths needn't be UTF-8.
+- `test_support.rs` gains `conflicted_repository()` (port of `setupConflictedRepo`), `commit_file()`
+  and `unmerged_paths()`.
+
+**A note on test oracles.** Neither original test could be ported verbatim: `init-test` and
+`add-test` both assert through `getStatus`, and `lib/git/status.ts` isn't ported. Rather than port
+status prematurely or skip the tests, they assert against **git itself** (`symbolic-ref`,
+`ls-files -u`, `show :file`) — the same behavioural claims, with git as the oracle instead of
+another unported module. Recorded per-module in `MIGRATION_MAP.md` §8.
+
+**Also landed (fourth slice, 83 Rust tests): `config` and `rev-parse`.**
+- `config.rs` — repository get/set/remove + git-boolean interpretation, plus a `GlobalConfig` type
+  for the global scope. Global access carries its `HOME` **as a property of the accessor** rather
+  than an optional trailing `env` argument, because "global" means whatever `HOME` says: a test
+  that forgets it would write to the developer's real `~/.gitconfig`. `GlobalConfig::with_home()`
+  is the test path, and a test asserts two homes can't see each other's values.
+- `rev_parse.rs` — `RepositoryType` (`Regular`/`Bare`/`Missing`/`Unsafe`), `get_repository_type`,
+  and the upstream-ref helpers. Path resolution is **lexical**, matching Node's `path.resolve`;
+  canonicalizing would resolve symlinks and return a different path than the caller passed —
+  immediately wrong on macOS where the temp dir is `/var` → `/private/var`.
+- Deferred from `config.ts` (all recorded in `MIGRATION_MAP.md`): `getGlobalConfigPath`,
+  `addSafeDirectory`, and `getConfigValueWithOrigin` + its four display formatters, which emit
+  strings like `"global, via [includeIf]"` and so belong in the frontend.
+
+`getDefaultBranch` is now unblocked by `GlobalConfig`, but its `"main"` fallback is app policy —
+wire it up above `git-ops`, not inside it.
+
+**Also landed (fifth slice, 118 Rust tests): `branch` and its helpers.**
+- `branch.rs` — create/rename/delete/list, `get_branches_pointed_at`, `get_merged_branches`.
+  `deleteRemoteBranch` is **deferred**: it pushes a deletion, so it needs `envForRemoteOperation`
+  (trampoline credentials + proxy), both outstanding.
+- `git_delimiter_parser.rs` (`createForEachRefParser`), `refs.rs`, `update_ref.rs` (`deleteRef`).
+- `GitError::Parse` added, for "git succeeded but its output didn't match the requested shape".
+
+Note that `branch-test.ts` mostly **doesn't test `branch.ts`** — its `tip` block drives `GitStore`
+(Phase 7) and `upstreamWithoutRemote` tests the `Branch` model. Only two of its blocks were
+portable, so most coverage here is new. `renameBranch`'s case-only-rename retry is untested
+upstream despite being the file's subtlest logic; it now has tests, including the guard that
+refuses to force a rename over a genuinely different branch.
+
+---
+
+### Phase 2 — `status`: analysis before porting
+
+`status` is the largest remaining piece and needs a decision first, so it is deliberately **not**
+started yet.
+
+**The cascade is smaller than it looks.** `status.ts` imports from `diff-check`, `merge`, `diff`,
+`rebase` and `cherry-pick` — 2,339 lines of host modules — but only needs **~106 lines** of
+specific functions from them: `getFilesWithConflictMarkers` (19), `isMergeHeadSet` (4),
+`isSquashMsgSet` (4), `getBinaryPaths` (15), `getRebaseInternalState` (50),
+`isCherryPickHeadFound` (14). Those can be ported as partial modules rather than whole files.
+
+**The real work is the parser**, and there is an architectural fork:
+
+`lib/status-parser.ts` (426 lines, porcelain v2) was ported to **TypeScript** in Phase 1, with 12
+passing tests — and currently has **no importers in rdc except its own test**. Meanwhile
+`lib/git/status.ts` is destined for Rust. They can't both own parsing:
+
+- **Rust parses (recommended).** `get_status` returns a typed `StatusResult` over IPC. Git
+  execution and interpretation stay in one place, and the frontend receives structured data
+  instead of raw porcelain. The Phase 1 TypeScript parser becomes dead and should be deleted when
+  the Rust parser lands — its tests are not wasted, they become the Rust parser's spec, which is
+  exactly the test-first principle.
+- **TypeScript parses.** Rust would return raw `--porcelain=2 -z` bytes for the webview to parse.
+  Keeps the Phase 1 work live, but splits git logic across the boundary and ships raw git output
+  over IPC.
+
+The first is the better architecture; the second only looks attractive because it preserves work
+already done, which is a sunk cost, not a reason.
+
+**DECIDED: Rust parses.** Sequencing, with step 1 complete:
+
+1. ✅ **Port `status-parser.ts` → Rust** — `crates/git-ops/src/status_parser.rs`, using the
+   TypeScript tests as the spec. `parse_porcelain_status`, `map_status`, and the status types
+   (`GitStatusEntry`, `SubmoduleStatus`, `UnmergedEntrySummary`, `OrdinaryChange`, `FileEntry`,
+   `StatusEntry`, `StatusItem`) ported from `models/status.ts`.
+   - `src/lib/status-parser.ts` and its test are **deleted**. So is `src/lib/split-buffer.ts`,
+     which existed only to serve that parser and is Node `Buffer`-based, so it could never have
+     run in the webview.
+   - Test math: 7 TypeScript tests replaced by **21 Rust tests** — the ported cases plus coverage
+     the original lacked (unmerged entries, the rename similarity score, malformed input, a rename
+     missing its original path, every conflict code, and submodule-code decoding).
+   - Parsing takes `&[u8]`, not `&str`, because paths are arbitrary bytes on Unix; fields are
+     decoded lossily, matching the original's `Buffer::toString()`.
+   - The regexes need `(?s)` so the trailing path group can span newlines — in `-z` mode paths are
+     unquoted, so a newline in a path is data rather than a delimiter. One of the ported tests
+     covers exactly that.
+2. ✅ **Port the helper functions** — `operation_state.rs` (the merge/squash/cherry-pick/rebase
+   marker checks, collected from three large modules), `diff_check.rs`, `diff.rs` (`getBinaryPaths`
+   only), and `LogParser`. Also added `rev_parse::resolve_git_dir`, which asks git via
+   `--absolute-git-dir` rather than assuming `<repo>/.git` — correct for worktrees and submodules,
+   where `.git` is a file pointing elsewhere.
+3. ✅ **Port `getStatus`** — `status.rs`. **179 Rust tests green.**
+
+**Two things worth knowing from step 3:**
+
+- **An upstream bug is fixed.** `binaryListRegex` in `diff.ts` captures an *empty string* for a
+  renamed binary file, because its greedy `.+` swallows both paths of a rename. Upstream, that
+  means a renamed binary is never recognized as binary, so a conflict involving one is treated as
+  text and the UI looks for conflict markers that cannot exist. Confirmed against Node and real
+  git; fixed, with both a unit test and an end-to-end test.
+- **`getStatus` returns git facts only.** The original built `WorkingDirectoryFileChange` objects
+  carrying a `DiffSelection` — the lines/files the user has ticked for staging — wrapped in a
+  `WorkingDirectoryStatus`. That is view state the UI mutates, so it stays in the frontend, which
+  constructs it from `StatusResult`. The one piece of real logic in there is preserved as
+  `StatusFileChange::starts_unselected` (a dirty submodule whose commit hasn't changed starts
+  unticked), so the frontend doesn't have to rediscover the rule.
+
+Also renamed `includeUntracked` → `list_untracked_files_individually`, because `false` does not
+exclude untracked files — git's default still reports them, just collapsing untracked directories.
+Details in `MIGRATION_MAP.md` §8.
+
+**Next:** `status` is the last of the modules several deferred Phase 1 tests were waiting on, so a
+good next step is re-checking which of those 15 tests are now unblocked. Otherwise the remaining
+`lib/git/**` surface is commit/checkout/merge/rebase/stash/push/pull/fetch/log/remote/tag.
+
+**Note for Phase 3:** the status types carry no `serde`/`specta` derives yet. They will need them
+to cross IPC, but the representation is an IPC decision, so it belongs with the binding-generation
+work rather than being guessed at now.
+
+**Next:** step 2, then step 3.
 
 <details><summary>original phase description</summary>
 - Port `app/test/unit/git/**` (45 files, largest single test category) as the acceptance spec for `crates/git-ops`.

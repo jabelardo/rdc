@@ -7,7 +7,7 @@ description = "Git operations for rdc — replaces desktop-plus's app/src/lib/gi
 [dependencies]
 regex = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["process", "io-util", "rt", "macros"] }
+tokio = { workspace = true, features = ["process", "io-util", "rt", "macros", "fs"] }
 
 [dev-dependencies]
 tempfile = { workspace = true }

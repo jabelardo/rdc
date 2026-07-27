@@ -50,4 +50,12 @@ pub enum GitError {
         path: PathBuf,
         stderr: String,
     },
+
+    /// git succeeded but its output didn't match the shape we asked for.
+    ///
+    /// Distinct from the variants above: git worked, we failed to interpret it. Almost always a
+    /// bug in a format string or parser rather than a condition the user can fix, so it's
+    /// surfaced rather than silently producing partial data.
+    #[error("failed to parse git output for {context}: {message}")]
+    Parse { context: String, message: String },
 }
