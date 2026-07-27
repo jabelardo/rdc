@@ -31,8 +31,15 @@ When that dialog is ported in Phase 7 it must import from here, and `ISecretScan
 | **Step 1 batch** (30 models): `accessible-message`, `author`, `branch-preset`, `branch-sort-order`, `branches-tab`, `clone-options`, `clone-repository-tab`, `commit-message`, `computed-action`, `copy-path-normalization`, `diff-font`, `dot-com-bots`, `fetch`, `git-account`, `git-author`, `last-thank-you`, `menu-ids`, `merge`, `preferences`, `progress`, `publish-settings`, `pull-request`, `release-notes`, `repo-rules`, `show-branch-name-in-repo-list`, `stash-entry`, `submodule`, `tutorial-step`, `uncommitted-changes-strategy`, `workflow-preferences` | 30 | `rdc/src/models/**` (1:1) | **done** |
 | supporting `lib/` files pulled in by the Step 1 closure: `lib/fonts/installed-fonts.ts`, `lib/fonts/monospace-font-filter.ts`, `lib/update-branch-strategy.ts` | 3 | `rdc/src/lib/**` (1:1) | **done** |
 | `app/src/models/app-menu.ts` | 1 | `src-tauri/src/platform/menu/**` adapter (Tauri `Menu`), **not** `src/models/` | **deferred → Phase 4** — it's an Electron adapter (`menuFromElectronMenu`, `Electron.MenuItem`), not a domain model |
-| `app/src/models/repository.ts` | 1 | `rdc/src/models/repository.ts` — also needs its Node `path` import replaced with a local pure-string helper | **blocked (hub #2)** — imports the whole `lib/git` barrel |
-| `app/src/models/worktree.ts` | 1 | same treatment | **blocked (hub #2)** |
+| `app/src/models/commit.ts`, `models/branch.ts`, `models/tip.ts` + `lib/create-branch.ts` | 4 | `rdc/src/**` (1:1) | **done** — unblocked by the trailer extraction |
+| `app/src/lib/pull-request-refs.ts` | 1 | `rdc/src/lib/pull-request-refs.ts` | **done** — unblocked by the issue-reference extraction |
+| **New file:** `rdc/src/lib/markdown-filters/issue-reference.ts` | 1 | holds the issue-reference regex constants, extracted out of `lib/markdown-filters/issue-mention-filter.ts` | **done** |
+| **New file:** `rdc/src/models/trailer.ts` | 1 | holds `ITrailer` + `isCoAuthoredByTrailer`, extracted out of `lib/git/interpret-trailers.ts` | **done** |
+| `app/src/models/repository.ts` | 1 | `rdc/src/models/repository.ts` — **redesigned, not ported verbatim** (see §8) | **done** |
+| `app/src/models/worktree.ts`, `models/editor-override.ts` | 2 | `rdc/src/models/**` (1:1) | **done** |
+| **New file:** `rdc/src/models/custom-integration.ts` | 1 | holds `ICustomIntegration`, extracted out of `lib/custom-integration.ts` | **done** |
+| **New file:** `rdc/src/lib/path-utils.ts` | 1 | `basename`, replacing Node `path` in `models/{repository,worktree,cloning-repository}.ts` | **done** |
+| `app/src/lib/text-token-parser.ts`, `lib/wrap-rich-text-commit-message.ts`, `lib/emoji.ts` | 3 | `rdc/src/lib/**` (1:1) | **done** |
 | `app/src/models/popup.ts` | 1 | `rdc/src/models/popup.ts` | **blocked (hub #2)** — imports UI dialog components |
 | remaining `app/src/models/**` | ~43 | `rdc/src/models/**` | not-started (not yet required by any ported test) |
 
@@ -121,6 +128,9 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `app/test/helpers/repositories.ts` | `crates/git-ops/src/test_support.rs` — `empty_repository()` + `fixture_repository()` **done**. Note `empty_repository()` pins the branch to `main`, whereas the original defaulted to `master`; a ported test asserting a branch name needs adjusting for that. | 2 |
 | dugite's `GitError` enum + `GitErrorRegexes` + `parseError` + `parseBadConfigValueErrorInfo`; `isAuthFailureError` from `core.ts` | `crates/git-ops/src/git_error_kind.rs` — **done, GENERATED from dugite v3.2.2** (60 variants, 62 patterns). Regenerate rather than hand-edit; the generator reads dugite's `build/lib/errors.js` and emits the module. **Pattern order is load-bearing**: `parseError` returns the first match and patterns overlap (the HTTPS auth pattern must precede the generic one, or every HTTPS auth failure is misreported as SSH). | 2 |
 | `getDescriptionForError` (`core.ts`, ~140 lines of English) | **deliberately not ported to Rust.** Rust returns the typed `GitErrorKind`; mapping a kind to user-facing copy belongs in the frontend (Phase 7) where it can be localized. Embedding English in the backend would be a regression. | 7 |
+| `app/src/lib/app-state.ts` (1,319 lines, 49 imports) | **not ported — being decomposed** into `rdc/src/lib/app-state/` one concern at a time, as consumers need it. Extracted so far: `IBranchesState` (`branches-state.ts`), `MultiCommitOperationConflictState` (`conflict-state.ts`), `IConstrainedValue` (`constrained-value.ts`). When the module is ported with the stores in Phase 7 it must **re-export from these** rather than redeclare them. See `src/lib/app-state/README.md`. | 2 / 7 |
+| `app/src/lib/{clamp,rebase,multi-commit-operation}.ts`, `models/multi-commit-operation.ts` | `rdc/src/**` (1:1) — **done**, unblocked by the app-state decomposition | 2 |
+| `lib/git/interpret-trailers.ts` | **split**: git-invoking half → `crates/git-ops/src/interpret_trailers.rs` (**done**); the `ITrailer` type + `isCoAuthoredByTrailer` predicate → `rdc/src/models/trailer.ts` (**done**), because neither needs git. See §8. | 2 |
 | `lib/git/init.ts` | `crates/git-ops/src/init.rs` — **done**. `init_repository(path, default_branch)` takes the branch as a **parameter**; see §8 for why the original's internal `getDefaultBranch()` call was not reproduced. | 2 |
 | `lib/git/add.ts` | `crates/git-ops/src/add.rs` — **done**. Takes plain paths rather than the `Repository`/`WorkingDirectoryFileChange` models, which are frontend concerns. | 2 |
 | `lib/git/config.ts` | `crates/git-ops/src/config.rs` — **partially done**: repository get/set/remove + boolean, and a `GlobalConfig` type for the global scope. Deferred: `getGlobalConfigPath` (needs the `git config --edit` + `GIT_EDITOR=printf` trick; a Phase 4 editor concern), `addSafeDirectory`/`addGlobalConfigValueIfMissing` (`safe.directory` policy incl. a Windows UNC case), and `getConfigValueWithOrigin` + `formatConfigScope`/`formatConfigPath`/`isConditionalInclude`/`getOriginFilePath` (display strings like `"global, via [includeIf]"` → frontend, same reasoning as `getDescriptionForError`). | 2 |
@@ -257,12 +267,30 @@ Copilot feature is actually migrated; the type could also just be declared local
 Also ported (Step 2): `diff-parser` → `src/lib/diff-parser.test.ts`, alongside
 `src/lib/diff-parser.ts` and the new `src/lib/diff-hunks.ts` (see §8).
 
-**Blocked on hub #2** (see §1): `format`, `ipc-contract`, `model-type-guards`,
-`multi-commit-operation`, `popup-manager`, `pull-request-refs`, `repository`, `ssh`,
-`create-branch`, `name-of`, `text-token-parser`, `wrap-rich-text-commit-message`,
-`format-commit-message`, `stats-store`, `app-store-test-harness`. These 15 need git → Rust
-(Phase 2/3) and stores (Phase 7); they are **not** blocked by layering nits — see the
-`Repository.url` note in `MIGRATION_PLAN.md` Phase 1 Step 4.
+**Blocked** (6, was 15): `ipc-contract`, `popup-manager`, `ssh`, `format-commit-message`,
+`stats-store`, `app-store-test-harness`. All six are now genuinely phase-gated rather than blocked by
+layering — what each needs, and in which phase, is tabulated in `MIGRATION_PLAN.md`.
+
+**Recovered (2):**
+- `create-branch` → `src/lib/create-branch.test.ts` (9 tests), by extracting the trailer type out
+  of the git layer.
+- `pull-request-refs` → `src/lib/pull-request-refs.test.ts` (6 tests), by extracting the
+  issue-reference regex constants out of the markdown-filter chain. Its closure now has **no
+  filesystem dependency at all** — contrary to the earlier note here, no emoji-asset work was
+  needed; see the correction in `MIGRATION_PLAN.md`.
+- `repository`, `name-of`, `model-type-guards`, `text-token-parser`,
+  `wrap-rich-text-commit-message` (5) → by the `Repository` redesign (§8). 45 tests across the five.
+- `format` → `src/lib/rebase.test.ts`, `multi-commit-operation` →
+  `src/lib/multi-commit-operation.test.ts` (20 tests), by decomposing `lib/app-state.ts` into
+  `src/lib/app-state/` and narrowing two over-specified parameter types (§8).
+
+**Re-checked after `status` landed: still all 15.** Porting git to Rust could not unblock them —
+they are TypeScript tests whose closure reaches `lib/git/**` via `import`, and a Rust
+implementation gives TypeScript nothing to import. The blocker is not "git isn't implemented" but
+"TypeScript still asks for git the Node way". The eight edges responsible, and the cheapest way to
+retire them, are tabulated in `MIGRATION_PLAN.md` under "Re-check of the 15 deferred Phase 1
+tests". Short version: `interpret-trailers` → Rust unblocks `create-branch` outright and leaves
+`pull-request-refs` with a single blocker; the `Repository` redesign is worth 5 tests on its own.
 
 ---
 
@@ -306,6 +334,12 @@ tree, Electron, and `lib/stores`:
 | `src/models/accessible-message.ts` | added `import type { JSX } from 'react'` | React 19 removed the global `JSX` namespace the file relied on under React 16. `models/banner.ts` has the same issue and will need the same fix whenever it's unblocked. |
 | `crates/git-ops/src/init.rs` (Phase 2) | `init_repository` takes `default_branch` as a parameter; the original `initGitRepository(path)` called `getDefaultBranch()` internally | That helper reads the user's **global** `init.defaultBranch` and falls back to `"main"` — ambient machine configuration plus app policy, reached from inside a low-level git call. It made the function's result depend on the developer's machine, and made the original test tautological: it asserted the branch equalled `getDefaultBranch()`, the very function the code called, so it could not have caught the argument being ignored. Resolution now belongs to the caller; the config lookup + fallback lands with `config.rs`. |
 | `crates/git-ops/src/add.rs` (Phase 2) | test asserts via `git ls-files -u` instead of the app's status parser | The original used `getStatusOrThrow`, and `lib/git/status.ts` isn't ported. Querying git's index directly is the same behavioural claim ("no longer an unmerged entry") while using git as the oracle rather than another unported module. |
+| `rdc/src/lib/multi-commit-operation.ts` (Phase 2) | two parameter types **narrowed to the subset each function reads** | The originals declared `IRepositoryState` and `IMultiCommitOperationState` from the 1,319-line `app-state.ts`, but the functions read only `state.branchesState` and `state.step.kind`. Naming the god-module types meant two field reads depended on the whole module — and through it on `lib/git/config` and `ui/lib/application-theme`. TypeScript is structurally typed, so **callers are unaffected**: a full `IRepositoryState` still satisfies `RepositoryStateForChooseBranch`. Naming a large state type when you read one field of it is how a god module acquires its gravity — worth checking for elsewhere. |
+| `rdc/src/models/repository.ts` (Phase 2) | **redesigned**: `Repository` is a plain data type. `url` is a readonly constructor field instead of a self-resolving getter, and `resolvedGitDir` is removed. | The original `url` getter was synchronous but fired an un-awaited `getRemotes()` subprocess, so the first read always returned `null`, every read before it settled spawned *another* `git remote`, and the promise had no `.catch`. Making `url` data means **a data type cannot do IO, so the bug is unrepresentable rather than fixed**. `url` is excluded from `hash` on purpose: two repositories differing only in a value fetched from git are the same repository. `resolvedGitDir` was `gitDir ?? join(path, '.git')`, wrong for worktrees/submodules where `.git` is a file; every consumer was in `lib/git/**` or `git-store.ts` (all Rust-bound) and Rust resolves it properly via `rev_parse::resolve_git_dir`. Unblocked 5 tests. |
+| `rdc/src/lib/path-utils.ts` (Phase 2) | a local `basename` replaces Node's `path` in three models | Node's `path` doesn't exist in a webview and a polyfill isn't worth two `basename` calls. Tested against `node:path/posix` rather than hand-written expectations, which caught a real surprise: Node compares the suffix to the **entire path**, so `basename('.git', '.git')` is `''` while `basename('/foo/.git', '.git')` is `'.git'`. Reproduced deliberately, since callers may rely on it. Deliberately provides **no `normalize`/`resolve`** — `..`-beyond-root, drive letters and UNC paths are where hand-rolled path code goes wrong, so those belong in Rust's `std::path`. |
+| `rdc/src/models/custom-integration.ts` (Phase 2) | `ICustomIntegration` extracted out of `lib/custom-integration.ts` | **Fourth instance of the co-located-declaration pattern.** A pure `{ path, arguments, bundleID? }` interface sat in a module importing `child_process`, `fs`, `fs/promises`, `util` and `windows-argv-parser`; `models/editor-override.ts` needed only the shape, and `models/repository.ts` inherited that Node tree through it. |
+| `rdc/src/lib/markdown-filters/issue-reference.ts` (Phase 2) | regex constants extracted out of `issue-mention-filter.ts` | `lib/pull-request-refs.ts` needs only `IssueReference`, and because it's a `RegExp` **value** rather than a type it cannot be erased at compile time. That one import pulled in the filter class → `node-filter.ts`'s pipeline builder → `EmojiFilter` → `fs/promises`: four hops from a regex to filesystem access. When `issue-mention-filter.ts` is ported in Phase 7 it must import these from here rather than redeclaring them. |
+| `crates/git-ops/src/interpret_trailers.rs` + `rdc/src/models/trailer.ts` (Phase 2) | the module is **split across the language boundary** rather than ported wholesale | `models/commit.ts` imported only `ITrailer` and `isCoAuthoredByTrailer` from it — a plain string pair and a case-insensitive comparison, neither of which needs git. That single edge dragged the entire git layer into the commit model and kept `create-branch` and `pull-request-refs` blocked for two phases. Splitting it unblocked `create-branch` outright. Also note `parse_single_unfolded_trailer` advances by `separator.len_utf8()` where the original used `ix + 1`: the original's index was in UTF-16 units, so a multi-byte separator character would have corrupted the value. Covered by a test. |
 | `crates/git-ops/src/diff.rs` (Phase 2) | **fixes an upstream bug** in `binaryListRegex` | The original `-\t-\t(?:\0.+\0)?([^\0]*)` captures an **empty string** for a renamed binary file. Real `git diff --numstat -z` output for a rename is `-\t-\t\0old.bin\0new.bin\0`, and the greedy `.+` swallows both paths (`\0` isn't a line terminator, so `.` matches it) before the trailing `\0`. Confirmed in Node: upstream yields `[""]`, the fix yields `["new.bin"]`. **Consequence upstream:** a renamed binary is never recognized as binary, so a conflict involving one is treated as text and the UI hunts for conflict markers that cannot exist. Fixed with `[^\x00]*`, covered by a unit test and an end-to-end test driven by real git. |
 | `crates/git-ops/src/status.rs` (Phase 2) | returns git facts only — no `WorkingDirectoryFileChange`, `DiffSelection` or `WorkingDirectoryStatus` | Those are **view state**, not git data: `DiffSelection` is the set of lines/files the user has ticked for staging, initialized here and then mutated by the UI. Inventing a Rust representation of something only the frontend mutates would put selection state on the wrong side of the IPC boundary. The frontend builds them from `StatusResult`. The one piece of that logic worth keeping is preserved as `StatusFileChange::starts_unselected`, carrying the original's rule that a dirty submodule whose own commit hasn't changed starts unticked. |
 | `crates/git-ops/src/status.rs` (Phase 2) | `includeUntracked` renamed to `list_untracked_files_individually` | The original name is actively misleading: passing `false` does **not** exclude untracked files. git's default `--untracked-files=normal` still reports them, it just collapses an untracked *directory* to one entry (`nested/`) rather than enumerating its contents (`nested/b.txt`, `nested/deep/a.txt`). Verified against real git and pinned by a test asserting both modes. Behaviour is identical to the original; only the name changed, so a caller can't reasonably misread it. |
@@ -328,10 +362,12 @@ tree, Electron, and `lib/stores`:
   bundle for a webview without a Node `url` polyfill. Migrating to WHATWG `URL` is a real
   behavior change (`url.parse` is lenient, `new URL()` is strict), so it needs its own change
   with the now-ported tests as the guard — not a drive-by edit during a port.
-- **Node `path` imports** in `models/cloning-repository.ts` and `lib/repository-matching.ts`
-  (only `basename`/`normalize`). Fine under Vitest (runs in Node); needs a browser-safe
-  answer before these modules are imported into the app bundle. Don't hand-roll `normalize` —
-  its edge cases (`..`, drive letters) are exactly where bugs hide.
+- **Node `path`**: `basename` is resolved — `lib/path-utils.ts` provides it and
+  `models/{repository,worktree,cloning-repository}.ts` use it. **Only `lib/repository-matching.ts`
+  still imports Node `path`**, for `normalize`, which `path-utils` deliberately omits: `..`-beyond
+  -root, drive letters and UNC paths are exactly where hand-rolled path code goes wrong. Resolve it
+  with a Rust query or a vetted library, not by hand. Fine under Vitest (which runs in Node) but must
+  be settled before that module enters the app bundle.
 - **User-Agent string** still reads `GitHubDesktop/<version>` in `src/lib/http.ts`. Left
   verbatim on purpose: the GitHub API may treat it as significant, so changing it is a
   behavior decision, not cleanup.

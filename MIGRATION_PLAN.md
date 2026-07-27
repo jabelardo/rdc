@@ -9,6 +9,13 @@ Target: `rdc` (Tauri 2.0 + React 19 + Vite, currently the untouched default scaf
 2. **Mirror the source tree, don't reinvent it.** Every old path gets one obvious new path, tracked in a mapping table (`MIGRATION_MAP.md`, generated as we go — see below). Nobody should have to guess where `app/src/lib/git/commit.ts` ended up.
 3. **Behavior parity before modernization.** Flag improvements (listed inline per phase) but don't block porting a module on a rewrite. Modernize in a fast-follow pass once parity tests are green.
 4. **Native modules become Tauri commands/plugins, not FFI shims.** Don't try to `bind` to keytar/dugite from Rust — replace them with the idiomatic Rust/Tauri equivalent and re-verify behavior via the ported tests.
+5. **If it ran on Node, it probably belongs in Rust — not in ported TypeScript.** The default
+   destination for a `desktop-plus` module is *not* `rdc/src`. Anything that shells out, touches the
+   filesystem, or otherwise depended on Node should move to `src-tauri`, with the frontend calling
+   it. Measured on the still-blocked Phase 1 tests: of 374 files in their closure only **67 are
+   Node-bound**, and those 67 are what block the other 307 pure-TypeScript files from being ported
+   at all. Porting a Node-bound module to TypeScript doesn't just fail to help — it can't work,
+   because the Node API isn't there in a webview.
 
 ## Module mapping strategy
 
@@ -397,9 +404,171 @@ Also renamed `includeUntracked` → `list_untracked_files_individually`, because
 exclude untracked files — git's default still reports them, just collapsing untracked directories.
 Details in `MIGRATION_MAP.md` §8.
 
-**Next:** `status` is the last of the modules several deferred Phase 1 tests were waiting on, so a
-good next step is re-checking which of those 15 tests are now unblocked. Otherwise the remaining
-`lib/git/**` surface is commit/checkout/merge/rebase/stash/push/pull/fetch/log/remote/tag.
+---
+
+### Re-check of the 15 deferred Phase 1 tests (after `status` landed)
+
+**Result: none are unblocked. Zero.** All 15 still show near-identical blocker counts (75 `lib/git`,
+36 `lib/stores`, 117 `ui`, 26 electron, 56 Node-IO files).
+
+**Why porting git to Rust didn't help them**, which is worth stating plainly because it was the
+expectation: these are *TypeScript* tests, and their closure reaches `lib/git/**` through
+`import` statements. A Rust implementation gives the TypeScript side nothing to import. The blocker
+was never "git isn't implemented"; it is "TypeScript still asks for git the Node way."
+
+**All 15 enter the git layer through just eight edges:**
+
+| Edge | Tests | What it should become |
+|---|---|---|
+| `models/repository.ts` → `../lib/git` | 5 | `Repository` becomes a plain data type. Resolving a remote URL is a Rust query — which also fixes the `Repository.url` fire-and-forget bug, since a data type can't do IO. |
+| `lib/app-state.ts` → `./git/config` | 3 | A Rust-backed config query; `app-state.ts` is a large state-type module that shouldn't reach into git. |
+| `models/commit.ts` → `lib/git/interpret-trailers` | 2 | Trailer parsing is git text-processing → **Rust**. The TS model receives already-parsed trailers. |
+| `models/popup.ts` → `../lib/git` | 1 | Also needs `Electron.Certificate` (see §9 of the map). |
+| `lib/trampoline/trampoline-environment.ts` → `../git/core` | 1 | Already planned as the `crates/trampoline` Rust sidecar. |
+| `lib/format-commit-message.ts` → `./git/interpret-trailers` | 1 | Same as `models/commit.ts`. |
+| `lib/stats/stats-store.ts` → `../git` | 1 | |
+| `lib/stores/cloning-repositories-store.ts` → `../git` | 1 | |
+
+**✅ DONE — `interpret-trailers`, and the first deferred test recovered.**
+
+The fix turned out to be smaller and better than "port the module to Rust". `models/commit.ts`
+imported only two things from `lib/git/interpret-trailers`: the `ITrailer` type (a plain pair of
+strings) and `isCoAuthoredByTrailer` (a case-insensitive token comparison). **Neither needs git.**
+They sat in a git module by association, and that one edge pulled the whole git layer into the
+commit model. So the work split:
+
+- **`crates/git-ops/src/interpret_trailers.rs`** — everything that genuinely runs git:
+  `parse_trailers`, `merge_trailers`, `get_trailer_separator_characters`, plus the unfolded-trailer
+  parsing they depend on.
+- **`rdc/src/models/trailer.ts`** — the type and the predicate, as a layering extraction (same
+  pattern as `BypassReasonType` in Phase 1).
+
+**Measured result, matching the prediction exactly:**
+- `create-branch` is **unblocked and ported** — `src/lib/create-branch.test.ts`, 9 tests passing,
+  along with the `models/commit.ts` → `models/branch.ts` → `models/tip.ts` → `lib/create-branch.ts`
+  chain it needed. First of the 15 recovered.
+- `pull-request-refs` is down to **exactly one** blocker, as predicted:
+  `lib/markdown-filters/emoji-filter.ts` using `fs/promises`.
+- The other 13 are unchanged.
+
+**✅ DONE — `pull-request-refs` recovered, but *not* the way this plan predicted.**
+
+> **Correction to the note above.** It claimed the emoji data becoming a bundled asset was "the
+> single thing standing between `pull-request-refs` and a port". That was wrong — it read the
+> blocker's *name* (`emoji-filter.ts` using `fs/promises`) as the blocker's *cause*. Tracing the
+> actual chain:
+>
+> `pull-request-refs.ts` → `issue-mention-filter.ts` → `node-filter.ts` → `emoji-filter.ts`
+>
+> `pull-request-refs.ts` needs exactly one thing from that chain: `IssueReference`, a `RegExp`
+> constant. Because it's a value rather than a type it can't be erased at compile time, so it
+> dragged in the filter class, which imports the pipeline builder, which constructs `EmojiFilter`,
+> which reads PNGs off disk. **Four hops from a regex to filesystem access.**
+>
+> The fix was extracting the regex constants into `lib/markdown-filters/issue-reference.ts`.
+> `pull-request-refs` is now ported (`src/lib/pull-request-refs.test.ts`, 6 tests) with **no
+> filesystem dependency anywhere in its closure**. No emoji work was needed.
+
+**This is the third instance of one pattern**, and it is worth stating as a rule: in this codebase,
+*shared constants and types are routinely co-located with heavy implementations*. Each time, a
+consumer needed only the declaration and inherited the implementation's whole dependency tree:
+
+| Consumer needed | Was co-located with | Cost |
+|---|---|---|
+| `BypassReasonType` (type) | a React dialog | pulled 120 `ui/` files into `lib/api.ts` |
+| `ITrailer` + `isCoAuthoredByTrailer` | `git interpret-trailers` calls | pulled the git layer into `models/commit.ts` |
+| `IssueReference` (regex constant) | a markdown filter class | pulled `fs/promises` into `lib/pull-request-refs.ts` |
+
+**So when a port looks blocked, check what the consumer actually imports before porting the
+dependency.** Twice now the answer has been a few lines of extraction rather than the large piece of
+work the blocker's name implied.
+
+**The emoji work is still real, just not urgent.** `read-emoji.ts` reads `emoji.json` off disk and
+`emoji-filter.ts` base64-encodes PNGs — both should become bundled frontend assets (and in a webview
+the base64 step can go entirely, since `<img src="/emoji/…">` just works). But nothing consumes them
+until the markdown filters are ported, so building it now would be an orphan. **Do it with Phase 7.**
+
+**✅ DONE — the `Repository` redesign. 5 tests recovered, and the bug is now unrepresentable.**
+
+`Repository` is a plain data type. `url` is a readonly field supplied by whoever loads the
+repository; the `_url`/`fetchUrl()` machinery is gone, along with the imports of `lib/git` and
+`lib/stores`. **A data type cannot do IO, so the fire-and-forget bug is unrepresentable rather than
+merely fixed** — the first read no longer returns `null`, repeated reads can't spawn repeated
+`git remote` processes, and there is no un-caught promise.
+
+`resolvedGitDir` was dropped too. It was `gitDir ?? join(path, '.git')`, which is wrong for worktrees
+and submodules where `.git` is a *file*. Every consumer was in `lib/git/**` or `git-store.ts` — all
+Rust-bound — and Rust resolves it correctly by asking git (`rev_parse::resolve_git_dir`).
+
+Supporting work, all of it the same co-located-declaration pattern:
+- **`models/custom-integration.ts`** — `ICustomIntegration` extracted out of
+  `lib/custom-integration.ts`, which imports `child_process`, `fs`, `fs/promises` and
+  `windows-argv-parser`. **Fourth instance.**
+- **`lib/path-utils.ts`** — a `basename` that Node's `path` was being imported for. Tested against
+  `node:path/posix` directly rather than hand-written expectations, which caught a genuine surprise:
+  Node compares the suffix against the *entire path*, so `basename('.git', '.git') === ''` but
+  `basename('/foo/.git', '.git') === '.git'`. Reproduced deliberately. Deliberately **no
+  `normalize`/`resolve`** — those edge cases belong in Rust's `std::path`.
+- Ported `models/worktree.ts`, `models/editor-override.ts`, `lib/text-token-parser.ts`,
+  `lib/wrap-rich-text-commit-message.ts`, `lib/emoji.ts`, and cleaned up
+  `models/cloning-repository.ts`'s leftover Node `path` import from Phase 1.
+
+**Recovered (5): `repository`, `name-of`, `model-type-guards`, `text-token-parser`,
+`wrap-rich-text-commit-message`.** The deferred list is now **8**, down from 15.
+
+**Remaining 8 and what each needs:**
+
+| Test | Blocker |
+|---|---|
+| `format`, `ipc-contract`, `multi-commit-operation` | `lib/app-state.ts` → `git/config`; `app-state.ts` also reaches `ui/lib/application-theme` |
+| `popup-manager` | `models/popup.ts` → UI dialogs **and** `Electron.Certificate` (Phase 5) |
+| `ssh` | `lib/trampoline/**` → the Rust sidecar (`crates/trampoline`) |
+| `stats-store`, `app-store-test-harness` | `lib/stores/**` (Phase 7) |
+| `format-commit-message` | `mergeTrailers` over IPC (Rust side exists) + a TypeScript repository-setup test helper (Phase 3) |
+
+**✅ DONE — `app-state` decomposition. 2 of the 3 recovered; the deferred list is now 6.**
+
+`app-state.ts` was **not** ported. It is 1,319 lines with 49 imports — every piece of application
+state in one file, from window widths to Copilot conflict resolutions — and importing a single type
+from it drags in the whole tree, including `lib/git/config` and `ui/lib/application-theme`.
+
+Instead it is being **decomposed per concern** into `src/lib/app-state/`, one file per extraction, as
+consumers need it (see that directory's README). Extracted so far: `IBranchesState`,
+`MultiCommitOperationConflictState`, `IConstrainedValue`. When `app-state.ts` is eventually ported
+with the stores in Phase 7, it should **re-export from these** rather than redeclare them.
+
+**A second finding worth generalizing: the god-module types were over-specified at the call site.**
+`lib/multi-commit-operation.ts` declared parameters as `IRepositoryState` and
+`IMultiCommitOperationState`, but reads only `state.branchesState` and `state.step.kind`. So the
+parameter types were **narrowed to the subset actually read**:
+
+```ts
+type RepositoryStateForChooseBranch = { readonly branchesState: IBranchesState }
+type OperationStateForConflictsFlow = { readonly step: { readonly kind: MultiCommitOperationStepKind } }
+```
+
+TypeScript is structurally typed, so **callers are unaffected** — a full `IRepositoryState` still
+satisfies the narrower type. Two field reads no longer depend on 1,319 lines, and the signature now
+documents the real contract. Worth checking for elsewhere: naming a large state type when you read
+one field of it is how a god module acquires its gravity.
+
+**Recovered (2): `format`, `multi-commit-operation`** (20 tests). `ipc-contract` stayed blocked, as
+expected — `lib/menu-update.ts` needs `IAppState`, the actual root state type, *and* `lib/ipc-shared.ts`
+uses the ambient `Electron` namespace. That one is Phase 3.
+
+**Remaining 6, all genuinely phase-gated — the cheap extraction wins are now exhausted:**
+
+| Test | Blocker | Phase |
+|---|---|---|
+| `ipc-contract` | `IAppState` (whole module) + ambient `Electron` IPC types | 3 |
+| `format-commit-message` | `mergeTrailers` over IPC + a TypeScript repository-setup test helper | 3 |
+| `ssh` | `lib/trampoline/**` → the `crates/trampoline` Rust sidecar | 2 |
+| `popup-manager` | `models/popup.ts` → UI dialogs **and** `Electron.Certificate` | 5 / 7 |
+| `stats-store`, `app-store-test-harness` | `lib/stores/**` | 7 |
+
+**Next:** the natural continuation is `crates/trampoline` (unblocks `ssh`, and `deleteRemoteBranch`
+and the remote git operations all wait on it), or the rest of `lib/git/**`:
+commit/checkout/merge/rebase/stash/push/pull/fetch/log/remote/tag.
 
 **Note for Phase 3:** the status types carry no `serde`/`specta` derives yet. They will need them
 to cross IPC, but the representation is an IPC decision, so it belongs with the binding-generation

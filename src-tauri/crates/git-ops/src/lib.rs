@@ -20,6 +20,7 @@ pub mod exec;
 pub mod git_delimiter_parser;
 pub mod git_error_kind;
 pub mod init;
+pub mod interpret_trailers;
 pub mod operation_state;
 pub mod refs;
 pub mod rev_parse;
@@ -46,6 +47,10 @@ pub use exec::{git, GitOptions, GitOutput, TERMINAL_OUTPUT_CAPACITY};
 pub use git_delimiter_parser::ForEachRefParser;
 pub use git_error_kind::{parse_bad_config_value, parse_error, BadConfigValue, GitErrorKind};
 pub use init::init_repository;
+pub use interpret_trailers::{
+    get_trailer_separator_characters, merge_trailers, parse_raw_unfolded_trailers,
+    parse_single_unfolded_trailer, parse_trailers, Trailer,
+};
 pub use operation_state::{
     get_rebase_internal_state, is_cherry_pick_head_found, is_merge_head_set, is_rebase_head_set,
     is_squash_msg_set, RebaseInternalState,

@@ -1,4 +1,4 @@
-import * as Path from 'path'
+import { basename } from '../lib/path-utils'
 
 /**
  * A sufficiently large number that it's unlikely it'll ever collide with the id
@@ -18,7 +18,7 @@ export class CloningRepository {
   ) {}
 
   public get name(): string {
-    return Path.basename(this.url, '.git')
+    return basename(this.url, '.git')
   }
 
   /**
