@@ -79,13 +79,13 @@ describe('parseAppURL', () => {
 
     it('adds file path if found', () => {
       const result = parseAppURL(
-        'github-mac://openRepo/https://github.com/octokit/octokit.net?branch=master&filepath=Octokit.Reactive%2FOctokit.Reactive.csproj'
+        'github-mac://openRepo/https://github.com/octokit/octokit.net?branch=main&filepath=Octokit.Reactive%2FOctokit.Reactive.csproj'
       )
       assert.equal(result.name, 'open-repository-from-url')
 
       const openRepo = result as IOpenRepositoryFromURLAction
       assert.equal(openRepo.url, 'https://github.com/octokit/octokit.net')
-      assert.equal(openRepo.branch, 'master')
+      assert.equal(openRepo.branch, 'main')
       assert.equal(
         openRepo.filepath,
         'Octokit.Reactive/Octokit.Reactive.csproj'
@@ -149,13 +149,13 @@ describe('parseAppURL', () => {
 
     it('adds file path if found', () => {
       const result = parseAppURL(
-        'github-mac://openRepo/git@github.com/octokit/octokit.net?branch=master&filepath=Octokit.Reactive%2FOctokit.Reactive.csproj'
+        'github-mac://openRepo/git@github.com/octokit/octokit.net?branch=main&filepath=Octokit.Reactive%2FOctokit.Reactive.csproj'
       )
       assert.equal(result.name, 'open-repository-from-url')
 
       const openRepo = result as IOpenRepositoryFromURLAction
       assert.equal(openRepo.url, 'git@github.com/octokit/octokit.net')
-      assert.equal(openRepo.branch, 'master')
+      assert.equal(openRepo.branch, 'main')
       assert.equal(
         openRepo.filepath,
         'Octokit.Reactive/Octokit.Reactive.csproj'

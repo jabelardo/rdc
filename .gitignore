@@ -1,5 +1,8 @@
 # Logs
-logs
+# Anchored to the repo root on purpose: an unanchored `logs` also matches
+# src-tauri/crates/git-ops/tests/fixtures/**/_git/logs, which would silently commit the git
+# fixtures without their reflogs and break any test that reads reflog history.
+/logs
 *.log
 npm-debug.log*
 yarn-debug.log*

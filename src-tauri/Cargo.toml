@@ -1,3 +1,16 @@
+# This is both the Tauri application package and the Cargo workspace root, so
+# `crates/*` build, test and lint together with the app. See MIGRATION_PLAN.md
+# for the intended layout: the app binary here, per-concern logic in crates/.
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.dependencies]
+regex = "1"
+thiserror = "2"
+tokio = "1"
+tempfile = "3"
+
 [package]
 name = "rdc"
 version = "0.1.0"

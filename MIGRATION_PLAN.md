@@ -233,11 +233,60 @@ Note that ~15 of the tests re-scoped in Step 4 also depend on it, so they unbloc
 effect. Start with the `Repository.url` redesign — the git-calling model is the knot that keeps
 the largest number of tests out of reach.
 
-### Phase 2 — Git backend (`git-ops` crate)
+### Phase 2 — Git backend (`git-ops` crate) — **IN PROGRESS**
+
+**Landed so far** (`cargo fmt`/`clippy -D warnings`/`test` green, 39 Rust tests):
+- `src-tauri` is now a **Cargo workspace** (root package = the Tauri app, members = `crates/*`)
+  with a shared `[workspace.dependencies]`. CI runs `--workspace`, without which cargo checks
+  only the app crate and silently skips `crates/*`.
+- `crates/git-ops/src/exec.rs` — the git invocation core, ported from `lib/git/core.ts`:
+  `git(args, path, name, options)` over `tokio::process`, `success_exit_codes` (default `{0}`),
+  env overrides, stdin, `TERM=dumb`, `kill_on_drop`. stdout is kept as **bytes** (git output
+  isn't always UTF-8 — binary diffs, and Unix paths are arbitrary bytes) with `stdout_lossy()` /
+  `stdout_trimmed()` helpers. Signal-terminated processes are a distinct error rather than being
+  conflated with an exit code.
+- `crates/git-ops/src/error.rs` — `GitError` via `thiserror`.
+- `crates/git-ops/src/terminal_output.rs` — `push_terminal_chunk`, ported from
+  `lib/git/push-terminal-chunk.ts` with all 27 of its test cases.
+- `crates/git-ops/src/test_support.rs` — `empty_repository()` with deterministic branch name and
+  identity/signing config, so tests don't depend on the developer's global git config.
+
+**Test-suite reality check.** `app/test/unit/git/**` is **47 files, 36 of which build real
+repositories** from fixtures — this is an integration suite, not a set of string-parsing unit
+tests. So Phase 2 needs a fixture harness (copy fixture dir → temp dir, rename `**/_git` → `.git`
+— the mechanism is simple), and the fixtures themselves are **8.7 MB**, 4.6 MB of that a single
+image-diff repo. **Vendor fixtures lazily**, per module as its tests are ported, rather than
+importing all 22 up front.
+
+**Also landed (second slice, 53 Rust tests):**
+- `crates/git-ops/src/git_error_kind.rs` — **generated**, not transcribed, from dugite v3.2.2's
+  own `errors.js`: 60 `GitErrorKind` variants and all 62 patterns in dugite's exact order.
+  **Order is load-bearing** (`parseError` takes the first match, and e.g. the HTTPS auth pattern
+  must precede the generic one), which is why this is generated. Also ports `isAuthFailureError`
+  and `parseBadConfigValueErrorInfo`.
+- Classification is wired into `exec.rs` with dugite's real semantics, which are subtler than
+  they look: parsing tries **stderr first, then stdout**, and a recognized failure the caller
+  declared via `expected_errors` returns **`Ok`** with `GitOutput::git_error` set rather than an
+  `Err` — the caller branches on it. `GitError::UnexpectedExitCode` carries the classified kind.
+- `fixture_repository()` — copies a vendored fixture to a temp dir and renames `**/_git` → `.git`,
+  ported from `setupFixtureRepository`. `test-repo` (88K) is vendored; the rest stay lazy.
+
+**Decision: user-facing error copy stays in the frontend.** `getDescriptionForError` in `core.ts`
+is ~140 lines of English strings. Rust returns the typed `GitErrorKind`; mapping kind → display
+text belongs in the UI (Phase 7), where it can be localized. Porting English into the backend
+would be a step backwards.
+
+**Next:** port the first real command modules against the harness, starting with the ones whose
+tests need no fixture (`init`, `add`), then the fixture-backed ones (`config`, `rev-parse`,
+`branch`, `status`).
+
+<details><summary>original phase description</summary>
 - Port `app/test/unit/git/**` (45 files, largest single test category) as the acceptance spec for `crates/git-ops`.
 - **Keep shelling out to the system `git` binary** (Rust `tokio::process::Command`), do **not** switch to `git2`/libgit2. This mirrors dugite's own deliberate choice — libgit2 has known gaps with LFS, credential helpers, partial clone, and hook execution that real desktop Git clients depend on. Reimplementing dugite's spawn/parse logic in Rust is more work than a libgit2 rewrite would save, and avoids a category of subtle correctness bugs.
 - Each `dugite`-based file in `app/src/lib/git/` maps to one Rust module in `crates/git-ops/src/`; port the parsing/formatting logic test-by-test.
 - `trampoline/` (10 files) + `ssh/` (4 files) → `crates/trampoline`, compiled as a small Rust sidecar binary bundled via Tauri's sidecar mechanism, replacing the vendored `desktop-trampoline` native binary. This is a real improvement: one Rust toolchain instead of a separately-maintained vendored binary per platform.
+
+</details>
 
 ### Phase 3 — IPC surface → Tauri commands
 - `app/src/lib/ipc-shared.ts` declares 77 channels — treat this as the literal spec. Build a table (in `MIGRATION_MAP.md`) of channel → Tauri command/event, and knock them out systematically rather than ad hoc as UI needs them.

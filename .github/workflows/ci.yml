@@ -52,9 +52,11 @@ jobs:
       - name: cargo fmt --check
         working-directory: src-tauri
         run: cargo fmt --check
+      # --workspace is required: src-tauri is a workspace root *with* a root package, so
+      # without it cargo would only check the app crate and silently skip crates/*.
       - name: cargo clippy
         working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
       - name: cargo test
         working-directory: src-tauri
-        run: cargo test --all-targets
+        run: cargo test --workspace

@@ -73,8 +73,8 @@ describe('parsePorcelainStatus', () => {
     const entries = parse(
       [
         '# branch.oid 2de0487c2d3e977f5f560b746833f9d7f9a054fd',
-        '# branch.head master',
-        '# branch.upstream origin/master',
+        '# branch.head main',
+        '# branch.upstream origin/main',
         '# branch.ab +1 -0',
       ].join('\0') + '\0'
     ) as ReadonlyArray<IStatusHeader>
@@ -87,8 +87,8 @@ describe('parsePorcelainStatus', () => {
       entries[i++].value,
       'branch.oid 2de0487c2d3e977f5f560b746833f9d7f9a054fd'
     )
-    assert.equal(entries[i++].value, 'branch.head master')
-    assert.equal(entries[i++].value, 'branch.upstream origin/master')
+    assert.equal(entries[i++].value, 'branch.head main')
+    assert.equal(entries[i++].value, 'branch.upstream origin/main')
     assert.equal(entries[i++].value, 'branch.ab +1 -0')
   })
 

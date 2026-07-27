@@ -116,6 +116,11 @@ spawning / native OS access — there's no "frontend half" to keep):
 
 | Old path | Target (tentative unless noted) | Phase |
 |---|---|---|
+| `lib/git/core.ts` (the invocation core) | `crates/git-ops/src/exec.rs` + `error.rs` — **done** for spawn/exit-code/stdin/env; error *classification*, trampoline env, hook interception and LFS progress still outstanding | 2 |
+| `lib/git/push-terminal-chunk.ts` + `coerce-to-string.ts` | `crates/git-ops/src/terminal_output.rs` — **done** (see the UTF-16 note in §8) | 2 |
+| `app/test/helpers/repositories.ts` | `crates/git-ops/src/test_support.rs` — `empty_repository()` + `fixture_repository()` **done**. Note `empty_repository()` pins the branch to `main`, whereas the original defaulted to `master`; a ported test asserting a branch name needs adjusting for that. | 2 |
+| dugite's `GitError` enum + `GitErrorRegexes` + `parseError` + `parseBadConfigValueErrorInfo`; `isAuthFailureError` from `core.ts` | `crates/git-ops/src/git_error_kind.rs` — **done, GENERATED from dugite v3.2.2** (60 variants, 62 patterns). Regenerate rather than hand-edit; the generator reads dugite's `build/lib/errors.js` and emits the module. **Pattern order is load-bearing**: `parseError` returns the first match and patterns overlap (the HTTPS auth pattern must precede the generic one, or every HTTPS auth failure is misreported as SSH). | 2 |
+| `getDescriptionForError` (`core.ts`, ~140 lines of English) | **deliberately not ported to Rust.** Rust returns the typed `GitErrorKind`; mapping a kind to user-facing copy belongs in the frontend (Phase 7) where it can be localized. Embedding English in the backend would be a regression. | 7 |
 | `lib/git/cherry-pick.ts`, `description.ts`, `diff.ts`, `gitignore.ts`, `rebase.ts`, `reorder.ts`, `squash.ts`, `submodule.ts`, `worktree-include.ts`, `worktree.ts` | `crates/git-ops/src/{same-name}.rs` | 2 |
 | `lib/progress/from-process.ts`, `lib/progress/lfs.ts` | `crates/git-ops/src/progress/*.rs` | 2 |
 | `lib/hooks/get-repo-hooks.ts`, `get-shell-env.ts`, `hooks-proxy.ts`, `with-hooks-env.ts` | `crates/git-ops/src/hooks/*.rs` | 2 |
@@ -284,6 +289,7 @@ tree, Electron, and `lib/stores`:
 | `tsconfig.json` | `esModuleInterop: true`, `useUnknownInCatchVariables: false`, target ES2022 / lib ES2023, `types: ["node"]` | Required for ported code + `import assert from 'node:assert'`; matches desktop-plus's own compiler settings. |
 | `src/lib/fonts/installed-fonts.ts` | `import { uniq } from 'lodash'` → `[...new Set(families)]` | Utility policy is native → Radash → Lodash (see `DEVELOPMENT.md`). A single `uniq()` on a `string[]` doesn't justify the dependency; lodash v4 is a 2016 release with v5 unreleased, so its vulnerability-response time is the real risk. If lodash ever *is* required, pin >= 4.18.1. |
 | `src/models/accessible-message.ts` | added `import type { JSX } from 'react'` | React 19 removed the global `JSX` namespace the file relied on under React 16. `models/banner.ts` has the same issue and will need the same fix whenever it's unblocked. |
+| `crates/git-ops/src/terminal_output.rs` (Phase 2) | caps the rolling terminal buffer on **UTF-8 bytes**, not JavaScript string length (UTF-16 code units) | **Exact parity is unrepresentable in Rust, so this deviation is forced rather than chosen.** The original's tests assert `'日本語ab'` has length 5 and that `'👋'` "counts as 2" — trimming by UTF-16 index can split a surrogate pair, and JavaScript will hold the resulting lone surrogate while Rust's `String` (guaranteed UTF-8) cannot. Bytes are also the honest unit for what is really a memory bound. Trimming rounds *up* to a character boundary, so this version can never emit mangled UTF-8 — an improvement, at the cost of sometimes retaining slightly *fewer* bytes than `capacity`, never more. All 27 original cases are ported; the 3 unicode ones carry comments explaining the difference. |
 
 ### Known debt carried over, not fixed during the port
 

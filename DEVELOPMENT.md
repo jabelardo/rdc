@@ -101,6 +101,22 @@ tracking context).
 each call site against the list above rather than reflexively adding the dependency. Phase 1's
 only lodash usage was a single `uniq()` on a `string[]`, replaced with a native `Set`.
 
+## Git test fixtures (do not edit)
+
+`src-tauri/crates/git-ops/tests/fixtures/` holds **byte-exact snapshots of git repositories**
+vendored from `desktop-plus`, stored with `_git` instead of `.git` and materialized into a temp
+directory at test time.
+
+They are git internals stored as plain files, so they must be excluded from any project-wide
+search/replace. This already bit once: renaming the default branch `master` → `main` rewrote a
+fixture's `_git/HEAD` while its actual ref stayed `refs/heads/master`, leaving HEAD dangling
+(`fatal: ambiguous argument 'HEAD'`). A fixture's internal branch name is part of the snapshot,
+not a project convention — ported tests refer to `master` inside them.
+
+`.gitattributes` marks the directory `-text -diff` so git never applies line-ending
+normalization, and `.gitignore`'s `logs` entry is anchored to `/logs` so it can't swallow the
+fixtures' `_git/logs/` reflogs. See `crates/git-ops/tests/fixtures/README.md`.
+
 ## Migration workflow
 
 If you're porting a module from `desktop-plus`:

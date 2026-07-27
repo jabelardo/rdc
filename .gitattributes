@@ -1,0 +1,4 @@
+# Vendored git repositories used as test fixtures are byte-exact snapshots of git internals.
+# Treat them as binary so git never applies text or line-ending normalization to them, which
+# would corrupt object files and refs. See crates/git-ops/tests/fixtures/README.md.
+src-tauri/crates/git-ops/tests/fixtures/** -text -diff

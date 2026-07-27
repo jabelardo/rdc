@@ -14,7 +14,7 @@ interface IGitHubRepoFixtureOptions {
   owner: string
   name: string
   parent?: GitHubRepository
-  /** defaults to 'master' */
+  /** defaults to 'main' */
   defaultBranch?: string
   isPrivate?: boolean
 
