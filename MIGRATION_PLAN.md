@@ -64,10 +64,174 @@ Rust conventions to enforce in review: `thiserror` for library error enums, `any
   - Mac devs need Docker Desktop (or an equivalent Linux container runtime) as a hard prerequisite for running E2E locally; document this in the repo's setup instructions, not just in this plan.
   - **This harness runs entirely over X11 (Xvfb)** — it does not exercise native-Wayland WebKitGTK rendering, which is the only rendering path real users on the primary target actually hit. See Phase 3.5 for why, and for the accepted gap here.
 
-### Phase 1 — Port models + pure-TS lib (test-first)
-- Copy `app/test/unit/` tests for `models/**` and the pure-TS `lib/**` utils verbatim into `rdc/src/**` (adjust imports only), run them red.
-- Copy the corresponding source files, fix the 3 models using Node's `path` (`repository.ts`, `worktree.ts`, `cloning-repository.ts`) to use a small path-utils shim (or `@tauri-apps/api/path` where actually needed at runtime — for pure string manipulation, a tiny local helper is enough, don't pull in a Tauri API for something that doesn't need the OS).
-- This phase is almost entirely mechanical and de-risks nothing architecturally, but it's the fastest way to get a green test suite running end-to-end early, which is valuable for morale and CI setup.
+### Phase 1 — Port models + pure-TS lib (test-first) — **first slice DONE**
+
+> **The original assumption here was wrong and worth recording.** This phase was
+> written as "almost entirely mechanical". In reality, `desktop-plus`'s dependency graph
+> is badly tangled: taking the ~48 test files that *look* like pure models/lib work and
+> resolving their transitive imports pulls in **455 files**, including 120 `ui/` files,
+> 57 `lib/git/` files, 36 `lib/stores/` files, plus `electron`, `dugite`, `keytar` and
+> `react-virtualized`. A naive "copy the tests and their sources" pass would have dragged
+> most of the application into Phase 1. Always resolve the transitive closure before
+> sizing a porting batch.
+
+**What actually landed (verified: `tsc --noEmit` clean, 31 test files / 288 tests green):**
+- 52 source files in `rdc/src/{lib,models}` + 2 test helpers in `rdc/src/test-helpers/`.
+- Tests colocated as `src/**/*.test.ts` (Vitest), converted from `node:test` near-verbatim
+  to preserve parity — see the conversion recipe below.
+- Three **layering-inversion fixes** that were the entire cause of the 455-file explosion
+  (all zero-runtime-impact, detail in `MIGRATION_MAP.md`): `lib/api.ts` importing a React
+  dialog for a type, `lib/http.ts` reaching Electron through `ui/lib/app-proxy` just to read
+  a build constant, and `lib/format-number.ts` importing a pure math helper from `ui/`.
+
+**`node:test` → Vitest conversion recipe** (reuse for later phases):
+- `from 'node:test'` → `from 'vitest'`; `mock` → `vi` in the import list.
+- `mock.fn(` → `vi.fn(`, `mock.method(` → `vi.spyOn(`.
+- Fake timers need real API translation, not a rename: `mock.timers.enable()` →
+  `vi.useFakeTimers()`, `mock.timers.reset()` → `vi.useRealTimers()`,
+  `mock.timers.tick(n)` → `vi.advanceTimersByTime(n)`.
+- Keep `node:assert` and all assertions **verbatim** — that's what makes these tests a
+  parity check rather than a rewrite. Requires `esModuleInterop: true` in tsconfig.
+
+**Node 24 is pinned deliberately** (`.nvmrc`, `engines`, CI, Dockerfile). Node 26 ships an
+experimental built-in `localStorage` global that is `undefined` unless `--localstorage-file`
+is passed, and it *shadows jsdom's implementation* — silently breaking every
+web-storage-dependent test (17 failures in `local-storage`/`welcome`) with a confusing
+`Cannot read properties of undefined`. Keep `@types/node` on the v24 line too, or the types
+will declare globals the runtime doesn't have.
+
+### Phase 1 — miniplan to finish
+
+Each step below was validated by simulating the import cuts against the real dependency graph,
+so the "unblocks" numbers are measured, not estimated. Steps are independent unless noted.
+
+**Step 1 — Port the 31 remaining portable models. ✅ DONE** — 30 models + 3 supporting `lib/`
+files landed (`lib/fonts/installed-fonts.ts`, `lib/fonts/monospace-font-filter.ts`,
+`lib/update-branch-strategy.ts`); `tsc` clean, 288 tests still green. Two things the
+import-graph analysis could not have predicted, both now documented in `DEVELOPMENT.md`:
+`models/app-menu.ts` turned out to be Electron *adapter* code (`Electron.MenuItem` via the
+ambient namespace, no import) and was **deferred to Phase 4**, and `models/accessible-message.ts`
+needed `import type { JSX } from 'react'` because React 19 removed the global `JSX` namespace.
+No `lodash` dependency was added — its single `uniq()` call became a native `Set`.
+
+<details><summary>original step description</summary>
+
+*(mechanical, no blockers)*
+Verified self-contained (no `ui`/`git`/`stores`/`electron`/Node-IO in their closure):
+`accessible-message`, `app-menu`, `author`, `branch-preset`, `branch-sort-order`,
+`branches-tab`, `clone-options`, `clone-repository-tab`, `commit-message`, `computed-action`,
+`copy-path-normalization`, `diff-font` (needs `lodash`), `dot-com-bots` (`semver`), `fetch`,
+`git-account`, `git-author`, `last-thank-you`, `menu-ids`, `merge`, `preferences`, `progress`,
+`publish-settings` (`semver`), `pull-request` (`semver`), `release-notes`, `repo-rules`,
+`show-branch-name-in-repo-list`, `stash-entry`, `submodule`, `tutorial-step`,
+`uncommitted-changes-strategy`, `workflow-preferences`.
+Only new dependency needed: `lodash`. These have no tests in the portable set — `tsc` is the
+only gate, so keep them low priority relative to Step 2.
+
+</details>
+
+**Step 2 — Unblock `diff-parser-test`. ✅ DONE** — 33 test files / 298 tests green (+1 file,
++10 tests). `getHunkHeaderExpansionType`, `getLargestLineNumber` and `DefaultDiffExpansionStep`
+were extracted from `ui/diff/text-diff-expansion.ts` and `ui/diff/diff-helpers.tsx` into a new
+`src/lib/diff-hunks.ts` that imports only `models/diff`, then `lib/diff-parser.ts` was ported
+pointing at it. This **broke a real import cycle** (`lib/diff-parser` →
+`ui/diff/text-diff-expansion` → `lib/diff-parser` for `HiddenBidiCharsRegex`) rather than
+relocating it: the dependency is now one-way, and the diff *parser* no longer needs React to
+run. `HiddenBidiCharsRegex` is still exported from `diff-parser.ts` for the `ui/` consumers to
+import in Phase 7.
+
+**Step 3 — ~~Cheap UI-decontamination moves~~ → REVISED: do not port these now. ✅ DONE as a
+decision, deliberately no code.**
+
+This step was written before Steps 1–2 were executed, and its premise turned out to be wrong.
+Verified before acting, and the conclusion is that doing it as written would make rdc *worse*:
+
+- **`ui/lib/git-perf.ts` must not be ported at all.** Its only consumers are `lib/git/spawn.ts`
+  and `lib/git/core.ts` — i.e. the dugite subprocess layer, which Phase 2 rewrites **in Rust**,
+  so it never becomes TypeScript in rdc — plus a devtools debug global in
+  `ui/install-globals.ts`. Porting it to `lib/git-perf.ts` would create a module with no
+  possible consumer, forever. The original rationale ("prerequisite for Phase 2's `git-ops`
+  extraction") was simply mistaken: Phase 2 is a Rust rewrite guided by the ported tests, not a
+  TS port of `lib/git/**`, so the `lib/git → ui/` edge never has to be severed in TypeScript.
+  **Correct replacement:** timing belongs inside the `git-ops` crate (`tracing` spans, or
+  `std::time::Instant`), optionally surfaced through a dev-only command. Recorded in
+  `MIGRATION_MAP.md`.
+- **The enum/interface extractions unblock nothing and would land as orphans.** Measured
+  earlier: applying all of them still leaves the 15 blocked tests at ~384 files. And
+  `models/popup.ts` needs `Electron.Certificate` as well (for the untrusted-certificate popup),
+  so it cannot be ported until that type has a Tauri/Rust equivalent regardless of the enums.
+  Creating `models/` modules now with **zero consumers and zero test coverage** buys nothing and
+  invites drift against `desktop-plus`.
+  **Correct replacement:** bind each extraction to the phase that ports its consumer, as
+  explicit instructions — see `MIGRATION_MAP.md` §9. That way the inversion cannot be
+  accidentally re-created, without carrying dead code in the meantime.
+
+The "120 → 61 files" figure was measured in the **desktop-plus** import graph. It describes how
+much easier a future port becomes, not a change to rdc — nothing in rdc imports `ui/` today
+(verified), so there is no contamination in this repo to remove.
+
+**Step 4 — Re-scope the 15 remaining tests out of Phase 1. ✅ DONE** *(a decision, not a code
+change — recorded here and in `MIGRATION_MAP.md` §6)*
+Measured: applying every fix in Steps 2–3 still leaves these 15 at ~384 files with `git:57`,
+`stores:35`, and `electron` in their closure. They are **not** blocked by layering nits; they
+are blocked by `models/repository.ts` genuinely *executing git at runtime*. They belong to
+Phase 2/3 (git → Rust) and Phase 7 (stores), and should be tracked there:
+`format`, `ipc-contract`, `model-type-guards`, `multi-commit-operation`, `popup-manager`,
+`pull-request-refs`, `repository`, `ssh`, `create-branch`, `name-of`, `text-token-parser`,
+`wrap-rich-text-commit-message`, `format-commit-message`, `stats-store`,
+`app-store-test-harness`.
+The same root cause blocks 13 models (`repository`, `branch`, `commit`, `tip`, `popup`,
+`worktree`, `avatar`, `banner`, `cherry-pick`, `drag-drop`, `multi-commit-operation`,
+`rebase`, `retry-actions`). Two more (`editor-override`, `menu-labels`) are blocked only by
+Node `fs`/`child_process` and belong to Phase 4 (editors/shells).
+
+> **Latent bug found in the root blocker — fix during the Phase 2/3 port, don't copy it.**
+> `Repository.url` is a *synchronous* getter that fires an un-awaited async git subprocess:
+> ```ts
+> public get url(): string | null {
+>   if (this._url === null) { this.fetchUrl() }  // fire-and-forget getRemotes()
+>   return this._url                              // so the first call always returns null
+> }
+> ```
+> Consequences: the first read always yields `null`; every read before the promise resolves
+> spawns *another* `git remote` process; and the promise has no `.catch`, so failures surface
+> as unhandled rejections. When this moves to a Tauri command, make resolving the remote URL
+> an explicit `async` call owned by a store/service — a model should not perform IO, and
+> certainly not from a property getter.
+
+**Step 5 — Carried debt (tracked in `MIGRATION_MAP.md` §8, deliberately not done in the port).**
+`url.parse()` → WHATWG `URL` (8 sites, `DEP0169`, security-relevant); browser-safe answer for
+Node `path` usage before these modules enter the app bundle;
+`lib/copilot-in-memory-session-fs-provider.ts` deferred because `@github/copilot-sdk` drags in
+`koffi`, a native FFI binary, for a *type-only* import.
+
+**Definition of done for Phase 1:** Steps 1–3 landed with `tsc --noEmit` clean and Vitest green
+(expected: 32 test files, ~290 tests), Step 4 re-scoped in `MIGRATION_MAP.md`, Step 5 recorded.
+
+---
+
+## ✅ Phase 1 COMPLETE
+
+| Step | Outcome |
+|---|---|
+| 1 — port portable models | 30 models + 3 supporting `lib/` files; `models/app-menu.ts` deferred to Phase 4 |
+| 2 — unblock `diff-parser` | +1 test file / +10 tests; real import cycle broken via `lib/diff-hunks.ts` |
+| 3 — UI-decontamination moves | **Revised to "do not port"** — would have created permanently-orphan modules; extractions bound to their consumer phases in `MIGRATION_MAP.md` §9 |
+| 4 — re-scope 15 tests | Moved to Phase 2/3 (git → Rust) and Phase 7 (stores) |
+| 5 — carried debt | Recorded in `MIGRATION_MAP.md` §8 |
+
+**Final state:** 87 source files (48 `models/`, 39 `lib/`) + 32 test files / 298 tests, all
+green, `tsc --noEmit` clean, zero `ui/` imports anywhere under `src/`.
+
+**Phase 1 delivered more than a port:** four layering inversions fixed (three in the initial
+slice, plus a genuine circular dependency in Step 2), and a set of findings that change how
+later phases should be approached — the `Repository.url` fire-and-forget bug, the ambient
+global-namespace blind spot in import analysis, and the Node 26 `localStorage` shadowing trap.
+
+**Next up: Phase 2** (`git-ops` crate). Its acceptance spec is `app/test/unit/git/**` (45 files).
+Note that ~15 of the tests re-scoped in Step 4 also depend on it, so they unblock as a side
+effect. Start with the `Repository.url` redesign — the git-calling model is the knot that keeps
+the largest number of tests out of reach.
 
 ### Phase 2 — Git backend (`git-ops` crate)
 - Port `app/test/unit/git/**` (45 files, largest single test category) as the acceptance spec for `crates/git-ops`.
@@ -164,3 +328,9 @@ Phases 1–3 (models, lib, git, IPC) can mostly proceed in parallel once Phase 0
 | Crash window + custom exception reporting | Two bespoke reporting paths | Unify behind one Rust+JS crash/error pipeline |
 | Node built-in test runner | Works, but weaker DX than Vitest for the Vite-based frontend | Vitest for TS/React tests |
 | WebKitGTK native-Wayland rendering (new, not in the old app) | Unresolved upstream crash/render bugs on the only session type the primary target now has | Force `WEBKIT_DISABLE_COMPOSITING_MODE=1` on Linux (see Phase 3.5); no automated CI coverage yet, compensate with manual pre-release testing |
+| **`lib/api.ts` imports a React UI component** (found in Phase 1) | A lib module importing `ui/secret-scanning/bypass-push-protection-dialog` for one type; transitively pulled the whole UI tree into the API client and its tests | **Fixed**: type moved to `models/secret-scanning.ts` |
+| **`lib/http.ts` reaches Electron for a build constant** (found in Phase 1) | `ui/lib/app-proxy` → `ui/main-process-proxy` → `lib/ipc-renderer` → `electron`, all to read `__APP_VERSION__` | **Fixed**: uses the `__APP_VERSION__` define directly |
+| **`ui/lib/round.ts` misfiled** (found in Phase 1) | Dependency-free pure math helper under `ui/`, imported by `lib/format-number.ts` | **Fixed**: moved to `lib/round.ts` |
+| **Legacy `url.parse()` — security-relevant** (found in Phase 1) | 8 call sites across `api.ts`, `find-account.ts`, `parse-app-url.ts`, `repository-matching.ts`. Node emits DEP0169: behavior "is not standardized and prone to errors that have security implications. CVEs are not issued for `url.parse()` vulnerabilities." Also won't bundle for a webview without a Node polyfill. | Migrate to the WHATWG `URL` API. **Not** done during the port: `url.parse()` is lenient where `new URL()` is strict, so this is a behavior change that needs its own change with the ported tests as the guard. Tracked in `MIGRATION_MAP.md`. |
+| `models/repository.ts` imports the whole `lib/git` barrel (hub #2) | A domain model depending on the entire git layer; blocks ~15 tests from porting | Break the barrel dependency — models should be leaf types |
+| `models/popup.ts` imports UI dialog components (hub #2) | Popups typed by their dialog props, inverting the model→UI direction | Decouple popup payload types from component props |

@@ -15,14 +15,55 @@ rather than trusting this doc blindly.
 
 ## 1. Models — `app/src/models/**` → `rdc/src/models/**`
 
+**Ported (Phase 1, tests green):** `account.ts`, `cloning-repository.ts`, `commit-identity.ts`,
+`diff/{diff-data,diff-line,diff-selection,image,image-diff,index,raw-diff}.ts`,
+`equality-hash.ts`, `formatting-preferences.ts`, `github-repository.ts`,
+`manual-conflict-resolution.ts`, `owner.ts`, `remote.ts`, `status.ts` — 17 files, 1:1 paths.
+
+**New file (not a 1:1 port):** `rdc/src/models/secret-scanning.ts` holds `BypassReason` /
+`BypassReasonType`, extracted out of `ui/secret-scanning/bypass-push-protection-dialog.tsx`.
+When that dialog is ported in Phase 7 it must import from here, and `ISecretScanResult`
+(currently also in a dialog file) should move here too.
+
 | Old path | Count | New path | Status |
 |---|---|---|---|
-| `app/src/models/**` (all, except below) | 60 | `rdc/src/models/**` (1:1 filename) | not-started |
-| `app/src/models/repository.ts` | 1 | `rdc/src/models/repository.ts` — replace Node `path` import with a small local path-utils helper (pure string ops, no OS access needed) | not-started |
-| `app/src/models/worktree.ts` | 1 | same treatment | not-started |
-| `app/src/models/cloning-repository.ts` | 1 | same treatment | not-started |
+| the 17 files listed above | 17 | `rdc/src/models/**` (1:1 filename) | **done** |
+| **Step 1 batch** (30 models): `accessible-message`, `author`, `branch-preset`, `branch-sort-order`, `branches-tab`, `clone-options`, `clone-repository-tab`, `commit-message`, `computed-action`, `copy-path-normalization`, `diff-font`, `dot-com-bots`, `fetch`, `git-account`, `git-author`, `last-thank-you`, `menu-ids`, `merge`, `preferences`, `progress`, `publish-settings`, `pull-request`, `release-notes`, `repo-rules`, `show-branch-name-in-repo-list`, `stash-entry`, `submodule`, `tutorial-step`, `uncommitted-changes-strategy`, `workflow-preferences` | 30 | `rdc/src/models/**` (1:1) | **done** |
+| supporting `lib/` files pulled in by the Step 1 closure: `lib/fonts/installed-fonts.ts`, `lib/fonts/monospace-font-filter.ts`, `lib/update-branch-strategy.ts` | 3 | `rdc/src/lib/**` (1:1) | **done** |
+| `app/src/models/app-menu.ts` | 1 | `src-tauri/src/platform/menu/**` adapter (Tauri `Menu`), **not** `src/models/` | **deferred → Phase 4** — it's an Electron adapter (`menuFromElectronMenu`, `Electron.MenuItem`), not a domain model |
+| `app/src/models/repository.ts` | 1 | `rdc/src/models/repository.ts` — also needs its Node `path` import replaced with a local pure-string helper | **blocked (hub #2)** — imports the whole `lib/git` barrel |
+| `app/src/models/worktree.ts` | 1 | same treatment | **blocked (hub #2)** |
+| `app/src/models/popup.ts` | 1 | `rdc/src/models/popup.ts` | **blocked (hub #2)** — imports UI dialog components |
+| remaining `app/src/models/**` | ~43 | `rdc/src/models/**` | not-started (not yet required by any ported test) |
 
 Phase: 1.
+
+### Hub #2 — the blocking dependency knot
+
+Two edges keep ~15 otherwise-simple tests out of Phase 1. Both are real design problems, and
+neither is a one-line fix (unlike the three inversions already fixed — see §8):
+
+1. **`models/repository.ts` → `lib/git` (barrel) → `git/core.ts` → `ui/lib/git-perf.ts`.**
+   A domain model pulls in the entire git layer (57 files) and, through it, UI. Fix direction:
+   models should be leaf types with no git dependency; whatever `repository.ts` needs from git
+   should be inverted or moved.
+2. **`models/popup.ts` → UI dialog components.** GitHub Desktop types each popup by its
+   dialog's props, so the popup *model* imports React components. Fix direction: popup payload
+   types should stand alone, with the components consuming them rather than defining them.
+
+A third, smaller one: **`lib/rebase.ts` → `lib/app-state.ts` → `ui/lib/application-theme.ts`**
+(`app-state.ts` is a large state-type module that reaches into UI).
+
+### Analysis blind spot: ambient global namespaces
+
+Import-graph analysis cannot see `declare`d globals, so a file can look like a portable leaf and
+still fail `tsc`. Full inventory across `models/` + `lib/` (grep, not import analysis):
+
+- **Ambient `Electron.*` (Electron-coupled with no import):** `models/app-menu.ts` (deferred to
+  Phase 4), `models/popup.ts` (hub #2), `lib/ipc-shared.ts` (Phase 3), `lib/menu-item.ts` and
+  `lib/window-state.ts` (both Phase 4). Nothing outside those five.
+- **Bare `JSX.*` (global namespace removed in React 19):** `models/accessible-message.ts`
+  (fixed) and `models/banner.ts` (hub #2). Fix is `import type { JSX } from 'react'`.
 
 ---
 
@@ -171,6 +212,38 @@ Phase: 7 (all rows).
 | `test/unit/ui/**` (~30 `.tsx`) | `rdc/src/ui/**/*.test.tsx` (Vitest + Testing Library, colocated) | Phase 7 |
 | remaining ~25 top-level `*-test.ts` (lib utils / models) | colocated `*.test.ts` next to the ported file in `rdc/src/lib/**` or `rdc/src/models/**` | Phase 1 |
 
+### Ported in Phase 1 (31 files, 288 tests, all green)
+
+Colocated as `src/**/*.test.ts`, converted from `node:test` per the recipe in
+`MIGRATION_PLAN.md` Phase 1. Assertions kept verbatim (still `node:assert`) so these function
+as a parity check on the ported logic rather than a rewrite.
+
+`api-error-handling`, `api`, `ci-checks/ci-checks`, `conventional-commits`, `copilot-error`,
+`email`, `endpoint-capabilities`, `enum`, `fatal-error`, `find-account`, `format-duration`,
+`format-number`, `http`, `local-storage`, `offset-from`, `parse-app-url`, `parse-pac-string`,
+`promise`, `promise-with-timeout`, `remote-parsing`, `remove-remote-prefix`,
+`repository-matching`, `sanitize-ref-name`, `squirrel-error-parser`, `status-parser`,
+`status-utils`, `truncate-with-ellipsis`, `welcome` (in `src/lib/`);
+`cloning-repository`, `commit-identity` (in `src/models/`);
+`mock-api` (in `src/test-helpers/`).
+
+Test helpers ported to `rdc/src/test-helpers/`: `github-repo-builder.ts`, `mock-api.ts`.
+
+**Deferred deliberately:** `copilot-in-memory-session-fs-provider-test.ts` and its source —
+needs `@github/copilot-sdk` for a *type-only* import, and that package pulls `koffi`, a native
+FFI binary that doesn't belong in a webview frontend's dependency tree. Revisit if/when the
+Copilot feature is actually migrated; the type could also just be declared locally.
+
+Also ported (Step 2): `diff-parser` → `src/lib/diff-parser.test.ts`, alongside
+`src/lib/diff-parser.ts` and the new `src/lib/diff-hunks.ts` (see §8).
+
+**Blocked on hub #2** (see §1): `format`, `ipc-contract`, `model-type-guards`,
+`multi-commit-operation`, `popup-manager`, `pull-request-refs`, `repository`, `ssh`,
+`create-branch`, `name-of`, `text-token-parser`, `wrap-rich-text-commit-message`,
+`format-commit-message`, `stats-store`, `app-store-test-harness`. These 15 need git → Rust
+(Phase 2/3) and stores (Phase 7); they are **not** blocked by layering nits — see the
+`Repository.url` note in `MIGRATION_PLAN.md` Phase 1 Step 4.
+
 ---
 
 ## 7. IPC channel table (`app/src/lib/ipc-shared.ts`, 77 channels)
@@ -183,3 +256,82 @@ components get ported, per `MIGRATION_PLAN.md` Phase 3.
 | Channel | Direction | Tauri command/event | Status |
 |---|---|---|---|
 | _(TBD — populate at Phase 3 kickoff)_ | | | |
+
+---
+
+## 8. Deliberate deviations from a verbatim port
+
+Every change made to ported code, so nobody has to diff against `desktop-plus` to find them.
+
+### Layering-inversion fixes (the cause of the 455-file dependency explosion)
+
+All three are zero-runtime-impact and were required to port `lib/` without dragging in the UI
+tree, Electron, and `lib/stores`:
+
+| File | Was | Now | Why |
+|---|---|---|---|
+| `src/lib/api.ts` | `import { BypassReasonType } from '../ui/secret-scanning/bypass-push-protection-dialog'` | `from '../models/secret-scanning'` | The API client imported a React dialog for one type alias. That single edge pulled all 120 `ui/` files into the API client and every test touching it. |
+| `src/lib/http.ts` | `import * as appProxy from '../ui/lib/app-proxy'`, `appProxy.getVersion()` | `__APP_VERSION__` | `getVersion()` is literally `return __APP_VERSION__`. The import chain reached `ui/main-process-proxy` → `lib/ipc-renderer` → `electron` to read a build-time constant. |
+| `src/lib/format-number.ts` | `import { round } from '../ui/lib/round'` | `from './round'` | `round()` is a dependency-free pure math function that was misfiled under `ui/`. Copied to `src/lib/round.ts`. |
+| `src/lib/diff-parser.ts` (Step 2) | `getHunkHeaderExpansionType` from `ui/diff/text-diff-expansion`, `getLargestLineNumber` from `ui/diff/diff-helpers` | both from `./diff-hunks` | Broke a real **import cycle** (`lib/diff-parser` → `ui/diff/text-diff-expansion` → `lib/diff-parser` for `HiddenBidiCharsRegex`) and stopped the pure text-parsing layer from requiring React (`diff-helpers.tsx` imports React). The pure functions — plus `DefaultDiffExpansionStep` — now live in the new `src/lib/diff-hunks.ts`, importing only `models/diff`. **Phase 7 action:** when `ui/diff/text-diff-expansion.ts` and `ui/diff/diff-helpers.tsx` are ported they must import these from `lib/diff-hunks` (not redefine them), keeping the dependency one-way. `HiddenBidiCharsRegex` remains exported from `diff-parser.ts` for them. |
+
+### Other intentional edits
+
+| File | Change | Why |
+|---|---|---|
+| `src/lib/fatal-error.ts` | `assertNever(x: never, …)` → `assertNever(_x: never, …)` | `x` is an unused type-system device. rdc enables `noUnusedParameters` (desktop-plus did not); underscore-prefixing keeps that lint on rather than weakening the config. |
+| `src/lib/api.ts` | GitLab `fetchRefCheckRuns` override: `reloadCache` → `_reloadCache` | Same reason. Note this override genuinely ignores the caller's cache-reload request — latent smell, flagged rather than changed. The two *other* `reloadCache` params are used and untouched. |
+| `tsconfig.json` | `esModuleInterop: true`, `useUnknownInCatchVariables: false`, target ES2022 / lib ES2023, `types: ["node"]` | Required for ported code + `import assert from 'node:assert'`; matches desktop-plus's own compiler settings. |
+| `src/lib/fonts/installed-fonts.ts` | `import { uniq } from 'lodash'` → `[...new Set(families)]` | Utility policy is native → Radash → Lodash (see `DEVELOPMENT.md`). A single `uniq()` on a `string[]` doesn't justify the dependency; lodash v4 is a 2016 release with v5 unreleased, so its vulnerability-response time is the real risk. If lodash ever *is* required, pin >= 4.18.1. |
+| `src/models/accessible-message.ts` | added `import type { JSX } from 'react'` | React 19 removed the global `JSX` namespace the file relied on under React 16. `models/banner.ts` has the same issue and will need the same fix whenever it's unblocked. |
+
+### Known debt carried over, not fixed during the port
+
+- **`url.parse()` (8 call sites)** — Node emits `DEP0169`: not standardized, "security
+  implications", and **CVEs are not issued for `url.parse()` vulnerabilities**. It also won't
+  bundle for a webview without a Node `url` polyfill. Migrating to WHATWG `URL` is a real
+  behavior change (`url.parse` is lenient, `new URL()` is strict), so it needs its own change
+  with the now-ported tests as the guard — not a drive-by edit during a port.
+- **Node `path` imports** in `models/cloning-repository.ts` and `lib/repository-matching.ts`
+  (only `basename`/`normalize`). Fine under Vitest (runs in Node); needs a browser-safe
+  answer before these modules are imported into the app bundle. Don't hand-roll `normalize` —
+  its edge cases (`..`, drive letters) are exactly where bugs hide.
+- **User-Agent string** still reads `GitHubDesktop/<version>` in `src/lib/http.ts`. Left
+  verbatim on purpose: the GitHub API may treat it as significant, so changing it is a
+  behavior decision, not cleanup.
+
+---
+
+## 9. Deferred extractions — bind these to the phase that ports the consumer
+
+Phase 1 fixed four layering inversions because they blocked work *then*. These remaining ones
+were deliberately **not** done in Phase 1: extracting them early would have produced modules
+with zero consumers and zero test coverage, and (measured) would not have unblocked a single
+additional test. The point of this table is that the inversion must not be silently re-created
+when the consumer is finally ported.
+
+| Symbol(s) | Currently lives in (desktop-plus) | Target home in rdc | Do it during |
+|---|---|---|---|
+| `RepositorySettingsTab` (enum) | `ui/repository-settings/repository-settings.tsx` | `models/` — popup payloads must not depend on component modules | Phase 7, with `models/popup.ts` |
+| `UnreachableCommitsTab` (enum) | `ui/history/unreachable-commits-dialog.tsx` | `models/` | Phase 7, with `models/popup.ts` |
+| `ISecretScanResult` (interface) | `ui/secret-scanning/push-protection-error-dialog.tsx` | **`models/secret-scanning.ts`** — the file already exists, created in Phase 1 for `BypassReason`/`BypassReasonType` | Phase 7, with the secret-scanning dialogs |
+| `ApplicationTheme` (enum), `ApplicableTheme` (type) | `ui/lib/application-theme.ts` | `models/` — so `lib/app-state.ts` stops importing from `ui/` | Phase 7, with `lib/app-state.ts` |
+
+### Do NOT port: `ui/lib/git-perf.ts`
+
+Its only consumers are `lib/git/spawn.ts` and `lib/git/core.ts` — the dugite subprocess layer,
+which **Phase 2 rewrites in Rust** — plus a devtools debug global in `ui/install-globals.ts`. A
+ported `lib/git-perf.ts` would have no consumer in rdc, ever.
+
+Instead, Phase 2's `git-ops` crate should do its own timing natively (`tracing` spans, or
+`std::time::Instant` around the subprocess call), keeping the `__DEV__ || >1000ms` reporting
+threshold from the original if that behavior is still wanted. If a devtools affordance is
+desired later, expose it as a dev-only Tauri command rather than a global.
+
+### Blocked on a missing Tauri equivalent, not on layering
+
+`models/popup.ts` also types the untrusted-certificate popup with **`Electron.Certificate`**
+(ambient namespace, no import — see the blind-spot note in §1). Porting `popup.ts` therefore
+needs a certificate type supplied by the Rust side, which belongs with the Phase 5
+security/`webRequest` redesign. Extracting the three enums above is necessary but **not
+sufficient** to unblock it.

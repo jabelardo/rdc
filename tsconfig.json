@@ -1,10 +1,13 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
+    /* target/lib match desktop-plus's tsconfig so ported code that relies on
+       ES2022+ builtins (Array.at, Object.hasOwn, ...) still compiles. */
+    "target": "ES2022",
     "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM"],
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
+    "types": ["node"],
 
     /* Bundler mode */
     "moduleResolution": "bundler",
@@ -13,6 +16,14 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
+
+    /* Required by ported desktop-plus code and tests:
+       - esModuleInterop: tests do `import assert from 'node:assert'`
+       - useUnknownInCatchVariables: false matches desktop-plus, whose code
+         reads `.message`/`.name` off caught values directly. Revisit when the
+         ported code is modernized rather than loosening it further. */
+    "esModuleInterop": true,
+    "useUnknownInCatchVariables": false,
 
     /* Linting */
     "strict": true,

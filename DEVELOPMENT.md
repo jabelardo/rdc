@@ -8,6 +8,12 @@ day to day.
 
 ## Prerequisites
 
+- **Node 24** — pinned, not a suggestion. Run `nvm use` (the repo has a `.nvmrc`), and
+  `package.json` declares `engines.node: ">=24 <25"`. **Do not use Node 26**: it ships an
+  experimental built-in `localStorage` global that is `undefined` unless `--localstorage-file`
+  is passed, and it shadows jsdom's implementation — silently breaking every web-storage
+  test with a confusing `Cannot read properties of undefined`. Keep `@types/node` on the v24
+  line too, or the types will declare globals the runtime doesn't have.
 - [pnpm](https://pnpm.io/)
 - [Rust](https://www.rust-lang.org/tools/install) (stable), with the `rustfmt` and `clippy`
   components: `rustup component add rustfmt clippy`
@@ -76,15 +82,47 @@ performance for stability. Don't remove it without first checking whether upstre
 WebKitGTK/Tauri has actually fixed the underlying issue (`MIGRATION_PLAN.md` Phase 3.5 has the
 tracking context).
 
+## Dependency policy
+
+**Utility functions: native JavaScript first, then Radash, and Lodash only as a last resort.**
+
+1. **Native** is the default — zero bundle cost, maintained by browser vendors/the spec.
+   Common replacements: `_.uniq` → `[...new Set(arr)]`, `_.cloneDeep` → `structuredClone`,
+   `_.groupBy` → `Object.groupBy`, shallow `_.merge` → `{ ...a, ...b }`.
+2. **[Radash](https://radash-docs.vercel.app/)** when native genuinely has no equivalent —
+   async utilities (`parallel`, `retry`, `mapLimit`, `tryit`) and better TypeScript inference
+   for `pick`/`omit`. Actively maintained, zero dependencies.
+3. **Lodash** only if 1 and 2 don't cover it. `debounce`, `memoize` and `isEqual` have no
+   native equivalent, so they're the realistic cases. If you must add it, pin **>= 4.18.1**
+   for security. Lodash v4 dates from 2016 with v5 perpetually unreleased, so the real risk is
+   response time if a vulnerability lands.
+
+`desktop-plus` has 13 lodash importers, so this will come up repeatedly while porting — check
+each call site against the list above rather than reflexively adding the dependency. Phase 1's
+only lodash usage was a single `uniq()` on a `string[]`, replaced with a native `Set`.
+
 ## Migration workflow
 
 If you're porting a module from `desktop-plus`:
 
-1. Find its row in `MIGRATION_MAP.md` (or add one if missing) for the target path.
-2. Port the corresponding test(s) from `desktop-plus/app/test/unit/**` first — get them
-   compiling and red before writing the implementation.
-3. Port the implementation until the tests are green.
-4. Flip the row's status in `MIGRATION_MAP.md` to `done` (or `skipped`, with a reason).
+1. **Resolve the transitive import closure before you size the batch.** This is the hard-won
+   lesson from Phase 1: a set of tests that looked like pure `models/`+`lib/` work actually
+   pulled in 455 files (120 of them `ui/`) through a handful of bad import edges. Trace what a
+   module *actually* drags in first — a file that looks like a leaf often isn't.
+2. **Import analysis alone is not enough — also grep for ambient global namespaces.**
+   Import-graph analysis is blind to `declare`d globals, which is how `models/app-menu.ts`
+   looked portable right up until `tsc` rejected `Electron.MenuItem`. Before porting, run
+   `grep -rn '\bElectron\.[A-Z]' <files>` (Electron coupling with no import) and
+   `grep -rn '[^.]\bJSX\.[A-Z]' <files>` (the global `JSX` namespace React 19 removed —
+   fix by adding `import type { JSX } from 'react'`).
+3. Find its row in `MIGRATION_MAP.md` (or add one if missing) for the target path.
+4. Port the corresponding test(s) from `desktop-plus/app/test/unit/**` first — get them
+   compiling and red before writing the implementation. See `MIGRATION_PLAN.md` Phase 1 for
+   the `node:test` → Vitest conversion recipe; keep assertions verbatim so the test stays a
+   parity check rather than becoming a rewrite.
+5. Port the implementation until the tests are green.
+6. Flip the row's status in `MIGRATION_MAP.md` to `done` (or `skipped`, with a reason), and
+   record any deliberate deviation from a verbatim port in its §8 table.
 
 # Issues to solve
 - Text blur after window resize on Wayland with gaps/positioning: https://github.com/tauri-apps/wry/issues/1727

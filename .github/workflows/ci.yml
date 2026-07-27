@@ -14,7 +14,9 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          # Single source of truth with local dev; must stay on the Node 24 line
+          # (Node 26's built-in localStorage shadows jsdom's — see DEVELOPMENT.md).
+          node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec tsc --noEmit
