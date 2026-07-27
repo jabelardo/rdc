@@ -1,0 +1,43 @@
+# E2E harness image — Linux only, matches the project's primary target and
+# tauri-driver's platform support (no macOS WebDriver backend exists).
+# See MIGRATION_PLAN.md Phase 0 / Phase 8.
+FROM ubuntu:26.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Tauri v2 Linux build dependencies, plus tauri-driver's runtime dependency
+# (webkit2gtk-driver ships the WebKitWebDriver binary it drives) and xvfb
+# for a virtual display, since the container has no real X server.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    wget \
+    file \
+    ca-certificates \
+    build-essential \
+    libwebkit2gtk-4.1-dev \
+    librsvg2-dev \
+    patchelf \
+    libxdo-dev \
+    libssl-dev \
+    libayatana-appindicator3-dev \
+    webkitgtk-webdriver \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+    sh -s -- -y --default-toolchain stable --profile minimal
+RUN cargo install tauri-driver --locked
+
+RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g pnpm@11 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . .
+RUN pnpm install --frozen-lockfile
+
+ENTRYPOINT ["./e2e/run.sh"]

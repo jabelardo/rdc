@@ -1,0 +1,10 @@
+# The only supported way to run E2E — on every host, including Mac dev
+# machines — per MIGRATION_PLAN.md Phase 0. `pnpm test:e2e` shells out to
+# this and nothing else; there is no supported bare-metal path.
+services:
+  e2e:
+    build:
+      context: .
+      dockerfile: Dockerfile.e2e
+    # run.sh starts Xvfb itself (see its comments for why xvfb-run's
+    # SIGUSR1 handshake doesn't work with this process as container PID 1).
