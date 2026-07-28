@@ -11,8 +11,10 @@
 #![warn(clippy::all)]
 
 pub mod add;
+pub mod authentication;
 pub mod branch;
 pub mod checkout;
+pub mod clone;
 pub mod commit;
 pub mod config;
 pub mod diff;
@@ -21,6 +23,7 @@ pub mod diff_index;
 pub mod diff_parser;
 pub mod error;
 pub mod exec;
+pub mod fetch;
 pub mod git_delimiter_parser;
 pub mod git_error_kind;
 pub mod init;
@@ -28,8 +31,13 @@ pub mod interpret_trailers;
 pub mod log;
 pub mod merge;
 pub mod operation_state;
+pub mod progress;
+pub mod pull;
+pub mod push;
 pub mod rebase;
 pub mod refs;
+pub mod remote;
+pub(crate) mod remote_progress;
 pub mod reset;
 pub mod rev_list;
 pub mod rev_parse;
@@ -46,6 +54,7 @@ pub mod update_ref;
 mod test_support;
 
 pub use add::add_conflicted_file;
+pub use authentication::{env_for_authentication, AUTHENTICATION_ERRORS};
 pub use branch::{
     create_branch, delete_local_branch, get_branch_names, get_branches_pointed_at,
     get_merged_branches, rename_branch,
@@ -55,6 +64,7 @@ pub use checkout::{
     checkout_conflicted_file, checkout_paths, CheckoutProgress, CheckoutProgressKind,
     CheckoutTarget, ManualConflictResolution,
 };
+pub use clone::{clone, CloneOptions, CloneProgress, CloneProgressKind};
 pub use commit::{create_commit, create_merge_commit, CommitOptions};
 pub use config::{
     get_boolean_config_value, get_config_value, remove_config_value, set_config_value, GlobalConfig,
@@ -72,6 +82,7 @@ pub use diff_parser::{
 };
 pub use error::GitError;
 pub use exec::{git, git_with_stderr, GitOptions, GitOutput, TERMINAL_OUTPUT_CAPACITY};
+pub use fetch::{fast_forward_branches, fetch, fetch_refspec, FetchProgress, FetchProgressKind};
 pub use git_delimiter_parser::ForEachRefParser;
 pub use git_error_kind::{parse_bad_config_value, parse_error, BadConfigValue, GitErrorKind};
 pub use init::init_repository;
@@ -88,12 +99,22 @@ pub use operation_state::{
     get_rebase_internal_state, is_cherry_pick_head_found, is_merge_head_set, is_rebase_head_set,
     is_squash_msg_set, RebaseInternalState,
 };
+pub use progress::{
+    parse_progress_line, GitProgress, GitProgressInfo, GitProgressParser, ProgressLineSplitter,
+    ProgressStep,
+};
+pub use pull::{pull, PullProgress, PullProgressKind};
+pub use push::{push, PushOptions, PushProgress, PushProgressKind, PushTarget};
 pub use rebase::{
     abort_rebase, continue_rebase, continue_rebase_with_progress, get_rebase_snapshot, rebase,
     rebase_with_progress, MultiCommitOperationProgress, MultiCommitOperationProgressKind,
     RebaseConflictResolution, RebaseResult, RebaseSnapshot,
 };
 pub use refs::{format_as_local_ref, get_symbolic_ref};
+pub use remote::{
+    add_remote, get_remote_head, get_remote_url, get_remotes, remove_remote, set_remote_url,
+    update_remote_head, Remote,
+};
 pub use reset::unstage_all;
 pub use rev_list::{get_commits_between_commits, get_commits_in_range, CommitOneLine};
 pub use rev_parse::{

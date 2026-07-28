@@ -1,5 +1,6 @@
 // The IPC surface lives in `commands`; see that module for the conventions.
 mod commands;
+mod trampoline_state;
 
 // WebKitGTK's native-Wayland GPU compositing path has known unresolved
 // crash/render bugs as of 2026 (e.g. tauri-apps/wry#1727), and Wayland is
@@ -23,6 +24,9 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        // Owns the credential server. Created eagerly, but it only binds a socket on the first
+        // remote operation — see `trampoline_state`.
+        .manage(trampoline_state::TrampolineState::new())
         .invoke_handler(tauri::generate_handler![
             commands::git::get_status,
             commands::git::create_commit,
@@ -40,6 +44,18 @@ pub fn run() {
             commands::git::get_working_directory_diff,
             commands::git::get_commit_diff,
             commands::git::get_commit_range_diff,
+            commands::remote::push,
+            commands::remote::fetch,
+            commands::remote::pull,
+            commands::remote::fast_forward_branches,
+            commands::remote::clone,
+            commands::remote::get_remotes,
+            commands::remote::add_remote,
+            commands::remote::remove_remote,
+            commands::remote::set_remote_url,
+            commands::remote::get_remote_url,
+            commands::remote::update_remote_head,
+            commands::remote::get_remote_head,
             commands::git::merge_branch,
             commands::git::get_merge_base,
             commands::git::abort_merge,

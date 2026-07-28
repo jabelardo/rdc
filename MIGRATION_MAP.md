@@ -179,6 +179,19 @@ spawning / native OS access — there's no "frontend half" to keep):
 | Old path | New path | Note | Phase |
 |---|---|---|---|
 | `lib/ipc-renderer.ts` | *(deleted, not ported)* | superseded entirely by `@tauri-apps/api/core` `invoke`/`listen` | 3 |
+| `lib/git/clone.ts` | `crates/git-ops/src/clone.rs` | 2 |
+| `lib/git/remote.ts` | `crates/git-ops/src/remote.rs` (memoization dropped) | 2 |
+| `lib/progress/clone.ts` | `crates/git-ops/src/progress.rs` | 2 |
+| `lib/git/push.ts` | `crates/git-ops/src/push.rs` (hooks deferred) | 2 |
+| `lib/git/fetch.ts` | `crates/git-ops/src/fetch.rs` | 2 |
+| `lib/git/pull.ts` | `crates/git-ops/src/pull.rs` (hooks deferred) | 2 |
+| `lib/progress/{git,push,fetch,pull}.ts` | `crates/git-ops/src/progress.rs` | 2 |
+| `lib/git/authentication.ts` | `crates/git-ops/src/authentication.rs` | 2 |
+| `lib/trampoline/trampoline-environment.ts` | `crates/trampoline/src/session.rs` | 2 |
+| `lib/trampoline/trampoline-askpass-handler.ts` | `crates/trampoline/src/handlers.rs` | 2 |
+| `lib/trampoline/trampoline-credential-helper.ts` | `crates/trampoline/src/handlers.rs` (account/UI decisions behind traits) | 2 |
+| `lib/git/credential.ts`, `lib/trampoline/url-without-credentials.ts` | `crates/trampoline/src/credential.rs` | 2 |
+| `lib/ssh/ssh.ts` (`parseAddSSHHostPrompt`) | `crates/trampoline/src/handlers.rs` — **the TypeScript port is deleted** | 2 |
 | `lib/git/diff.ts` | `crates/git-ops/src/diff.rs` — text diff path; image/LFS/resolution deferred | 2 |
 | `lib/git/show.ts` | `crates/git-ops/src/show.rs` (`getPartialBlobContents` deferred) | 2 |
 | `lib/git/diff-index.ts` | `crates/git-ops/src/diff_index.rs`; `IndexStatus` → **`src/models/index-status.ts`** | 2 |
@@ -345,6 +358,18 @@ shape of everything it carries is pinned by a wire-contract test on the Rust sid
 | _(new)_ | request/response | `get_working_directory_diff` → `getWorkingDirectoryDiff()` | **done** |
 | _(new)_ | request/response | `get_commit_diff` → `getCommitDiff()` | **done** |
 | _(new)_ | request/response | `get_commit_range_diff` → `getCommitRangeDiff()` | **done** |
+| _(new)_ | request/response + Channel | `push` → `push()` | **done** |
+| _(new)_ | request/response + Channel | `fetch` → `fetch()` | **done** |
+| _(new)_ | request/response + Channel | `pull` → `pull()` | **done** |
+| _(new)_ | request/response | `fast_forward_branches` → `fastForwardBranches()` | **done** |
+| _(new)_ | request/response + Channel | `clone` → `clone()` | **done** |
+| _(new)_ | request/response | `get_remotes` → `getRemotes()` | **done** |
+| _(new)_ | request/response | `add_remote` → `addRemote()` | **done** |
+| _(new)_ | request/response | `remove_remote` → `removeRemote()` | **done** |
+| _(new)_ | request/response | `set_remote_url` → `setRemoteURL()` | **done** |
+| _(new)_ | request/response | `get_remote_url` → `getRemoteURL()` | **done** |
+| _(new)_ | request/response | `update_remote_head` → `updateRemoteHEAD()` | **done** |
+| _(new)_ | request/response | `get_remote_head` → `getRemoteHEAD()` | **done** |
 | _(remaining 77 — populate as each is ported)_ | | | |
 
 ---
@@ -376,6 +401,38 @@ Two consequences worth knowing before writing more commands:
 - **Streaming output uses a `Channel`, not `app.emit`.** Tauri's docs say events are unsuited to
   high-throughput data, so the original's `processCallback` / `onTerminalOutputAvailable` — progress
   during push/pull/fetch — maps to a Channel argument on the command.
+
+### `GIT_CLONE_PROTECTION_ACTIVE=false` on clone — preserved, deliberately
+
+`clone` sets this, which disables a git check. Worth being precise about *which* one, because it looks
+alarming and is a defensible tradeoff rather than the mistake the SSH fingerprint was.
+
+git 2.45 shipped the fix for **CVE-2024-32002** — a malicious repository whose submodule could write
+into `.git/hooks` and get code executed during `clone --recursive`. Alongside the fix it added a
+*defense-in-depth* layer: refuse to clone when the repository being cloned has hooks that would run.
+This variable turns off **that layer only**; the CVE fix itself is unconditional and still in force.
+
+The check is known to break `git clone` for repositories using Git LFS, and that cannot be worked
+around on the LFS side. So the choice is between a belt-and-braces check and cloning LFS repositories
+at all. The original chose the latter and the port keeps it — but it is documented at the call site
+rather than left as an unexplained environment variable, so it can be revisited deliberately.
+
+### SECURITY: the SSH host-key auto-accept trusted a retired, leaked GitHub key
+
+The askpass handler auto-accepted one github.com fingerprint without prompting:
+`SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8`. **GitHub rotated that RSA host key in March
+2023**, after its private half was briefly exposed in a public repository. It no longer appears in
+GitHub's published fingerprints — verified against
+<https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints>.
+
+Two consequences. The benign one: github.com presents a different key now, so the auto-accept never
+fired and users were prompted anyway. The one that matters: anyone holding the leaked private key
+could present the retired key to a client, and this code would have trusted it **silently, with no
+prompt** — reinstating a key GitHub had deliberately revoked.
+
+The port pins GitHub's three current fingerprints (RSA, ECDSA, Ed25519) and keeps the retired one in a
+`RETIRED_GITHUB_FINGERPRINTS` constant purely so a test can assert it is never accepted, at the unit
+level and end-to-end through the real trampoline binary.
 
 ### `DiffHunkHeader.equals` now compares `newLineCount`
 
@@ -539,6 +596,7 @@ when the consumer is finally ported.
 | `UnreachableCommitsTab` (enum) | `ui/history/unreachable-commits-dialog.tsx` | `models/` | Phase 7, with `models/popup.ts` |
 | `ISecretScanResult` (interface) | `ui/secret-scanning/push-protection-error-dialog.tsx` | **`models/secret-scanning.ts`** — the file already exists, created in Phase 1 for `BypassReason`/`BypassReasonType` | Phase 7, with the secret-scanning dialogs |
 | ~~`IndexStatus`, `NoRenameIndexStatus`~~ **DONE** | `lib/git/diff-index.ts` | `models/index-status.ts` — an enum crossing IPC is a domain type, and its old home is now a Rust module | Phase 2, with `diff-index` |
+| `IAddSSHHostPrompt` (interface) | was `lib/ssh/ssh-host-prompt.ts`, now parsed in Rust | `models/` — it becomes the payload of the host-confirmation prompt request | Phase 7, with the SSH prompt UI |
 | `ApplicationTheme` (enum), `ApplicableTheme` (type) | `ui/lib/application-theme.ts` | `models/` — so `lib/app-state.ts` stops importing from `ui/` | Phase 7, with `lib/app-state.ts` |
 
 ### Do NOT port: `ui/lib/git-perf.ts`

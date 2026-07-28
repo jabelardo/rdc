@@ -16,5 +16,6 @@
 pub mod error;
 pub mod git;
 pub mod log;
+pub mod remote;
 
 pub use error::CommandError;

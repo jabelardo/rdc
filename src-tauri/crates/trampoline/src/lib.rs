@@ -20,23 +20,41 @@
 //! The binary is deliberately dumb: it forwards its argv, environment and stdin, prints whatever
 //! comes back, and exits. All decisions live in the app.
 //!
-//! # What is not here yet
+//! # The handlers, and what they still need
 //!
-//! The **handlers** — deciding which account to use, prompting the user, storing credentials — need
-//! account state and UI, so they arrive with Phase 3 (IPC) and Phase 7 (stores/UI). [`server`] takes
-//! handlers as injected closures precisely so that boundary stays clean; ported from
-//! `trampoline-askpass-handler.ts` and `trampoline-credential-helper.ts`.
+//! [`handlers`] implements both: prompt classification, github.com host-key pinning, the
+//! credential-helper `get`/`store`/`erase` dispatch, and the rule that a background task never
+//! prompts. The two decisions that genuinely need things this crate doesn't own — *which account
+//! applies* (accounts store, OS keychain) and *what the user says* (UI) — are the
+//! [`handlers::CredentialProvider`] and [`handlers::AskpassResponder`] traits, arriving with Phase 7.
+//!
+//! [`handlers::Decline`] implements both by refusing, which is the correct behaviour rather than a
+//! stub: declining makes git consult its own credential helpers, so SSH agents and system credential
+//! managers keep working.
+//!
+//! [`session`] holds per-operation state and produces the environment that points git here — the piece
+//! `push`/`pull`/`fetch` cannot authenticate without.
 
 #![warn(clippy::all)]
 
 pub mod client;
+pub mod credential;
+pub mod handlers;
 pub mod protocol;
 pub mod server;
+pub mod session;
 pub mod token;
 
 pub use client::{port_from_env, send, ClientError};
+pub use credential::{Credential, CredentialError, HelperCommand};
+pub use handlers::{
+    askpass_handler, classify_askpass, credential_helper_handler, parse_add_ssh_host_prompt,
+    AddSshHostPrompt, AskpassRequest, AskpassResponder, BoxFuture, CredentialAnswer,
+    CredentialProvider, Decline,
+};
 pub use protocol::{
     decode, encode, Command, CommandIdentifier, ProtocolError, IDENTIFIER_ENV, PORT_ENV, TOKEN_ENV,
 };
 pub use server::{handler, Handler, TrampolineServer};
+pub use session::{is_cancelled_authentication, Session, SessionState, SessionStore};
 pub use token::TokenStore;

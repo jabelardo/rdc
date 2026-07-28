@@ -252,6 +252,9 @@ the largest number of tests out of reach.
 | `lib/git/log.ts` | ported to Rust |
 | `lib/git/show.ts`, `lib/git/diff-index.ts` | ported to Rust |
 | `lib/git/diff.ts` | text diff path ported; image/LFS deferred |
+| `lib/trampoline/**`, `lib/git/credential.ts` | handlers ported; accounts/UI behind traits |
+| `lib/git/{push,fetch,pull}.ts`, `lib/progress/**` | ported to Rust; hooks deferred |
+| `lib/git/{clone,remote}.ts` | ported to Rust |
 | Original `app/test/unit/git/**` files migrated | **16 of 45** |
 
 **Ported:** `exec`+`error`+`git_error_kind` (`core.ts`, less the frontend error copy), `status`,
@@ -391,6 +394,121 @@ exceeds the limit in bytes but not in characters.
 binary image currently reports `Binary` and an SVG reports plain text — the original wrapped the SVG's
 text diff inside an image diff, so the text half is intact and only the second view mode is missing.
 `getFilesDiffText`, `getResolutionDiff` and LFS need temp-file plumbing or their own modules.
+
+**The trampoline handlers landed**, which is the structural blocker for the eight network-bound files.
+Three pieces: the credential protocol (`credential.rs`), per-operation session state and the
+environment that points git at the trampoline (`session.rs`), and the handlers themselves
+(`handlers.rs`). 111 tests in the crate, 14 of them end-to-end through the real binary.
+
+**A security bug was found and fixed** — see `MIGRATION_MAP.md` §8. The askpass handler auto-accepted
+GitHub's pre-2023 RSA host key, which GitHub **rotated after its private half was exposed**. The port
+pins GitHub's three current fingerprints and keeps the retired one only so a test can assert it is
+never accepted.
+
+**Design decisions worth keeping:**
+
+- **The account and UI decisions are traits** (`CredentialProvider`, `AskpassResponder`), so everything
+  around them — prompt classification, the reply format git parses, the no-prompting rule — is
+  implemented and tested now rather than waiting on Phase 7. `Decline` implements both by refusing,
+  and that is **correct rather than a stub**: declining makes git fall through to its own helpers, so
+  SSH agents and system credential managers keep working today.
+- **A background task never prompts**, enforced in the handler rather than in the responder, so an
+  implementation cannot forget it. A pinned github.com key is still accepted there, and a *stored*
+  secret may still be used — declining to prompt is not declining to answer.
+- **One session store replaces four global maps.** The original kept four module-level `Map`s keyed by
+  token and deleted from each in a `finally` block. Here a `Session` guard removes its state and
+  revokes its token on drop, so the two lifetimes cannot diverge.
+- **Two deliberate default changes**, both toward the safe direction: an unknown token now counts as a
+  background task (so it cannot cause a prompt), and has *no* path rather than falling back to the
+  process working directory (which has nothing to do with any repository, and would make an external
+  credential helper read the wrong configuration).
+- **`Credential` is an ordered list, not a map.** git reads the reply as a sequence and `wwwauth[]`
+  only means anything in order, so a `HashMap` would scramble it. `format` also refuses values
+  containing a newline or NUL — a security check, since the protocol is newline-delimited and a
+  crafted password could otherwise inject extra fields.
+- **`GIT_CONFIG_PARAMETERS`, not `-c` arguments**, because arguments aren't passed to filters and Git
+  LFS runs as one. The original also chose it over the documented `GIT_CONFIG_{COUNT,KEY,VALUE}` to
+  work around a Python hook manager that mishandles blank values.
+
+**Still deferred:** the accounts store and keychain (Phase 7), the UI prompt round-trip, SSH env
+(`getSSHEnvironment` needs an ssh-wrapper binary), and the GitHub-vs-generic endpoint classification
+that calls the API. None of them block porting `push`/`pull`/`fetch` now.
+
+**push, fetch and pull landed**, the first operations needing *both* halves of the backend: `git-ops`
+to run git, and the trampoline to answer the credential requests git makes while it runs. 26 commands.
+`src-tauri/src/trampoline_state.rs` is where they meet.
+
+**`lib/progress/**` came with them** as `progress.rs`, and it is the substantial part. git reports an
+operation as several titled steps, each 0–100%, which have to become one number. Two behaviours there
+are load-bearing:
+
+- **Steps get skipped.** A push against a server with nothing to compress never reports
+  `Compressing objects`, so recognising a step means every *earlier* step counts as complete —
+  otherwise progress restarts near zero mid-operation.
+- **Progress must not go backwards.** An unrecognised line reports the *last* percentage rather than
+  zero, which is why the parser is stateful and single-use per invocation.
+
+Details preserved with their reasons:
+
+- **`--force-with-lease`, never `--force`**, and `--set-upstream` takes precedence over it: a lease
+  against a ref that doesn't exist remotely would fail, and forcing onto a missing branch is
+  meaningless. A test pins that precedence.
+- **`fetch`/`pull` filter their context lines to `remote: Counting objects`.** Their stderr also
+  carries ref-update summaries (`* [new branch] main -> origin/main`), which are not progress and would
+  otherwise be displayed as though they were.
+- **`fast_forward_branches` treats exit code 1 as success**, because git reports it when a ref can't be
+  fast-forwarded — the expected outcome for any diverged branch. It also passes
+  `--show-forced-updates` explicitly so a user's `fetch.showForcedUpdates=false` can't allow a
+  non-fast-forward, and `--no-write-fetch-head` so it doesn't clobber `FETCH_HEAD`. Ref pairs go over
+  stdin to avoid the command-line length limit.
+- **`pull` supplies `--ff` only when `pull.ff` is unset.** Overriding a deliberate setting would be
+  worse than letting git complain, and a *failed* config read yields no arguments so git's own message
+  about needing a reconciliation strategy survives.
+- **`GIT_TERMINAL_PROMPT=0` and `GIT_TRACE=0`** are set on every remote operation. The first stops a
+  GUI-invoked git blocking on input nobody can supply; the second is pinned so an exported `GIT_TRACE`
+  can't flood stderr and confuse the progress parser.
+
+**The cancelled-prompt translation is now wired up**, which is what `is_cancelled_authentication`
+existed for. A declining credential helper makes git give up with "could not read Username … terminal
+prompts disabled" — accurate and useless. `commands/remote.rs` recognises that, combined with an
+endpoint the session recorded as rejected, and reports an authentication failure instead. It is also
+why the session is held for the whole operation rather than dropped once its environment is read:
+rejections accumulate on it while git runs.
+
+**What works today:** the handlers still decline, so rdc supplies no credentials of its own — but
+declining makes git fall through to *its* helpers, so a repository reachable over SSH with a loaded
+agent, or over HTTPS with a system credential manager, works now. Accounts, keychain and the prompt UI
+are Phase 7.
+
+**`clone` and `remote` finished the network group** apart from LFS. 35 commands.
+
+Two things checked against real git rather than inferred, both of which corrected a test I had already
+written:
+
+- **Cloning an empty repository adopts the *source's* unborn branch name**, not `init.defaultBranch`.
+  The latter only decides when the remote doesn't advertise one, which local and modern-protocol
+  remotes do. So the original calling `getDefaultBranch()` on *every* clone was paying for a case that
+  rarely fires — which is why `default_branch` is a caller-supplied option here rather than something
+  resolved inside the crate.
+- **A plain `git fetch` already records `refs/remotes/origin/HEAD`** when the remote advertises it. So
+  `updateRemoteHEAD` is usually a refresh, not the thing that creates it. It still matters when the
+  remote didn't advertise one, or when the upstream default branch changed.
+
+Decisions worth recording:
+
+- **`GIT_CLONE_PROTECTION_ACTIVE=false` is preserved deliberately**, and documented at the call site.
+  It disables a *defense-in-depth* layer added alongside the CVE-2024-32002 fix, not the fix itself —
+  and the layer is known to break Git LFS clones. See `MIGRATION_MAP.md` §8.
+- **The clone's session is keyed on the destination**, not the source, because that is where the
+  credential helper looks for configuration. It is the one operation whose session path is created
+  rather than found.
+- **`getRemotes` memoization is dropped.** The original wrapped it in `memoizeOne`, which caches for the
+  most recent path — so adding a remote left the cache stale until some *other* path was queried.
+  Caching belongs in the store that knows when remotes change.
+- **`getRemoteURL` now trims.** The original returned git's output including its trailing newline, which
+  fails every comparison the value is then used in.
+- **`removeRemote` accepts exit codes 2 and 128**, so removing a remote that doesn't exist succeeds —
+  the caller wants it gone, and it already is.
 
 **The percentage flatters it.** Everything above is the *write* path. The *read* path a user
 actually looks at is the gap: `diff.ts` is the largest file in the git layer at 1,032 lines with

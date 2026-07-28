@@ -189,9 +189,12 @@ describe('the git IPC wire shape', () => {
       // Covered by log-ipc.test.ts (hydrated into CommittedFileChange).
       'changesetData',
       'checkoutProgress',
+      // The remote shapes — covered by remote-ipc.test.ts.
+      'cloneProgress',
       // Covered by log-ipc.test.ts (hydrated into Commit).
       'commit',
       'emptyStatusResult',
+      'fetchProgress',
       // Covered by diff-ipc.test.ts.
       'indexChanges',
       'largeTextDiff',
@@ -202,8 +205,12 @@ describe('the git IPC wire shape', () => {
       'multiCommitOperationProgress',
       // Covered by diff-ipc.test.ts (hydrated into the models/diff classes).
       'parsedDiff',
+      'pullProgress',
+      'pushProgress',
+      'pushProgressInitial',
       'rebaseResult',
       'rebaseSnapshot',
+      'remote',
       'renamed',
       'resolvedTextConflict',
       'statusResult',

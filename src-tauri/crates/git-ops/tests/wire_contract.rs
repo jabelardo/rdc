@@ -34,17 +34,22 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use git_ops::checkout::{CheckoutProgress, CheckoutProgressKind};
+use git_ops::clone::{CloneProgress, CloneProgressKind};
 use git_ops::commit::CommitOptions;
 use git_ops::diff::{Diff, LineEnding, LineEndingsChange, SubmoduleDiffData, TextDiffData};
 use git_ops::diff_index::IndexStatus;
 use git_ops::diff_parser::parse_diff;
+use git_ops::fetch::{FetchProgress, FetchProgressKind};
 use git_ops::interpret_trailers::Trailer;
 use git_ops::log::{ChangesetData, Commit, CommitIdentity, CommittedFileChange};
 use git_ops::merge::{MergeOptions, MergeResult};
+use git_ops::pull::{PullProgress, PullProgressKind};
+use git_ops::push::{PushProgress, PushProgressKind};
 use git_ops::rebase::{
     MultiCommitOperationProgress, MultiCommitOperationProgressKind, RebaseConflictResolution,
     RebaseResult, RebaseSnapshot,
 };
+use git_ops::remote::Remote;
 use git_ops::rev_list::CommitOneLine;
 use git_ops::stage::ManualConflictResolution;
 use git_ops::status::{
@@ -658,6 +663,71 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
             old_sha: Some("a".repeat(40)),
             new_sha: Some("b".repeat(40)),
         })),
+    );
+
+    // The three remote progress shapes. `description` is absent on the initial update and present
+    // afterwards, so both are pinned — it is optional in the ported model, so absent must mean absent
+    // rather than null.
+    cases.insert(
+        "pushProgressInitial",
+        to_value(PushProgress {
+            kind: PushProgressKind::Push,
+            value: 0.0,
+            title: "Pushing to origin".to_owned(),
+            description: None,
+            remote: "origin".to_owned(),
+            branch: "main".to_owned(),
+        }),
+    );
+    cases.insert(
+        "pushProgress",
+        to_value(PushProgress {
+            kind: PushProgressKind::Push,
+            value: 0.62,
+            title: "Pushing to origin".to_owned(),
+            description: Some("Writing objects:  60% (3/5)".to_owned()),
+            remote: "origin".to_owned(),
+            branch: "main".to_owned(),
+        }),
+    );
+    cases.insert(
+        "fetchProgress",
+        to_value(FetchProgress {
+            kind: FetchProgressKind::Fetch,
+            value: 0.45,
+            title: "Fetching origin".to_owned(),
+            description: Some("Receiving objects:  50% (1/2)".to_owned()),
+            remote: "origin".to_owned(),
+        }),
+    );
+    cases.insert(
+        "pullProgress",
+        to_value(PullProgress {
+            kind: PullProgressKind::Pull,
+            value: 0.5,
+            title: "Pulling origin".to_owned(),
+            description: Some("Receiving objects:  50% (1/2)".to_owned()),
+            remote: "origin".to_owned(),
+        }),
+    );
+
+    // A clone reports no remote — it has none configured yet — which is the one way its progress
+    // differs from push/fetch/pull.
+    cases.insert(
+        "cloneProgress",
+        to_value(CloneProgress {
+            kind: CloneProgressKind::Clone,
+            value: 0.35,
+            title: "Cloning into /home/me/r".to_owned(),
+            description: Some("Receiving objects:  50% (1/2)".to_owned()),
+        }),
+    );
+    cases.insert(
+        "remote",
+        to_value(Remote {
+            name: "origin".to_owned(),
+            url: "https://github.com/o/r.git".to_owned(),
+        }),
     );
 
     let mut rendered = serde_json::to_string_pretty(&cases).expect("the snapshot serializes");
