@@ -16,6 +16,8 @@
 pub mod error;
 pub mod git;
 pub mod log;
+pub mod misc;
 pub mod remote;
+pub mod stash;
 
 pub use error::CommandError;

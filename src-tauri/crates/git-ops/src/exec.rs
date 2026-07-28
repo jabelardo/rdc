@@ -47,6 +47,13 @@ pub struct GitOptions {
     pub env: HashMap<String, String>,
     /// Bytes to write to git's stdin, if any.
     pub stdin: Option<Vec<u8>>,
+    /// Variables to **remove** from the child's environment.
+    ///
+    /// Distinct from setting one to the empty string, which git may well act on: `GIT_SEQUENCE_EDITOR=""`
+    /// makes git try to run `""` as an editor, whereas unsetting it lets a `-c sequence.editor` take
+    /// effect. The original expressed this as `undefined` in its env object, which dugite translated to
+    /// a removal.
+    pub remove_env: HashSet<String>,
 }
 
 impl Default for GitOptions {
@@ -56,6 +63,7 @@ impl Default for GitOptions {
             expected_errors: HashSet::new(),
             env: HashMap::new(),
             stdin: None,
+            remove_env: HashSet::new(),
         }
     }
 }
@@ -76,6 +84,14 @@ impl GitOptions {
     /// Sets an environment variable for the invocation.
     pub fn with_env(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
         self.env.insert(key.into(), value.into());
+        self
+    }
+
+    /// Removes an environment variable the parent process has, rather than setting it empty.
+    ///
+    /// See [`GitOptions::remove_env`] for why the distinction matters.
+    pub fn without_env(mut self, key: impl Into<String>) -> Self {
+        self.remove_env.insert(key.into());
         self
     }
 
@@ -151,10 +167,47 @@ pub async fn git_with_stderr<F>(
     path: impl AsRef<Path>,
     name: &str,
     options: GitOptions,
-    mut on_stderr: F,
+    on_stderr: F,
 ) -> Result<GitOutput, GitError>
 where
     F: FnMut(&[u8]) + Send,
+{
+    git_streaming(args, path, name, options, |_| {}, on_stderr).await
+}
+
+/// Runs git while delivering **stdout** chunks as they arrive.
+///
+/// Most git operations report progress on stderr, which is why [`git_with_stderr`] came first. Some
+/// report it on stdout instead — `cherry-pick` prints a line per commit it applies — and those need
+/// this. Both pipes are still drained concurrently and retained in full.
+pub async fn git_with_stdout<F>(
+    args: &[impl AsRef<std::ffi::OsStr>],
+    path: impl AsRef<Path>,
+    name: &str,
+    options: GitOptions,
+    on_stdout: F,
+) -> Result<GitOutput, GitError>
+where
+    F: FnMut(&[u8]) + Send,
+{
+    git_streaming(args, path, name, options, on_stdout, |_| {}).await
+}
+
+/// Runs git, delivering both streams as they arrive.
+///
+/// Both callbacks run on the task draining their pipe, so neither can block the other — which matters
+/// because failing to drain either pipe deadlocks git once its buffer fills.
+pub async fn git_streaming<O, E>(
+    args: &[impl AsRef<std::ffi::OsStr>],
+    path: impl AsRef<Path>,
+    name: &str,
+    options: GitOptions,
+    mut on_stdout: O,
+    mut on_stderr: E,
+) -> Result<GitOutput, GitError>
+where
+    O: FnMut(&[u8]) + Send,
+    E: FnMut(&[u8]) + Send,
 {
     let path = path.as_ref();
     let mut command = Command::new("git");
@@ -176,6 +229,10 @@ where
 
     for (key, value) in &options.env {
         command.env(key, value);
+    }
+    // After the sets, so a caller that does both ends up with the variable absent.
+    for key in &options.remove_env {
+        command.env_remove(key);
     }
 
     let mut child = command.spawn().map_err(|source| GitError::Spawn {
@@ -220,7 +277,15 @@ where
 
     let read_stdout = async move {
         let mut stdout = Vec::new();
-        stdout_pipe.read_to_end(&mut stdout).await?;
+        let mut chunk = [0_u8; 8192];
+        loop {
+            let count = stdout_pipe.read(&mut chunk).await?;
+            if count == 0 {
+                break;
+            }
+            stdout.extend_from_slice(&chunk[..count]);
+            on_stdout(&chunk[..count]);
+        }
         std::io::Result::Ok(stdout)
     };
     let read_stderr = async move {

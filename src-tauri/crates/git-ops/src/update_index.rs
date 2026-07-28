@@ -185,7 +185,8 @@ pub async fn stage_files(
 }
 
 /// Paths currently staged, as `git diff --cached` reports them.
-#[cfg(test)]
+///
+/// Used by `continue_cherry_pick` to decide whether anything remains to commit, as well as by tests.
 pub(crate) async fn staged_paths(repository: impl AsRef<Path>) -> Vec<String> {
     let args: [&OsStr; 4] = [
         OsStr::new("diff"),

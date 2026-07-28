@@ -6,7 +6,7 @@
 //! reorder/squash slice.
 
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use regex::Regex;
@@ -466,6 +466,65 @@ fn parse_rebase_result(output: &GitOutput) -> RebaseResult {
 }
 
 #[cfg(test)]
+mod interactive_tests {
+    use super::*;
+
+    #[test]
+    fn builds_a_cat_editor_command() {
+        assert_eq!(
+            cat_editor_command(Path::new("/tmp/rdc-todo-1")).expect("should build"),
+            "cat \"/tmp/rdc-todo-1\" >"
+        );
+    }
+
+    #[test]
+    fn refuses_a_path_that_could_escape_the_shell_command() {
+        // git runs the editor value through a shell, so a quote or `$` in the path would let it break
+        // out. We build these paths ourselves, but an unusual TMPDIR is how "can't happen" happens.
+        for path in [
+            "/tmp/a\"b",
+            "/tmp/a`b`",
+            "/tmp/a$b",
+            "/tmp/a'b",
+            "/tmp/a\nb",
+        ] {
+            assert!(
+                cat_editor_command(Path::new(path)).is_err(),
+                "{path:?} should be refused"
+            );
+        }
+    }
+
+    #[test]
+    fn renders_a_todo_list_git_can_read() {
+        let commit = CommitOneLine {
+            sha: "abc123".to_owned(),
+            summary: "a summary".to_owned(),
+        };
+        let todo = vec![TodoStep::pick(&commit), TodoStep::squash(&commit)];
+
+        assert_eq!(
+            render_todo(&todo),
+            "pick abc123 a summary\nsquash abc123 a summary\n"
+        );
+    }
+
+    #[test]
+    fn a_temp_file_removes_itself_when_dropped() {
+        let path = {
+            let file = TempFile::write("test", "contents").expect("should write");
+            assert_eq!(
+                std::fs::read_to_string(file.path()).expect("should read"),
+                "contents"
+            );
+            file.path().to_owned()
+        };
+
+        assert!(!path.exists(), "the guard should have removed it");
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::exec::{git, GitOptions};
@@ -866,4 +925,212 @@ mod tests {
             Some((2, 2, "Second feature commit"))
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// Interactive rebase
+// ---------------------------------------------------------------------------
+
+/// What an interactive rebase should do with a commit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TodoAction {
+    /// Replay the commit as it is.
+    Pick,
+    /// Fold the commit into the previous one.
+    Squash,
+}
+
+impl TodoAction {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Pick => "pick",
+            Self::Squash => "squash",
+        }
+    }
+}
+
+/// One line of an interactive rebase todo list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TodoStep {
+    pub action: TodoAction,
+    pub sha: String,
+    pub summary: String,
+}
+
+impl TodoStep {
+    pub fn pick(commit: &CommitOneLine) -> Self {
+        Self {
+            action: TodoAction::Pick,
+            sha: commit.sha.clone(),
+            summary: commit.summary.clone(),
+        }
+    }
+
+    pub fn squash(commit: &CommitOneLine) -> Self {
+        Self {
+            action: TodoAction::Squash,
+            sha: commit.sha.clone(),
+            summary: commit.summary.clone(),
+        }
+    }
+}
+
+/// Renders a todo list in the form git's sequencer reads.
+pub fn render_todo(steps: &[TodoStep]) -> String {
+    steps
+        .iter()
+        .map(|step| format!("{} {} {}\n", step.action.as_str(), step.sha, step.summary))
+        .collect()
+}
+
+/// Writes a temporary file that removes itself when dropped.
+///
+/// Public because `squash` needs one for the commit message it feeds to `GIT_EDITOR`.
+pub fn write_temp_file(prefix: &str, contents: &str) -> Result<TempFile, GitError> {
+    TempFile::write(prefix, contents)
+}
+
+/// A temporary file that removes itself when dropped.
+///
+/// The original wrote these with `getTempFilePath` and deleted them in a `finally`. A guard makes the
+/// cleanup structural instead, so an early return can't leak the file.
+pub struct TempFile {
+    path: PathBuf,
+}
+
+impl TempFile {
+    /// Writes `contents` to a uniquely named file under the system temp directory.
+    ///
+    /// The name is built from the process id and a counter rather than random bytes, which is enough:
+    /// the file lives for one git invocation and is not a security boundary.
+    fn write(prefix: &str, contents: &str) -> Result<Self, GitError> {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+        let name = format!(
+            "rdc-{prefix}-{}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, Ordering::Relaxed)
+        );
+        let path = std::env::temp_dir().join(name);
+
+        std::fs::write(&path, contents).map_err(|source| GitError::Spawn {
+            name: prefix.to_owned(),
+            path: path.clone(),
+            source,
+        })?;
+
+        Ok(Self { path })
+    }
+
+    /// Where the file is.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for TempFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+/// Builds a `cat "<path}" >` command for git to use as an editor.
+///
+/// git runs an editor value **through a shell**, which is why the path is checked rather than merely
+/// quoted: a directory containing a quote, backtick or `$` would let it break out of the command. We
+/// construct these paths ourselves so this should never fire, but a surprising `TMPDIR` is exactly the
+/// kind of thing that makes "should never" wrong.
+///
+/// git appends the file it wanted edited, so the redirection overwrites that with our contents.
+pub fn cat_editor_command(path: &Path) -> Result<String, GitError> {
+    let path = path.to_string_lossy();
+
+    if path.contains(['"', '\'', '`', '$', '\\', '\n']) {
+        return Err(GitError::Parse {
+            context: "rebaseInteractive".to_owned(),
+            message: format!(
+                "refusing to build a shell command for a path containing shell metacharacters: {path:?}"
+            ),
+        });
+    }
+
+    Ok(format!("cat \"{path}\" >"))
+}
+
+/// Runs an interactive rebase against a prepared todo list.
+///
+/// This is the machinery `squash` and `reorder` are built on: they compute a todo list, and this
+/// replaces git's interactive editor with one that simply writes that list out.
+///
+/// - **`lastRetainedCommitRef` of `None` means `--root`.** The first commit on a branch has no parent to
+///   name, so there is no ref to rebase from.
+/// - **`GIT_SEQUENCE_EDITOR` is explicitly cleared.** An environment variable overrides the
+///   `-c sequence.editor` we pass, so a user with one set would otherwise get their own editor and the
+///   operation would appear to hang.
+/// - **`GIT_EDITOR` defaults to `:`** — a no-op — so git doesn't open an editor for a commit message.
+///   `squash` overrides it to supply one.
+///
+/// `commits` is only used to report progress; without a progress callback it is ignored.
+pub async fn rebase_interactive<F>(
+    repository: impl AsRef<Path>,
+    todo: &[TodoStep],
+    last_retained_commit_ref: Option<&str>,
+    commits: &[CommitOneLine],
+    git_editor: Option<&str>,
+    on_progress: Option<F>,
+) -> Result<RebaseResult, GitError>
+where
+    F: FnMut(MultiCommitOperationProgress) + Send,
+{
+    let repository = repository.as_ref();
+
+    if todo.is_empty() {
+        return Ok(RebaseResult::Error);
+    }
+
+    let todo_file = TempFile::write("rebase-todo", &render_todo(todo))?;
+    let sequence_editor = cat_editor_command(todo_file.path())?;
+
+    let reference = last_retained_commit_ref.unwrap_or("--root");
+
+    let args = vec![
+        "-c".to_owned(),
+        format!("sequence.editor={sequence_editor}"),
+        // Pinned for the same reason as the non-interactive path: the state files the rest of the app
+        // reads are the merge backend's.
+        "-c".to_owned(),
+        "rebase.backend=merge".to_owned(),
+        "rebase".to_owned(),
+        "-i".to_owned(),
+        reference.to_owned(),
+    ];
+
+    let options = GitOptions::default()
+        .with_expected_errors([GitErrorKind::RebaseConflicts])
+        // *Removed*, not emptied: an empty value makes git try to run "" as an editor, while removing
+        // it lets the `-c sequence.editor` above take effect even for a user who has one exported.
+        .without_env("GIT_SEQUENCE_EDITOR")
+        .with_env("GIT_EDITOR", git_editor.unwrap_or(":"));
+
+    let output = match on_progress {
+        Some(mut on_progress) => {
+            let mut parser = RebaseProgressParser::new(commits);
+            let output =
+                git_with_stderr(&args, repository, "rebaseInteractive", options, |chunk| {
+                    for progress in parser.push(chunk) {
+                        on_progress(progress);
+                    }
+                })
+                .await?;
+            if let Some(progress) = parser.finish() {
+                on_progress(progress);
+            }
+            output
+        }
+        None => git(&args, repository, "rebaseInteractive", options).await?,
+    };
+
+    Ok(parse_rebase_result(&output))
 }

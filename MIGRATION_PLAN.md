@@ -255,6 +255,10 @@ the largest number of tests out of reach.
 | `lib/trampoline/**`, `lib/git/credential.ts` | handlers ported; accounts/UI behind traits |
 | `lib/git/{push,fetch,pull}.ts`, `lib/progress/**` | ported to Rust; hooks deferred |
 | `lib/git/{clone,remote}.ts` | ported to Rust |
+| `lib/git/{stash,cherry-pick}.ts` | ported to Rust |
+| `lib/git/submodule.ts` | ported to Rust; closes `checkout`'s deferral |
+| `lib/git/{squash,reorder}.ts` | ported to Rust; closes `rebase`'s interactive deferral |
+| `lib/git/{tag,revert,reflog,description,var,clean}.ts` | ported to Rust |
 | Original `app/test/unit/git/**` files migrated | **16 of 45** |
 
 **Ported:** `exec`+`error`+`git_error_kind` (`core.ts`, less the frontend error copy), `status`,
@@ -509,6 +513,134 @@ Decisions worth recording:
   fails every comparison the value is then used in.
 - **`removeRemote` accepts exit codes 2 and 128**, so removing a remote that doesn't exist succeeds —
   the caller wants it gone, and it already is.
+
+**`stash` and `cherry-pick` landed.** 47 commands. Three upstream bugs came with them, all in
+`MIGRATION_MAP.md` §8:
+
+- **`getStashes` under-reported the count by one** (`entries.length - 1`). With a single stash it said
+  zero, which the UI reads as "no stashes".
+- **`createDesktopStashEntry` guessed** whether a stash was created, from the exit code and stderr. Its
+  own comment documented that this fails for an unborn repository and declined to fix it. The port asks
+  git: `refs/stash` before and after.
+- **Two dead guards in `cherry-pick`** from missing `await`s on the `async`
+  `isCherryPickHeadFound` — `!promise` in one place, `await !promise` in the other. Both are real checks
+  now.
+
+Things worth recording:
+
+- **`cherry-pick` reports progress on *stdout***, unlike every operation ported so far. `exec` gained
+  `git_with_stdout` and a `git_streaming` that drains both pipes, which `git_with_stderr` now delegates
+  to.
+- **A bug I introduced and the tests caught:** I first accepted exit code 1 as *success* for
+  cherry-pick. That makes `exec` return before classifying, so `git_error` was `None` and a conflict
+  looked like an unknown failure. `expected_errors` is the mechanism that converts a recognised failure
+  into an `Ok` *while keeping* the classification.
+- **The stash marker string is unchanged** (`!!GitHub_Desktop<branch>`). Renaming it would orphan every
+  stash a user made in `desktop-plus`. Custom names are percent-encoded to `encodeURIComponent`'s
+  unreserved set for the same reason — a name written by the old app has to decode identically — and
+  encoding is required at all because the marker uses `<`/`>` as delimiters.
+- **`createdAt` crosses as epoch seconds**, not the original's ISO-8601 string, matching
+  `CommitIdentity`. `renameStashEntry`/`moveStashEntry` send it back unchanged so the rebuilt entry
+  keeps its sort position.
+- **`StashEntry` omits `files`**, which is a `NotLoaded`/`Loading`/`Loaded` state the frontend owns —
+  the same split as `WorkingDirectoryFileChange`.
+- **`renameStashEntry` returns `null` when nothing changed**, because rebuilding the entry would change
+  its SHA and invalidate whatever the caller holds.
+- **An unrecognised cherry-pick failure returns `CherryPickResult::Error`** rather than throwing as the
+  original did; the repository is still in a state the UI has to describe, and the enum already had a
+  variant for it.
+
+**`submodule` landed**, which was the only remaining item that unblocked *already-ported* code rather
+than adding surface. 49 commands.
+
+**A fourth upstream bug, and the most consequential so far.** `listSubmodules` required a parenthesised
+`git describe` value, which git prints only for a checked-out submodule — so **uninitialized and
+conflicted submodules were silently dropped from the list**. That list is what tells the
+discard-changes path a given path is a submodule and must be *reset* rather than moved to the trash, so
+an omission removes that protection for precisely the submodules most likely to need it. `describe` is
+now `string | null` and every entry is reported. See `MIGRATION_MAP.md` §8.
+
+**`checkout`'s deferral is closed, and its progress weighting restored.** The original treated the
+checkout itself as the first 90% and reserved the last 10% for the submodule update; this port had been
+emitting a flat `1.0` because there was nothing to fill that tenth. `CHECKOUT_STEP_WEIGHT` is back, with
+a test asserting the checkout step completes at 0.9 and the whole operation at 1.0.
+
+Two decisions there worth recording:
+
+- **A submodule failure does not fail the checkout.** The branch has already changed; reporting failure
+  would tell the user their checkout failed when it didn't. Progress still advances to 1.0 with
+  "Submodules could not be updated", because leaving it at 90% for ever is the worse lie.
+- **Submodule progress is deliberately fake** — `1 - e^(-n/4)` over the number of clone/checkout events.
+  There is no way to know upfront how many submodules there are or what git will do with each, so it
+  moves quickly at first, slows, and never claims completion on its own.
+
+**A test premise I got wrong twice, worth knowing:** `git submodule deinit` leaves `.git/modules/<name>`
+in place, so `submodule update --init` restores from that local copy *without using any transport*. A
+test that only deinits therefore never exercises the clone path — or the `protocol.file.allow`
+restriction git added for CVE-2022-39253. Removing the modules directory too is what forces a real clone;
+the helper that does so says why.
+
+**`squash` and `reorder` landed, closing `rebase`'s last deferral** — interactive rebase. 51 commands.
+
+Both work the same way: compute an interactive-rebase todo list and hand it to git, so all the work is
+in *building the list*. `rebase_interactive` replaces git's editor with one that writes the prepared
+list out, and the ordering rules are the interesting part:
+
+- **The replay order is the log's, not the caller's.** Squashing `A` and `E` onto `C` in history
+  `A, B, C, D, E` must give `B, A-C-E, D`, so `A` folds before `C` and `E` after — regardless of the
+  order the caller listed them. The original spelled this out ("not trust that what was sent is in the
+  order of the log") and both ports have a test passing the list backwards to prove it changes nothing.
+- **Commits after the anchor are held back**, because a later commit might itself be one being moved or
+  squashed. They're replayed at the end.
+- **The "anchor not in the log" check happens after the walk**, as upstream did — and it matters, since
+  continuing would silently drop every commit being squashed or moved.
+
+The todo-building is a pure function (`build_squash_todo`, `build_reorder_todo`) tested without git,
+which is what makes those rules cheap to pin; the integration tests then confirm real git agrees.
+
+Two mechanics worth recording:
+
+- **`GIT_SEQUENCE_EDITOR` must be *removed*, not emptied.** The original set it to `undefined`, which
+  dugite translated to a removal. Setting it to `""` makes git try to run `""` as an editor and fail
+  with "unable to start editor ''" — which is exactly what happened on the first run. `GitOptions`
+  gained `without_env` for this, since setting and unsetting are genuinely different operations.
+- **git runs editor values through a shell.** Both the todo list and squash's commit message are fed in
+  as `cat "<path>" >`, so a path containing a quote, backtick or `$` could break out of the command.
+  `cat_editor_command` refuses such a path. We build these paths ourselves, but a surprising `TMPDIR` is
+  how "can't happen" happens — and the temp files are now RAII guards rather than `finally` blocks.
+
+**Six small files swept: `tag`, `revert`, `reflog`, `description`, `var`, `clean`.** 62 commands.
+`lib/git` is now 53 of 60 files.
+
+Two findings, in `MIGRATION_MAP.md` §8:
+
+- **`getGitDescription` used a path that can't exist in a worktree or submodule.** `<repo>/.git/description`
+  isn't a path when `.git` is a *file*, and because a read failure meant "no description" it failed
+  silently. The right question is `rev-parse --git-common-dir` — **not** `--absolute-git-dir`, which in a
+  worktree reports `.git/worktrees/<name>` where no description lives. Tested from inside a real worktree.
+- **`RevertProgressParser` was a no-op by construction**, so a revert's progress was always zero. An empty
+  step title can never match, and a zero total weight makes every weight NaN. Worth recording so nobody
+  "fixes" the port's constant zero; the parser only ever routed text into the description.
+
+Smaller things preserved with their reasons:
+
+- **`show-ref --tags -d`**, where the `-d` is load-bearing: an annotated tag yields two lines, and only
+  the `^{}` one names the commit. Without it every annotated tag would map to its *tag object*. The
+  original's comment called that a "blob object", which is the wrong object type but the right instinct.
+- **`clean` without `-x`**, so gitignored build output survives — and it is irreversible, which the doc
+  comment says plainly since these files are not in git.
+- **`revert -m 1` only for merge commits.** Passing it always would make git refuse a normal commit;
+  omitting it makes git refuse a merge. A test asserts the second direction, so the flag is provably
+  load-bearing rather than decorative.
+- **The reflog date is passed unquoted.** The original interpolated `--after="<iso>"` and, since argv
+  reaches git directly, those quotes were literal. git tolerates them — verified — but an unparseable date
+  makes git filter out *everything* silently, so the failure mode was invisible. Timestamps now cross as
+  epoch seconds, which also drops the original's `[a-z0-9]{40}` pattern that assumed SHA-1.
+
+**A test isolation bug of mine, caught by running the whole suite.** The worktree test created its
+worktree at `repo/../linked-worktree` — which resolves into the *shared* system temp directory, so it
+passed alone and then failed in the full run against a leftover from the earlier one. Tests must write
+only inside their own temp directory; it now uses a dedicated one.
 
 **The percentage flatters it.** Everything above is the *write* path. The *read* path a user
 actually looks at is the gap: `diff.ts` is the largest file in the git layer at 1,032 lines with

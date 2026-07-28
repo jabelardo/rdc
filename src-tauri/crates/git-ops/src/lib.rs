@@ -14,9 +14,12 @@ pub mod add;
 pub mod authentication;
 pub mod branch;
 pub mod checkout;
+pub mod cherry_pick;
+pub mod clean;
 pub mod clone;
 pub mod commit;
 pub mod config;
+pub mod description;
 pub mod diff;
 pub mod diff_check;
 pub mod diff_index;
@@ -35,20 +38,28 @@ pub mod progress;
 pub mod pull;
 pub mod push;
 pub mod rebase;
+pub mod reflog;
 pub mod refs;
 pub mod remote;
 pub(crate) mod remote_progress;
+pub mod reorder;
 pub mod reset;
 pub mod rev_list;
 pub mod rev_parse;
+pub mod revert;
 pub mod rm;
 pub mod show;
+pub mod squash;
 pub mod stage;
+pub mod stash;
 pub mod status;
 pub mod status_parser;
+pub mod submodule;
+pub mod tag;
 pub mod terminal_output;
 pub mod update_index;
 pub mod update_ref;
+pub mod var;
 
 #[cfg(test)]
 mod test_support;
@@ -64,11 +75,17 @@ pub use checkout::{
     checkout_conflicted_file, checkout_paths, CheckoutProgress, CheckoutProgressKind,
     CheckoutTarget, ManualConflictResolution,
 };
+pub use cherry_pick::{
+    abort_cherry_pick, cherry_pick, continue_cherry_pick, get_cherry_pick_snapshot,
+    CherryPickResult, CherryPickSnapshot,
+};
+pub use clean::clean_untracked_files;
 pub use clone::{clone, CloneOptions, CloneProgress, CloneProgressKind};
 pub use commit::{create_commit, create_merge_commit, CommitOptions};
 pub use config::{
     get_boolean_config_value, get_config_value, remove_config_value, set_config_value, GlobalConfig,
 };
+pub use description::{get_description, write_description, DEFAULT_DESCRIPTION};
 pub use diff::{
     get_binary_paths, get_commit_diff, get_commit_range_diff, get_working_directory_diff, Diff,
     DiffType, LineEnding, LineEndingsChange, SubmoduleDiffData, TextDiffData,
@@ -110,20 +127,30 @@ pub use rebase::{
     rebase_with_progress, MultiCommitOperationProgress, MultiCommitOperationProgressKind,
     RebaseConflictResolution, RebaseResult, RebaseSnapshot,
 };
+pub use rebase::{rebase_interactive, render_todo, TodoAction, TodoStep};
+pub use reflog::{get_branch_checkouts, get_recent_branches};
 pub use refs::{format_as_local_ref, get_symbolic_ref};
 pub use remote::{
     add_remote, get_remote_head, get_remote_url, get_remotes, remove_remote, set_remote_url,
     update_remote_head, Remote,
 };
+pub use reorder::{build_reorder_todo, reorder, ReorderError};
 pub use reset::unstage_all;
 pub use rev_list::{get_commits_between_commits, get_commits_in_range, CommitOneLine};
 pub use rev_parse::{
     get_current_upstream_ref, get_current_upstream_remote_name, get_repository_type,
     get_upstream_ref_for_ref, get_upstream_remote_name_for_ref, resolve_git_dir, RepositoryType,
 };
+pub use revert::{revert_commit, RevertProgress, RevertProgressKind};
 pub use rm::remove_conflicted_file;
 pub use show::get_blob_contents;
+pub use squash::{build_squash_todo, squash, SquashError};
 pub use stage::{stage_manual_conflict_resolution, stage_manual_conflict_resolution_with_entries};
+pub use stash::{
+    create_stash_entry, create_stash_message, drop_stash_entry, get_last_stash_entry_for_branch,
+    get_stashed_files, get_stashes, move_stash_entry, pop_stash_entry, rename_stash_entry,
+    StashEntry, StashResult, STASH_ENTRY_MARKER,
+};
 pub use status::{
     get_status, AheadBehind, AppFileStatus, ConflictedFileStatus, StatusFileChange, StatusResult,
 };
@@ -131,6 +158,9 @@ pub use status_parser::{
     map_status, parse_porcelain_status, FileEntry, GitStatusEntry, OrdinaryChange, StatusEntry,
     StatusItem, SubmoduleStatus, UnmergedEntrySummary,
 };
+pub use submodule::{list_submodules, reset_submodule_paths, update_submodules, SubmoduleEntry};
+pub use tag::{create_tag, delete_tag, fetch_tags_to_push, get_all_tags};
 pub use terminal_output::{push_terminal_bytes, push_terminal_chunk};
 pub use update_index::{stage_files, FileToStage};
 pub use update_ref::delete_ref;
+pub use var::get_author_identity;

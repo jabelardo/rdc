@@ -179,6 +179,17 @@ spawning / native OS access — there's no "frontend half" to keep):
 | Old path | New path | Note | Phase |
 |---|---|---|---|
 | `lib/ipc-renderer.ts` | *(deleted, not ported)* | superseded entirely by `@tauri-apps/api/core` `invoke`/`listen` | 3 |
+| `lib/git/tag.ts` | `crates/git-ops/src/tag.rs` | 2 |
+| `lib/git/revert.ts` | `crates/git-ops/src/revert.rs` | 2 |
+| `lib/git/reflog.ts` | `crates/git-ops/src/reflog.rs` | 2 |
+| `lib/git/description.ts` | `crates/git-ops/src/description.rs` (path fixed for worktrees) | 2 |
+| `lib/git/var.ts` | `crates/git-ops/src/var.rs` | 2 |
+| `lib/git/clean.ts` | `crates/git-ops/src/clean.rs` | 2 |
+| `lib/git/squash.ts` | `crates/git-ops/src/squash.rs` | 2 |
+| `lib/git/reorder.ts` | `crates/git-ops/src/reorder.rs` | 2 |
+| `lib/git/submodule.ts` | `crates/git-ops/src/submodule.rs`; `SubmoduleEntry.describe` becomes nullable | 2 |
+| `lib/git/stash.ts` | `crates/git-ops/src/stash.rs` | 2 |
+| `lib/git/cherry-pick.ts` | `crates/git-ops/src/cherry_pick.rs` | 2 |
 | `lib/git/clone.ts` | `crates/git-ops/src/clone.rs` | 2 |
 | `lib/git/remote.ts` | `crates/git-ops/src/remote.rs` (memoization dropped) | 2 |
 | `lib/progress/clone.ts` | `crates/git-ops/src/progress.rs` | 2 |
@@ -370,6 +381,22 @@ shape of everything it carries is pinned by a wire-contract test on the Rust sid
 | _(new)_ | request/response | `get_remote_url` → `getRemoteURL()` | **done** |
 | _(new)_ | request/response | `update_remote_head` → `updateRemoteHEAD()` | **done** |
 | _(new)_ | request/response | `get_remote_head` → `getRemoteHEAD()` | **done** |
+| _(new)_ | request/response | `get_stashes` → `getStashes()` | **done** |
+| _(new)_ | request/response | `create_stash_entry` → `createStashEntry()` | **done** |
+| _(new)_ | request/response | `drop_stash_entry`, `pop_stash_entry` | **done** |
+| _(new)_ | request/response | `rename_stash_entry`, `move_stash_entry` | **done** |
+| _(new)_ | request/response | `get_last_stash_entry_for_branch`, `get_stashed_files` | **done** |
+| _(new)_ | request/response + Channel | `cherry_pick`, `continue_cherry_pick` | **done** |
+| _(new)_ | request/response | `get_cherry_pick_snapshot`, `abort_cherry_pick` | **done** |
+| _(new)_ | request/response | `list_submodules` → `listSubmodules()` | **done** |
+| _(new)_ | request/response | `reset_submodule_paths` → `resetSubmodulePaths()` | **done** |
+| _(new)_ | request/response + Channel | `squash` → `squash()` | **done** |
+| _(new)_ | request/response + Channel | `reorder` → `reorder()` | **done** |
+| _(new)_ | request/response | `create_tag`, `delete_tag`, `get_all_tags`, `fetch_tags_to_push` | **done** |
+| _(new)_ | request/response + Channel | `revert_commit` → `revertCommit()` | **done** |
+| _(new)_ | request/response | `get_recent_branches`, `get_branch_checkouts` | **done** |
+| _(new)_ | request/response | `get_description`, `write_description` | **done** |
+| _(new)_ | request/response | `get_author_identity`, `clean_untracked_files` | **done** |
 | _(remaining 77 — populate as each is ported)_ | | | |
 
 ---
@@ -401,6 +428,70 @@ Two consequences worth knowing before writing more commands:
 - **Streaming output uses a `Channel`, not `app.emit`.** Tauri's docs say events are unsuited to
   high-throughput data, so the original's `processCallback` / `onTerminalOutputAvailable` — progress
   during push/pull/fetch — maps to a Channel argument on the command.
+
+### `getGitDescription` used a path that can't exist in a worktree or submodule
+
+The original joined `<repository>/.git/description`. In a **linked worktree** or a **submodule** `.git` is
+a *file* pointing elsewhere, so that path isn't a directory at all — and because a read failure meant "no
+description", it silently returned `""` rather than failing visibly.
+
+Verified against real git: the file lives in the **common** directory. Note `--absolute-git-dir` is the
+wrong question — in a worktree it reports `.git/worktrees/<name>`, which has no `description`. The port
+asks `rev-parse --git-common-dir`, with a test that reads a description from inside a linked worktree.
+
+### `RevertProgressParser` was a no-op by construction
+
+Not a bug so much as something worth knowing before anyone "fixes" the port. It was a `GitProgressParser`
+with a single step `{ title: '', weight: 0 }`, and both halves are inert: an empty title can never match,
+because the line parser requires a non-empty one; and a zero total weight makes the normalisation
+`weight / totalWeight` a `0/0` NaN. So every line fell through to *context* carrying the unchanged
+`lastPercent` — zero.
+
+A revert therefore reported `value: 0` with an empty title, always, and the parser existed only to route
+git's output into the description. The port can't reproduce it literally — `GitProgressParser::new`
+asserts a non-zero total weight rather than silently producing NaN — so it streams the lines and reports
+the same thing directly.
+
+### `listSubmodules` silently dropped uninitialized and conflicted submodules
+
+The original parsed `git submodule status` with `/^.([^ ]+) (.+) \((.+?)\)$/gm`, which **requires** a
+parenthesised `git describe` value. Verified against real git: that part is printed only for a submodule
+that is checked out. An **uninitialized** submodule is reported as `-<sha> <path>` and a **conflicted**
+one as `U<sha> <path>`, neither with it — so neither matched, and both vanished from the list.
+
+That is a safety issue rather than a display one. `git-store`'s discard-changes path uses this list to
+decide whether a changed path is a submodule, because a submodule must be **reset** rather than moved to
+the trash — so an omission removes that protection for exactly the submodules most likely to need it.
+
+`describe` is therefore `string | null` in `src/models/submodule.ts` (the original typed it `string`) and
+every entry is reported. The leading status character is still discarded, as upstream did.
+
+### `getStashes` under-reported the stash count by one
+
+`getStashes` returned `entries.length - 1` as the total number of stash entries. Verified against real
+git: three stashes produce three parsed records, so it reported two — and with exactly **one** stash it
+reported **zero**, which the UI would read as "no stashes at all". Fixed, with tests for both the
+three-stash and one-stash cases.
+
+### `createDesktopStashEntry` guessed whether a stash was created
+
+The original inferred success from the exit code and stderr: exit 1 with no line beginning `error: ` was
+taken to mean a stash *was* created. Its own comment documented that this doesn't hold — an unborn
+repository exits 1 having created nothing — and explicitly declined to fix it ("I'm not going to mess
+with this now").
+
+The port asks git instead: `refs/stash` is read before and after, and a stash was created exactly when
+that ref changed. No inference, and the unborn-repository case falls out correctly.
+
+### Two dead guards in `cherry-pick`, from missing `await`s
+
+`isCherryPickHeadFound` is `async`. `getCherryPickSnapshot` wrote `if (!isCherryPickHeadFound(repo))`,
+which negates a `Promise` — always falsy, so the guard never fired. `continueCherryPick` wrote
+`if (await !isCherryPickHeadFound(repo))`, which awaits `false`. Both checks were dead code.
+
+The first was benign, because the `try`/`catch` around the sequencer reads returned `null` anyway. The
+second was not: continuing with no cherry-pick in progress fell through to running git. Both are real
+checks in the port, each with a test.
 
 ### `GIT_CLONE_PROTECTION_ACTIVE=false` on clone — preserved, deliberately
 

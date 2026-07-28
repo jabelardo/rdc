@@ -34,6 +34,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use git_ops::checkout::{CheckoutProgress, CheckoutProgressKind};
+use git_ops::cherry_pick::CherryPickResult;
 use git_ops::clone::{CloneProgress, CloneProgressKind};
 use git_ops::commit::CommitOptions;
 use git_ops::diff::{Diff, LineEnding, LineEndingsChange, SubmoduleDiffData, TextDiffData};
@@ -51,11 +52,14 @@ use git_ops::rebase::{
 };
 use git_ops::remote::Remote;
 use git_ops::rev_list::CommitOneLine;
+use git_ops::revert::{RevertProgress, RevertProgressKind};
 use git_ops::stage::ManualConflictResolution;
+use git_ops::stash::{StashEntry, StashResult};
 use git_ops::status::{
     AheadBehind, AppFileStatus, ConflictedFileStatus, StatusFileChange, StatusResult, UnmergedEntry,
 };
 use git_ops::status_parser::{GitStatusEntry, SubmoduleStatus, UnmergedEntrySummary};
+use git_ops::submodule::SubmoduleEntry;
 use git_ops::update_index::FileToStage;
 use serde_json::json;
 
@@ -727,6 +731,69 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
         to_value(Remote {
             name: "origin".to_owned(),
             url: "https://github.com/o/r.git".to_owned(),
+        }),
+    );
+
+    cases.insert(
+        "stashResult",
+        to_value(StashResult {
+            desktop_entries: vec![StashEntry {
+                name: "refs/stash@{0}".to_owned(),
+                branch_name: "main".to_owned(),
+                custom_name: Some("my work".to_owned()),
+                stash_sha: "a".repeat(40),
+                created_at: 1_475_670_580,
+                tree: "b".repeat(40),
+                parents: vec!["c".repeat(40)],
+            }],
+            stash_entry_count: 3,
+        }),
+    );
+    cases.insert(
+        "stashEntryWithoutCustomName",
+        to_value(StashEntry {
+            name: "refs/stash@{1}".to_owned(),
+            branch_name: "feature".to_owned(),
+            custom_name: None,
+            stash_sha: "d".repeat(40),
+            created_at: 1_475_670_000,
+            tree: "e".repeat(40),
+            parents: Vec::new(),
+        }),
+    );
+    cases.insert(
+        "cherryPickResult",
+        to_value(CherryPickResult::ConflictsEncountered),
+    );
+
+    // Both submodule shapes: git omits the describe value for an uninitialized or conflicted
+    // submodule, and those entries must still be listed.
+    cases.insert(
+        "submoduleEntry",
+        to_value(SubmoduleEntry {
+            sha: "a".repeat(40),
+            path: "sub".to_owned(),
+            describe: Some("v1.0".to_owned()),
+        }),
+    );
+    cases.insert(
+        "uninitializedSubmoduleEntry",
+        to_value(SubmoduleEntry {
+            sha: "b".repeat(40),
+            path: "other".to_owned(),
+            describe: None,
+        }),
+    );
+
+    // Revert progress always reports zero — upstream's parser could never compute a percentage. See
+    // `git_ops::revert`.
+    cases.insert(
+        "revertProgress",
+        to_value(RevertProgress {
+            kind: RevertProgressKind::Revert,
+            value: 0.0,
+            title: String::new(),
+            description: Some("Auto-merging a.txt".to_owned()),
         }),
     );
 

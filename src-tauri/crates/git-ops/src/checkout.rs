@@ -6,8 +6,9 @@
 //!
 //! Two things the original did are not here yet, each with a real prerequisite:
 //!
-//! - **Submodule updates.** The original called `updateSubmodulesAfterOperation` afterwards.
-//!   `lib/git/submodule.ts` isn't ported yet.
+//! - ~~**Submodule updates.**~~ **Done.** The original weighted the checkout itself as the first 90%
+//!   and reserved the last 10% for `updateSubmodulesAfterOperation`; that split is restored, see
+//!   [`CHECKOUT_STEP_WEIGHT`].
 //! - **Remote environment and auth.** `envForRemoteOperation` plus `AuthenticationErrors` need the
 //!   trampoline handlers, which are transport-complete but not wired to account state.
 //!
@@ -105,6 +106,13 @@ fn parse_checkout_progress_line(line: &str) -> Option<(f64, String)> {
     Some(((value / total).clamp(0.0, 1.0), text))
 }
 
+/// How much of a checkout's progress the checkout itself accounts for.
+///
+/// The original's `CheckoutStepWeight`. The remaining tenth belongs to updating submodules, which runs
+/// afterwards and has no way to know how much work it will be — see
+/// [`crate::submodule::update_submodules`].
+const CHECKOUT_STEP_WEIGHT: f64 = 0.9;
+
 /// What to check out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CheckoutTarget<'a> {
@@ -165,6 +173,7 @@ where
     F: FnMut(CheckoutProgress) + Send,
 {
     let mut args: Vec<&OsStr> = vec![OsStr::new("checkout"), OsStr::new("--progress")];
+    let repository = repository.as_ref();
     let target_name = match target {
         CheckoutTarget::Local(name) => {
             args.push(OsStr::new(name));
@@ -200,17 +209,59 @@ where
         GitOptions::default(),
         |chunk| {
             for (value, description) in parser.push(chunk) {
-                on_progress(make_progress(value, description));
+                // Scaled into the first 90%; submodules own the rest.
+                on_progress(make_progress(value * CHECKOUT_STEP_WEIGHT, description));
             }
         },
     )
     .await?;
     if let Some((value, description)) = parser.finish() {
-        on_progress(make_progress(value, description));
+        on_progress(make_progress(value * CHECKOUT_STEP_WEIGHT, description));
     }
-    // Small repositories often produce no intermediate records. A final event makes successful
-    // completion unambiguous and, until submodule updates land, honestly represents all work done.
-    on_progress(make_progress(1.0, title.clone()));
+    // Small repositories often produce no intermediate records, so mark the checkout step complete
+    // explicitly before moving on to submodules.
+    on_progress(make_progress(CHECKOUT_STEP_WEIGHT, title.clone()));
+
+    update_submodules_for_checkout(repository, &mut on_progress, &make_progress).await?;
+
+    Ok(())
+}
+
+/// Runs the submodule update that finishes a checkout, mapping its progress into the last tenth.
+///
+/// A submodule failure is **not** propagated. The checkout itself already succeeded and the branch has
+/// changed; failing the whole call here would tell the user their checkout failed when it didn't, and
+/// leave them with no way to see that it had. A submodule left un-updated is visible in the status list
+/// and fixable, which is the better of the two.
+async fn update_submodules_for_checkout<F, M>(
+    repository: &Path,
+    on_progress: &mut F,
+    make_progress: &M,
+) -> Result<(), GitError>
+where
+    F: FnMut(CheckoutProgress) + Send,
+    M: Fn(f64, String) -> CheckoutProgress + Sync,
+{
+    let result = crate::submodule::update_submodules(
+        repository,
+        &std::collections::HashMap::new(),
+        false,
+        Some(|value: f64, description: String| {
+            let scaled = CHECKOUT_STEP_WEIGHT + value * (1.0 - CHECKOUT_STEP_WEIGHT);
+            on_progress(make_progress(scaled, description));
+        }),
+    )
+    .await;
+
+    if result.is_err() {
+        // Report completion anyway: the checkout is done, and leaving progress at 90% for ever would be
+        // a worse lie than a submodule that didn't update.
+        on_progress(make_progress(
+            1.0,
+            "Submodules could not be updated".to_owned(),
+        ));
+    }
+
     Ok(())
 }
 
@@ -566,6 +617,48 @@ mod tests {
 
         assert_ne!(ours, theirs, "the two sides should differ");
         assert!(!theirs.contains("<<<<<<<"));
+    }
+
+    #[tokio::test]
+    async fn the_checkout_step_stops_at_ninety_percent_leaving_the_rest_to_submodules() {
+        // The split the original had and this port previously flattened: the checkout itself is the
+        // first 90%, the submodule update the last 10%. Without it a checkout that does have submodules
+        // would jump straight from mid-checkout to done.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "foo", "contents\n", "first");
+        git(
+            &["branch", "topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("branch should succeed");
+
+        let mut values: Vec<f64> = Vec::new();
+        checkout_branch_with_progress(
+            repo.path(),
+            CheckoutTarget::Local("topic"),
+            |progress: CheckoutProgress| values.push(progress.value),
+        )
+        .await
+        .expect("checkout should succeed");
+
+        assert!(values.len() >= 2, "got {values:?}");
+        assert_eq!(values[0], 0.0, "starts at zero");
+        assert_eq!(
+            values.last().copied(),
+            Some(1.0),
+            "and finishes at one: {values:?}"
+        );
+        assert!(
+            values.contains(&CHECKOUT_STEP_WEIGHT),
+            "the checkout step should be marked complete at {CHECKOUT_STEP_WEIGHT}: {values:?}"
+        );
+
+        for pair in values.windows(2) {
+            assert!(pair[1] >= pair[0], "progress went backwards: {values:?}");
+        }
     }
 
     #[test]

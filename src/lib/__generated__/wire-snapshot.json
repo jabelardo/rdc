@@ -33,6 +33,7 @@
     "title": "Checking out branch topic",
     "value": 0.5
   },
+  "cherryPickResult": "ConflictsEncountered",
   "cloneProgress": {
     "description": "Receiving objects:  50% (1/2)",
     "kind": "clone",
@@ -322,6 +323,37 @@
     },
     "kind": "Conflicted"
   },
+  "revertProgress": {
+    "description": "Auto-merging a.txt",
+    "kind": "revert",
+    "title": "",
+    "value": 0.0
+  },
+  "stashEntryWithoutCustomName": {
+    "branchName": "feature",
+    "createdAt": 1475670000,
+    "customName": null,
+    "name": "refs/stash@{1}",
+    "parents": [],
+    "stashSha": "dddddddddddddddddddddddddddddddddddddddd",
+    "tree": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+  },
+  "stashResult": {
+    "desktopEntries": [
+      {
+        "branchName": "main",
+        "createdAt": 1475670580,
+        "customName": "my work",
+        "name": "refs/stash@{0}",
+        "parents": [
+          "cccccccccccccccccccccccccccccccccccccccc"
+        ],
+        "stashSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "tree": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      }
+    ],
+    "stashEntryCount": 3
+  },
   "statusResult": {
     "branchAheadBehind": {
       "ahead": 2,
@@ -356,6 +388,11 @@
       "untrackedChanges": false
     },
     "url": "https://example.invalid/sub.git"
+  },
+  "submoduleEntry": {
+    "describe": "v1.0",
+    "path": "sub",
+    "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   },
   "textConflict": {
     "conflictMarkerCount": 3,
@@ -460,6 +497,10 @@
     },
     "maxLineNumber": 1,
     "text": "@@ -1 +1 @@\n-old\n+new"
+  },
+  "uninitializedSubmoduleEntry": {
+    "path": "other",
+    "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   },
   "unrenderableDiff": {
     "kind": 5

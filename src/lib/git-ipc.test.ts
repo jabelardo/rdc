@@ -189,6 +189,8 @@ describe('the git IPC wire shape', () => {
       // Covered by log-ipc.test.ts (hydrated into CommittedFileChange).
       'changesetData',
       'checkoutProgress',
+      // Stash, cherry-pick and submodules — covered by stash-ipc.test.ts.
+      'cherryPickResult',
       // The remote shapes — covered by remote-ipc.test.ts.
       'cloneProgress',
       // Covered by log-ipc.test.ts (hydrated into Commit).
@@ -213,12 +215,18 @@ describe('the git IPC wire shape', () => {
       'remote',
       'renamed',
       'resolvedTextConflict',
+      // Covered by misc-ipc.test.ts.
+      'revertProgress',
+      'stashEntryWithoutCustomName',
+      'stashResult',
       'statusResult',
       'submoduleDiff',
+      'submoduleEntry',
       'textConflict',
       // The IDiff union — covered by diff-ipc.test.ts.
       'textDiff',
       'textDiffWithLineEndingsChange',
+      'uninitializedSubmoduleEntry',
       'unrenderableDiff',
     ])
   })
