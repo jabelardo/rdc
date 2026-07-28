@@ -166,3 +166,22 @@ pub async fn clean_untracked_files(repository_path: String) -> Result<(), Comman
         .await
         .map_err(CommandError::from)
 }
+
+/// Vouches for a repository git refuses as owned by someone else.
+///
+/// ```js
+/// await invoke('add_safe_directory', { path: '/repos/borrowed' })
+/// ```
+///
+/// Takes a **path, not a repository**: git won't read the repository's own config until it trusts the
+/// path, so this necessarily writes the user's *global* config. That is also why it is the only remedy
+/// for git's "dubious ownership" refusal.
+///
+/// Calling it repeatedly is harmless — an identical entry is never added twice.
+#[tauri::command]
+pub async fn add_safe_directory(path: String) -> Result<(), CommandError> {
+    git_ops::config::GlobalConfig::new()
+        .add_safe_directory(&path)
+        .await
+        .map_err(CommandError::from)
+}

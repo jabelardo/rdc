@@ -37,6 +37,7 @@ const {
   writeDescription,
   getAuthorIdentity,
   cleanUntrackedFiles,
+  addSafeDirectory,
 } = await import('./misc-ipc')
 
 const REPO = '/tmp/repo'
@@ -217,6 +218,28 @@ describe('the smaller commands', () => {
   })
 
   // --- clean ---
+
+  // --- safe.directory ---
+
+  it('addSafeDirectory sends a path, not a repository', async () => {
+    // git won't read a repository's own config until it trusts the path, so the remedy is global and
+    // takes the path on its own.
+    await addSafeDirectory('/repos/borrowed')
+
+    expect(invoke).toHaveBeenCalledWith('add_safe_directory', {
+      path: '/repos/borrowed',
+    })
+  })
+
+  it('addSafeDirectory can be called twice without the caller checking', async () => {
+    await addSafeDirectory('/repos/borrowed')
+    await addSafeDirectory('/repos/borrowed')
+
+    expect(invoke).toHaveBeenCalledTimes(2)
+    expect(invoke).toHaveBeenLastCalledWith('add_safe_directory', {
+      path: '/repos/borrowed',
+    })
+  })
 
   it('cleanUntrackedFiles needs only the path', async () => {
     await cleanUntrackedFiles(REPO)

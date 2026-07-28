@@ -6,8 +6,6 @@
 //! - `getGlobalConfigPath` — relies on `git config --edit` with `GIT_EDITOR=printf %s` to make git
 //!   print the path it *would* edit, creating the file as a side effect. Only needed for "open my
 //!   global config in an editor", which is a Phase 4 shell/editor concern.
-//! - `addSafeDirectory` / `addGlobalConfigValueIfMissing` — `safe.directory` policy, including a
-//!   Windows UNC-path special case; belongs with the platform work.
 //! - `getConfigValueWithOrigin` and the `formatConfigScope`/`formatConfigPath`/
 //!   `isConditionalInclude`/`getOriginFilePath` helpers — the latter produce display strings such
 //!   as `"global, via [includeIf]"` and `"<repo>/.git/config"`, which are frontend presentation,
@@ -292,6 +290,65 @@ impl GlobalConfig {
         remove_value(Location::Global, name, self.env()).await
     }
 
+    /// Adds `path` to `safe.directory`, so git stops refusing to work in it.
+    ///
+    /// git rejects a repository owned by another user — "dubious ownership" — and
+    /// [`RepositoryType::Unsafe`](crate::rev_parse::RepositoryType::Unsafe) is how that is detected.
+    /// This is the only remedy: the user has to vouch for the path. It is a *global* setting by
+    /// necessity, since git won't read the repository's own config until it trusts it.
+    ///
+    /// Repeated calls are harmless — see [`GlobalConfig::add_if_missing`].
+    pub async fn add_safe_directory(&self, path: &str) -> Result<(), GitError> {
+        self.add_if_missing("safe.directory", &safe_directory_value(path))
+            .await
+    }
+
+    /// Appends a global config value unless an identical one is already there.
+    ///
+    /// # UPSTREAM BUG: a path containing a regex metacharacter made this fail
+    ///
+    /// The existence test is `git config --get-all <name> <value>`, where that last argument is a
+    /// **value-pattern** — a regular expression, unless `--fixed-value` is passed. The original didn't
+    /// pass it, so a value like `/home/me/app (old)` made git exit **6** with `invalid pattern`; the
+    /// original accepted only exit 0 and 1, so the call failed outright.
+    ///
+    /// That was reachable: `addSafeDirectory` is what recovers an unsafe repository, and a directory
+    /// name containing `(`, `[`, `*`, `+` or `?` is perfectly ordinary — so a user could be left unable
+    /// to open a repository at all, with no way to fix it from the app. Verified against real git. See
+    /// `MIGRATION_MAP.md` §8.
+    ///
+    /// `--fixed-value` also makes the comparison exact, which is what the original did afterwards in
+    /// JavaScript (`stdout.split('\0').includes(value)`) to compensate for the pattern possibly
+    /// matching a *different* value. git does it now, so the exit code alone is the answer.
+    pub async fn add_if_missing(&self, name: &str, value: &str) -> Result<(), GitError> {
+        let output = git(
+            &[
+                "config",
+                "--global",
+                "-z",
+                "--get-all",
+                "--fixed-value",
+                name,
+                value,
+            ],
+            std::env::temp_dir(),
+            "addGlobalConfigValueIfMissing",
+            GitOptions {
+                env: self.env(),
+                ..GitOptions::default()
+            }
+            // 1 means "no such entry", which is the whole question being asked.
+            .with_success_exit_codes([1]),
+        )
+        .await?;
+
+        if output.exit_code == 0 {
+            return Ok(());
+        }
+
+        self.add(name, value).await
+    }
+
     /// Appends a global config value without replacing existing entries.
     pub async fn add(&self, name: &str, value: &str) -> Result<(), GitError> {
         git(
@@ -306,6 +363,26 @@ impl GlobalConfig {
         .await?;
 
         Ok(())
+    }
+}
+
+/// The value to store in `safe.directory` for `path`.
+///
+/// A no-op on Unix. On Windows a UNC path (`//server/share/...`) has to be written as
+/// `%(prefix)//server/share/...`, because git otherwise resolves it relative to its own installation
+/// prefix — see git-for-windows commit `e394a16`. Kept for parity even though Linux is the primary
+/// target: it is three lines, and losing it would be a silent misconfiguration rather than an error.
+#[cfg(not(windows))]
+fn safe_directory_value(path: &str) -> String {
+    path.to_owned()
+}
+
+#[cfg(windows)]
+fn safe_directory_value(path: &str) -> String {
+    if path.starts_with('/') {
+        format!("%(prefix)/{path}")
+    } else {
+        path.to_owned()
     }
 }
 
@@ -534,5 +611,221 @@ mod tests {
             None,
             "a value written with one HOME must not be visible under another"
         );
+    }
+    // --- safe.directory ---
+
+    /// Every value the global config holds for `name`, in file order.
+    ///
+    /// `--get-all`, because `GlobalConfig::get` returns only the *last* value of a multi-valued key —
+    /// that is git's own behaviour, and it is exactly what these tests must not rely on.
+    async fn all_values(config: &GlobalConfig, home: &Path, name: &str) -> Vec<String> {
+        let output = git(
+            &["config", "--global", "-z", "--get-all", name],
+            std::env::temp_dir(),
+            "test",
+            GitOptions {
+                env: config.env(),
+                ..GitOptions::default()
+            }
+            .with_success_exit_codes([1]),
+        )
+        .await
+        .expect("reading should succeed");
+
+        assert!(home.exists(), "the isolated HOME must outlive the read");
+
+        output
+            .stdout_lossy()
+            .split('\0')
+            .filter(|entry| !entry.is_empty())
+            .map(str::to_owned)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn adds_a_path_to_safe_directory() {
+        let (config, home) = isolated_global();
+
+        config
+            .add_safe_directory("/repos/borrowed")
+            .await
+            .expect("adding should succeed");
+
+        assert_eq!(
+            all_values(&config, home.path(), "safe.directory").await,
+            vec!["/repos/borrowed".to_owned()]
+        );
+    }
+
+    #[tokio::test]
+    async fn adding_the_same_path_twice_stores_it_once() {
+        // The user may hit "add" more than once, and `safe.directory` is append-only — without the
+        // existence test the file would grow a duplicate entry every time.
+        let (config, home) = isolated_global();
+
+        for _ in 0..3 {
+            config
+                .add_safe_directory("/repos/borrowed")
+                .await
+                .expect("adding should succeed");
+        }
+
+        assert_eq!(
+            all_values(&config, home.path(), "safe.directory").await,
+            vec!["/repos/borrowed".to_owned()]
+        );
+    }
+
+    #[tokio::test]
+    async fn keeps_the_paths_already_vouched_for() {
+        let (config, home) = isolated_global();
+        config
+            .add_safe_directory("/repos/first")
+            .await
+            .expect("adding should succeed");
+
+        config
+            .add_safe_directory("/repos/second")
+            .await
+            .expect("adding should succeed");
+
+        assert_eq!(
+            all_values(&config, home.path(), "safe.directory").await,
+            vec!["/repos/first".to_owned(), "/repos/second".to_owned()],
+            "adding one path must not replace another"
+        );
+    }
+
+    #[tokio::test]
+    async fn adds_a_path_containing_regex_metacharacters() {
+        // UPSTREAM BUG FIX. `--get-all <name> <value>` treats the value as a *pattern*, so `(` made git
+        // exit 6 with "invalid pattern" — an exit code the original didn't accept, so recovering an
+        // unsafe repository whose path contained one was impossible. `--fixed-value` is the fix.
+        let (config, home) = isolated_global();
+        let awkward = "/repos/app (old) [backup] +v2?";
+
+        config
+            .add_safe_directory(awkward)
+            .await
+            .expect("a directory name is not a regular expression");
+
+        assert_eq!(
+            all_values(&config, home.path(), "safe.directory").await,
+            vec![awkward.to_owned()]
+        );
+
+        // And the existence test must still recognise it, or a second attempt would duplicate it.
+        config
+            .add_safe_directory(awkward)
+            .await
+            .expect("adding should succeed");
+        assert_eq!(
+            all_values(&config, home.path(), "safe.directory")
+                .await
+                .len(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn does_not_confuse_one_path_with_a_similar_one() {
+        // What `--fixed-value` guarantees beyond not crashing: `.` in a pattern matches any character,
+        // so `/repos/a.b` would otherwise be considered already present when only `/repos/axb` is.
+        let (config, home) = isolated_global();
+        config
+            .add_safe_directory("/repos/axb")
+            .await
+            .expect("adding should succeed");
+
+        config
+            .add_safe_directory("/repos/a.b")
+            .await
+            .expect("adding should succeed");
+
+        assert_eq!(
+            all_values(&config, home.path(), "safe.directory").await,
+            vec!["/repos/axb".to_owned(), "/repos/a.b".to_owned()],
+            "these are different directories and both must be vouched for"
+        );
+    }
+
+    #[tokio::test]
+    async fn add_if_missing_works_for_any_key() {
+        // `safe.directory` is the caller that matters, but the helper is upstream's and general.
+        let (config, home) = isolated_global();
+
+        config
+            .add_if_missing("desktop.list", "one")
+            .await
+            .expect("adding should succeed");
+        config
+            .add_if_missing("desktop.list", "one")
+            .await
+            .expect("adding should succeed");
+        config
+            .add_if_missing("desktop.list", "two")
+            .await
+            .expect("adding should succeed");
+
+        assert_eq!(
+            all_values(&config, home.path(), "desktop.list").await,
+            vec!["one".to_owned(), "two".to_owned()],
+            "the duplicate is skipped and the new value appended"
+        );
+    }
+
+    #[tokio::test]
+    async fn vouching_for_a_repository_makes_git_work_in_it() {
+        // The end-to-end claim, rather than "a config entry was written": with a different owner
+        // simulated, git refuses the repository until the path is vouched for.
+        let repo = empty_repository().await;
+        let (config, home) = isolated_global();
+        let path = repo.path();
+        let path_str = path.to_string_lossy().into_owned();
+
+        let mut env = config.env();
+        // What makes git treat the repository as someone else's without needing another user.
+        env.insert("GIT_TEST_ASSUME_DIFFERENT_OWNER".to_owned(), "1".to_owned());
+
+        let refused = git(
+            &["status", "--porcelain"],
+            &path,
+            "test",
+            GitOptions {
+                env: env.clone(),
+                ..GitOptions::default()
+            },
+        )
+        .await;
+        assert!(
+            refused.is_err(),
+            "git should refuse a repository owned by someone else"
+        );
+
+        config
+            .add_safe_directory(&path_str)
+            .await
+            .expect("adding should succeed");
+
+        git(
+            &["status", "--porcelain"],
+            &path,
+            "test",
+            GitOptions {
+                env,
+                ..GitOptions::default()
+            },
+        )
+        .await
+        .expect("git should work once the path is vouched for");
+
+        assert!(home.path().exists());
+    }
+
+    #[test]
+    fn a_posix_path_is_stored_as_given() {
+        // The Windows branch prefixes a UNC path with `%(prefix)/`; there is nothing to do here.
+        assert_eq!(safe_directory_value("/repos/borrowed"), "/repos/borrowed");
+        assert_eq!(safe_directory_value("relative/path"), "relative/path");
     }
 }

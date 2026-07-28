@@ -243,8 +243,8 @@ the largest number of tests out of reach.
 ### Phase 2 — Git backend (`git-ops` crate) — **IN PROGRESS (final stretch)**
 
 **Current state, measured.** `lib/git` is 60 files / 9,485 lines. `git-ops` is 62 files /
-27,340 lines with 750 tests of its own; the workspace runs 874 Rust tests plus 545 TypeScript ones,
-with `fmt`/`clippy -D warnings`/`test`/`tsc` green. 66 commands are exposed.
+32,839 lines with 900 tests of its own; the workspace runs 1,024 Rust tests plus 547 TypeScript ones,
+with `fmt`/`clippy -D warnings`/`test`/`tsc` green. 67 commands are exposed.
 
 | | |
 |---|---|
@@ -350,13 +350,10 @@ needed. Both are small, and scoping them was driven by asking who actually consu
   is **Rust-internal with no command**. Sending raw bytes over IPC needs a representation decision —
   base64, a byte array, a custom protocol response — and the consumers that would force that choice
   are the deferred image paths. Deciding it now would be guessing.
-- `getPartialBlobContents` is **deferred**: its only consumer is
-  `ui/diff/syntax-highlighting/index.ts` (Phase 7). It was built on Node's `maxBuffer`, which
-  *errors* past the limit so the caller recovers partial output from the rejection. Reproducing that
-  needs a capped-read primitive in `exec` that stops reading and kills the child, and killing
-  mid-read has to avoid deadlocking against an undrained stderr pipe. A bounded-memory-but-unbounded-I/O
-  stand-in would quietly lose the property the function exists for. When it lands, note
-  `git cat-file -s <rev>:<path>` answers "how big is this blob?" without reading it.
+- `getPartialBlobContents` **has since landed** — see the `git_capped` slice note below. It has no
+  command either, for the same reason as `get_blob_contents`: its consumer is
+  `ui/diff/syntax-highlighting/index.ts` (Phase 7), and raw bytes over IPC still needs the
+  representation decision.
 - `get_index_changes` is consumed by `lib/stores/git-store.ts`, so it **is** exposed as a command.
 
 Two things verified rather than assumed:
@@ -729,6 +726,182 @@ Two behaviours are worth knowing, both the original's:
   produces the state the user asked for, and leaving the tracking ref would point at a branch that no
   longer exists.
 
+**The hooks subsystem, first half.** `lib/hooks/**` was recorded in the map as a target directory that
+had never been created, and four modules name "hook output" as deferred without pointing at it. It turns
+out to be two very different halves.
+
+What it exists for is worth stating plainly: a hook is a script the user wrote, and it assumes the
+environment their *terminal* has — `nvm`, `rbenv`, `asdf`, `~/.local/bin`. A desktop app inherits none of
+that, so a hook that works in a terminal fails when git is run by the app, usually with `command not
+found`. Upstream's answer is to stop git running the hook directly: point `core.hooksPath` at stand-in
+binaries, and have the app run the real hook via `git hook run` with an environment loaded from the
+user's **login shell**.
+
+**Landed:** `hooks/discovery.rs` (which hooks exist, honouring `core.hooksPath`, correct in a worktree),
+`hooks/shell.rs` (shell selection and POSIX quoting), `hooks/shell_env.rs` (run the login shell, collect
+what it built), and `rdc-printenvz` — a Rust replacement for the vendored ten-line C program, which
+removes a native build step. 45 tests, nine of them end-to-end through the real binary and a real shell.
+
+**Deliberately not landed:** `hooks-proxy.ts` and `with-hooks-env.ts`. Both are built on the
+`process-proxy` npm package, which ships a *native binary*, so **its wire protocol is not in the
+desktop-plus tree at all** — that half is a protocol design, not a port. The shape is already familiar:
+it is what `trampoline` does for credentials, and it should be built the same way. Nothing about how git
+is invoked changes until it lands, which is why the four hook-output deferrals stay open.
+
+Three things worth keeping from the half that did land:
+
+- **An upstream bug: a `"*"` filter returned no hooks.** `matchAll` sat on the *skip* side of the loop's
+  condition, so asking for every hook skipped every hook. No caller passes `"*"`, so it was latent — but
+  `withHooksEnv` reads an empty result as "no hooks here" and skips interception silently, so a caller
+  using the documented wildcard would have got unhooked git invocations and no error. See
+  `MIGRATION_MAP.md` §8.
+- **The child shell gets an empty environment, not ours.** Inheriting rdc's variables would mask the very
+  difference being looked for: the `PATH` the app was launched with would stand in for the one the user's
+  init files build.
+- **Its stdin is closed, where the original left the pipe open.** The shell runs interactive, so an init
+  file that reads stdin is possible, and upstream would have blocked on it forever with no timeout.
+  Markers around the output are what keep a chatty init file (a MOTD, a version manager announcing
+  itself) from being parsed as environment variables — there is an end-to-end test for exactly that.
+
+Windows shell support is described rather than half-ported: registry-based Git Bash discovery plus
+MSYS2, PowerShell and `cmd` quoting is most of upstream's shell layer, none of it testable on the primary
+target, and the setting that selects between them is frontend state.
+
+**`safe.directory` closed the last user-facing dead end in the backend.** git refuses a repository owned
+by another user — "dubious ownership" — and `RepositoryType::Unsafe` already detected that, but the
+remedy was unported: rdc could tell the user their repository was unsafe and offer nothing. It has to be
+the *global* config, because git won't read a repository's own configuration until it trusts the path.
+67 commands.
+
+**A ninth upstream bug, and a reachable one.** The existence check before appending passed the value as
+`git config --get-all <name> <value>`, where that argument is a **value-pattern** — a regular expression
+unless `--fixed-value` is given. So a path like `app (old)` made git exit **6** with `invalid pattern`,
+an exit code the original didn't accept, and the call failed. Since this is the *recovery* path for an
+unsafe repository, a user with an ordinary directory name containing `(`, `[`, `*`, `+` or `?` could be
+left unable to open it at all. `--fixed-value` fixes it and makes the comparison exact, which replaces
+the string comparison the original did afterwards to compensate for the pattern matching a different
+value. Verified against real git; see `MIGRATION_MAP.md` §8.
+
+The tests assert the end state rather than the config write: with `GIT_TEST_ASSUME_DIFFERENT_OWNER=1`,
+git refuses the repository, and after vouching for the path it works.
+
+**The hook proxy transport, which is a design rather than a port.** `process-proxy` ships a native
+binary, so nothing about its wire format exists in the desktop-plus tree — the shape had to be chosen.
+`trampoline` was already the answer to the same problem for credentials, so this follows it: a tiny
+binary git runs, a loopback server, a token, every decision in the app.
+
+```
+ git ──runs──> rdc-hook-proxy ──TCP 127.0.0.1──> rdc ──runs──> git hook run <name>
+```
+
+Landed: `hooks/{protocol,client,server}.rs` and the `rdc-hook-proxy` binary, 58 tests of which twelve
+run the real binary against a real server.
+
+The choices worth recording, all of them consequences of what this protocol carries:
+
+- **The response is framed, not a single reply** — `E` chunks of stderr followed by exactly one `X` exit
+  code. A hook's output has to appear while it runs (a slow `pre-commit` printing nothing would look
+  hung), and an exit code has to follow it. A bare stream could do the first but not the second. A test
+  proves a chunk arrives *before* the hook finishes.
+- **One binary serves every hook.** git runs `<hooksPath>/<name>`, so the name it was invoked as is the
+  hook name — the same trick upstream's stand-in used.
+- **The token matters more here than in the trampoline.** There, a valid token buys an answer to a
+  credential prompt; here it makes the app **run a program**. So the token is 32 random bytes compared in
+  constant time, the server binds loopback only, the request is size-capped because it must be read
+  before it can be authenticated, and the server's lifetime is one git invocation rather than the app's.
+- **The stand-in fails closed.** If the app can't be reached, it exits non-zero: a hook that didn't run
+  is not a hook that passed, and reporting success would let a commit through that the user's
+  `pre-commit` hook would have blocked.
+- **Stdin is read only for the five hooks git pipes it to**, and carried as length-prefixed bytes.
+  Reading it unconditionally would block until git closed the pipe — the trap `rdc-trampoline` already
+  documents for askpass — so there is a timeout-guarded test that would fail by hanging.
+
+**The hook runner landed after the transport**, which is the behaviour half: what happens once an
+invocation arrives. `hooks/runner.rs`, 22 tests, all driving real hooks in real repositories.
+
+It runs **`git hook run <name>`** rather than executing the hook file. git decides what running a hook
+means — the interpreter, whether it exists, how arguments are passed — and executing the file directly
+would put a second implementation of those rules here.
+
+Details worth keeping:
+
+- **git is resolved to an absolute path before the environment is replaced.** Rust resolves a bare
+  program name through the *child's* `PATH` — verified experimentally rather than assumed — and the
+  child's environment here is the user's *shell* environment. Leaving it as `git` would let a hook's
+  shell decide which git ran it, or fail outright if that environment had no `PATH`. This also removes
+  upstream's `ensureGitExecPathEnv`, which existed only to repair `GIT_EXEC_PATH` after invoking a
+  *bundled* git built without a prefix.
+- **`GIT_CONFIG_PARAMETERS` is the exclusion that matters.** It is how `core.hooksPath` gets pointed at
+  the stand-ins, so a hook that inherited it would send every git command *it* runs back through the
+  stand-ins and recurse into itself. There is a test for that specifically, alongside one for
+  `GIT_ASKPASS` — a hook that pushes should use the user's own credential setup, not rdc's prompt.
+- **The "don't ask about it" hook list does not mean "ignore the failure".** Upstream's
+  `ignoredOnFailureHooks` suppresses the *prompt*; the exit code still reaches git unchanged, because
+  git's own semantics already make it harmless for those hooks. Pinned by a test asserting both halves.
+- **The closing status line is appended to the captured output before the prompt**, which upstream
+  called out: the user is being asked whether to ignore *this* transcript, so how it ended has to be
+  part of it.
+- **`RDC=1` is set alongside `GITHUB_DESKTOP=1`.** The latter is compatibility, not identity — hooks in
+  the wild test for it — and `RDC` is the honest signal to test for from here on.
+
+Aborting kills the `git hook run` process. A hook that spawned children of its own may leave them
+running; upstream's `AbortController` had the same limitation, and it is documented rather than papered
+over.
+
+**`withHooksEnv` closed the subsystem.** It is what ties the other four together, and the whole chain now
+works against real git: install a stand-in per discovered hook, point `core.hooksPath` at it, run git, and
+git runs the hooks through us. `hooks/with_env.rs` plus 13 end-to-end tests that drive actual commits and
+pushes.
+
+The tests are the interesting part, because each pins something that could only be verified by running the
+whole thing:
+
+- A hook runs **with the login shell's environment** and the commit succeeds.
+- A failing hook **aborts the commit**; the same failure, ignored by the user, lets it through.
+- **A hook that runs git does not recurse** — the hook's own `git config --get core.hooksPath` comes back
+  empty, which is what excluding `GIT_CONFIG_PARAMETERS` buys.
+- `pre-push` **gets its refs on stdin**, carried from git through the stand-in, the protocol, and into the
+  file `git hook run --to-stdin` reads.
+- **The login shell is started once per operation**, proven by a shell that counts its own invocations
+  while three hooks run. Upstream memoized this too, and the reason is cost: an interactive login shell on
+  a machine with version managers takes hundreds of milliseconds, and a commit runs up to six hooks.
+- A **missing stand-in binary fails the operation** rather than quietly running git without interception.
+  Skipping would mean the user's `pre-commit` hook doesn't run and nothing says so, which is worse than a
+  failed commit.
+
+Two more decisions worth recording. **Any existing `GIT_CONFIG_PARAMETERS` is kept in front** of ours,
+because git reads the list left to right and the last entry wins — so the caller's configuration survives
+and ours still applies. And the directory is **`sq_quote`-escaped**, which closes a TODO the original left
+open ("could it possibly include a single quote? probably not?"): the parent is `TMPDIR`, which the user
+sets, and an unescaped quote would let git read the rest of the path as configuration.
+
+What is left is outside this crate. Whether to intercept at all is frontend state, and the four commands
+that name hook deferrals have to pass a `HookInterception` and put its progress and failure callbacks on
+Tauri Channels — Phase 3 work with a Phase 7 decision behind it.
+
+**A capped read closed `show`'s deferral.** `getPartialBlobContents` reads the beginning of a blob —
+enough for syntax highlighting to tokenize what is on screen — and the point is not to hold the rest in
+memory, so slicing after the fact would defeat it. `exec::git_capped` reads to a limit and kills git.
+
+The refactor came first: `spawn_git` and `finish_git` now hold the invocation setup and the exit-code
+classification, so the ordinary and capped paths cannot drift on what counts as success or which failures
+a caller declared expected.
+
+Three things about the cap are worth keeping:
+
+- **Truncation is success, not an error.** Node's `maxBuffer` *rejects* past the limit, so upstream caught
+  the rejection and recovered `e.stdout` as its answer. That is an artifact of the API; here the prefix
+  comes back with `truncated: true`.
+- **git has to be killed.** Once reading stops it blocks writing to a full pipe and never exits, so
+  nothing downstream would complete. Because the death is then a signal, the exit status is deliberately
+  not classified — it would otherwise read as `GitError::Terminated`.
+- **Stderr drains in its own task.** A git that filled *stderr* while stdout was being read would block
+  before writing the bytes being waited for. A test with a 4 MiB blob and a 10-byte cap fails by hanging
+  if either half of that is wrong.
+
+For "how big is this blob?" the answer remains `git cat-file -s <rev>:<path>`, which doesn't read the
+object at all; this is for when the prefix itself is what's wanted.
+
 **Three small local primitives landed next.** `gitignore.rs` preserves the original line-ending
 rules driven by `core.autocrlf` and `core.safecrlf`, including its deliberate escaping set for file
 patterns. `checkout_index.rs` sends NUL-delimited paths to `checkout-index --stdin -z`, so newline
@@ -778,13 +951,14 @@ adaptation remain Phase 3 work.
   natively, so it belongs with Phase 4's platform integrations. **No remote operation has proxy
   support today**, not just the deferred ones; that gap is wider than the branch-deletion note below
   implied and is recorded here rather than inside one module.
-- **Not a `lib/git` file, but adjacent and unported:** `app/src/lib/hooks/**` (7 files, 863 lines) —
-  hook discovery, shell resolution and the hook environment, reached from `core.ts`. It is the real
-  prerequisite for the hook-output deferral, which several modules name without pointing at it.
+- **Not a `lib/git` file, but adjacent:** `app/src/lib/hooks/**` (7 files, 863 lines). Discovery, shell
+  selection, login-shell environment loading **and the proxy transport** have landed; `config.ts` is
+  `localStorage`, so it belongs to Phase 7. Discovery, the shell environment, the transport, the runner
+  and `withHooksEnv` have **all** landed — see the slice notes below. What remains is not in this crate:
+  the four commands have to *ask* for interception and put its callbacks on Channels, which is Phase 3.
 - **Deferred inside ported modules:** hook output and per-command terminal capture/Channel wiring for
-  commit/merge/rebase/push/pull, image diffs, capped partial-blob reads, `getFilesDiffText`,
-  remote-branch deletion, and the remaining config/proxy helpers. Each has a named later consumer or
-  platform prerequisite.
+  commit/merge/rebase/push/pull, image diffs, `getFilesDiffText`, and the remaining config/proxy
+  helpers. Each has a named later consumer or platform prerequisite.
 
 **Landed, in order** (the counts below are historical, from each slice as it landed):
 - `src-tauri` is now a **Cargo workspace** (root package = the Tauri app, members = `crates/*`)
@@ -856,8 +1030,9 @@ another unported module. Recorded per-module in `MIGRATION_MAP.md` §8.
   canonicalizing would resolve symlinks and return a different path than the caller passed —
   immediately wrong on macOS where the temp dir is `/var` → `/private/var`.
 - Deferred from `config.ts` (all recorded in `MIGRATION_MAP.md`): `getGlobalConfigPath`,
-  `addSafeDirectory`, and `getConfigValueWithOrigin` + its four display formatters, which emit
-  strings like `"global, via [includeIf]"` and so belong in the frontend.
+  and `getConfigValueWithOrigin` + its four display formatters, which emit strings like
+  `"global, via [includeIf]"` and so belong in the frontend. `addSafeDirectory` **has since landed** —
+  see the slice note below.
 
 `getDefaultBranch` is now unblocked by `GlobalConfig`, but its `"main"` fallback is app policy —
 wire it up above `git-ops`, not inside it.

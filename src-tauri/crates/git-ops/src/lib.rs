@@ -34,6 +34,7 @@ pub mod format_patch;
 pub mod git_delimiter_parser;
 pub mod git_error_kind;
 pub mod gitignore;
+pub mod hooks;
 pub mod init;
 pub mod interpret_trailers;
 pub mod lfs;
@@ -112,7 +113,9 @@ pub use diff_parser::{
     DEFAULT_DIFF_EXPANSION_STEP,
 };
 pub use error::GitError;
-pub use exec::{git, git_with_stderr, GitOptions, GitOutput, TERMINAL_OUTPUT_CAPACITY};
+pub use exec::{
+    git, git_capped, git_with_stderr, CappedOutput, GitOptions, GitOutput, TERMINAL_OUTPUT_CAPACITY,
+};
 pub use fetch::{fast_forward_branches, fetch, fetch_refspec, FetchProgress, FetchProgressKind};
 pub use format_patch::format_commit_range_patch;
 pub use git_delimiter_parser::ForEachRefParser;

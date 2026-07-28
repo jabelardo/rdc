@@ -133,7 +133,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/interpret-trailers.ts` | **split**: git-invoking half → `crates/git-ops/src/interpret_trailers.rs` (**done**); the `ITrailer` type + `isCoAuthoredByTrailer` predicate → `rdc/src/models/trailer.ts` (**done**), because neither needs git. See §8. | 2 |
 | `lib/git/init.ts` | `crates/git-ops/src/init.rs` — **done**. `init_repository(path, default_branch)` takes the branch as a **parameter**; see §8 for why the original's internal `getDefaultBranch()` call was not reproduced. | 2 |
 | `lib/git/add.ts` | `crates/git-ops/src/add.rs` — **done**. Takes plain paths rather than the `Repository`/`WorkingDirectoryFileChange` models, which are frontend concerns. | 2 |
-| `lib/git/config.ts` | `crates/git-ops/src/config.rs` — **partially done**: repository get/set/remove + boolean, and a `GlobalConfig` type for the global scope. Deferred: `getGlobalConfigPath` (needs the `git config --edit` + `GIT_EDITOR=printf` trick; a Phase 4 editor concern), `addSafeDirectory`/`addGlobalConfigValueIfMissing` (`safe.directory` policy incl. a Windows UNC case), and `getConfigValueWithOrigin` + `formatConfigScope`/`formatConfigPath`/`isConditionalInclude`/`getOriginFilePath` (display strings like `"global, via [includeIf]"` → frontend, same reasoning as `getDescriptionForError`). | 2 |
+| `lib/git/config.ts` | `crates/git-ops/src/config.rs` — **partially done**: repository get/set/remove + boolean, a `GlobalConfig` type for the global scope, and `addSafeDirectory`/`addGlobalConfigValueIfMissing` (**contains an upstream bug fix — see §8**). Deferred: `getGlobalConfigPath` (needs the `git config --edit` + `GIT_EDITOR=printf` trick; a Phase 4 editor concern) and `getConfigValueWithOrigin` + `formatConfigScope`/`formatConfigPath`/`isConditionalInclude`/`getOriginFilePath` (display strings like `"global, via [includeIf]"` → frontend, same reasoning as `getDescriptionForError`). | 2 / 4 |
 | `lib/git/rev-parse.ts` | `crates/git-ops/src/rev_parse.rs` — **done**: `RepositoryType` (`Regular`/`Bare`/`Missing`/`Unsafe`), `get_repository_type`, and the upstream-ref helpers. | 2 |
 | `lib/git/rev-list.ts` (`getCommitsBetweenCommits`) | `crates/git-ops/src/rev_list.rs` — **partially done**: full-SHA/summary commit lists in replay order, used by rebase progress and recovery snapshots. The remaining rev-list queries land with their callers. | 2 / 3 |
 | `lib/helpers/default-branch.ts` (`getDefaultBranch`/`setDefaultBranch`) | **now unblocked** by `config.rs`'s `GlobalConfig`, but still outstanding: the `"main"` fallback is app policy that belongs above the git layer, so wire it up there rather than inside `git-ops`. | 2 |
@@ -155,7 +155,9 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/rebase.ts` | `crates/git-ops/src/rebase.rs` — **done except hook/terminal output**: start/continue/abort, selected-file staging, manual conflict resolutions, Channel progress, recovery snapshots, reorder, and squash. `rebase.backend=merge` is pinned because status and snapshot recovery consume `.git/rebase-merge/**`. | 2 / 3 |
 | `lib/git/worktree-include.ts`, `worktree.ts` | `crates/git-ops/src/worktree_include.rs` + `worktree.rs` — porcelain listing, linked-worktree fallback, lifecycle operations, ignore-pattern selection, and guarded best-effort copies **done**. | 2 |
 | `lib/progress/from-process.ts` + git progress variants | `crates/git-ops/src/progress.rs` + `remote_progress.rs` — **done**, including live LFS side-channel progress. | 2 |
-| `lib/hooks/**` (7 files, 863 lines) | `crates/git-ops/src/hooks/*.rs` — **proposed target, not yet created.** Unported: hook discovery, shell resolution and the hook environment, reached from `core.ts`. This is the actual prerequisite for the hook-output deferrals that `commit.rs`, `merge.rs`, `push.rs` and `pull.rs` each name, so it should land before any of them claims completion. | 2 |
+| `lib/hooks/get-repo-hooks.ts`, `get-shell.ts`, `shell-escape.ts`, `get-shell-env.ts` | `crates/git-ops/src/hooks/{discovery,shell,shell_env}.rs` — **done**, plus the `rdc-printenvz` binary replacing `vendor/printenvz` (a ten-line C program). Discovery honours `core.hooksPath`, works in a worktree, and **fixes an upstream bug** — see §8. Windows shell selection (registry-based Git Bash discovery, MSYS2/PowerShell/cmd quoting) is deliberately not ported; the reasoning is in `hooks/shell.rs`. | 2 |
+| `lib/hooks/hooks-proxy.ts`, `with-hooks-env.ts` | **Not a port — a protocol design**, since `process-proxy` ships a *native binary* and its wire format is not in the desktop-plus tree. **Transport done:** `crates/git-ops/src/hooks/{protocol,client,server}.rs` plus the `rdc-hook-proxy` binary — NUL-framed request (token, hook, argv, env, cwd, length-prefixed stdin), framed streaming response (stderr chunks then an exit code), per-operation random token compared in constant time, loopback only, request size capped, and the stand-in **fails closed**. **Runner done:** `hooks/runner.rs` runs `git hook run` with the login-shell environment plus git's own `GIT_*`/`GITHEAD_*` (minus upstream's exclusion set), spools stdin for `--to-stdin`, streams and captures stderr, reports start/finish/failure progress with an abort handle, and offers a failure to the user to ignore. **Wiring done:** `hooks/with_env.rs` installs a stand-in per discovered hook in a temp directory, points `core.hooksPath` at it through `GIT_CONFIG_PARAMETERS` (existing value preserved, `sq_quote`-escaped — closing an upstream TODO), binds a server for one invocation, and loads the login shell at most once per directory. **What remains is the command layer:** `commit.rs`, `merge.rs`, `push.rs` and `pull.rs` don't yet *ask* for interception, and their callbacks need Tauri Channels — Phase 3. Whether to intercept at all is frontend state (`config.ts`), so it is Phase 7 that decides. Those close the `interceptHooks`/`onHookProgress`/`onHookFailure` deferrals in `commit.rs`, `merge.rs`, `push.rs` and `pull.rs`. | 2 / 3 |
+| `lib/hooks/config.ts` | **Frontend, not Rust.** Every export reads or writes `localStorage` (`git-hooks-env-enabled`, `git-cache-hooks-env`, `git-hook-env-shell`) behind two feature flags. It is preferences state, so it lands with the Phase 7 settings UI — and note `SupportedHooksEnvShell` names four *Windows* shells, so most of it has no meaning on the primary target. | 7 |
 | `lib/trampoline/trampoline-server.ts` | `crates/trampoline/src/server.rs` | 2 |
 | `lib/ssh/*` (4 files, at `app/src/lib/ssh/`) | **No `ssh/` module was created.** Host-key prompt classification and parsing live in `crates/trampoline/src/handlers.rs` instead, where the askpass handler needs them (`ssh-host-prompt.ts` and its test were deleted). The remaining SSH env work needs an ssh-wrapper binary. | 2 / 7 |
 | `lib/shells/darwin.ts`, `linux.ts`, `shared.ts`, `win32.ts` | `src-tauri/src/platform/shells/*.rs` | 4 |
@@ -206,7 +208,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/credential.ts`, `lib/trampoline/url-without-credentials.ts` | `crates/trampoline/src/credential.rs` | 2 |
 | `lib/ssh/ssh.ts` (`parseAddSSHHostPrompt`) | `crates/trampoline/src/handlers.rs` — **the TypeScript port is deleted** | 2 |
 | `lib/git/diff.ts` | `crates/git-ops/src/diff.rs` — text and conflict-resolution diff paths done; image previews deferred | 2 |
-| `lib/git/show.ts` | `crates/git-ops/src/show.rs` (`getPartialBlobContents` deferred) | 2 |
+| `lib/git/show.ts` | `crates/git-ops/src/show.rs` — **done**, both entry points. `getPartialBlobContents` reads a bounded prefix through `exec::git_capped`, a real cap rather than a slice after the fact. Neither is exposed as a command: raw bytes over IPC still needs a representation decision, and its consumer (syntax highlighting) is Phase 7. | 2 |
 | `lib/git/diff-index.ts` | `crates/git-ops/src/diff_index.rs`; `IndexStatus` → **`src/models/index-status.ts`** | 2 |
 | `lib/git/log.ts` | `crates/git-ops/src/log.rs` | 2 |
 | `lib/diff-parser.ts` | `crates/git-ops/src/diff_parser.rs` — **the TypeScript parser is deleted**, same fork as `status-parser` | 2 |
@@ -382,6 +384,7 @@ shape of everything it carries is pinned by a wire-contract test on the Rust sid
 | _(new)_ | request/response | `get_branches` → `getBranches()` | **done** |
 | _(new)_ | request/response | `get_branches_differing_from_upstream` → `getBranchesDifferingFromUpstream()` | **done** |
 | _(new)_ | request/response | `delete_remote_branch` → `deleteRemoteBranch()` | **done** |
+| _(new)_ | request/response | `add_safe_directory` → `addSafeDirectory()` | **done** |
 | _(new)_ | request/response + Channel | `push` → `push()` | **done** |
 | _(new)_ | request/response + Channel | `fetch` → `fetch()` | **done** |
 | _(new)_ | request/response + Channel | `pull` → `pull()` | **done** |
@@ -538,6 +541,65 @@ The port pins GitHub's three current fingerprints (RSA, ECDSA, Ed25519) and keep
 `RETIRED_GITHUB_FINGERPRINTS` constant purely so a test can assert it is never accepted, at the unit
 level and end-to-end through the real trampoline binary.
 
+### `addSafeDirectory` failed for a path containing a regex metacharacter
+
+The existence check before appending was:
+
+```ts
+const { stdout, exitCode } = await git(
+  ['config', '--global', '-z', '--get-all', name, value],
+  __dirname, 'addGlobalConfigValue',
+  { successExitCodes: new Set([0, 1]) }
+)
+```
+
+That trailing `value` is a **value-pattern**, which git treats as a *regular expression* unless
+`--fixed-value` is passed. Verified against real git 2.50:
+
+```
+$ git config --global -z --get-all safe.directory '/tmp/a(b'
+error: invalid pattern: /tmp/a(b        # exit 6
+$ git config --global -z --get-all --fixed-value safe.directory '/tmp/a(b'
+                                        # exit 1 — absent, as intended
+```
+
+Exit 6 is outside the accepted set, so the call rejected and `addSafeDirectory` never ran.
+
+**Consequence upstream:** `addSafeDirectory` is the *only* remedy for git's "dubious ownership"
+refusal, and it is reached from `missing-repository.tsx` and `add-existing-repository.tsx` — the
+recovery path. A directory named `app (old)`, `notes [archive]` or `v2+` is perfectly ordinary, so a
+user with such a path could be told their repository is unsafe and then be unable to do anything about
+it from the app. Fixed with `--fixed-value` in `crates/git-ops/src/config.rs`, with tests including the
+metacharacter case and an end-to-end check that git really does start working afterwards.
+
+`--fixed-value` also makes the comparison exact, which is what the original did afterwards in
+JavaScript (`stdout.split('\0').includes(value)`) to compensate for the pattern possibly matching a
+*different* stored value. git does that now, so the exit code alone answers the question — and a
+regression test covers `/repos/a.b` versus `/repos/axb`, which the pattern form would have conflated.
+
+### A `"*"` hook filter returned no hooks at all
+
+`getRepoHooks(path, filter)` documents `filter` as "an optional array of hook names to filter the
+results. Including '*' will return all hooks." The loop then began:
+
+```ts
+const matchAll = filter?.includes('*')
+for (const file of files) {
+  const hookName = basename(file.name, '.exe')
+  if (matchAll || filter?.includes(hookName) === false) {
+    continue
+  }
+```
+
+`matchAll` is on the **skip** side of the condition, so asking for all hooks skipped every one of them
+and returned an empty list. It needed `!matchAll`.
+
+**Consequence upstream:** nothing today, because every caller passes an explicit list of hook names —
+`commit.ts`, `merge.ts`, `push.ts` and `pull.ts` all do. But `withHooksEnv` treats an empty result as
+"this repository has no hooks" and skips interception entirely, so a caller that reached for the
+documented `'*'` would have got silently unhooked git invocations rather than an error. Fixed in
+`crates/git-ops/src/hooks/discovery.rs`, with a test.
+
 ### `DiffHunkHeader.equals` now compares `newLineCount`
 
 The original's fourth comparison was `this.oldStartLine === other.oldStartLine` — a repeat of the
@@ -665,6 +727,16 @@ tree, Electron, and `lib/stores`:
 | `crates/git-ops/src/rev_parse.rs` (Phase 2) | `resolve()` is lexical, not `std::fs::canonicalize` | The original used Node's `path.resolve`, which does not resolve symlinks. Canonicalizing would return a different path than the caller passed in — immediately visible on macOS, where the temp dir is a symlink (`/var` → `/private/var`), breaking any comparison against the input path. Unit-tested directly for the empty-cdup, walk-up, relative and absolute cases. |
 | `crates/git-ops/src/rev_parse.rs` (Phase 2) | test env vars are passed per-invocation via `get_repository_type_with_env`, not by mutating the process environment | The original's unsafe-repository test set `process.env` and restored it with `process.env[k] = undefined`, which in Node assigns the **literal string `"undefined"`** — leaving `GIT_TEST_ASSUME_DIFFERENT_OWNER` set to a non-empty value for everything running afterwards in that process. Per-invocation env makes that class of leakage impossible. |
 | `crates/git-ops/src/test_support.rs` (Phase 2) | `conflicted_repository()` merges `main`; the original `setupConflictedRepo` merged `master` | Follows from `empty_repository()` pinning `main`. Also note the helper needs `run_allowing_failure` for the merge step: the conflict means git exits non-zero *by design*, which the TypeScript helpers got for free because dugite's `exec` returns a result instead of throwing. |
+| `crates/git-ops/src/exec.rs` (Phase 2) | a capped read reports truncation as **success**, where Node's `maxBuffer` made it an error | The original's `getPartialBlobContents` set `maxBuffer` and then *caught* the rejection to recover `e.stdout` as its answer — the bytes it wanted arrived by way of an error path. That is an artifact of Node's API, not behaviour worth reproducing: `git_capped` returns the prefix with `truncated: true`, so a caller finds its answer where answers go. What the port does have to reproduce is the killing: once reading stops, git blocks writing to a full pipe and would never exit, so it is killed — and because that death is a signal, the exit status is deliberately not classified. Stderr drains in its own task, since a git that filled *stderr* while stdout was being read would block before writing the bytes being waited for. A test with a 4 MiB blob and a 10-byte cap fails by hanging if either half is wrong. |
+| `crates/git-ops/src/hooks/protocol.rs` (Phase 2) | a **new** wire protocol, not a ported one, modelled on `trampoline` | `process-proxy` ships a native binary, so there was nothing to port. Three choices differ from the trampoline's message, each for a reason: the **token is positional and first**, so it can be checked before anything else is parsed (the trampoline inherited its placement inside the environment block from the vendored C client); **stdin is length-prefixed bytes**, because it is written to a file for `git hook run --to-stdin` and must survive byte for byte; and the **response is framed** (`E` chunks then one `X` exit code) rather than a single reply, because output has to arrive while the hook runs and an exit code has to follow it. The request is size-capped because the server must read before it can authenticate. |
+| `crates/git-ops/src/hooks/with_env.rs` (Phase 2) | escapes the stand-in directory in `GIT_CONFIG_PARAMETERS`, **closing an upstream TODO** | The original wrote `'core.hooksPath=${tmpHooksDir}'` with a comment asking whether the path could contain a single quote — "probably not?". It can: the parent is `TMPDIR`, which is the user's to set, and an unescaped quote would end the quoted item early, leaving git to read the rest of the path as further configuration. git parses this variable with its shell-style `sq_dequote`, so a quote is escaped as `'\''`. Tested. |
+| `crates/git-ops/src/hooks/runner.rs` (Phase 2) | resolves git to an **absolute path** before replacing the environment; no `ensureGitExecPathEnv` equivalent | Rust resolves a bare program name through the **child's** `PATH` (verified experimentally), and the hook's environment is the *shell's* — so `git` alone would let a hook's shell decide which git runs it, or fail outright if that environment had no `PATH`. Resolving against rdc's own `PATH` keeps hook execution on the same git as every other operation here. That also removes the need for upstream's `ensureGitExecPathEnv`, which existed only because it invoked a *bundled* git built without a prefix, which set `GIT_EXEC_PATH` to a path that doesn't exist. |
+| `crates/git-ops/src/hooks/runner.rs` (Phase 2) | sets **`RDC=1`** alongside upstream's `GITHUB_DESKTOP=1` | Hooks in the wild test for `GITHUB_DESKTOP` (upstream added it for desktop/desktop#19001), so dropping it would silently change how those behave — it is kept as **compatibility, not identity**. rdc is not GitHub Desktop, so `RDC` is the variable to test for from here on, and both are documented in the runner. |
+| `crates/git-ops/src/bin/rdc-hook-proxy.rs` (Phase 2) | **fails closed** when the app can't be reached | A hook that didn't run is not a hook that passed. Exiting zero would let a commit through that the user's `pre-commit` hook would have blocked; the cost of the opposite choice is a confusing failure, which is the better failure. Also reads stdin only for the five hooks git pipes it to — reading unconditionally would block until git closed the pipe, the same trap `rdc-trampoline` documents for askpass, and there is a timeout-guarded test for it. |
+| `crates/git-ops/src/hooks/discovery.rs` (Phase 2) | returns hooks **sorted**; the original was an async generator yielding in `readdir` order | Directory order is filesystem-dependent. The only consumer collected the lot, so nothing depended on the order — but a test can't assert against it, and a reproducible result costs a sort of a list that is at most 28 entries long. |
+| `crates/git-ops/src/hooks/discovery.rs` (Phase 2) | tests the executable **mode bits**, where the original called `access(path, X_OK)` | Rust's standard library has no `access`, and `libc` isn't worth adding for one check. They differ only for a file the current user can't execute despite the bit being set — a hook owned by someone else with `--x` for the owner alone. The result is a stand-in installed for a hook git then declines to run, and git says so: visible, not silent. |
+| `crates/git-ops/src/hooks/shell_env.rs` (Phase 2) | the shell's **stdin is closed**; the original piped it and never wrote or closed it | The shell is run interactive (`-i`), so an init file that reads stdin is possible — and upstream's version would block on it forever, with no timeout anywhere in the call. EOF is the answer a well-behaved init file can't distinguish from an empty pipe. |
+| `crates/git-ops/src/bin/rdc-printenvz.rs` (Phase 2) | reimplements `vendor/printenvz` (C) in Rust, writing **bytes** rather than strings | Removes a native build step from the project. Bytes because a variable's value is arbitrary bytes on Unix: routing it through a UTF-8 string type would either fail or silently alter it. The marker text (`--printenvz--begin`/`--end`) is kept verbatim so the two implementations stay comparable — it is a private protocol between the binary and `hooks::shell_env`. |
 | `crates/git-ops/src/for_each_ref.rs` (Phase 2) | asks git for `%(authordate:unix)` where the original asked for `%(authordate:iso8601)` | The original handed git's string to `new Date()`. git's `iso8601` is space-separated (`2021-01-22 11:45:28 +0100`), which **ECMAScript does not require an engine to parse** — it worked because V8 accepts non-standard formats, and would have been a silent `Invalid Date` in a stricter one. Epoch seconds remove the parse entirely and match how every other timestamp crosses this boundary. |
 | `crates/git-ops/src/for_each_ref.rs` (Phase 2) | the `%(worktreepath)` comparison canonicalizes both paths; the original compared strings | `getBranchesDifferingFromUpstream` excludes branches checked out in other worktrees. git prints a **fully resolved** path, so wherever the caller reaches the repository through a symlink the string comparison fails and a branch checked out *here* is misclassified as belonging elsewhere — immediately visible on macOS, where a temp directory is reached via `/var` but reported as `/private/var`. Falls back to the string comparison when either path can't be resolved, so a deleted worktree behaves as before. Pinned by a test that reaches a repository through a symlink. |
 | `crates/git-ops/src/terminal_output.rs` (Phase 2) | caps the rolling terminal buffer on **UTF-8 bytes**, not JavaScript string length (UTF-16 code units) | **Exact parity is unrepresentable in Rust, so this deviation is forced rather than chosen.** The original's tests assert `'日本語ab'` has length 5 and that `'👋'` "counts as 2" — trimming by UTF-16 index can split a surrogate pair, and JavaScript will hold the resulting lone surrogate while Rust's `String` (guaranteed UTF-8) cannot. Bytes are also the honest unit for what is really a memory bound. Trimming rounds *up* to a character boundary, so this version can never emit mangled UTF-8 — an improvement, at the cost of sometimes retaining slightly *fewer* bytes than `capacity`, never more. All 27 original cases are ported; the 3 unicode ones carry comments explaining the difference. |

@@ -87,6 +87,7 @@ pub fn run() {
             commands::misc::write_description,
             commands::misc::get_author_identity,
             commands::misc::clean_untracked_files,
+            commands::misc::add_safe_directory,
             commands::git::merge_branch,
             commands::git::get_merge_base,
             commands::git::abort_merge,

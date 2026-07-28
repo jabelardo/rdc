@@ -174,3 +174,17 @@ export async function cleanUntrackedFiles(
 ): Promise<void> {
   return invoke<void>('clean_untracked_files', { repositoryPath })
 }
+
+/**
+ * Vouches for a repository git refuses to work in because it's owned by someone else.
+ *
+ * Takes a **path rather than a repository**, and writes the user's *global* config, because git won't
+ * read a repository's own configuration until it trusts the path. That is also why this is the only way
+ * out of git's "dubious ownership" refusal — the caller reaches it after `getRepositoryType` reports the
+ * path as unsafe.
+ *
+ * Safe to call more than once: an identical entry is never added twice.
+ */
+export async function addSafeDirectory(path: string): Promise<void> {
+  await invoke('add_safe_directory', { path })
+}

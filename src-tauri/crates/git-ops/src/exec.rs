@@ -283,19 +283,16 @@ where
 ///
 /// Both callbacks run on the task draining their pipe, so neither can block the other — which matters
 /// because failing to drain either pipe deadlocks git once its buffer fills.
-pub async fn git_streaming<O, E>(
+/// Spawns git and writes its stdin, if any.
+///
+/// Shared by [`git_streaming`] and [`git_capped`] so there is one place that decides how git is
+/// invoked — the environment defaults, the pipes and the kill-on-drop behaviour.
+async fn spawn_git(
     args: &[impl AsRef<std::ffi::OsStr>],
-    path: impl AsRef<Path>,
+    path: &Path,
     name: &str,
-    options: GitOptions,
-    mut on_stdout: O,
-    mut on_stderr: E,
-) -> Result<GitOutput, GitError>
-where
-    O: FnMut(&[u8]) + Send,
-    E: FnMut(&[u8]) + Send,
-{
-    let path = path.as_ref();
+    options: &GitOptions,
+) -> Result<tokio::process::Child, GitError> {
     let mut command = Command::new("git");
     command
         .args(args)
@@ -350,6 +347,24 @@ where
         })?;
     }
 
+    Ok(child)
+}
+
+pub async fn git_streaming<O, E>(
+    args: &[impl AsRef<std::ffi::OsStr>],
+    path: impl AsRef<Path>,
+    name: &str,
+    options: GitOptions,
+    mut on_stdout: O,
+    mut on_stderr: E,
+) -> Result<GitOutput, GitError>
+where
+    O: FnMut(&[u8]) + Send,
+    E: FnMut(&[u8]) + Send,
+{
+    let path = path.as_ref();
+    let mut child = spawn_git(args, path, name, &options).await?;
+
     let mut stdout_pipe = child.stdout.take().ok_or_else(|| GitError::Spawn {
         name: name.to_owned(),
         path: path.to_owned(),
@@ -396,7 +411,153 @@ where
         source,
     })?;
 
-    let stderr = String::from_utf8_lossy(&stderr_bytes).into_owned();
+    finish_git(name, path, stdout, &stderr_bytes, status, &options)
+}
+
+/// Output from a capped read — see [`git_capped`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CappedOutput {
+    /// Up to `limit` bytes of stdout.
+    pub stdout: Vec<u8>,
+
+    /// Whether the cap was reached, making `stdout` a prefix rather than the whole thing.
+    pub truncated: bool,
+
+    /// The classified failure, when git failed and the caller declared that failure expected.
+    ///
+    /// Always `None` when `truncated`: git was killed on purpose, so there is no failure of its own to
+    /// report.
+    pub git_error: Option<GitErrorKind>,
+}
+
+/// Runs git, reading at most `limit` bytes of stdout and killing it once that is reached.
+///
+/// For output whose *beginning* is the answer and whose size is unbounded — a blob prefix for syntax
+/// highlighting, say. Reading it all and slicing would defeat the point: the cost this avoids is holding
+/// a large blob in memory, not the cost of slicing it.
+///
+/// # Truncation is success, where Node made it an error
+///
+/// The original expressed this with Node's `maxBuffer`, which **rejects** once the limit is passed, so
+/// `getPartialBlobContents` recovered the bytes from the rejected error's `stdout` and treated that as
+/// the result. That is an artifact of the API rather than a behaviour worth reproducing: here a cap that
+/// was reached is an ordinary outcome, reported by [`CappedOutput::truncated`], and the caller doesn't
+/// have to inspect an error to find its answer.
+///
+/// # Why git has to be killed
+///
+/// Once reading stops, git blocks writing to a full stdout pipe — and would never exit, so nothing
+/// downstream would ever complete. Killing it is what makes the cap terminate rather than hang. Stderr is
+/// drained concurrently in its own task for the same reason in reverse: a git that filled *stderr* while
+/// we were reading stdout would block before writing the bytes being waited for.
+///
+/// Because git was killed, its exit status is a signal death and is deliberately **not** classified — see
+/// [`GitError::Terminated`], which a signal would otherwise produce.
+///
+/// # A note on size checks
+///
+/// If the question is "how big is this blob?", `git cat-file -s <rev>:<path>` answers it without reading
+/// the object at all, which is cheaper and exact. This is for when the prefix itself is wanted.
+pub async fn git_capped(
+    args: &[impl AsRef<std::ffi::OsStr>],
+    path: impl AsRef<Path>,
+    name: &str,
+    options: GitOptions,
+    limit: usize,
+) -> Result<CappedOutput, GitError> {
+    let path = path.as_ref();
+    let mut child = spawn_git(args, path, name, &options).await?;
+
+    let mut stdout_pipe = child.stdout.take().ok_or_else(|| GitError::Spawn {
+        name: name.to_owned(),
+        path: path.to_owned(),
+        source: std::io::Error::other("git stdout pipe was not available"),
+    })?;
+    let mut stderr_pipe = child.stderr.take().ok_or_else(|| GitError::Spawn {
+        name: name.to_owned(),
+        path: path.to_owned(),
+        source: std::io::Error::other("git stderr pipe was not available"),
+    })?;
+
+    // A task rather than a joined future, because the stdout read below finishes early on purpose and
+    // stderr still has to be drained until git is gone.
+    let stderr_task = tokio::spawn(async move {
+        let mut stderr = Vec::new();
+        let _ = stderr_pipe.read_to_end(&mut stderr).await;
+        stderr
+    });
+
+    let mut stdout = Vec::new();
+    let mut truncated = false;
+    let mut chunk = [0_u8; 8192];
+
+    while stdout.len() < limit {
+        let count = stdout_pipe
+            .read(&mut chunk)
+            .await
+            .map_err(|source| GitError::Spawn {
+                name: name.to_owned(),
+                path: path.to_owned(),
+                source,
+            })?;
+        if count == 0 {
+            break;
+        }
+
+        let room = limit - stdout.len();
+        stdout.extend_from_slice(&chunk[..count.min(room)]);
+        if count > room {
+            // git had more to say than was asked for.
+            truncated = true;
+            break;
+        }
+    }
+    // A limit of zero, or a read that landed exactly on it, still leaves git with more to write.
+    truncated = truncated || stdout.len() >= limit;
+
+    if truncated {
+        // Nothing will read the rest, so git must not be left blocked on a full pipe.
+        let _ = child.start_kill();
+    }
+
+    let status = child.wait().await.map_err(|source| GitError::Spawn {
+        name: name.to_owned(),
+        path: path.to_owned(),
+        source,
+    })?;
+    // Resolves as soon as git's pipes close, which the kill above guarantees.
+    let stderr_bytes = stderr_task.await.unwrap_or_default();
+
+    if truncated {
+        return Ok(CappedOutput {
+            stdout,
+            truncated: true,
+            git_error: None,
+        });
+    }
+
+    let output = finish_git(name, path, stdout, &stderr_bytes, status, &options)?;
+
+    Ok(CappedOutput {
+        stdout: output.stdout,
+        truncated: false,
+        git_error: output.git_error,
+    })
+}
+
+/// Turns a finished git invocation into a result, classifying an unacceptable exit code.
+///
+/// Shared by [`git_streaming`] and [`git_capped`], so "what counts as success" and "which failures the
+/// caller asked to handle itself" are decided in exactly one place.
+fn finish_git(
+    name: &str,
+    path: &Path,
+    stdout: Vec<u8>,
+    stderr_bytes: &[u8],
+    status: std::process::ExitStatus,
+    options: &GitOptions,
+) -> Result<GitOutput, GitError> {
+    let stderr = String::from_utf8_lossy(stderr_bytes).into_owned();
 
     // `code()` is None when the process was terminated by a signal, which is never an expected
     // outcome for us and must not be conflated with an exit code.
@@ -689,5 +850,143 @@ mod tests {
 
         assert_eq!(String::from_utf8_lossy(&chunks), "streamed-progress\n");
         assert_eq!(output.stderr, "streamed-progress\n");
+    }
+    // --- capped reads ---
+
+    /// A repository whose `big.txt` holds `size` bytes at HEAD.
+    async fn repo_with_blob(size: usize) -> crate::test_support::TempRepository {
+        let repo = empty_repository().await;
+        let contents: String = std::iter::repeat_n('x', size).collect();
+        crate::test_support::commit_file(&repo.path(), "big.txt", &contents, "first");
+        repo
+    }
+
+    #[tokio::test]
+    async fn a_capped_read_stops_at_the_limit() {
+        let repo = repo_with_blob(4096).await;
+
+        let output = git_capped(
+            &["show", "HEAD:big.txt"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+            100,
+        )
+        .await
+        .expect("a capped read should succeed");
+
+        assert_eq!(output.stdout.len(), 100);
+        assert!(output.truncated, "the blob is larger than the cap");
+        assert_eq!(output.git_error, None, "being cut off is not a git failure");
+    }
+
+    #[tokio::test]
+    async fn a_capped_read_of_a_blob_larger_than_the_pipe_does_not_hang() {
+        // The case the kill exists for. A pipe holds tens of kilobytes; once reading stops, git blocks
+        // writing and would never exit, so nothing downstream would ever complete. A regression here
+        // shows up as this test timing out rather than failing.
+        let repo = repo_with_blob(4 * 1024 * 1024).await;
+
+        let output = tokio::time::timeout(
+            Duration::from_secs(30),
+            git_capped(
+                &["show", "HEAD:big.txt"],
+                repo.path(),
+                "test",
+                GitOptions::default(),
+                10,
+            ),
+        )
+        .await
+        .expect("a capped read must terminate, not block on a full pipe")
+        .expect("it should succeed");
+
+        assert_eq!(output.stdout, b"xxxxxxxxxx");
+        assert!(output.truncated);
+    }
+
+    #[tokio::test]
+    async fn a_blob_smaller_than_the_limit_is_not_truncated() {
+        let repo = repo_with_blob(10).await;
+
+        let output = git_capped(
+            &["show", "HEAD:big.txt"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+            1024,
+        )
+        .await
+        .expect("it should succeed");
+
+        // `commit_file` writes exactly what it is given, so the blob is the ten bytes and no more.
+        assert_eq!(output.stdout.len(), 10);
+        assert!(!output.truncated);
+    }
+
+    #[tokio::test]
+    async fn a_limit_of_zero_reads_nothing_and_reports_truncation() {
+        // Degenerate but reachable — a caller computing the limit from a size that came out zero. It must
+        // not read the blob, and must not claim to have read all of it.
+        let repo = repo_with_blob(1024).await;
+
+        let output = git_capped(
+            &["show", "HEAD:big.txt"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+            0,
+        )
+        .await
+        .expect("it should succeed");
+
+        assert!(output.stdout.is_empty());
+        assert!(output.truncated);
+    }
+
+    #[tokio::test]
+    async fn a_capped_read_still_classifies_a_failure_it_was_not_truncated_by() {
+        // Truncation must not swallow real failures: when the cap wasn't reached, this behaves exactly as
+        // `git` does, including handing back an expected failure for the caller to branch on.
+        let repo = empty_repository().await;
+        crate::test_support::commit_file(&repo.path(), "tracked.txt", "one\n", "first");
+        std::fs::write(repo.path().join("untracked.txt"), "two\n").expect("failed to write");
+
+        let output = git_capped(
+            &["show", "HEAD:untracked.txt"],
+            repo.path(),
+            "test",
+            GitOptions::default().with_expected_errors([GitErrorKind::PathExistsButNotInRef]),
+            1024,
+        )
+        .await
+        .expect("an expected failure comes back as Ok");
+
+        assert_eq!(
+            output.git_error,
+            Some(GitErrorKind::PathExistsButNotInRef),
+            "a path that exists on disk but not in the revision"
+        );
+        assert!(!output.truncated);
+    }
+
+    #[tokio::test]
+    async fn a_capped_read_reports_an_unexpected_failure() {
+        let repo = empty_repository().await;
+
+        let error = git_capped(
+            &["show", "HEAD:nothing.txt"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+            1024,
+        )
+        .await
+        .expect_err("a missing revision is a failure");
+
+        assert!(
+            matches!(error, GitError::UnexpectedExitCode { .. }),
+            "{error:?}"
+        );
     }
 }

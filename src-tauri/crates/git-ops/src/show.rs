@@ -2,26 +2,15 @@
 //!
 //! Ported from `desktop-plus/app/src/lib/git/show.ts`.
 //!
-//! # Deferred: `getPartialBlobContents`
-//!
-//! The original had a second entry point that read at most N bytes, implemented with Node's
-//! `maxBuffer` — which *errors* once the limit is passed, so the caller recovered the partial output
-//! from the rejected error's `stdout`. Reproducing that needs a capped-read primitive in
-//! [`crate::exec`] that stops reading and kills the child, and killing mid-read has to be done
-//! carefully to avoid deadlocking against an undrained stderr pipe.
-//!
-//! It is deferred rather than approximated because **its only consumer is
-//! `ui/diff/syntax-highlighting/index.ts`**, which is Phase 7 work. Nothing in the Rust layer wants
-//! it yet, and a bounded-memory-but-unbounded-I/O stand-in would quietly lose the property the
-//! original was written for. Recorded in `MIGRATION_MAP.md` §9.
-//!
-//! When it does land, note `git cat-file -s <rev>:<path>` answers "how big is this blob?" without
-//! reading it at all, which is a better guard for the size checks than reading a prefix.
+//! Two entry points, differing only in how much they read: [`get_blob_contents`] takes the whole blob,
+//! [`get_partial_blob_contents`] a bounded prefix. The bound is real rather than a slice after the fact —
+//! see [`crate::exec::git_capped`].
 
 use std::path::Path;
 
 use crate::error::GitError;
-use crate::exec::{git, GitOptions};
+use crate::exec::{git, git_capped, GitOptions};
+use crate::git_error_kind::GitErrorKind;
 
 /// Reads the full contents of a blob at `commitish`.
 ///
@@ -49,6 +38,42 @@ pub async fn get_blob_contents(
     .await?;
 
     Ok(output.stdout)
+}
+
+/// Reads at most `length` bytes of a blob at `commitish`.
+///
+/// `None` means the path exists on disk but not in that revision — a normal answer for a file the user
+/// added since, and the reason the caller asks at all.
+///
+/// The result may be **shorter** than `length` for two different reasons, which the caller does not need
+/// to distinguish: the blob was smaller, or the cap cut it off.
+///
+/// Its consumer is syntax highlighting, which wants enough of a file to tokenize the part being shown and
+/// has no use for the rest of a large one. If the question is instead how big the blob *is*,
+/// `git cat-file -s <rev>:<path>` answers that without reading it.
+///
+/// The original had two identical functions here — `getPartialBlobContents` delegating to
+/// `getPartialBlobContentsCatchPathNotInRef` with the same arguments — so this is the one of them.
+pub async fn get_partial_blob_contents(
+    repository: impl AsRef<Path>,
+    commitish: &str,
+    path: &str,
+    length: usize,
+) -> Result<Option<Vec<u8>>, GitError> {
+    let output = git_capped(
+        &["show".to_owned(), format!("{commitish}:{path}")],
+        repository,
+        "getPartialBlobContentsCatchPathNotInRef",
+        GitOptions::default().with_expected_errors([GitErrorKind::PathExistsButNotInRef]),
+        length,
+    )
+    .await?;
+
+    if output.git_error == Some(GitErrorKind::PathExistsButNotInRef) {
+        return Ok(None);
+    }
+
+    Ok(Some(output.stdout))
 }
 
 #[cfg(test)]
@@ -166,5 +191,92 @@ mod tests {
         assert!(get_blob_contents(repo.path(), "nosuchref", "a.txt")
             .await
             .is_err());
+    }
+    // --- partial reads ---
+
+    #[tokio::test]
+    async fn reads_a_prefix_of_a_blob() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "big.txt", &"x".repeat(4096), "first");
+
+        let contents = get_partial_blob_contents(repo.path(), "HEAD", "big.txt", 64)
+            .await
+            .expect("reading should succeed")
+            .expect("the path is in the revision");
+
+        assert_eq!(contents.len(), 64);
+        assert!(contents.iter().all(|byte| *byte == b'x'));
+    }
+
+    #[tokio::test]
+    async fn reads_the_whole_blob_when_it_is_smaller_than_the_limit() {
+        // The caller can't tell a short blob from a truncated one, and shouldn't have to.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "small.txt", "hello", "first");
+
+        let contents = get_partial_blob_contents(repo.path(), "HEAD", "small.txt", 4096)
+            .await
+            .expect("reading should succeed")
+            .expect("the path is in the revision");
+
+        assert_eq!(contents, b"hello");
+    }
+
+    #[tokio::test]
+    async fn reads_a_prefix_of_binary_content() {
+        // Bytes, not text: the consumer is syntax highlighting, and a prefix can end mid-character.
+        let repo = empty_repository().await;
+        let path = repo.path().join("blob.bin");
+        std::fs::write(&path, [0_u8, 159, 146, 150, 1, 2, 3]).expect("failed to write");
+        git(
+            &["add", "--", "blob.bin"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("add should succeed");
+        git(
+            &["commit", "-m", "binary"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("commit should succeed");
+
+        let contents = get_partial_blob_contents(repo.path(), "HEAD", "blob.bin", 4)
+            .await
+            .expect("reading should succeed")
+            .expect("the path is in the revision");
+
+        assert_eq!(contents, vec![0, 159, 146, 150]);
+    }
+
+    #[tokio::test]
+    async fn reports_a_path_that_exists_but_is_not_in_the_revision_as_none() {
+        // The reason the caller asks: a file added since the revision it is looking at.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "tracked.txt", "one\n", "first");
+        std::fs::write(repo.path().join("added-since.txt"), "two\n").expect("failed to write");
+
+        let contents = get_partial_blob_contents(repo.path(), "HEAD", "added-since.txt", 1024)
+            .await
+            .expect("this is a normal answer, not an error");
+
+        assert_eq!(contents, None);
+    }
+
+    #[tokio::test]
+    async fn a_path_in_no_revision_at_all_is_an_error() {
+        // The contrast with the case above: nothing knows about this path, so there is nothing to report.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "tracked.txt", "one\n", "first");
+
+        assert!(
+            get_partial_blob_contents(repo.path(), "HEAD", "never-existed.txt", 1024)
+                .await
+                .is_err()
+        );
     }
 }

@@ -4,6 +4,22 @@ version = "0.1.0"
 edition = "2021"
 description = "Git operations for rdc — replaces desktop-plus's app/src/lib/git/** (dugite)"
 
+[lib]
+name = "git_ops"
+path = "src/lib.rs"
+
+# Run inside the user's login shell to capture the environment that shell builds — see
+# src/hooks/shell_env.rs. Replaces desktop-plus's vendored `printenvz` C program.
+[[bin]]
+name = "rdc-printenvz"
+path = "src/bin/rdc-printenvz.rs"
+
+# The binary git runs in place of a hook. Copied under each hook's name into a temporary directory that
+# `core.hooksPath` points at — see src/hooks/protocol.rs.
+[[bin]]
+name = "rdc-hook-proxy"
+path = "src/bin/rdc-hook-proxy.rs"
+
 [dependencies]
 ignore = { workspace = true }
 regex = { workspace = true }
@@ -11,7 +27,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["process", "io-util", "rt", "macros", "fs", "time"] }
+tokio = { workspace = true, features = ["process", "io-util", "rt", "macros", "fs", "time", "net", "sync"] }
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
