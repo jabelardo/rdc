@@ -23,7 +23,31 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![commands::git::get_status])
+        .invoke_handler(tauri::generate_handler![
+            commands::git::get_status,
+            commands::git::create_commit,
+            commands::git::create_merge_commit,
+            commands::git::checkout_branch,
+            commands::git::checkout_remote_branch,
+            commands::git::checkout_commit,
+            commands::git::checkout_paths,
+            commands::git::stage_manual_conflict_resolution,
+            commands::log::get_commits,
+            commands::log::get_commit,
+            commands::log::get_changed_files,
+            commands::log::get_authors,
+            commands::git::get_index_changes,
+            commands::git::get_working_directory_diff,
+            commands::git::get_commit_diff,
+            commands::git::get_commit_range_diff,
+            commands::git::merge_branch,
+            commands::git::get_merge_base,
+            commands::git::abort_merge,
+            commands::git::rebase_branch,
+            commands::git::continue_rebase,
+            commands::git::abort_rebase,
+            commands::git::get_rebase_snapshot,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

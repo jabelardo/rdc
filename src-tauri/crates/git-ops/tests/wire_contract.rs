@@ -33,10 +33,25 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use git_ops::checkout::{CheckoutProgress, CheckoutProgressKind};
+use git_ops::commit::CommitOptions;
+use git_ops::diff::{Diff, LineEnding, LineEndingsChange, SubmoduleDiffData, TextDiffData};
+use git_ops::diff_index::IndexStatus;
+use git_ops::diff_parser::parse_diff;
+use git_ops::interpret_trailers::Trailer;
+use git_ops::log::{ChangesetData, Commit, CommitIdentity, CommittedFileChange};
+use git_ops::merge::{MergeOptions, MergeResult};
+use git_ops::rebase::{
+    MultiCommitOperationProgress, MultiCommitOperationProgressKind, RebaseConflictResolution,
+    RebaseResult, RebaseSnapshot,
+};
+use git_ops::rev_list::CommitOneLine;
+use git_ops::stage::ManualConflictResolution;
 use git_ops::status::{
     AheadBehind, AppFileStatus, ConflictedFileStatus, StatusFileChange, StatusResult, UnmergedEntry,
 };
 use git_ops::status_parser::{GitStatusEntry, SubmoduleStatus, UnmergedEntrySummary};
+use git_ops::update_index::FileToStage;
 use serde_json::json;
 
 #[test]
@@ -460,6 +475,190 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
             do_conflicted_files_exist: false,
         }),
     );
+    cases.insert(
+        "checkoutProgress",
+        to_value(CheckoutProgress {
+            kind: CheckoutProgressKind::Checkout,
+            value: 0.5,
+            title: "Checking out branch topic".to_owned(),
+            description: "Checking out files:  50% (1/2)".to_owned(),
+            target: "topic".to_owned(),
+        }),
+    );
+    let multi_commit_operation_progress = MultiCommitOperationProgress {
+        kind: MultiCommitOperationProgressKind::MultiCommitOperation,
+        value: 0.5,
+        position: 1,
+        total_commit_count: 2,
+        current_commit_summary: "First".to_owned(),
+    };
+    cases.insert(
+        "multiCommitOperationProgress",
+        to_value(multi_commit_operation_progress.clone()),
+    );
+    cases.insert(
+        "rebaseSnapshot",
+        to_value(RebaseSnapshot {
+            progress: multi_commit_operation_progress,
+            commits: vec![
+                CommitOneLine {
+                    sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+                    summary: "First".to_owned(),
+                },
+                CommitOneLine {
+                    sha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".to_owned(),
+                    summary: "Second".to_owned(),
+                },
+            ],
+        }),
+    );
+    cases.insert("mergeResult", to_value(MergeResult::AlreadyUpToDate));
+    cases.insert("rebaseResult", to_value(RebaseResult::ConflictsEncountered));
+
+    // A parsed diff, from the real parser rather than a hand-built value. Two hunks far enough
+    // apart to exercise both expansion types, a delete/add pair, and a missing trailing newline —
+    // so the snapshot pins the numeric `DiffLineType`, the explicit nulls, and the fact that
+    // `expansionType` and `maxLineNumber` are computed identically to the TypeScript copies of
+    // those rules in `src/lib/diff-hunks.ts`.
+    cases.insert(
+        "parsedDiff",
+        to_value(
+            parse_diff(concat!(
+                "diff --git a/test.txt b/test.txt\n",
+                "index 1910281..257cc56 100644\n",
+                "--- a/test.txt\n",
+                "+++ b/test.txt\n",
+                "@@ -10,2 +10,2 @@ fn context()\n",
+                " unchanged\n",
+                "-before\n",
+                "+after\n",
+                "@@ -100,1 +100,1 @@\n",
+                "-last\n",
+                "\\ No newline at end of file\n",
+                "+last line\n",
+            ))
+            .expect("the fixture parses"),
+        ),
+    );
+
+    // History. Built directly rather than by running git, so the snapshot stays deterministic.
+    // `parentSHAs` is the one field whose JSON name isn't plain camelCase — the TypeScript class
+    // spells it that way, and the frontend passes it straight to the constructor.
+    cases.insert(
+        "commit",
+        to_value(Commit {
+            sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+            short_sha: "aaaaaaa".to_owned(),
+            summary: "Fix the thing".to_owned(),
+            body: "With a longer explanation.\n\nCo-Authored-By: Someone <someone@example.com>"
+                .to_owned(),
+            author: CommitIdentity {
+                name: "Author Name".to_owned(),
+                email: "author@example.com".to_owned(),
+                date: 1_475_670_580,
+                tz_offset: 120,
+            },
+            committer: CommitIdentity {
+                name: "Committer Name".to_owned(),
+                email: "committer@example.com".to_owned(),
+                date: 1_475_670_600,
+                tz_offset: -480,
+            },
+            parent_shas: vec!["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".to_owned()],
+            trailers: vec![Trailer {
+                token: "Co-Authored-By".to_owned(),
+                value: "Someone <someone@example.com>".to_owned(),
+            }],
+            tags: vec!["v1.0".to_owned()],
+        }),
+    );
+    cases.insert(
+        "changesetData",
+        to_value(ChangesetData {
+            files: vec![
+                CommittedFileChange {
+                    path: "src/thing.ts".to_owned(),
+                    status: AppFileStatus::Modified {
+                        submodule_status: None,
+                    },
+                    commitish: "aaaaaaa".to_owned(),
+                    parent_commitish: "aaaaaaa^".to_owned(),
+                },
+                CommittedFileChange {
+                    path: "after".to_owned(),
+                    status: AppFileStatus::Renamed {
+                        old_path: "before".to_owned(),
+                        submodule_status: None,
+                        rename_includes_modifications: true,
+                    },
+                    commitish: "aaaaaaa".to_owned(),
+                    parent_commitish: "aaaaaaa^".to_owned(),
+                },
+            ],
+            lines_added: 12,
+            lines_deleted: 3,
+        }),
+    );
+
+    // Index changes: pairs, with the status as a numeric discriminant rather than a name.
+    cases.insert(
+        "indexChanges",
+        to_value(vec![
+            ("src/thing.ts".to_owned(), IndexStatus::Modified),
+            ("added.ts".to_owned(), IndexStatus::Added),
+            ("gone.ts".to_owned(), IndexStatus::Deleted),
+        ]),
+    );
+
+    // The `IDiff` union. `kind` is numeric, and Text/LargeText are distinguished by it alone, which
+    // is why `Diff` serializes by hand rather than with serde's internally-tagged representation.
+    let text_data = TextDiffData {
+        text: "@@ -1 +1 @@\n-old\n+new".to_owned(),
+        hunks: parse_diff(concat!(
+            "diff --git a/a.txt b/a.txt\n",
+            "index 1910281..257cc56 100644\n",
+            "--- a/a.txt\n",
+            "+++ b/a.txt\n",
+            "@@ -1 +1 @@\n",
+            "-old\n",
+            "+new\n",
+        ))
+        .expect("the fixture parses")
+        .hunks,
+        line_endings_change: None,
+        max_line_number: 1,
+        has_hidden_bidi_chars: false,
+    };
+
+    cases.insert("textDiff", to_value(Diff::Text(text_data.clone())));
+    cases.insert(
+        "textDiffWithLineEndingsChange",
+        to_value(Diff::Text(TextDiffData {
+            line_endings_change: Some(LineEndingsChange {
+                from: LineEnding::LF,
+                to: LineEnding::CRLF,
+            }),
+            ..text_data.clone()
+        })),
+    );
+    cases.insert("largeTextDiff", to_value(Diff::LargeText(text_data)));
+    cases.insert("binaryDiff", to_value(Diff::Binary));
+    cases.insert("unrenderableDiff", to_value(Diff::Unrenderable));
+    cases.insert(
+        "submoduleDiff",
+        to_value(Diff::Submodule(SubmoduleDiffData {
+            full_path: "/repo/sub".to_owned(),
+            path: "sub".to_owned(),
+            url: Some("https://example.invalid/sub.git".to_owned()),
+            status: SubmoduleStatus {
+                commit_changed: true,
+                modified_changes: false,
+                untracked_changes: false,
+            },
+            old_sha: Some("a".repeat(40)),
+            new_sha: Some("b".repeat(40)),
+        })),
+    );
 
     let mut rendered = serde_json::to_string_pretty(&cases).expect("the snapshot serializes");
     rendered.push('\n');
@@ -503,4 +702,165 @@ fn snapshot_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         // crates/git-ops -> crates -> src-tauri -> repository root
         .join("../../../src/lib/__generated__/wire-snapshot.json")
+}
+
+// --- the other direction: types the frontend sends *in* ---
+//
+// The snapshot above covers what Rust serializes. Command *arguments* travel the other way, so what
+// matters for them is that Rust can deserialize what the frontend sends. These tests are written as
+// the literal JSON `invoke` would produce, so a `#[serde]` change that breaks an argument fails here
+// rather than at runtime with a Tauri deserialization error.
+
+#[test]
+fn a_file_to_stage_accepts_the_minimal_object() {
+    // `oldPath` and `deleted` both have serde defaults, so the frontend can send just a path.
+    let parsed: FileToStage =
+        serde_json::from_value(json!({ "path": "src/thing.ts" })).expect("deserializes");
+
+    assert_eq!(parsed, FileToStage::new("src/thing.ts"));
+    assert_eq!(parsed.old_path, None);
+    assert!(!parsed.deleted);
+}
+
+#[test]
+fn a_file_to_stage_round_trips_a_rename_and_a_deletion() {
+    let renamed: FileToStage =
+        serde_json::from_value(json!({ "path": "after", "oldPath": "before" }))
+            .expect("deserializes");
+    assert_eq!(renamed, FileToStage::renamed("after", "before"));
+
+    let deleted: FileToStage =
+        serde_json::from_value(json!({ "path": "gone", "deleted": true })).expect("deserializes");
+    assert_eq!(deleted, FileToStage::deleted("gone"));
+}
+
+#[test]
+fn commit_options_default_every_flag_to_off() {
+    // The frontend may omit the whole object or any subset of its fields.
+    let empty: CommitOptions = serde_json::from_value(json!({})).expect("deserializes");
+    assert_eq!(empty, CommitOptions::default());
+
+    let partial: CommitOptions =
+        serde_json::from_value(json!({ "allowEmpty": true })).expect("deserializes");
+    assert_eq!(
+        partial,
+        CommitOptions {
+            allow_empty: true,
+            ..CommitOptions::default()
+        }
+    );
+}
+
+#[test]
+fn commit_options_field_names_are_camel_case() {
+    let options: CommitOptions = serde_json::from_value(json!({
+        "amend": true,
+        "noVerify": true,
+        "signOff": true,
+        "allowEmpty": true,
+    }))
+    .expect("deserializes");
+
+    assert_eq!(
+        options,
+        CommitOptions {
+            amend: true,
+            no_verify: true,
+            sign_off: true,
+            allow_empty: true,
+        }
+    );
+}
+
+#[test]
+fn a_manual_conflict_resolution_is_the_git_flag_name() {
+    // These are passed to git as `--ours`/`--theirs`, and must match the ported TypeScript enum's
+    // values in `src/models/manual-conflict-resolution.ts`.
+    assert_eq!(
+        serde_json::from_value::<ManualConflictResolution>(json!("ours")).expect("deserializes"),
+        ManualConflictResolution::Ours
+    );
+    assert_eq!(
+        serde_json::from_value::<ManualConflictResolution>(json!("theirs")).expect("deserializes"),
+        ManualConflictResolution::Theirs
+    );
+    assert!(
+        serde_json::from_value::<ManualConflictResolution>(json!("Ours")).is_err(),
+        "the values are lowercase; a capitalized variant name is not accepted"
+    );
+}
+
+#[test]
+fn manual_resolutions_arrive_as_pairs() {
+    // `create_merge_commit` takes a list of [path, resolution] pairs rather than an object, because a
+    // repository path is an arbitrary byte string and so is not a safe JavaScript object key.
+    let parsed: Vec<(String, ManualConflictResolution)> =
+        serde_json::from_value(json!([["a.txt", "ours"], ["b.txt", "theirs"]]))
+            .expect("deserializes");
+
+    assert_eq!(
+        parsed,
+        vec![
+            ("a.txt".to_owned(), ManualConflictResolution::Ours),
+            ("b.txt".to_owned(), ManualConflictResolution::Theirs),
+        ]
+    );
+}
+
+#[test]
+fn conflict_index_entries_arrive_as_a_pair_of_status_characters() {
+    let parsed: (GitStatusEntry, GitStatusEntry) =
+        serde_json::from_value(json!(["U", "D"])).expect("deserializes");
+
+    assert_eq!(
+        parsed,
+        (GitStatusEntry::UpdatedButUnmerged, GitStatusEntry::Deleted)
+    );
+}
+
+#[test]
+fn merge_options_accept_an_omitted_or_partial_object() {
+    let empty: MergeOptions = serde_json::from_value(json!({})).expect("deserializes");
+    assert_eq!(empty, MergeOptions::default());
+
+    let partial: MergeOptions =
+        serde_json::from_value(json!({ "noVerify": true })).expect("deserializes");
+    assert_eq!(
+        partial,
+        MergeOptions {
+            squash: false,
+            no_verify: true,
+        }
+    );
+}
+
+#[test]
+fn rebase_resolution_matches_the_frontend_shape() {
+    let parsed: RebaseConflictResolution = serde_json::from_value(json!({
+        "path": "conflicted.txt",
+        "resolution": "theirs",
+        "entries": ["U", "D"],
+    }))
+    .expect("deserializes");
+
+    assert_eq!(
+        parsed,
+        RebaseConflictResolution {
+            path: "conflicted.txt".to_owned(),
+            resolution: ManualConflictResolution::Theirs,
+            entries: Some((GitStatusEntry::UpdatedButUnmerged, GitStatusEntry::Deleted)),
+        }
+    );
+}
+
+#[test]
+fn operation_results_are_string_enum_values() {
+    assert_eq!(
+        serde_json::to_value(MergeResult::Failed).expect("serializes"),
+        json!("Failed")
+    );
+    assert_eq!(
+        serde_json::to_value(RebaseResult::OutstandingFilesNotStaged).expect("serializes"),
+        json!("OutstandingFilesNotStaged")
+    );
 }

@@ -15,5 +15,6 @@
 
 pub mod error;
 pub mod git;
+pub mod log;
 
 pub use error::CommandError;

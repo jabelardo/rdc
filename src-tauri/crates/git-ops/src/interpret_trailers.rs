@@ -25,7 +25,10 @@ use crate::exec::{git, GitOptions};
 const DEFAULT_SEPARATORS: &str = ":";
 
 /// A commit-message trailer.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Field names match the ported `ITrailer` in `src/models/trailer.ts`, so no rename is needed to
+/// cross the IPC boundary.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Trailer {
     pub token: String,
     pub value: String,

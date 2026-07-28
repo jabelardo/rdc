@@ -78,11 +78,14 @@ export class DiffHunkHeader {
   }
 
   public equals(other: DiffHunkHeader) {
+    // UPSTREAM BUG FIX: the original's fourth comparison was `oldStartLine` again, so
+    // `newLineCount` was never compared and two headers differing only in how many lines they
+    // cover on the new side compared as equal. See MIGRATION_MAP.md §8.
     return (
       this.oldStartLine === other.oldStartLine &&
       this.oldLineCount === other.oldLineCount &&
       this.newStartLine === other.newStartLine &&
-      this.oldStartLine === other.oldStartLine
+      this.newLineCount === other.newLineCount
     )
   }
 }

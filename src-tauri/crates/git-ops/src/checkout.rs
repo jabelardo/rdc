@@ -1,0 +1,634 @@
+//! Checking out branches, commits and paths.
+//!
+//! Ported from `desktop-plus/app/src/lib/git/checkout.ts`.
+//!
+//! # Deferred
+//!
+//! Two things the original did are not here yet, each with a real prerequisite:
+//!
+//! - **Submodule updates.** The original called `updateSubmodulesAfterOperation` afterwards.
+//!   `lib/git/submodule.ts` isn't ported yet.
+//! - **Remote environment and auth.** `envForRemoteOperation` plus `AuthenticationErrors` need the
+//!   trampoline handlers, which are transport-complete but not wired to account state.
+//!
+//! What remains is the checkout itself, which is what everything above decorates.
+
+use std::ffi::OsStr;
+use std::path::Path;
+use std::sync::OnceLock;
+
+use regex::Regex;
+use serde::{Deserialize, Serialize};
+
+use crate::error::GitError;
+use crate::exec::{git, git_with_stderr, GitOptions};
+
+/// A checkout progress update sent to the frontend.
+///
+/// Matches the ported [`src/models/progress.ts`](../../../../../src/models/progress.ts)
+/// `ICheckoutProgress` shape.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckoutProgress {
+    pub kind: CheckoutProgressKind,
+    pub value: f64,
+    pub title: String,
+    pub description: String,
+    pub target: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CheckoutProgressKind {
+    Checkout,
+}
+
+/// Incrementally parses the carriage-return-delimited progress records git writes to stderr.
+#[derive(Debug, Default)]
+struct CheckoutProgressParser {
+    pending: Vec<u8>,
+}
+
+impl CheckoutProgressParser {
+    fn push(&mut self, chunk: &[u8]) -> Vec<(f64, String)> {
+        self.pending.extend_from_slice(chunk);
+        let mut records = Vec::new();
+        let mut start = 0;
+
+        for index in 0..self.pending.len() {
+            if matches!(self.pending[index], b'\r' | b'\n') {
+                if index > start {
+                    if let Some(progress) = parse_checkout_progress_line(&String::from_utf8_lossy(
+                        &self.pending[start..index],
+                    )) {
+                        records.push(progress);
+                    }
+                }
+                start = index + 1;
+            }
+        }
+
+        if start > 0 {
+            self.pending.drain(..start);
+        }
+        records
+    }
+
+    fn finish(&mut self) -> Option<(f64, String)> {
+        let pending = std::mem::take(&mut self.pending);
+        (!pending.is_empty())
+            .then(|| parse_checkout_progress_line(&String::from_utf8_lossy(&pending)))
+            .flatten()
+    }
+}
+
+fn parse_checkout_progress_line(line: &str) -> Option<(f64, String)> {
+    static ANSI: OnceLock<Regex> = OnceLock::new();
+    static CHECKOUT: OnceLock<Regex> = OnceLock::new();
+
+    let ansi = ANSI.get_or_init(|| {
+        Regex::new(r"\x1b\[[0-?]*[ -/]*[@-~]").expect("the built-in ANSI regex should compile")
+    });
+    let checkout = CHECKOUT.get_or_init(|| {
+        Regex::new(r"^Checking out files:\s+(\d{1,3})% \((\d+)/(\d+)\)(?:, done\.)?$")
+            .expect("the built-in checkout progress regex should compile")
+    });
+
+    let text = ansi.replace_all(line, "").into_owned();
+    let captures = checkout.captures(&text)?;
+    let value: f64 = captures.get(2)?.as_str().parse().ok()?;
+    let total: f64 = captures.get(3)?.as_str().parse().ok()?;
+    if total == 0.0 {
+        return None;
+    }
+
+    Some(((value / total).clamp(0.0, 1.0), text))
+}
+
+/// What to check out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckoutTarget<'a> {
+    /// A branch that already exists locally.
+    Local(&'a str),
+
+    /// A remote-tracking branch, checked out by creating a local branch from it.
+    ///
+    /// The original derived this from `BranchType.Remote`, running
+    /// `checkout <remote_ref> -b <local_name>`. Note the argument order: the revision comes first
+    /// and `-b` names the branch to create, so git sets up tracking against the remote ref.
+    Remote {
+        /// The remote-tracking ref, e.g. `origin/topic`.
+        remote_ref: &'a str,
+        /// The local branch to create, e.g. `topic`.
+        local_name: &'a str,
+    },
+}
+
+/// Checks out a branch.
+///
+/// Fails if `local_name` already exists when checking out a remote branch — git refuses rather than
+/// silently repointing an existing branch, which the original's tests relied on.
+pub async fn checkout_branch(
+    repository: impl AsRef<Path>,
+    target: CheckoutTarget<'_>,
+) -> Result<(), GitError> {
+    let mut args: Vec<&OsStr> = vec![OsStr::new("checkout")];
+
+    match target {
+        CheckoutTarget::Local(name) => args.push(OsStr::new(name)),
+        CheckoutTarget::Remote {
+            remote_ref,
+            local_name,
+        } => {
+            args.push(OsStr::new(remote_ref));
+            args.push(OsStr::new("-b"));
+            args.push(OsStr::new(local_name));
+        }
+    }
+
+    // The original appended `--` for branch checkouts, which stops a branch whose name looks like a
+    // path from being taken as one.
+    args.push(OsStr::new("--"));
+
+    git(&args, repository, "checkoutBranch", GitOptions::default()).await?;
+
+    Ok(())
+}
+
+/// Checks out a branch while reporting progress as git updates the working tree.
+pub async fn checkout_branch_with_progress<F>(
+    repository: impl AsRef<Path>,
+    target: CheckoutTarget<'_>,
+    mut on_progress: F,
+) -> Result<(), GitError>
+where
+    F: FnMut(CheckoutProgress) + Send,
+{
+    let mut args: Vec<&OsStr> = vec![OsStr::new("checkout"), OsStr::new("--progress")];
+    let target_name = match target {
+        CheckoutTarget::Local(name) => {
+            args.push(OsStr::new(name));
+            name
+        }
+        CheckoutTarget::Remote {
+            remote_ref,
+            local_name,
+        } => {
+            args.push(OsStr::new(remote_ref));
+            args.push(OsStr::new("-b"));
+            args.push(OsStr::new(local_name));
+            remote_ref
+        }
+    };
+    args.push(OsStr::new("--"));
+
+    let title = format!("Checking out branch {target_name}");
+    let make_progress = |value, description| CheckoutProgress {
+        kind: CheckoutProgressKind::Checkout,
+        value,
+        title: title.clone(),
+        description,
+        target: target_name.to_owned(),
+    };
+
+    on_progress(make_progress(0.0, "Switching to branch".to_owned()));
+    let mut parser = CheckoutProgressParser::default();
+    git_with_stderr(
+        &args,
+        repository,
+        "checkoutBranch",
+        GitOptions::default(),
+        |chunk| {
+            for (value, description) in parser.push(chunk) {
+                on_progress(make_progress(value, description));
+            }
+        },
+    )
+    .await?;
+    if let Some((value, description)) = parser.finish() {
+        on_progress(make_progress(value, description));
+    }
+    // Small repositories often produce no intermediate records. A final event makes successful
+    // completion unambiguous and, until submodule updates land, honestly represents all work done.
+    on_progress(make_progress(1.0, title.clone()));
+    Ok(())
+}
+
+/// Checks out a commit, leaving `HEAD` detached.
+///
+/// No `--` here, matching the original: a full SHA is unambiguous, and git needs to accept it as a
+/// revision.
+pub async fn checkout_commit(repository: impl AsRef<Path>, commit: &str) -> Result<(), GitError> {
+    let args: [&OsStr; 2] = [OsStr::new("checkout"), OsStr::new(commit)];
+
+    git(&args, repository, "checkoutCommit", GitOptions::default()).await?;
+
+    Ok(())
+}
+
+/// Checks out a commit while reporting progress as git updates the working tree.
+pub async fn checkout_commit_with_progress<F>(
+    repository: impl AsRef<Path>,
+    commit: &str,
+    mut on_progress: F,
+) -> Result<(), GitError>
+where
+    F: FnMut(CheckoutProgress) + Send,
+{
+    let args: [&OsStr; 3] = [
+        OsStr::new("checkout"),
+        OsStr::new("--progress"),
+        OsStr::new(commit),
+    ];
+    let target = commit.chars().take(7).collect::<String>();
+    let title = "Checking out commit".to_owned();
+    let make_progress = |value, description| CheckoutProgress {
+        kind: CheckoutProgressKind::Checkout,
+        value,
+        title: title.clone(),
+        description,
+        target: target.clone(),
+    };
+
+    on_progress(make_progress(0.0, title.clone()));
+    let mut parser = CheckoutProgressParser::default();
+    git_with_stderr(
+        &args,
+        repository,
+        "checkoutCommit",
+        GitOptions::default(),
+        |chunk| {
+            for (value, description) in parser.push(chunk) {
+                on_progress(make_progress(value, description));
+            }
+        },
+    )
+    .await?;
+    if let Some((value, description)) = parser.finish() {
+        on_progress(make_progress(value, description));
+    }
+    on_progress(make_progress(1.0, title.clone()));
+    Ok(())
+}
+
+/// Restores the given paths from `HEAD`, discarding working-tree changes to them.
+///
+/// A no-op when `paths` is empty — without the guard, `checkout HEAD --` with no pathspec would
+/// still run.
+pub async fn checkout_paths(
+    repository: impl AsRef<Path>,
+    paths: &[impl AsRef<Path>],
+) -> Result<(), GitError> {
+    if paths.is_empty() {
+        return Ok(());
+    }
+
+    let mut args: Vec<&OsStr> = vec![OsStr::new("checkout"), OsStr::new("HEAD"), OsStr::new("--")];
+    args.extend(paths.iter().map(|path| path.as_ref().as_os_str()));
+
+    git(&args, repository, "checkoutPaths", GitOptions::default()).await?;
+
+    Ok(())
+}
+
+/// Which side of a conflict the user chose.
+///
+/// Mirrors `src/models/manual-conflict-resolution.ts`. The serialized values are passed straight to
+/// git as `--ours`/`--theirs`, so they are not cosmetic — the original's model file carries the same
+/// warning.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ManualConflictResolution {
+    Theirs,
+    Ours,
+}
+
+impl ManualConflictResolution {
+    /// The git flag for this side, without the leading dashes.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Theirs => "theirs",
+            Self::Ours => "ours",
+        }
+    }
+}
+
+/// Checks out one side of a conflicted file — stage #2 (`ours`) or stage #3 (`theirs`).
+///
+/// This only rewrites the working-tree file; the index entry stays conflicted until the file is
+/// staged. [`crate::stage::stage_manual_conflict_resolution`] does both.
+pub async fn checkout_conflicted_file(
+    repository: impl AsRef<Path>,
+    file: impl AsRef<Path>,
+    resolution: ManualConflictResolution,
+) -> Result<(), GitError> {
+    let flag = format!("--{}", resolution.as_str());
+    let args: [&OsStr; 4] = [
+        OsStr::new("checkout"),
+        OsStr::new(&flag),
+        OsStr::new("--"),
+        file.as_ref().as_os_str(),
+    ];
+
+    git(
+        &args,
+        repository,
+        "checkoutConflictedFile",
+        GitOptions::default(),
+    )
+    .await?;
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::refs::get_symbolic_ref;
+    use crate::test_support::{commit_file, conflicted_repository, empty_repository};
+
+    /// The branch `HEAD` points at, or `None` when detached.
+    async fn current_branch(repo: &Path) -> Option<String> {
+        get_symbolic_ref(repo, "HEAD")
+            .await
+            .expect("symbolic-ref should not error")
+            .map(|value| value.trim_start_matches("refs/heads/").to_owned())
+    }
+
+    #[tokio::test]
+    async fn checks_out_an_existing_branch() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "foo", "contents\n", "first");
+        git(
+            &["branch", "topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("branch should succeed");
+
+        checkout_branch(repo.path(), CheckoutTarget::Local("topic"))
+            .await
+            .expect("checkout should succeed");
+
+        assert_eq!(current_branch(&repo.path()).await.as_deref(), Some("topic"));
+    }
+
+    #[tokio::test]
+    async fn fails_for_an_invalid_branch_name() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "foo", "contents\n", "first");
+
+        let error = checkout_branch(repo.path(), CheckoutTarget::Local(".."))
+            .await
+            .expect_err("'..' is not a valid branch name");
+
+        assert!(
+            matches!(error, GitError::UnexpectedExitCode { .. }),
+            "got {error:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn creates_a_local_branch_from_a_remote_one() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "foo", "contents\n", "first");
+        let tip = git(
+            &["rev-parse", "HEAD"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("rev-parse should succeed")
+        .stdout_trimmed();
+
+        // A remote-tracking ref, without needing a real remote to fetch from.
+        git(
+            &["update-ref", "refs/remotes/origin/topic", &tip],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("update-ref should succeed");
+
+        checkout_branch(
+            repo.path(),
+            CheckoutTarget::Remote {
+                remote_ref: "origin/topic",
+                local_name: "topic",
+            },
+        )
+        .await
+        .expect("checkout should succeed");
+
+        assert_eq!(current_branch(&repo.path()).await.as_deref(), Some("topic"));
+    }
+
+    #[tokio::test]
+    async fn fails_when_the_local_branch_already_exists() {
+        // The original had this case: git refuses rather than repointing an existing branch, and the
+        // app depends on the failure to prompt the user.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "foo", "contents\n", "first");
+        let tip = git(
+            &["rev-parse", "HEAD"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("rev-parse should succeed")
+        .stdout_trimmed();
+        git(
+            &["update-ref", "refs/remotes/origin/topic", &tip],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("update-ref should succeed");
+        git(
+            &["branch", "topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("branch should succeed");
+
+        let error = checkout_branch(
+            repo.path(),
+            CheckoutTarget::Remote {
+                remote_ref: "origin/topic",
+                local_name: "topic",
+            },
+        )
+        .await
+        .expect_err("creating a branch that already exists should fail");
+
+        assert!(
+            matches!(error, GitError::UnexpectedExitCode { .. }),
+            "got {error:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn checks_out_a_commit_and_detaches_head() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "foo", "first\n", "first");
+        let first = git(
+            &["rev-parse", "HEAD"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("rev-parse should succeed")
+        .stdout_trimmed();
+        commit_file(&repo.path(), "foo", "second\n", "second");
+
+        checkout_commit(repo.path(), &first)
+            .await
+            .expect("checkout should succeed");
+
+        assert_eq!(
+            current_branch(&repo.path()).await,
+            None,
+            "checking out a commit detaches HEAD"
+        );
+        let contents =
+            std::fs::read_to_string(repo.path().join("foo")).expect("failed to read back");
+        assert_eq!(contents, "first\n");
+    }
+
+    #[tokio::test]
+    async fn restores_paths_from_head() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "foo", "committed\n", "first");
+        std::fs::write(repo.path().join("foo"), "scribbled\n").expect("failed to write");
+
+        checkout_paths(repo.path(), &["foo"])
+            .await
+            .expect("checkout should succeed");
+
+        let contents =
+            std::fs::read_to_string(repo.path().join("foo")).expect("failed to read back");
+        assert_eq!(contents, "committed\n");
+    }
+
+    #[tokio::test]
+    async fn restoring_no_paths_is_a_noop() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "foo", "committed\n", "first");
+        std::fs::write(repo.path().join("foo"), "scribbled\n").expect("failed to write");
+
+        let empty: [&str; 0] = [];
+        checkout_paths(repo.path(), &empty)
+            .await
+            .expect("an empty pathspec should not run git at all");
+
+        let contents =
+            std::fs::read_to_string(repo.path().join("foo")).expect("failed to read back");
+        assert_eq!(
+            contents, "scribbled\n",
+            "an empty list must not be treated as 'everything'"
+        );
+    }
+
+    #[tokio::test]
+    async fn checks_out_our_side_of_a_conflict() {
+        let repo = conflicted_repository().await;
+
+        checkout_conflicted_file(repo.path(), "foo", ManualConflictResolution::Ours)
+            .await
+            .expect("checkout --ours should succeed");
+
+        let contents =
+            std::fs::read_to_string(repo.path().join("foo")).expect("failed to read back");
+        assert!(
+            !contents.contains("<<<<<<<"),
+            "picking a side removes the markers, got {contents:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn checks_out_their_side_of_a_conflict() {
+        let repo = conflicted_repository().await;
+
+        let ours = std::fs::read_to_string(repo.path().join("foo")).expect("failed to read");
+        checkout_conflicted_file(repo.path(), "foo", ManualConflictResolution::Theirs)
+            .await
+            .expect("checkout --theirs should succeed");
+        let theirs = std::fs::read_to_string(repo.path().join("foo")).expect("failed to read back");
+
+        assert_ne!(ours, theirs, "the two sides should differ");
+        assert!(!theirs.contains("<<<<<<<"));
+    }
+
+    #[test]
+    fn resolution_values_are_the_git_flags() {
+        // These strings are passed straight to git, so they can't be renamed for style.
+        assert_eq!(ManualConflictResolution::Ours.as_str(), "ours");
+        assert_eq!(ManualConflictResolution::Theirs.as_str(), "theirs");
+        assert_eq!(
+            serde_json::to_string(&ManualConflictResolution::Theirs).expect("serializes"),
+            "\"theirs\"",
+            "must match the ported TypeScript enum's values"
+        );
+    }
+
+    #[test]
+    fn parses_checkout_progress_across_arbitrary_chunk_boundaries() {
+        let mut parser = CheckoutProgressParser::default();
+        assert!(parser.push(b"Checking out fi").is_empty());
+        assert_eq!(
+            parser.push(b"les:  25% (1/4)\rChecking out files:  100% (4/4), done.\n"),
+            vec![
+                (0.25, "Checking out files:  25% (1/4)".to_owned()),
+                (1.0, "Checking out files:  100% (4/4), done.".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn ignores_non_checkout_stderr_and_zero_totals() {
+        assert_eq!(
+            parse_checkout_progress_line("Switched to branch 'topic'"),
+            None
+        );
+        assert_eq!(
+            parse_checkout_progress_line("Checking out files:  0% (0/0)"),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn progress_checkout_always_reports_start_and_completion() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "foo", "contents\n", "first");
+        git(
+            &["branch", "topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("branch should succeed");
+        let mut progress = Vec::new();
+
+        checkout_branch_with_progress(repo.path(), CheckoutTarget::Local("topic"), |event| {
+            progress.push(event);
+        })
+        .await
+        .expect("checkout should succeed");
+
+        assert_eq!(progress.first().map(|event| event.value), Some(0.0));
+        assert_eq!(progress.last().map(|event| event.value), Some(1.0));
+        assert!(progress
+            .iter()
+            .all(|event| event.kind == CheckoutProgressKind::Checkout));
+    }
+}

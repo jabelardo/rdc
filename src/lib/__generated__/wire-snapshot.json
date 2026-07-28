@@ -1,10 +1,133 @@
 {
+  "binaryDiff": {
+    "kind": 2
+  },
+  "changesetData": {
+    "files": [
+      {
+        "commitish": "aaaaaaa",
+        "parentCommitish": "aaaaaaa^",
+        "path": "src/thing.ts",
+        "status": {
+          "kind": "Modified"
+        }
+      },
+      {
+        "commitish": "aaaaaaa",
+        "parentCommitish": "aaaaaaa^",
+        "path": "after",
+        "status": {
+          "kind": "Renamed",
+          "oldPath": "before",
+          "renameIncludesModifications": true
+        }
+      }
+    ],
+    "linesAdded": 12,
+    "linesDeleted": 3
+  },
+  "checkoutProgress": {
+    "description": "Checking out files:  50% (1/2)",
+    "kind": "checkout",
+    "target": "topic",
+    "title": "Checking out branch topic",
+    "value": 0.5
+  },
+  "commit": {
+    "author": {
+      "date": 1475670580,
+      "email": "author@example.com",
+      "name": "Author Name",
+      "tzOffset": 120
+    },
+    "body": "With a longer explanation.\n\nCo-Authored-By: Someone <someone@example.com>",
+    "committer": {
+      "date": 1475670600,
+      "email": "committer@example.com",
+      "name": "Committer Name",
+      "tzOffset": -480
+    },
+    "parentSHAs": [
+      "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    ],
+    "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "shortSha": "aaaaaaa",
+    "summary": "Fix the thing",
+    "tags": [
+      "v1.0"
+    ],
+    "trailers": [
+      {
+        "token": "Co-Authored-By",
+        "value": "Someone <someone@example.com>"
+      }
+    ]
+  },
   "emptyStatusResult": {
     "doConflictedFilesExist": false,
     "files": [],
     "isCherryPickingHeadFound": false,
     "mergeHeadFound": false,
     "squashMsgFound": false
+  },
+  "indexChanges": [
+    [
+      "src/thing.ts",
+      4
+    ],
+    [
+      "added.ts",
+      1
+    ],
+    [
+      "gone.ts",
+      3
+    ]
+  ],
+  "largeTextDiff": {
+    "hasHiddenBidiChars": false,
+    "hunks": [
+      {
+        "expansionType": "None",
+        "header": {
+          "newLineCount": 1,
+          "newStartLine": 1,
+          "oldLineCount": 1,
+          "oldStartLine": 1
+        },
+        "lines": [
+          {
+            "newLineNumber": null,
+            "noTrailingNewLine": false,
+            "oldLineNumber": null,
+            "originalLineNumber": 1,
+            "text": "@@ -1 +1 @@",
+            "type": 3
+          },
+          {
+            "newLineNumber": null,
+            "noTrailingNewLine": false,
+            "oldLineNumber": 1,
+            "originalLineNumber": 1,
+            "text": "-old",
+            "type": 2
+          },
+          {
+            "newLineNumber": 1,
+            "noTrailingNewLine": false,
+            "oldLineNumber": null,
+            "originalLineNumber": 2,
+            "text": "+new",
+            "type": 1
+          }
+        ],
+        "unifiedDiffEnd": 2,
+        "unifiedDiffStart": 0
+      }
+    ],
+    "kind": 4,
+    "maxLineNumber": 1,
+    "text": "@@ -1 +1 @@\n-old\n+new"
   },
   "manualConflict": {
     "entry": {
@@ -15,6 +138,7 @@
     },
     "kind": "Conflicted"
   },
+  "mergeResult": "AlreadyUpToDate",
   "modified": {
     "kind": "Modified"
   },
@@ -24,6 +148,124 @@
       "commitChanged": false,
       "modifiedChanges": true,
       "untrackedChanges": false
+    }
+  },
+  "multiCommitOperationProgress": {
+    "currentCommitSummary": "First",
+    "kind": "multiCommitOperation",
+    "position": 1,
+    "totalCommitCount": 2,
+    "value": 0.5
+  },
+  "parsedDiff": {
+    "contents": "@@ -10,2 +10,2 @@ fn context()\n unchanged\n-before\n+after\n@@ -100,1 +100,1 @@\n-last\n+last line",
+    "hasHiddenBidiChars": false,
+    "header": "diff --git a/test.txt b/test.txt\nindex 1910281..257cc56 100644\n--- a/test.txt\n+++ b/test.txt",
+    "hunks": [
+      {
+        "expansionType": "Up",
+        "header": {
+          "newLineCount": 2,
+          "newStartLine": 10,
+          "oldLineCount": 2,
+          "oldStartLine": 10
+        },
+        "lines": [
+          {
+            "newLineNumber": null,
+            "noTrailingNewLine": false,
+            "oldLineNumber": null,
+            "originalLineNumber": 1,
+            "text": "@@ -10,2 +10,2 @@ fn context()",
+            "type": 3
+          },
+          {
+            "newLineNumber": 10,
+            "noTrailingNewLine": false,
+            "oldLineNumber": 10,
+            "originalLineNumber": 1,
+            "text": " unchanged",
+            "type": 0
+          },
+          {
+            "newLineNumber": null,
+            "noTrailingNewLine": false,
+            "oldLineNumber": 11,
+            "originalLineNumber": 2,
+            "text": "-before",
+            "type": 2
+          },
+          {
+            "newLineNumber": 11,
+            "noTrailingNewLine": false,
+            "oldLineNumber": null,
+            "originalLineNumber": 3,
+            "text": "+after",
+            "type": 1
+          }
+        ],
+        "unifiedDiffEnd": 3,
+        "unifiedDiffStart": 0
+      },
+      {
+        "expansionType": "Both",
+        "header": {
+          "newLineCount": 1,
+          "newStartLine": 100,
+          "oldLineCount": 1,
+          "oldStartLine": 100
+        },
+        "lines": [
+          {
+            "newLineNumber": null,
+            "noTrailingNewLine": false,
+            "oldLineNumber": null,
+            "originalLineNumber": 1,
+            "text": "@@ -100,1 +100,1 @@",
+            "type": 3
+          },
+          {
+            "newLineNumber": null,
+            "noTrailingNewLine": true,
+            "oldLineNumber": 100,
+            "originalLineNumber": 5,
+            "text": "-last",
+            "type": 2
+          },
+          {
+            "newLineNumber": 100,
+            "noTrailingNewLine": false,
+            "oldLineNumber": null,
+            "originalLineNumber": 6,
+            "text": "+last line",
+            "type": 1
+          }
+        ],
+        "unifiedDiffEnd": 6,
+        "unifiedDiffStart": 4
+      }
+    ],
+    "isBinary": false,
+    "maxLineNumber": 100
+  },
+  "rebaseResult": "ConflictsEncountered",
+  "rebaseSnapshot": {
+    "commits": [
+      {
+        "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "summary": "First"
+      },
+      {
+        "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "summary": "Second"
+      }
+    ],
+    "progress": {
+      "currentCommitSummary": "First",
+      "kind": "multiCommitOperation",
+      "position": 1,
+      "totalCommitCount": 2,
+      "value": 0.5
     }
   },
   "renamed": {
@@ -63,6 +305,19 @@
     "mergeHeadFound": false,
     "squashMsgFound": false
   },
+  "submoduleDiff": {
+    "fullPath": "/repo/sub",
+    "kind": 3,
+    "newSHA": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "oldSHA": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "path": "sub",
+    "status": {
+      "commitChanged": true,
+      "modifiedChanges": false,
+      "untrackedChanges": false
+    },
+    "url": "https://example.invalid/sub.git"
+  },
   "textConflict": {
     "conflictMarkerCount": 3,
     "entry": {
@@ -72,5 +327,102 @@
       "us": "U"
     },
     "kind": "Conflicted"
+  },
+  "textDiff": {
+    "hasHiddenBidiChars": false,
+    "hunks": [
+      {
+        "expansionType": "None",
+        "header": {
+          "newLineCount": 1,
+          "newStartLine": 1,
+          "oldLineCount": 1,
+          "oldStartLine": 1
+        },
+        "lines": [
+          {
+            "newLineNumber": null,
+            "noTrailingNewLine": false,
+            "oldLineNumber": null,
+            "originalLineNumber": 1,
+            "text": "@@ -1 +1 @@",
+            "type": 3
+          },
+          {
+            "newLineNumber": null,
+            "noTrailingNewLine": false,
+            "oldLineNumber": 1,
+            "originalLineNumber": 1,
+            "text": "-old",
+            "type": 2
+          },
+          {
+            "newLineNumber": 1,
+            "noTrailingNewLine": false,
+            "oldLineNumber": null,
+            "originalLineNumber": 2,
+            "text": "+new",
+            "type": 1
+          }
+        ],
+        "unifiedDiffEnd": 2,
+        "unifiedDiffStart": 0
+      }
+    ],
+    "kind": 0,
+    "maxLineNumber": 1,
+    "text": "@@ -1 +1 @@\n-old\n+new"
+  },
+  "textDiffWithLineEndingsChange": {
+    "hasHiddenBidiChars": false,
+    "hunks": [
+      {
+        "expansionType": "None",
+        "header": {
+          "newLineCount": 1,
+          "newStartLine": 1,
+          "oldLineCount": 1,
+          "oldStartLine": 1
+        },
+        "lines": [
+          {
+            "newLineNumber": null,
+            "noTrailingNewLine": false,
+            "oldLineNumber": null,
+            "originalLineNumber": 1,
+            "text": "@@ -1 +1 @@",
+            "type": 3
+          },
+          {
+            "newLineNumber": null,
+            "noTrailingNewLine": false,
+            "oldLineNumber": 1,
+            "originalLineNumber": 1,
+            "text": "-old",
+            "type": 2
+          },
+          {
+            "newLineNumber": 1,
+            "noTrailingNewLine": false,
+            "oldLineNumber": null,
+            "originalLineNumber": 2,
+            "text": "+new",
+            "type": 1
+          }
+        ],
+        "unifiedDiffEnd": 2,
+        "unifiedDiffStart": 0
+      }
+    ],
+    "kind": 0,
+    "lineEndingsChange": {
+      "from": "LF",
+      "to": "CRLF"
+    },
+    "maxLineNumber": 1,
+    "text": "@@ -1 +1 @@\n-old\n+new"
+  },
+  "unrenderableDiff": {
+    "kind": 5
   }
 }

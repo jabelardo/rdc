@@ -135,6 +135,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/add.ts` | `crates/git-ops/src/add.rs` — **done**. Takes plain paths rather than the `Repository`/`WorkingDirectoryFileChange` models, which are frontend concerns. | 2 |
 | `lib/git/config.ts` | `crates/git-ops/src/config.rs` — **partially done**: repository get/set/remove + boolean, and a `GlobalConfig` type for the global scope. Deferred: `getGlobalConfigPath` (needs the `git config --edit` + `GIT_EDITOR=printf` trick; a Phase 4 editor concern), `addSafeDirectory`/`addGlobalConfigValueIfMissing` (`safe.directory` policy incl. a Windows UNC case), and `getConfigValueWithOrigin` + `formatConfigScope`/`formatConfigPath`/`isConditionalInclude`/`getOriginFilePath` (display strings like `"global, via [includeIf]"` → frontend, same reasoning as `getDescriptionForError`). | 2 |
 | `lib/git/rev-parse.ts` | `crates/git-ops/src/rev_parse.rs` — **done**: `RepositoryType` (`Regular`/`Bare`/`Missing`/`Unsafe`), `get_repository_type`, and the upstream-ref helpers. | 2 |
+| `lib/git/rev-list.ts` (`getCommitsBetweenCommits`) | `crates/git-ops/src/rev_list.rs` — **partially done**: full-SHA/summary commit lists in replay order, used by rebase progress and recovery snapshots. The remaining rev-list queries land with their callers. | 2 / 3 |
 | `lib/helpers/default-branch.ts` (`getDefaultBranch`/`setDefaultBranch`) | **now unblocked** by `config.rs`'s `GlobalConfig`, but still outstanding: the `"main"` fallback is app policy that belongs above the git layer, so wire it up there rather than inside `git-ops`. | 2 |
 | `lib/status-parser.ts` + the status types from `models/status.ts` | `crates/git-ops/src/status_parser.rs` — **done**. **Supersedes the Phase 1 TypeScript port**: `src/lib/status-parser.ts` and its test are deleted, as is `src/lib/split-buffer.ts` (its only consumer was that parser, and it is Node `Buffer`-based so unusable in a webview). Decision recorded in `MIGRATION_PLAN.md` Phase 2: since `lib/git/status.ts` becomes a Rust command, parsing had to move with it, or Rust would ship raw porcelain over IPC for the frontend to interpret. | 2 |
 | `lib/trampoline/**` (11 files) + the vendored `desktop-trampoline` C binary | `src-tauri/crates/trampoline/` — **done** for the transport: `protocol.rs`, `token.rs`, `server.rs`, `client.rs` and the `rdc-trampoline` binary. **Handlers outstanding** (`trampoline-askpass-handler.ts`, `trampoline-credential-helper.ts`, `trampoline-ui-helper.ts`, `find-account.ts`) — they need account state and UI, so Phase 3/7. One Rust crate replaces both the C binary and the TypeScript half. | 2 |
@@ -148,7 +149,9 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/git-delimiter-parser.ts` (`createForEachRefParser`) | `crates/git-ops/src/git_delimiter_parser.rs` — **done**. `createLogParser` (which uses `%x00` rather than `%00`) not ported until `log.rs` needs it. | 2 |
 | `lib/git/refs.ts` | `crates/git-ops/src/refs.rs` — **done** (`format_as_local_ref`, `get_symbolic_ref`). | 2 |
 | `lib/git/update-ref.ts` (`deleteRef`) | `crates/git-ops/src/update_ref.rs` — **done**. `updateRef` itself lands when a caller needs it. | 2 |
-| `lib/git/cherry-pick.ts`, `description.ts`, `diff.ts`, `gitignore.ts`, `rebase.ts`, `reorder.ts`, `squash.ts`, `submodule.ts`, `worktree-include.ts`, `worktree.ts` | `crates/git-ops/src/{same-name}.rs` | 2 |
+| `lib/git/merge.ts` | `crates/git-ops/src/merge.rs` — **done**: merge (including squash/no-verify), merge-base lookup, conflict result, noop result, and abort. Hook/terminal streaming waits for the shared Channel/hook infrastructure. | 2 / 3 |
+| `lib/git/rebase.ts` | `crates/git-ops/src/rebase.rs` — **partially done**: non-interactive start/continue/abort, selected-file staging, manual conflict resolutions, Channel-based per-commit progress, and recovery snapshots. `rebase.backend=merge` is pinned because both status and snapshot recovery consume `.git/rebase-merge/**`; do not let global config change the state layout. Deferred: interactive rebase (reorder/squash/todo-list flow) and hook/terminal output. | 2 / 3 |
+| `lib/git/cherry-pick.ts`, `description.ts`, `diff.ts`, `gitignore.ts`, `reorder.ts`, `squash.ts`, `submodule.ts`, `worktree-include.ts`, `worktree.ts` | `crates/git-ops/src/{same-name}.rs` | 2 |
 | `lib/progress/from-process.ts`, `lib/progress/lfs.ts` | `crates/git-ops/src/progress/*.rs` | 2 |
 | `lib/hooks/get-repo-hooks.ts`, `get-shell-env.ts`, `hooks-proxy.ts`, `with-hooks-env.ts` | `crates/git-ops/src/hooks/*.rs` | 2 |
 | `lib/trampoline/trampoline-server.ts` | `crates/trampoline/src/server.rs` | 2 |
@@ -176,6 +179,17 @@ spawning / native OS access — there's no "frontend half" to keep):
 | Old path | New path | Note | Phase |
 |---|---|---|---|
 | `lib/ipc-renderer.ts` | *(deleted, not ported)* | superseded entirely by `@tauri-apps/api/core` `invoke`/`listen` | 3 |
+| `lib/git/diff.ts` | `crates/git-ops/src/diff.rs` — text diff path; image/LFS/resolution deferred | 2 |
+| `lib/git/show.ts` | `crates/git-ops/src/show.rs` (`getPartialBlobContents` deferred) | 2 |
+| `lib/git/diff-index.ts` | `crates/git-ops/src/diff_index.rs`; `IndexStatus` → **`src/models/index-status.ts`** | 2 |
+| `lib/git/log.ts` | `crates/git-ops/src/log.rs` | 2 |
+| `lib/diff-parser.ts` | `crates/git-ops/src/diff_parser.rs` — **the TypeScript parser is deleted**, same fork as `status-parser` | 2 |
+| `lib/git/commit.ts` | `crates/git-ops/src/commit.rs` (hook interception deferred) | 3 |
+| `lib/git/checkout.ts` | `crates/git-ops/src/checkout.rs` — checkout and **Channel-based progress done** for local branch, remote branch, and commit. Submodule updates and remote auth remain deferred. | 3 |
+| `lib/git/update-index.ts` | `crates/git-ops/src/update_index.rs` (partial selections deferred) | 3 |
+| `lib/git/stage.ts` | `crates/git-ops/src/stage.rs` | 3 |
+| `lib/git/reset.ts` | `crates/git-ops/src/reset.rs` (`unstageAll` only) | 3 |
+| `lib/git/rm.ts` | `crates/git-ops/src/rm.rs` | 3 |
 | `lib/ipc-shared.ts` | `rdc/MIGRATION_MAP.md` §7 channel table; hand-written `src/lib/*-ipc.ts` wrappers over native `invoke` (**no** codegen — see §8) | 3 |
 | `lib/app-shell.ts` | `rdc/src/lib/app-shell.ts` | thin wrapper, becomes `invoke('reveal_in_file_manager', …)` etc. | 3 |
 | `lib/stores/app-store.ts` | `rdc/src/lib/stores/app-store.ts` | **keep this file and its shape** (Phase 7 principle) — only its direct OS-touching calls change to `invoke` | 7 |
@@ -308,7 +322,29 @@ shape of everything it carries is pinned by a wire-contract test on the Rust sid
 
 | Channel | Direction | Tauri command/event | Status |
 |---|---|---|---|
-| _(no direct equivalent — new)_ | request/response | `get_status` → `src/lib/git-ipc.ts` `getStatus()` | **done** |
+| _(no direct equivalent — new)_ | request/response | `get_status` → `getStatus()` | **done** |
+| _(new)_ | request/response | `create_commit` → `createCommit()` | **done** |
+| _(new)_ | request/response | `create_merge_commit` → `createMergeCommit()` | **done** |
+| _(new)_ | request/response + Channel | `checkout_branch` → `checkoutBranch()` | **done** |
+| _(new)_ | request/response + Channel | `checkout_remote_branch` → `checkoutRemoteBranch()` | **done** |
+| _(new)_ | request/response + Channel | `checkout_commit` → `checkoutCommit()` | **done** |
+| _(new)_ | request/response | `checkout_paths` → `checkoutPaths()` | **done** |
+| _(new)_ | request/response | `stage_manual_conflict_resolution` → `stageManualConflictResolution()` | **done** |
+| _(new)_ | request/response | `merge_branch` → `mergeBranch()` | **done** |
+| _(new)_ | request/response | `get_merge_base` → `getMergeBase()` | **done** |
+| _(new)_ | request/response | `abort_merge` → `abortMerge()` | **done** |
+| _(new)_ | request/response + Channel | `rebase_branch` → `rebaseBranch()` | **done** |
+| _(new)_ | request/response + Channel | `continue_rebase` → `continueRebase()` | **done** |
+| _(new)_ | request/response | `abort_rebase` → `abortRebase()` | **done** |
+| _(new)_ | request/response | `get_rebase_snapshot` → `getRebaseSnapshot()` | **done** |
+| _(new)_ | request/response | `get_commits` → `getCommits()` | **done** |
+| _(new)_ | request/response | `get_commit` → `getCommit()` | **done** |
+| _(new)_ | request/response | `get_changed_files` → `getChangedFiles()` | **done** |
+| _(new)_ | request/response | `get_authors` → `getAuthors()` | **done** |
+| _(new)_ | request/response | `get_index_changes` → `getIndexChanges()` | **done** |
+| _(new)_ | request/response | `get_working_directory_diff` → `getWorkingDirectoryDiff()` | **done** |
+| _(new)_ | request/response | `get_commit_diff` → `getCommitDiff()` | **done** |
+| _(new)_ | request/response | `get_commit_range_diff` → `getCommitRangeDiff()` | **done** |
 | _(remaining 77 — populate as each is ported)_ | | | |
 
 ---
@@ -340,6 +376,25 @@ Two consequences worth knowing before writing more commands:
 - **Streaming output uses a `Channel`, not `app.emit`.** Tauri's docs say events are unsuited to
   high-throughput data, so the original's `processCallback` / `onTerminalOutputAvailable` — progress
   during push/pull/fetch — maps to a Channel argument on the command.
+
+### `DiffHunkHeader.equals` now compares `newLineCount`
+
+The original's fourth comparison was `this.oldStartLine === other.oldStartLine` — a repeat of the
+first — so **`newLineCount` was never compared**. Two hunk headers differing only in how many lines
+they cover on the new side compared as equal. Present in `desktop-plus` and carried into rdc's Phase 1
+port of `models/diff/raw-diff.ts`; fixed with a regression test in `src/lib/diff-ipc.test.ts`.
+
+### `createCommit` returns a full SHA, not `"(root-commit)"`
+
+The original's `parseCommitSHA` did `stdout.split(']')[0].split(' ')[1]` on git's summary line. For
+`[main 1a2b3c4] message` that yields an abbreviated SHA; for a repository's **first** commit git
+prints `[main (root-commit) 1a2b3c4]`, so it yields the literal string `"(root-commit)"`.
+
+Verified against real git. The original's own test suite asserted
+`assert.equal(sha, '(root-commit)')` — the bug was pinned as expected behaviour rather than caught.
+
+The port runs `rev-parse HEAD` instead of parsing git's prose, and returns the full 40-character SHA,
+consistent with every other SHA in the codebase.
 
 #### Why not a generator
 
@@ -483,6 +538,7 @@ when the consumer is finally ported.
 | `RepositorySettingsTab` (enum) | `ui/repository-settings/repository-settings.tsx` | `models/` — popup payloads must not depend on component modules | Phase 7, with `models/popup.ts` |
 | `UnreachableCommitsTab` (enum) | `ui/history/unreachable-commits-dialog.tsx` | `models/` | Phase 7, with `models/popup.ts` |
 | `ISecretScanResult` (interface) | `ui/secret-scanning/push-protection-error-dialog.tsx` | **`models/secret-scanning.ts`** — the file already exists, created in Phase 1 for `BypassReason`/`BypassReasonType` | Phase 7, with the secret-scanning dialogs |
+| ~~`IndexStatus`, `NoRenameIndexStatus`~~ **DONE** | `lib/git/diff-index.ts` | `models/index-status.ts` — an enum crossing IPC is a domain type, and its old home is now a Rust module | Phase 2, with `diff-index` |
 | `ApplicationTheme` (enum), `ApplicableTheme` (type) | `ui/lib/application-theme.ts` | `models/` — so `lib/app-state.ts` stops importing from `ui/` | Phase 7, with `lib/app-state.ts` |
 
 ### Do NOT port: `ui/lib/git-perf.ts`

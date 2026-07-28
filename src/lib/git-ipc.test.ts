@@ -8,8 +8,17 @@ import {
   isManualConflict,
 } from '../models/status'
 import { mapStatus } from './status'
-import type { IStatusResult } from './git-ipc'
+import {
+  MergeResult,
+  RebaseResult,
+  type IRebaseSnapshot,
+  type IStatusResult,
+} from './git-ipc'
 import snapshot from './__generated__/wire-snapshot.json'
+import type {
+  ICheckoutProgress,
+  IMultiCommitOperationProgress,
+} from '../models/progress'
 
 /**
  * Proves the Rust wire shape is usable by the ported domain model.
@@ -117,6 +126,36 @@ const emptyStatusResult: IStatusResult = {
   doConflictedFilesExist: false,
 }
 
+const mergeResult: MergeResult = MergeResult.AlreadyUpToDate
+const rebaseResult: RebaseResult = RebaseResult.ConflictsEncountered
+const checkoutProgress: ICheckoutProgress = {
+  kind: 'checkout',
+  value: 0.5,
+  title: 'Checking out branch topic',
+  description: 'Checking out files:  50% (1/2)',
+  target: 'topic',
+}
+const multiCommitOperationProgress: IMultiCommitOperationProgress = {
+  kind: 'multiCommitOperation',
+  value: 0.5,
+  position: 1,
+  totalCommitCount: 2,
+  currentCommitSummary: 'First',
+}
+const rebaseSnapshot: IRebaseSnapshot = {
+  progress: multiCommitOperationProgress,
+  commits: [
+    {
+      sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      summary: 'First',
+    },
+    {
+      sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      summary: 'Second',
+    },
+  ],
+}
+
 describe('the git IPC wire shape', () => {
   it('matches what Rust actually serializes', () => {
     // The fixtures are type-checked against src/models/**; the snapshot comes from the Rust
@@ -130,6 +169,11 @@ describe('the git IPC wire shape', () => {
       ['manualConflict', manualConflict],
       ['statusResult', statusResult],
       ['emptyStatusResult', emptyStatusResult],
+      ['checkoutProgress', checkoutProgress],
+      ['multiCommitOperationProgress', multiCommitOperationProgress],
+      ['rebaseSnapshot', rebaseSnapshot],
+      ['mergeResult', mergeResult],
+      ['rebaseResult', rebaseResult],
     ]
 
     for (const [name, fixture] of cases) {
@@ -141,14 +185,34 @@ describe('the git IPC wire shape', () => {
     // Guards against a new Rust case being added to the snapshot without a typed fixture here,
     // which would otherwise silently skip the type check for it.
     expect(Object.keys(snapshot).sort()).toEqual([
+      'binaryDiff',
+      // Covered by log-ipc.test.ts (hydrated into CommittedFileChange).
+      'changesetData',
+      'checkoutProgress',
+      // Covered by log-ipc.test.ts (hydrated into Commit).
+      'commit',
       'emptyStatusResult',
+      // Covered by diff-ipc.test.ts.
+      'indexChanges',
+      'largeTextDiff',
       'manualConflict',
+      'mergeResult',
       'modified',
       'modifiedSubmodule',
+      'multiCommitOperationProgress',
+      // Covered by diff-ipc.test.ts (hydrated into the models/diff classes).
+      'parsedDiff',
+      'rebaseResult',
+      'rebaseSnapshot',
       'renamed',
       'resolvedTextConflict',
       'statusResult',
+      'submoduleDiff',
       'textConflict',
+      // The IDiff union — covered by diff-ipc.test.ts.
+      'textDiff',
+      'textDiffWithLineEndingsChange',
+      'unrenderableDiff',
     ])
   })
 

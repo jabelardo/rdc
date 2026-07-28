@@ -18,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
 
 use crate::error::GitError;
@@ -137,6 +137,25 @@ pub async fn git(
     name: &str,
     options: GitOptions,
 ) -> Result<GitOutput, GitError> {
+    git_with_stderr(args, path, name, options, |_| {}).await
+}
+
+/// Runs git while delivering stderr chunks as they arrive.
+///
+/// The callback is deliberately transport-neutral: `git-ops` has no Tauri dependency. Command
+/// handlers can adapt it to a Tauri Channel, tests can collect chunks in memory, and future
+/// push/pull/fetch parsers can reuse it. The complete stderr is still retained for error
+/// classification and [`GitOutput`].
+pub async fn git_with_stderr<F>(
+    args: &[impl AsRef<std::ffi::OsStr>],
+    path: impl AsRef<Path>,
+    name: &str,
+    options: GitOptions,
+    mut on_stderr: F,
+) -> Result<GitOutput, GitError>
+where
+    F: FnMut(&[u8]) + Send,
+{
     let path = path.as_ref();
     let mut command = Command::new("git");
     command
@@ -188,20 +207,49 @@ pub async fn git(
         })?;
     }
 
-    let output = child
-        .wait_with_output()
-        .await
-        .map_err(|source| GitError::Spawn {
-            name: name.to_owned(),
-            path: path.to_owned(),
-            source,
-        })?;
+    let mut stdout_pipe = child.stdout.take().ok_or_else(|| GitError::Spawn {
+        name: name.to_owned(),
+        path: path.to_owned(),
+        source: std::io::Error::other("git stdout pipe was not available"),
+    })?;
+    let mut stderr_pipe = child.stderr.take().ok_or_else(|| GitError::Spawn {
+        name: name.to_owned(),
+        path: path.to_owned(),
+        source: std::io::Error::other("git stderr pipe was not available"),
+    })?;
 
-    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    let read_stdout = async move {
+        let mut stdout = Vec::new();
+        stdout_pipe.read_to_end(&mut stdout).await?;
+        std::io::Result::Ok(stdout)
+    };
+    let read_stderr = async move {
+        let mut stderr = Vec::new();
+        let mut chunk = [0_u8; 8192];
+        loop {
+            let count = stderr_pipe.read(&mut chunk).await?;
+            if count == 0 {
+                break;
+            }
+            stderr.extend_from_slice(&chunk[..count]);
+            on_stderr(&chunk[..count]);
+        }
+        std::io::Result::Ok(stderr)
+    };
+
+    // Drain both pipes while the process runs. Waiting first can deadlock when either pipe fills.
+    let (stdout, stderr_bytes, status) = tokio::try_join!(read_stdout, read_stderr, child.wait())
+        .map_err(|source| GitError::Spawn {
+        name: name.to_owned(),
+        path: path.to_owned(),
+        source,
+    })?;
+
+    let stderr = String::from_utf8_lossy(&stderr_bytes).into_owned();
 
     // `code()` is None when the process was terminated by a signal, which is never an expected
     // outcome for us and must not be conflated with an exit code.
-    let exit_code = output.status.code().ok_or_else(|| GitError::Terminated {
+    let exit_code = status.code().ok_or_else(|| GitError::Terminated {
         name: name.to_owned(),
         path: path.to_owned(),
         stderr: stderr.clone(),
@@ -209,7 +257,7 @@ pub async fn git(
 
     if options.success_exit_codes.contains(&exit_code) {
         return Ok(GitOutput {
-            stdout: output.stdout,
+            stdout,
             stderr,
             exit_code,
             git_error: None,
@@ -220,14 +268,14 @@ pub async fn git(
     // Unacceptable exit code: classify the failure. `core.ts` tries stderr first and falls back
     // to stdout, because some git commands report failures on stdout.
     let git_error = crate::git_error_kind::parse_error(&stderr)
-        .or_else(|| crate::git_error_kind::parse_error(&String::from_utf8_lossy(&output.stdout)));
+        .or_else(|| crate::git_error_kind::parse_error(&String::from_utf8_lossy(&stdout)));
 
     // A recognized failure the caller declared is returned as Ok for it to branch on, matching
     // the `expectedErrors` behaviour in `core.ts`.
     if let Some(kind) = git_error {
         if options.expected_errors.contains(&kind) {
             return Ok(GitOutput {
-                stdout: output.stdout,
+                stdout,
                 stderr,
                 exit_code,
                 git_error: Some(kind),
@@ -451,5 +499,23 @@ mod tests {
         .expect_err("spawning in a missing directory should fail");
 
         assert!(matches!(error, GitError::Spawn { .. }), "got {error:?}");
+    }
+
+    #[tokio::test]
+    async fn streams_stderr_while_still_retaining_it() {
+        let repo = empty_repository().await;
+        let mut chunks = Vec::new();
+        let output = git_with_stderr(
+            &["-c", "alias.emit=!echo streamed-progress >&2", "emit"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+            |chunk| chunks.extend_from_slice(chunk),
+        )
+        .await
+        .expect("the alias should succeed");
+
+        assert_eq!(String::from_utf8_lossy(&chunks), "streamed-progress\n");
+        assert_eq!(output.stderr, "streamed-progress\n");
     }
 }

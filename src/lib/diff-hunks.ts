@@ -16,6 +16,17 @@
  * None of these functions are view concerns, so they belong in `lib/`. When
  * `ui/diff/text-diff-expansion.ts` and `ui/diff/diff-helpers.tsx` are ported in Phase 7 they
  * should import from here, leaving a one-way `ui/` -> `lib/` dependency and no cycle.
+ *
+ * UPDATE (Phase 2, when the parser moved to Rust): `HiddenBidiCharsRegex` now lives here too. It
+ * was exported from `lib/diff-parser.ts`, which has been **deleted** — parsing is done by
+ * `crates/git-ops/src/diff_parser.rs` and the parsed `RawDiff` arrives over IPC. The regex could
+ * not go with it, because `ui/diff/text-diff-expansion.ts` needs it for content the UI fetches
+ * during hunk expansion, which never passes through the Rust parser. Moving it here also removes
+ * the last edge of the cycle described above.
+ *
+ * The functions below are **also implemented in Rust**, in `diff_parser.rs`. That is deliberate,
+ * not an oversight: Rust applies them while parsing, and the UI re-applies them after the user
+ * expands a hunk. The two implementations are pinned against each other by the wire snapshot.
  */
 
 import {
@@ -27,6 +38,15 @@ import {
 
 /** How many new lines will be added to a diff hunk by default. */
 export const DefaultDiffExpansionStep = 20
+
+/**
+ * Matches invisible bidirectional Unicode characters, which can make text render differently from
+ * how it is compiled or interpreted. See https://github.co/hiddenchars
+ *
+ * Kept in sync with `is_hidden_bidi_char` in `crates/git-ops/src/diff_parser.rs`.
+ */
+export const HiddenBidiCharsRegex =
+  /[\u202A-\u202E]|[\u2066-\u2069]/
 
 /**
  * Calculates whether or not a hunk header can be expanded up, down, both, or if

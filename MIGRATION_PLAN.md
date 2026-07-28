@@ -240,9 +240,177 @@ Note that ~15 of the tests re-scoped in Step 4 also depend on it, so they unbloc
 effect. Start with the `Repository.url` redesign — the git-calling model is the knot that keeps
 the largest number of tests out of reach.
 
-### Phase 2 — Git backend (`git-ops` crate) — **IN PROGRESS**
+### Phase 2 — Git backend (`git-ops` crate) — **IN PROGRESS (~half)**
 
-**Landed so far** (`cargo fmt`/`clippy -D warnings`/`test` green, 39 Rust tests):
+**Current state, measured.** `lib/git` is 60 files / 9,485 lines. `git-ops` is 29 modules /
+10,934 lines with 324 Rust tests, `fmt`/`clippy -D warnings`/`test` green.
+
+| | |
+|---|---|
+| `lib/git` files with a Rust counterpart | **24 of 60** (5 of them explicitly partial) |
+| `lib/diff-parser.ts` | ported to Rust, TypeScript version deleted |
+| `lib/git/log.ts` | ported to Rust |
+| `lib/git/show.ts`, `lib/git/diff-index.ts` | ported to Rust |
+| `lib/git/diff.ts` | text diff path ported; image/LFS deferred |
+| Original `app/test/unit/git/**` files migrated | **16 of 45** |
+
+**Ported:** `exec`+`error`+`git_error_kind` (`core.ts`, less the frontend error copy), `status`,
+`status_parser`, `rebase` (non-interactive), `checkout`, `branch`, `commit`, `config`, `rev_parse`,
+`update_index`, `interpret_trailers`, `terminal_output`, `git_delimiter_parser`, `operation_state`,
+`merge`, `stage`, `rev_list` (partial), `reset` (`unstageAll`), `update_ref` (`deleteRef`), `add`,
+`diff_check`, `refs`, `init`, `rm`, `diff` (**`getBinaryPaths` only — 1 of 12 functions**).
+
+Narratives for the slices that landed as full vertical slices — merge, rebase, checkout progress
+streaming — are written up under **Phase 3** below, because each shipped backend *and* command
+together. The `git-ops` half of that work belongs to this phase.
+
+**The diff parser landed next**, and it hit the same fork `status` settled, with the same answer.
+`src/lib/diff-parser.ts` was ported to TypeScript in Phase 1 and had no importers except its own
+test, so it is **deleted**: `crates/git-ops/src/diff_parser.rs` parses, and its 10 TypeScript test
+cases became 26 Rust tests. `src/models/diff/**` stays — those are the domain types the UI renders.
+
+Three things worth knowing from it:
+
+- **The frontend must hydrate.** Unlike `AppFileStatus`, `DiffHunk` and `DiffLine` are *classes with
+  methods*, so JSON is not assignable to them however well the fields line up. `src/lib/diff-ipc.ts`
+  declares plain wire types and constructs the classes — and that hydration is the compile-time proof
+  the shapes match, which is stronger than an assertion.
+- **`DiffLineType` is a numeric enum**, so it serializes as `0`–`3`, and the diff types use
+  `number | null` rather than optional properties, so they emit **explicit nulls**. Both are the
+  opposite of the status types' conventions, and both are pinned by the snapshot.
+- **`getHunkHeaderExpansionType` and `getLargestLineNumber` now exist in both languages, on purpose.**
+  Rust applies them while parsing; Phase 7's `ui/diff/text-diff-expansion.ts` re-applies them to
+  content fetched during hunk expansion, which never passes through the parser. Rather than trust two
+  implementations to agree, `diff-ipc.test.ts` runs the TypeScript versions over Rust's own snapshot
+  output and compares — including a guard against the check passing vacuously.
+
+A fourth upstream bug turned up: `DiffHunkHeader.equals` compared `oldStartLine` twice and never
+compared `newLineCount`. See `MIGRATION_MAP.md` §8.
+
+Still unported from `diff.ts`: the 11 functions that *produce* diffs (`getWorkingDirectoryDiff`,
+`getCommitDiff`, `convertDiff`, the image variants). Those need `show.ts` (blob contents),
+`diff-index.ts` (`NullTreeSHA`) and `log.ts` (`parseRawLogWithNumstat`), so the parser was the
+correct stopping point — it is the piece all of them feed.
+
+**`log` landed after it**, which was the other Phase 7 blocker: `getCommits`, `getCommit`,
+`getChangedFiles` and `getAuthors`, plus `CommitIdentity::parse` and the interleaved
+`--raw --numstat -z` parser that `diff.ts` also needs.
+
+The hydration pattern the diff types introduced gets a stronger justification here. `Commit`'s
+constructor *derives* `coAuthors`, `bodyNoCoAuthors`, `authoredByCommitter` and `isMergeCommit`, and
+`CommittedFileChange` derives `id` — so the wire carries constructor **arguments** and the derived
+fields come out of the constructor. Sending them from Rust would create a second implementation of
+each rule, which is what `AGENTS.md` forbids and what the conflict-shape bug came from.
+
+Details worth keeping:
+
+- **`parentSHAs` is the one field whose JSON name isn't plain camelCase**, because the TypeScript
+  class spells it that way. Renaming it to `parentShas` would leave the field `undefined` and make
+  every commit look like a root commit — pinned by a test.
+- **Timestamps cross as epoch seconds**, not formatted strings, and `tzOffset` keeps the original's
+  sign convention (`+120` for `+0200`) even though it is the *opposite* of
+  `Date.getTimezoneOffset()`. That inconsistency is upstream; flipping it would silently shift every
+  displayed timestamp, so it is documented rather than corrected.
+- **`get_commits` treats exit code 128 as success**, because `git log` exits 128 on an unborn `HEAD`
+  and a fresh repository with no commits is not an error.
+- **`-C` must precede `-M`** in `getChangedFiles`; the original noted that reversing them means
+  copies are never detected.
+- The interleaved raw/numstat walk has to know which entries were renames, because a rename occupies
+  three NUL-separated fields in both sections while an ordinary change occupies two in one and one in
+  the other. The test that pins this asserts the entry *after* a rename is still aligned.
+
+One boundary case is pinned as-is rather than "fixed": a rename record missing only its destination
+path yields an empty path instead of an error, because `-z` output ends with a trailing NUL and the
+empty field after it is a real element. The original behaved identically. git does not produce that
+output, and inventing a stricter rule risks rejecting output it does produce.
+
+**`show` and `diff-index` followed**, the last two prerequisites `diff.ts`'s producing functions
+needed. Both are small, and scoping them was driven by asking who actually consumes each export:
+
+- `get_blob_contents` is used only by `diff.ts` internals (`getResolutionDiff`, `getBlobImage`), so it
+  is **Rust-internal with no command**. Sending raw bytes over IPC needs a representation decision —
+  base64, a byte array, a custom protocol response — and the consumers that would force that choice
+  are the deferred image paths. Deciding it now would be guessing.
+- `getPartialBlobContents` is **deferred**: its only consumer is
+  `ui/diff/syntax-highlighting/index.ts` (Phase 7). It was built on Node's `maxBuffer`, which
+  *errors* past the limit so the caller recovers partial output from the rejection. Reproducing that
+  needs a capped-read primitive in `exec` that stops reading and kills the child, and killing
+  mid-read has to avoid deadlocking against an undrained stderr pipe. A bounded-memory-but-unbounded-I/O
+  stand-in would quietly lose the property the function exists for. When it lands, note
+  `git cat-file -s <rev>:<path>` answers "how big is this blob?" without reading it.
+- `get_index_changes` is consumed by `lib/stores/git-store.ts`, so it **is** exposed as a command.
+
+Two things verified rather than assumed:
+
+- **`git show <rev>:<missing>` exits 128, not 1.** So the original's `successExitCodes: [0, 1]` never
+  fires for a missing path, and such a path is an error exactly as its docstring claimed. The `1` looks
+  defensive and is kept, so a git that does exit 1 behaves as before rather than suddenly failing.
+- **The null tree SHA resolves in any repository** — it's a constant of the object format, not
+  something a repository has to contain. A test asserts `cat-file -t` reports it as a tree, since the
+  unborn-`HEAD` fallback depends on it.
+
+`IndexStatus` moved to `src/models/index-status.ts`: an enum that crosses IPC is a domain type, and
+its old home (`lib/git/diff-index.ts`) is now Rust. It is a *numeric* enum, so like `DiffLineType` it
+serializes as its discriminant — pinned by the snapshot, because switching to variant names would
+leave every `=== IndexStatus.Modified` comparison false.
+
+**The text diff path landed**, which is what the previous three slices were for: the app can now
+produce a renderable diff. `get_working_directory_diff`, `get_commit_diff`, `get_commit_range_diff`,
+the size guards, and submodule diffs. 22 commands.
+
+The `IDiff` union needed **hand-written `Serialize`/`Deserialize`**, and the reason generalises: it
+discriminates on a *numeric* `kind`, and serde's internally-tagged representation writes the variant
+*name* as the tag, so `"kind": "Text"` would never match `DiffType.Text === 0`. Nor can it be
+`untagged` — `Text` and `LargeText` are structurally identical and differ only in `kind`, so untagged
+deserialization would always pick whichever variant came first. That is now the third numeric enum on
+the boundary (`DiffLineType`, `IndexStatus`, `DiffType`); all three are pinned by the snapshot.
+
+Behaviour preserved that looks wrong until explained:
+
+- **A new or untracked file is diffed against `/dev/null` with `--no-index`**, which emulates
+  `diff(1)`'s exit codes — so **1 means "differences found"**, not failure, and is accepted as
+  success. The path is passed *without* the `:(top,literal)` pathspec guard there, because
+  `--no-index` treats its operands as filenames and the magic prefix would be taken literally.
+- **A renamed file is diffed against the index, not `HEAD`.** The original called this "technically
+  incorrect, the best kind of incorrect": showing exactly what will be committed would need a
+  blob-to-blob diff, so changes already staged to a renamed file don't show up the way they do
+  elsewhere. Preserved, with the reasoning attached.
+- **A range diff retries against the empty tree** when the oldest commit has no parent, since
+  `<root>^` doesn't resolve. Written as a two-iteration loop rather than the original's recursion, so
+  it's evident the retry happens at most once.
+- **The hard 70MB buffer limit is checked before parsing**, because past it the original couldn't
+  decode the buffer at all. The soft limit (1/16th of it) and the 5,000-character line limit produce
+  `LargeText`, which still carries text and hunks so the UI can offer to render anyway.
+
+One improvement over the original: **line length is measured in characters, not bytes.** The original
+used `line.text.length` on a JavaScript string, i.e. UTF-16 code units; measuring bytes in Rust would
+have declared a file of CJK text unrenderable at a third of the real limit. A test pins a fixture that
+exceeds the limit in bytes but not in characters.
+
+**Deferred, with the reason:** image diffs need the blob-bytes-over-IPC decision from `show`, so a
+binary image currently reports `Binary` and an SVG reports plain text — the original wrapped the SVG's
+text diff inside an image diff, so the text half is intact and only the second view mode is missing.
+`getFilesDiffText`, `getResolutionDiff` and LFS need temp-file plumbing or their own modules.
+
+**The percentage flatters it.** Everything above is the *write* path. The *read* path a user
+actually looks at is the gap: `diff.ts` is the largest file in the git layer at 1,032 lines with
+1 of 12 functions ported, and `log.ts` (376) has none. Phase 7 cannot show a change or a history
+without them, so they are the critical path, not `push`/`pull`.
+
+**What remains, by what blocks it:**
+
+- **Blocked on the trampoline handlers** (transport done; handlers need account state): `push`,
+  `pull`, `fetch`, `clone`, `remote`, `credential`, `environment`, `lfs` — ~900 lines.
+- **Unblocked, purely local:** `diff` (1,032), `cherry-pick` (499), `stash` (390), `log` (376),
+  `submodule` (212), `squash` (173), `worktree` (166), `gitignore` (157), `reorder` (153),
+  `tag` (134), `reflog` (127), `apply` (120), `diff-index` (116), `revert`, `show`, `var`,
+  `merge-tree`, `checkout-index`.
+- **Deferred inside ported modules**, each with a named prerequisite: partial per-line staging
+  (needs `patch-formatter`), hook + terminal output for commit/merge/rebase (Channels — the
+  streaming runner now exists, so this is cheaper than it was), checkout submodule updates,
+  interactive rebase (needs `reorder`/`squash`).
+
+**Landed, in order** (the counts below are historical, from each slice as it landed):
 - `src-tauri` is now a **Cargo workspace** (root package = the Tauri app, members = `crates/*`)
   with a shared `[workspace.dependencies]`. CI runs `--workspace`, without which cargo checks
   only the app crate and silently skips `crates/*`.
@@ -333,12 +501,13 @@ refuses to force a rename over a genuinely different branch.
 
 ---
 
-### Phase 2 — `status`: analysis before porting
+### Phase 2 — `status` — **DONE**
 
-`status` is the largest remaining piece and needs a decision first, so it is deliberately **not**
-started yet.
+Kept as a record of the analysis, because the architectural fork it settled — *which side owns
+parsing* — is the reason `status_parser.ts` was deleted rather than kept, and that reasoning applies
+again to every parser still to be ported (`diff`, `log`).
 
-**The cascade is smaller than it looks.** `status.ts` imports from `diff-check`, `merge`, `diff`,
+**The cascade was smaller than it looked.** `status.ts` imports from `diff-check`, `merge`, `diff`,
 `rebase` and `cherry-pick` — 2,339 lines of host modules — but only needs **~106 lines** of
 specific functions from them: `getFilesWithConflictMarkers` (19), `isMergeHeadSet` (4),
 `isSquashMsgSet` (4), `getBinaryPaths` (15), `getRebaseInternalState` (50),
@@ -662,8 +831,77 @@ Also committed the generator for `git_error_kind.rs`
 directory even though the generated file told you to re-run it. The TypeScript `GitErrorKind` enum is
 likewise derived from the Rust source rather than hand-typed, so its 60 variants can't drift.
 
-**Next in this phase:** the remaining `ipc-shared.ts` channel inventory, and the trampoline handlers
-(the transport is done; the handlers need account state).
+**Commit and checkout landed next**, with their prerequisites: `unstage_all` (reset), `stage_files`
+(update-index), `remove_conflicted_file` (rm), and `stage_manual_conflict_resolution` (stage). Eight
+commands are now exposed. Three things are deliberately deferred, each with a named prerequisite
+rather than an intention:
+
+- **Partial (per-line) staging** needs `lib/patch-formatter.ts` ported — the original built a patch
+  from the UI's `DiffSelection` and piped it to `git apply --cached`. Whole-file staging works.
+- **Checkout progress** is now a `Channel`, not a callback (see the streaming note above).
+  **Submodule updates** still need `lib/git/submodule.ts`.
+- **Hook output** (`interceptHooks`, `onHookProgress`) is also a Channel. Hooks still *run* — git runs
+  them regardless; what's missing is showing their output.
+
+A third upstream bug turned up here, and this one was pinned by a test: `parseCommitSHA` returns the
+string `"(root-commit)"` instead of a SHA for a repository's first commit, and the original asserted
+exactly that. The port asks `rev-parse HEAD` instead of parsing git's summary line, and returns the
+full SHA. See `MIGRATION_MAP.md` §8.
+
+Also worth recording, because it shaped the design: **command arguments needed their own contract
+test.** The wire snapshot pins what Rust *serializes*, but `FileToStage`, `CommitOptions` and
+`ManualConflictResolution` travel the other way, so what matters is that Rust can *deserialize* what
+`invoke` sends. `wire_contract.rs` now has a second section of tests written as the literal JSON the
+frontend produces.
+
+**Merge and non-interactive rebase landed next.** `merge`, `getMergeBase`, `abortMerge`, `rebase`,
+`continueRebase`, and `abortRebase` are ported through Rust, Tauri commands, typed invoke wrappers,
+and both halves of the wire contract. The tests build real divergent repositories and cover clean
+merge, noop merge, merge conflict/abort, merge-base lookup, rebase conflict state, abort, unresolved
+continue, resolved continue, omitted tracked files, selected unrelated tracked changes, and keeping
+untracked files out of the replayed commit.
+
+One scope boundary remains explicit: interactive rebase waits for `reorder`/`squash` and the
+generated todo-list flow. It is not needed for the ordinary branch-on-branch rebase now exposed.
+
+The port pins `rebase.backend=merge`. The state/status code already expects the
+`.git/rebase-merge/**` files (`orig-head`, `head-name`, `onto`), and relying on a user's global
+`rebase.backend=apply` would silently switch git to a different state layout. This makes the
+assumption the original code already had deterministic.
+
+**The first streaming Channel landed with checkout progress.** `exec::git_with_stderr` drains
+stdout/stderr concurrently, retains stderr for classification, and also delivers raw stderr chunks
+to a transport-neutral callback. `checkout.rs` incrementally parses Git's carriage-return-delimited
+`Checking out files: N% (x/y)` records into the already-ported `ICheckoutProgress` shape; only the
+Tauri command layer knows about `Channel<CheckoutProgress>`. Branch, remote-branch, and commit
+checkout wrappers accept an optional frontend callback, while always supplying the command's
+Channel. A closed webview drops progress updates without cancelling git and leaving the repository
+half-switched.
+
+Until submodule updates land, checkout emits an explicit `value: 1` after git succeeds. The original
+reserved the final 10% for submodules; preserving that weighting before the submodule step exists
+would leave every checkout apparently stuck at 90%.
+
+**Rebase now reuses that stream.** Start and continue parse Git's `Rebasing (n/m)` stderr records
+incrementally and emit the existing `IMultiCommitOperationProgress` domain shape through a Channel.
+The new partial `rev_list.rs` port supplies full-SHA commit summaries in replay order. When a
+conflict interrupts the operation, `getRebaseSnapshot()` reconstructs the same progress plus the
+complete commit list from `.git/rebase-merge/{msgnum,end,orig-head,onto}` and `REBASE_HEAD`, so a
+reopened frontend can recover without having observed earlier Channel events. A real two-commit
+repository test covers the initial event, snapshot recovery, conflict resolution, and the continued
+event.
+
+`getRebaseSnapshot` is why the merge backend is pinned: the recovery contract reads
+`.git/rebase-merge/**` directly, so a user's global `rebase.backend=apply` would silently hand it a
+different state layout. `git-ops` stays independent of Tauri throughout — only the command layer
+adapts callbacks to Channels.
+
+**Current command count: 15. Next in this phase:** the remaining `ipc-shared.ts` channel inventory,
+merge/rebase hook and terminal output, and the trampoline handlers (the transport is done; the
+handlers need account state).
+
+Note the sequencing argument here competes with Phase 2's: the channel inventory produces a *queue*,
+whereas `diff` removes the thing that makes the app unusable. `diff` first, then the inventory.
 
 <details><summary>original phase description</summary>
 - `app/src/lib/ipc-shared.ts` declares 77 channels — treat this as the literal spec. Build a table (in `MIGRATION_MAP.md`) of channel → Tauri command/event, and knock them out systematically rather than ad hoc as UI needs them.
