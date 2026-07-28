@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -168,15 +168,31 @@ where
         abort: abort.clone(),
     });
 
+    if !request.stdin.is_empty() && !supports_to_stdin(Path::new(&request.cwd)).await {
+        // Running the hook without its stdin is not an option: a `pre-push` hook that reads no refs
+        // could approve a push it was written to reject. Failing closed is the only safe answer.
+        return fail_before_running(
+            &hook,
+            format!(
+                "the {hook} hook expects data on stdin, and this git's `hook run` has no \
+                 `--to-stdin` option to deliver it. Upgrading git enables it; until then this hook \
+                 cannot be run from rdc, and rdc will not run it without the data it expects.\n"
+            ),
+            started_at,
+            sink,
+            &mut on_progress,
+            on_failure,
+        )
+        .await;
+    }
+
     // Held for the duration: dropping it removes the spooled stdin.
     let spool = match spool_stdin(&request.stdin) {
         Ok(spool) => spool,
         Err(error) => {
-            return finish(
+            return fail_before_running(
                 &hook,
-                Some(1),
-                None,
-                format!("could not write the hook's stdin: {error}\n").into_bytes(),
+                format!("could not write the hook's stdin: {error}\n"),
                 started_at,
                 sink,
                 &mut on_progress,
@@ -220,11 +236,9 @@ where
     let mut child = match command.spawn() {
         Ok(child) => child,
         Err(error) => {
-            return finish(
+            return fail_before_running(
                 &hook,
-                Some(1),
-                None,
-                format!("could not run the {hook} hook: {error}\n").into_bytes(),
+                format!("could not run the {hook} hook: {error}\n"),
                 started_at,
                 sink,
                 &mut on_progress,
@@ -267,6 +281,40 @@ where
         started_at,
         sink,
         &mut on_progress,
+        on_failure,
+    )
+    .await
+}
+
+/// Reports a hook that could not be run at all.
+///
+/// `reason` is **both streamed and captured**, which is the point of having this rather than calling
+/// [`finish`] directly: git shows the user whatever reaches the hook's stderr, so a reason that was only
+/// captured would leave them with "the hook failed" and no explanation. Captured too, because that is what
+/// a failure prompt is shown.
+async fn fail_before_running<P, F, Fut>(
+    hook: &str,
+    reason: String,
+    started_at: Instant,
+    sink: &StderrSink,
+    on_progress: &mut P,
+    on_failure: F,
+) -> HookOutcome
+where
+    P: FnMut(HookProgress),
+    F: FnOnce(String, Vec<u8>) -> Fut,
+    Fut: Future<Output = FailureDecision>,
+{
+    let _ = sink.send(reason.clone().into_bytes());
+
+    finish(
+        hook,
+        Some(1),
+        None,
+        reason.into_bytes(),
+        started_at,
+        sink,
+        on_progress,
         on_failure,
     )
     .await
@@ -388,6 +436,31 @@ fn spool_stdin(stdin: &[u8]) -> std::io::Result<Option<Spool>> {
         path,
         _directory: directory,
     }))
+}
+
+/// Whether this git's `hook run` accepts `--to-stdin`.
+///
+/// # Why this has to be asked at all
+///
+/// It is the only way to give a hook its stdin: without it git runs the hook with **no stdin** — verified
+/// on 2.39 and 2.50 — so piping is not an alternative. And the option is newer than `git hook run` itself,
+/// so a git that has the command may still not have the option (Debian bookworm's 2.39.5 does not).
+///
+/// Upstream never had to ask, because it **bundles its own git** and says so: "we can't be certain the
+/// user's Git binary is new enough to support the hook run command". rdc runs the system git, so the
+/// question is live — and a Linux container found it, having passed on a developer machine with a newer
+/// git.
+///
+/// Probed with [`crate::exec::supports_flag`], which explains the technique, and cached for the process.
+///
+/// Public so the app can say *in advance* that a `pre-push` hook won't be intercepted on this machine,
+/// rather than only when one fails.
+pub async fn supports_to_stdin(repository: &Path) -> bool {
+    static SUPPORTED: tokio::sync::OnceCell<bool> = tokio::sync::OnceCell::const_new();
+
+    *SUPPORTED
+        .get_or_init(|| crate::exec::supports_flag(repository, &["hook", "run"], "--to-stdin"))
+        .await
 }
 
 /// The git binary to run, resolved **before** the environment is replaced.
@@ -667,15 +740,23 @@ mod tests {
 
     #[tokio::test]
     async fn gives_the_hook_its_stdin_as_a_file() {
-        // `pre-push` reads its refs from stdin, and `git hook run` takes them as a path.
+        // `pre-push` reads its refs from stdin, and `git hook run` takes them as a path — via
+        // `--to-stdin`, which is newer than the command itself. On a git without it the hook is refused
+        // with an explanation rather than run blind, so this asserts whichever behaviour the local git
+        // allows. See `supports_to_stdin`.
         let repo = repo_with_hook("pre-push", "cat >&2").await;
         let mut request = request(&repo, "pre-push");
         request.stdin = b"refs/heads/main abc refs/heads/main def\n".to_vec();
 
         let (outcome, streamed, _) = run(&request, &shell_env(), FailureDecision::Fail).await;
 
-        assert_eq!(outcome.exit_code, 0, "{streamed}");
-        assert!(streamed.contains("refs/heads/main abc"), "{streamed}");
+        if supports_to_stdin(&repo.path()).await {
+            assert_eq!(outcome.exit_code, 0, "{streamed}");
+            assert!(streamed.contains("refs/heads/main abc"), "{streamed}");
+        } else {
+            assert_ne!(outcome.exit_code, 0);
+            assert!(streamed.contains("expects data on stdin"), "{streamed}");
+        }
     }
 
     #[tokio::test]

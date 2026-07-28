@@ -262,6 +262,14 @@ impl GlobalConfig {
             // Note: on Windows git also consults USERPROFILE. rdc targets Linux (primary) and
             // macOS, so HOME is sufficient; revisit if Windows support is added.
             env.insert("HOME".to_owned(), home.to_string_lossy().into_owned());
+            // `GIT_CONFIG_GLOBAL` **outranks HOME**, so an ambient one would send reads and writes back to
+            // the developer's real `~/.gitconfig` — defeating the isolation this type exists to provide.
+            // Pointing it at the stub file overrides it rather than relying on it being unset; naming the
+            // same file HOME would resolve to keeps the two consistent.
+            env.insert(
+                "GIT_CONFIG_GLOBAL".to_owned(),
+                home.join(".gitconfig").to_string_lossy().into_owned(),
+            );
         }
         env
     }
@@ -392,8 +400,18 @@ mod tests {
     use crate::test_support::{empty_repository, fixture_repository};
 
     /// A `GlobalConfig` pointed at a temp HOME, returned with the guard that owns it.
+    ///
+    /// The stub config is not empty: it clears `safe.directory`, because a **system-wide
+    /// `safe.directory = *`** suppresses git's dubious-ownership check entirely — and CI images set one,
+    /// which is why `vouching_for_a_repository_makes_git_work_in_it` passed locally and failed there. An
+    /// empty value resets the list, so the check applies again. `rev_parse.rs` needs the same stub for the
+    /// same reason.
+    ///
+    /// Invisible to the other tests here: `all_values` filters empty entries out.
     fn isolated_global() -> (GlobalConfig, tempfile::TempDir) {
         let home = tempfile::tempdir().expect("failed to create a temporary HOME");
+        std::fs::write(home.path().join(".gitconfig"), "[safe]\ndirectory=\n")
+            .expect("failed to write the stub config");
         let config = GlobalConfig::with_home(home.path());
         (config, home)
     }
@@ -771,6 +789,33 @@ mod tests {
             all_values(&config, home.path(), "desktop.list").await,
             vec!["one".to_owned(), "two".to_owned()],
             "the duplicate is skipped and the new value appended"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_isolated_home_restores_the_ownership_check() {
+        // Guards the guard: if a system-wide `safe.directory = *` went unneutralized, the test below would
+        // pass vacuously — git would never have refused the repository in the first place. This asserts the
+        // refusal happens *before* anything is vouched for, which is the premise that test depends on.
+        let repo = empty_repository().await;
+        let (config, _home) = isolated_global();
+        let mut env = config.env();
+        env.insert("GIT_TEST_ASSUME_DIFFERENT_OWNER".to_owned(), "1".to_owned());
+
+        let refused = git(
+            &["status", "--porcelain"],
+            repo.path(),
+            "test",
+            GitOptions {
+                env,
+                ..GitOptions::default()
+            },
+        )
+        .await;
+
+        assert!(
+            refused.is_err(),
+            "the stub HOME must clear a system-wide safe.directory = *"
         );
     }
 

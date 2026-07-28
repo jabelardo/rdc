@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use git_ops::exec::{git, GitOptions};
-use git_ops::hooks::runner::{FailureDecision, HookStatus};
+use git_ops::hooks::runner::{supports_to_stdin, FailureDecision, HookStatus};
 use git_ops::hooks::shell::Shell;
 use git_ops::hooks::with_env::{with_hooks_env, HookInterception};
 
@@ -22,6 +22,16 @@ fn proxy_binary() -> PathBuf {
 
 fn printenvz() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_rdc-printenvz"))
+}
+
+/// A [`Shell`] that runs `script` through `/bin/sh` rather than executing it.
+///
+/// `$2` is still the command, as it would be for a real shell invoked with `-ilc <command>`.
+fn script_shell(script: &Path) -> Shell {
+    Shell {
+        path: PathBuf::from("/bin/sh"),
+        args: vec![script.to_string_lossy().into_owned(), "-ilc".to_owned()],
+    }
 }
 
 /// A repository with one commit, plus a stand-in shell that exports `FROM_THE_SHELL=yes`.
@@ -64,20 +74,20 @@ impl Fixture {
 
         // Plays the part of a login shell: exports something recognizable, then runs the command it was
         // handed. Keeps the tests independent of whose machine they run on.
-        let shell_path = repository.path().join("stand-in-shell");
+        //
+        // Passed to `/bin/sh` as a script rather than made executable: executing a freshly-written file
+        // races with `fork` in another thread and Linux answers `ETXTBSY`. See
+        // `hooks::with_env::install_stand_in`.
+        let script = repository.path().join("stand-in-shell");
         std::fs::write(
-            &shell_path,
-            "#!/bin/sh\nexport FROM_THE_SHELL=yes\nexport PATH=\"$PATH\"\nexec /bin/sh -c \"$2\"\n",
+            &script,
+            "export FROM_THE_SHELL=yes\nexec /bin/sh -c \"$2\"\n",
         )
         .expect("failed to write the stand-in shell");
-        make_executable(&shell_path);
 
         Self {
             repository,
-            shell: Shell {
-                path: shell_path,
-                args: vec!["-ilc".to_owned()],
-            },
+            shell: script_shell(&script),
         }
     }
 
@@ -379,6 +389,41 @@ async fn the_stand_in_directory_is_removed_afterwards() {
     );
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn a_stand_in_is_a_link_rather_than_a_copy() {
+    // Pins the mechanism, not the implementation for its own sake: copying an executable and then running
+    // it races with `fork` in another thread, and Linux answers `ETXTBSY` — an intermittent "Text file
+    // busy" failure in the middle of a commit. A change back to copying should fail here, with the reason
+    // attached, rather than in CI a week later.
+    let fixture = Fixture::new().await;
+    fixture.write_hook("pre-commit", "exit 0");
+    let path = fixture.path();
+    let interception = fixture.interception(&["pre-commit"]);
+
+    let kind = with_hooks_env(
+        &path,
+        Some(&interception),
+        HashMap::new(),
+        |env| async move {
+            let value = env
+                .get("GIT_CONFIG_PARAMETERS")
+                .expect("the hooks path should be configured")
+                .clone();
+            let start = value.find('=').expect("an assignment") + 1;
+            let directory = PathBuf::from(value[start..value.len() - 1].to_owned());
+
+            std::fs::symlink_metadata(directory.join("pre-commit"))
+                .expect("the stand-in should exist")
+                .file_type()
+        },
+    )
+    .await
+    .expect("it should succeed");
+
+    assert!(kind.is_symlink(), "the stand-in must not be a written file");
+}
+
 #[tokio::test]
 async fn an_existing_config_parameter_survives() {
     let fixture = Fixture::new().await;
@@ -412,16 +457,15 @@ async fn the_shell_environment_is_loaded_once_per_operation() {
     fixture.write_hook("post-commit", "exit 0");
 
     let counter = fixture.path().join("shell-invocations.txt");
-    let shell_path = fixture.path().join("counting-shell");
+    let script = fixture.path().join("counting-shell");
     std::fs::write(
-        &shell_path,
+        &script,
         format!(
-            "#!/bin/sh\necho x >> {}\nexport FROM_THE_SHELL=yes\nexec /bin/sh -c \"$2\"\n",
+            "echo x >> {}\nexport FROM_THE_SHELL=yes\nexec /bin/sh -c \"$2\"\n",
             counter.display()
         ),
     )
     .expect("failed to write the shell");
-    make_executable(&shell_path);
 
     let interception = HookInterception::new(
         ["pre-commit", "commit-msg", "post-commit"]
@@ -430,10 +474,7 @@ async fn the_shell_environment_is_loaded_once_per_operation() {
         proxy_binary(),
         printenvz(),
     )
-    .with_shell(Shell {
-        path: shell_path,
-        args: vec!["-ilc".to_owned()],
-    });
+    .with_shell(script_shell(&script));
 
     fixture
         .commit_with(&interception, "second")
@@ -453,7 +494,13 @@ async fn the_shell_environment_is_loaded_once_per_operation() {
 #[tokio::test]
 async fn a_hook_that_needs_stdin_gets_it() {
     // `pre-push` reads its refs from stdin. The chain has to carry them from git, through the stand-in and
-    // the protocol, into a file `git hook run` can point the hook at.
+    // the protocol, into the file `git hook run --to-stdin` reads.
+    //
+    // That option is **newer than `git hook run` itself** — Debian bookworm's git 2.39 has the command and
+    // not the option — and it is the only way to give a hook stdin, since git otherwise runs one with none.
+    // So this asserts whichever of the two documented behaviours the local git allows: the refs arrive, or
+    // the operation fails saying why. Upstream never had to make that distinction because it bundles its
+    // own git.
     let fixture = Fixture::new().await;
     fixture.write_hook(
         "pre-push",
@@ -474,7 +521,7 @@ async fn a_hook_that_needs_stdin_gets_it() {
     let interception = fixture.interception(&["pre-push"]);
     let remote_path = remote.path().to_string_lossy().into_owned();
 
-    with_hooks_env(&path, Some(&interception), HashMap::new(), |env| {
+    let pushed = with_hooks_env(&path, Some(&interception), HashMap::new(), |env| {
         let path = path.clone();
         async move {
             let mut options = GitOptions::default();
@@ -484,18 +531,31 @@ async fn a_hook_that_needs_stdin_gets_it() {
 
             git(&["push", &remote_path, "main"], &path, "test", options)
                 .await
-                .expect("the push should succeed");
+                .map_err(|error| format!("{error}"))
         }
     })
     .await
-    .expect("it should succeed");
+    .expect("setting up the interception should succeed");
 
-    let pushed = std::fs::read_to_string(fixture.path().join("pushed.txt"))
-        .expect("the hook should have run");
-    assert!(
-        pushed.contains("refs/heads/main"),
-        "the refs git piped in must reach the hook: {pushed:?}"
-    );
+    if supports_to_stdin(&fixture.path()).await {
+        pushed.expect("the push should succeed");
+        let refs = std::fs::read_to_string(fixture.path().join("pushed.txt"))
+            .expect("the hook should have run");
+        assert!(
+            refs.contains("refs/heads/main"),
+            "the refs git piped in must reach the hook: {refs:?}"
+        );
+    } else {
+        let error = pushed.expect_err("without --to-stdin the hook cannot be given its refs");
+        assert!(
+            error.contains("expects data on stdin"),
+            "the failure has to explain itself: {error}"
+        );
+        assert!(
+            !fixture.path().join("pushed.txt").exists(),
+            "the hook must not run without the data it expects"
+        );
+    }
 }
 
 #[tokio::test]
@@ -519,7 +579,12 @@ async fn a_missing_proxy_binary_fails_the_operation_rather_than_skipping_hooks()
     .await
     .expect_err("setting up the interception should fail");
 
-    assert!(format!("{error}").contains("pre-commit"), "{error}");
+    // The message names the *binary*, not a hook: the stand-in path is resolved and verified once, before
+    // any hook is considered, and the missing path is the actionable detail.
+    assert!(
+        format!("{error}").contains("/nonexistent/rdc-hook-proxy"),
+        "{error}"
+    );
 }
 
 #[tokio::test]

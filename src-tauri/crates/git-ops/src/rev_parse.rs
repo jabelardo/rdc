@@ -332,15 +332,22 @@ mod tests {
         let repo = fixture_repository("test-repo").await;
 
         // A stub HOME with an empty safe.directory clears any system-wide `*` entry that would
-        // otherwise suppress the ownership warning.
+        // otherwise suppress the ownership warning — CI images set one, which is what makes this
+        // neutralization necessary rather than defensive.
         let home = tempfile::tempdir().expect("failed to create a temporary HOME");
-        std::fs::write(home.path().join(".gitconfig"), "[safe]\ndirectory=\n")
-            .expect("failed to write the stub config");
+        let config = home.path().join(".gitconfig");
+        std::fs::write(&config, "[safe]\ndirectory=\n").expect("failed to write the stub config");
 
         let env = HashMap::from([
             (
                 "HOME".to_owned(),
                 home.path().to_string_lossy().into_owned(),
+            ),
+            // `GIT_CONFIG_GLOBAL` outranks HOME, so an ambient one would put the machine's own config
+            // back in play and the stub above would do nothing. Same reasoning as `GlobalConfig::env`.
+            (
+                "GIT_CONFIG_GLOBAL".to_owned(),
+                config.to_string_lossy().into_owned(),
             ),
             ("GIT_TEST_ASSUME_DIFFERENT_OWNER".to_owned(), "1".to_owned()),
         ]);

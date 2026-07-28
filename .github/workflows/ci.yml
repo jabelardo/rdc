@@ -60,3 +60,78 @@ jobs:
       - name: cargo test
         working-directory: src-tauri
         run: cargo test --workspace
+
+  # Two jobs guarding failure modes `ubuntu-latest` cannot reach on its own. Both build only
+  # `git-ops`, which needs no webkit/gtk, so neither pays for the Tauri system dependencies above.
+  git-ops-hostile-config:
+    name: git-ops (hostile ambient git config)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # Two tests once passed locally and failed only in CI, because they asked what git does when
+      # the *repository* config has no answer — the one case where the ambient global and system
+      # config decide. This reproduces that on purpose, so the next such test fails here rather
+      # than after a push. See AGENTS.md rule 7.
+      - name: Write a hostile system and global git config
+        run: |
+          printf '[safe]\n\tdirectory = *\n' > "$RUNNER_TEMP/gitconfig-system"
+          : > "$RUNNER_TEMP/gitconfig-global"
+      - name: cargo test -p git-ops
+        working-directory: src-tauri
+        env:
+          # `safe.directory = *` suppresses git's dubious-ownership check entirely; an empty
+          # global config removes the identity a fallback might otherwise find.
+          GIT_CONFIG_SYSTEM: ${{ runner.temp }}/gitconfig-system
+          GIT_CONFIG_GLOBAL: ${{ runner.temp }}/gitconfig-global
+        run: cargo test -p git-ops
+
+  git-ops-old-git:
+    name: git-ops (git without `hook run --to-stdin`)
+    runs-on: ubuntu-latest
+    # Debian 12's git 2.39 predates `git hook run --to-stdin`, as do Ubuntu 22.04's 2.34 and
+    # anything else still inside a support window. rdc runs the *system* git — upstream avoided
+    # this question by bundling its own — so the runner probes for the option and fails a
+    # stdin-taking hook with an explanation when it is absent. Nothing on `ubuntu-latest` (git
+    # 2.5x) exercises that path, which is exactly why it needs a job of its own.
+    #
+    # This job intentionally follows Debian 12/Bookworm rather than pinning a Git feature snapshot:
+    # Bookworm is supported through its LTS end on June 30, 2028, so its system Git is part of rdc's
+    # compatibility surface until then. Delete the job when that support window closes; if Debian
+    # backports both options earlier, it can be retired early because the fallback paths are no longer
+    # needed on Bookworm.
+    #
+    # Ubuntu 22.04's standard support ends April 2027.
+    # Note the two shims do not expire together — `cherry-pick --empty` also covers Ubuntu 24.04 LTS
+    # (git 2.43, supported to April 2029), so that one outlives this job by a year. The image is
+    # deliberately not digest-pinned because the supported target is the maintained Bookworm release,
+    # including its security updates, rather than one frozen container image.
+    container: rust:1-slim-bookworm
+    steps:
+      # Before checkout: the slim image has no git, and the action needs it to clone rather than
+      # falling back to a tarball.
+      - name: Install git
+        run: apt-get update -qq && apt-get install -y -qq git
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Report the git version under test
+        run: git --version
+      - name: cargo test -p git-ops
+        working-directory: src-tauri
+        run: cargo test -p git-ops
+
+  e2e-harness:
+    name: E2E harness (Linux container)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Use the same entry point as every developer machine. This deliberately
+      # builds and runs Dockerfile.e2e through Compose; no host-installed
+      # tauri-driver or WebKitWebDriver path is supported.
+      - name: Build and verify the containerized E2E harness
+        run: docker compose -f docker-compose.e2e.yml run --rm e2e

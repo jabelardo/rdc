@@ -176,6 +176,30 @@ fn parse_cherry_pick_result(output: &GitOutput) -> CherryPickResult {
     }
 }
 
+/// How to tell this git to keep a commit that cherry-picks to nothing.
+///
+/// `--empty=keep` is the modern spelling and needs git **2.45**; `--keep-redundant-commits` is its
+/// documented deprecated synonym and works as far back as this crate is tested. Behaviour is identical —
+/// verified on 2.39 and 2.53, both keeping the empty commit.
+///
+/// The check is not hypothetical: **Ubuntu 24.04 LTS ships git 2.43**, so passing `--empty=keep`
+/// unconditionally — as upstream does, since it bundles its own git — makes every cherry-pick on that
+/// distro fail with exit 129 and a usage dump. The modern spelling is still preferred where it exists,
+/// because the synonym is deprecated and will eventually go.
+async fn keep_empty_flag(repository: &Path) -> &'static str {
+    static MODERN: tokio::sync::OnceCell<bool> = tokio::sync::OnceCell::const_new();
+
+    let modern = *MODERN
+        .get_or_init(|| crate::exec::supports_flag(repository, &["cherry-pick"], "--empty"))
+        .await;
+
+    if modern {
+        "--empty=keep"
+    } else {
+        "--keep-redundant-commits"
+    }
+}
+
 /// Cherry-picks `commits` onto the current branch, oldest first.
 ///
 /// Order matters only for conflict avoidance — the original noted that ascending order is best
@@ -202,7 +226,11 @@ where
 
     let mut args = vec!["cherry-pick".to_owned()];
     args.extend(commits.iter().map(|commit| commit.sha.clone()));
-    args.extend(["--empty=keep".to_owned(), "-m".to_owned(), "1".to_owned()]);
+    args.extend([
+        keep_empty_flag(repository.as_ref()).await.to_owned(),
+        "-m".to_owned(),
+        "1".to_owned(),
+    ]);
 
     // Deliberately *not* `with_success_exit_codes([1])`. An accepted exit code makes `exec` return
     // before classifying, so `git_error` would be `None` and a conflict would look like an unknown

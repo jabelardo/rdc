@@ -21,7 +21,8 @@
 //!   information is lost — only the second view mode is missing.
 //!
 //! **`getFilesDiffText`.** This remains with its store consumer. [`get_resolution_diff`] is
-//! backend-local and complete; it needs full blob contents, not the deferred capped-read helper.
+//! backend-local and complete; it needs full blob contents, so [`crate::show::get_blob_contents`] rather
+//! than the capped read.
 //! Git LFS installation, attributes, and transfer progress live in [`crate::lfs`] and
 //! [`crate::progress`]; image previews remain deferred with the raw-bytes IPC decision above.
 

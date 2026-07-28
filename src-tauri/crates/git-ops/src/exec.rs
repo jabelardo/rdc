@@ -5,11 +5,10 @@
 //! linking libgit2: libgit2 has known gaps around LFS, credential helpers, partial clone and
 //! hook execution that a real desktop Git client depends on.
 //!
-//! Not yet ported from `core.ts` (tracked in MIGRATION_MAP.md):
-//! - dugite's regex-based error classification (`GitError`) and `getDescriptionForError`
-//! - trampoline/askpass credential environment (`withTrampolineEnv`)
-//! - hook interception (`withHooksEnv`)
-//! - hook interception
+//! The backend concerns from `core.ts` are ported: error classification lives in
+//! `error.rs`/`git_error_kind.rs`, credentials in the `trampoline` crate, and hook interception in
+//! `hooks`. The remaining work is deliberately above this module: frontend error descriptions and
+//! Phase 3's per-command Channel/hook adapters.
 //!
 //! Timing/measurement is intentionally *not* a port of `ui/lib/git-perf.ts` — see
 //! MIGRATION_MAP.md §9; it belongs here as `tracing` spans when tracing is introduced.
@@ -412,6 +411,45 @@ where
     })?;
 
     finish_git(name, path, stdout, &stderr_bytes, status, &options)
+}
+
+/// Whether this git's `<subcommand>` accepts `flag`.
+///
+/// # Why this is ever needed
+///
+/// rdc runs the **system git**, where upstream bundled its own — its `hooks-proxy.ts` says so outright:
+/// "we can't be certain the user's Git binary is new enough". So an option upstream could simply pass may
+/// not exist here, and the failure is an exit code 129 with a usage dump, which tells a user nothing about
+/// what rdc did. Two are known: `cherry-pick --empty` (git 2.45; **Ubuntu 24.04 LTS ships 2.43**) and
+/// `hook run --to-stdin` (Ubuntu 22.04 ships 2.34 without it).
+///
+/// `-h` is the probe: git prints the usage synopsis listing the options this build has, exits 129 — which
+/// `-h` always does and is not a failure — and **runs nothing**. That last part is why it beats trying the
+/// option and recovering: `cherry-pick` or a hook cannot be run twice to find out.
+///
+/// Callers cache the answer; git does not change underneath a running app. See
+/// [`crate::hooks::runner::supports_to_stdin`] for the shape.
+pub async fn supports_flag(repository: &Path, subcommand: &[&str], flag: &str) -> bool {
+    let Ok(output) = Command::new("git")
+        .args(subcommand)
+        .arg("-h")
+        .current_dir(repository)
+        .stdin(Stdio::null())
+        .output()
+        .await
+    else {
+        // Without an answer, assume the option is absent: the older spelling of a thing generally still
+        // works, while a missing option does not.
+        return false;
+    };
+
+    // git writes `-h` usage to stdout; stderr is included so a build that differs is still read.
+    let usage = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    usage.contains(flag)
 }
 
 /// Output from a capped read — see [`git_capped`].

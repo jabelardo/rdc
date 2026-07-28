@@ -164,18 +164,26 @@ where
             message: format!("could not create a directory for the hook stand-ins: {error}"),
         })?;
 
+    // Resolved once, before the loop: a dangling symlink is perfectly legal, so the binary has to be
+    // verified rather than assumed — and a relative path would resolve against the wrong directory once
+    // it is the target of a link in a temporary one.
+    let binary =
+        std::fs::canonicalize(&interception.proxy_binary).map_err(|error| GitError::Parse {
+            context: "withHooksEnv".to_owned(),
+            message: format!(
+                "could not find the hook stand-in binary at {}: {error}",
+                interception.proxy_binary.display()
+            ),
+        })?;
+
     for hook in &hooks {
-        // Copied rather than linked: a hard link would need the same filesystem as the application
-        // bundle, and `fs::copy` carries the executable bit, which is what git checks.
-        std::fs::copy(&interception.proxy_binary, directory.path().join(hook)).map_err(
-            |error| GitError::Parse {
-                context: "withHooksEnv".to_owned(),
-                message: format!(
-                    "could not install the stand-in for the {hook} hook from {}: {error}",
-                    interception.proxy_binary.display()
-                ),
-            },
-        )?;
+        install_stand_in(&binary, directory.path(), hook).map_err(|error| GitError::Parse {
+            context: "withHooksEnv".to_owned(),
+            message: format!(
+                "could not install the stand-in for the {hook} hook from {}: {error}",
+                binary.display()
+            ),
+        })?;
     }
 
     let token = generate_token();
@@ -209,6 +217,36 @@ where
     // directory is removed and the server stops accepting.
     drop(directory);
     Ok(result)
+}
+
+/// Puts a stand-in for `hook` in `directory`.
+///
+/// # A symlink rather than a copy, because copying races with executing
+///
+/// Copying looked obvious and was wrong. On Linux, `execve` fails with **`ETXTBSY` ("Text file busy") if
+/// any process holds the file open for writing** — and a `fork` in *another thread* inherits the copy's
+/// still-open descriptor, which `CLOEXEC` closes only *after* the kernel has already made that check. So a
+/// commit could fail with "Text file busy" whenever another thread happened to spawn something while the
+/// stand-ins were being written. It showed up as an intermittent CI failure in the tests, where many
+/// processes are spawned at once; in the app the window is smaller but not absent, and git runs plenty of
+/// its own subprocesses.
+///
+/// A symlink has no such window: the inode git executes is never opened for writing at all. It also
+/// avoids copying a multi-megabyte binary once per hook, though that is a side benefit rather than the
+/// reason.
+///
+/// Falls back to copying where symlinks aren't available — Windows needs a privilege for them — which
+/// restores the original hazard on that platform only, and only there does it need thinking about again.
+fn install_stand_in(binary: &Path, directory: &Path, hook: &str) -> std::io::Result<()> {
+    let destination = directory.join(hook);
+
+    #[cfg(unix)]
+    if std::os::unix::fs::symlink(binary, &destination).is_ok() {
+        return Ok(());
+    }
+
+    // `fs::copy` carries the executable bit, which is what git checks before running a hook.
+    std::fs::copy(binary, &destination).map(|_| ())
 }
 
 /// The runner the server dispatches to, with the shell environment loaded at most once per directory.

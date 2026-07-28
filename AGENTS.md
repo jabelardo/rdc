@@ -109,10 +109,51 @@ renamed binary paths, a fire-and-forget getter, a SHA parser that returns `"(roo
 repository's first commit). It has also been *right* in surprising ways. Run the command and look
 before deciding which case you're in, then record the outcome in MIGRATION_MAP.md §8.
 
-**7. Utilities: native JavaScript first, then Radash, and Lodash only as a last resort** — and if
+**7. A test must not depend on the machine's own git configuration.**
+Two tests passed locally and failed only in CI, both because they asked what git does when the
+*repository's* config has no answer — which is the one situation where the ambient global and system
+config decide the outcome. Concretely:
+
+- A **system-wide `safe.directory = *`** (CI images set one) suppresses git's dubious-ownership check
+  entirely. A test asserting that check needs a stub config with an empty `safe.directory`, which resets
+  the list.
+- **Identity fallback** depends on a global `user.name`/`user.email` existing, and on a hostname carrying
+  a domain for git to synthesise an email from. A fresh Linux runner has neither.
+
+Pin the config instead of hoping: pass `GIT_CONFIG_GLOBAL` (and `GIT_CONFIG_NOSYSTEM` where the system
+layer matters) per invocation via a `*_with_env` sibling — `rev_parse::get_repository_type_with_env` and
+`var::get_author_identity_with_env` are the pattern. **`HOME` alone is not enough**: `GIT_CONFIG_GLOBAL`
+outranks it, which once meant `GlobalConfig::with_home` could be silently redirected at the developer's
+real `~/.gitconfig`. Never mutate the process environment to do this — see MIGRATION_MAP.md §8.
+
+To check a test locally the way CI would see it:
+
+```sh
+SYS=$(mktemp); GLOB=$(mktemp)
+printf '[safe]\n\tdirectory = *\n' > "$SYS"      # what CI images set
+GIT_CONFIG_SYSTEM="$SYS" GIT_CONFIG_GLOBAL="$GLOB" cargo test -p git-ops
+```
+
+**8. Verify Linux behaviour on a Linux that matches the target.**
+Ubuntu 26.04 is the primary target (git 2.53); CI runs `ubuntu-latest`. A quick container check catches what
+a macOS dev machine cannot — two real bugs were found this way — but **pick the image to match the
+question**: use Trixie for primary-target investigation, and Bookworm for compatibility with Debian 12's
+system Git. Bookworm remains in rdc's support surface through its LTS end on **June 30, 2028**, and CI has
+a dedicated old-Git job for it.
+
+```sh
+docker run --rm -v "$PWD:/src:ro" -e CARGO_TARGET_DIR=/tmp/target -w /src/src-tauri \
+  rust:1-slim-trixie bash -c 'apt-get update -qq && apt-get install -y -qq git && cargo test -p git-ops'
+```
+
+Two Linux-specific traps already found, both documented in MIGRATION_MAP.md §8: **`ETXTBSY`** — running an
+executable that was just written races with `fork` in another thread, so link or interpret rather than copy
+and exec — and **git version drift**, since rdc runs the *system* git where upstream bundled its own.
+
+**9. Utilities: native JavaScript first, then Radash, and Lodash only as a last resort** — and if
 Lodash is unavoidable it must be ≥ 4.18.1 for security reasons.
 
-**8. E2E runs only in the Linux container**, on every host including Linux. Linux is the primary
+**10. E2E runs only in the Linux container**, on every host including Linux. Linux is the primary
 target; current desktop environments are Wayland-only, so don't add X11-dependent assumptions
 outside the container harness.
 

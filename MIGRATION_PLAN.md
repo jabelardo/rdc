@@ -49,7 +49,7 @@ src-tauri/
     commands/           # #[tauri::command] handlers, one module per old ipc-shared.ts channel group
     platform/           # macOS/Windows/Linux-specific: notifications, registry, window-state, keychain
   crates/
-    git-ops/            # replaces app/src/lib/git/** (45 files) — process-spawning wrapper around system git
+    git-ops/            # replaces app/src/lib/git/** (60 files) — process-spawning wrapper around system git
     models/             # domain types shared with frontend (optionally codegen'd to TS)
     stats/              # telemetry, mirrors app/src/lib/stats
     trampoline/          # askpass/credential-helper sidecar, mirrors app/src/lib/trampoline + ssh
@@ -59,7 +59,7 @@ Rust conventions to enforce in review: `thiserror` for library error enums, `any
 
 ## Phased plan
 
-### Phase 0 — Tooling parity (no app logic yet)
+### Phase 0 — Tooling parity (no app logic yet) — **COMPLETE**
 - Add Vitest to `rdc` (replaces the old Node-builtin `node --test` runner — an improvement: better watch mode, jsdom, coverage, matches Vite tooling already in `rdc`).
 - Add `cargo test` + `cargo clippy` + `cargo fmt --check` to whatever CI you set up for `rdc`.
 - Stand up `MIGRATION_MAP.md` from the inventory above.
@@ -71,7 +71,10 @@ Rust conventions to enforce in review: `thiserror` for library error enums, `any
   - Mac devs need Docker Desktop (or an equivalent Linux container runtime) as a hard prerequisite for running E2E locally; document this in the repo's setup instructions, not just in this plan.
   - **This harness runs entirely over X11 (Xvfb)** — it does not exercise native-Wayland WebKitGTK rendering, which is the only rendering path real users on the primary target actually hit. See Phase 3.5 for why, and for the accepted gap here.
 
-### Phase 1 — Port models + pure-TS lib (test-first) — **first slice DONE**
+Closure re-verified after audit: CI has frontend, Rust, and Compose E2E-harness jobs; a clean
+`rdc-e2e` image build starts Xvfb, WebKitWebDriver, and `tauri-driver` successfully.
+
+### Phase 1 — Port models + pure-TS lib (test-first) — **COMPLETE**
 
 > **The original assumption here was wrong and worth recording.** This phase was
 > written as "almost entirely mechanical". In reality, `desktop-plus`'s dependency graph
@@ -227,28 +230,72 @@ Node `path` usage before these modules enter the app bundle;
 | 4 — re-scope 15 tests | Moved to Phase 2/3 (git → Rust) and Phase 7 (stores) |
 | 5 — carried debt | Recorded in `MIGRATION_MAP.md` §8 |
 
-**Final state:** 87 source files (48 `models/`, 39 `lib/`) + 32 test files / 298 tests, all
-green, `tsc --noEmit` clean, zero `ui/` imports anywhere under `src/`.
+**State at Phase 1 closure:** 87 source files (48 `models/`, 39 `lib/`) + 32 test files /
+298 tests, all green, `tsc --noEmit` clean, zero `ui/` imports anywhere under `src/`. Later
+phases superseded some of these files and increased the current counts.
 
 **Phase 1 delivered more than a port:** four layering inversions fixed (three in the initial
 slice, plus a genuine circular dependency in Step 2), and a set of findings that change how
 later phases should be approached — the `Repository.url` fire-and-forget bug, the ambient
 global-namespace blind spot in import analysis, and the Node 26 `localStorage` shadowing trap.
 
-**Next up: Phase 2** (`git-ops` crate). Its acceptance spec is `app/test/unit/git/**` (45 files).
-Note that ~15 of the tests re-scoped in Step 4 also depend on it, so they unblock as a side
-effect. Start with the `Repository.url` redesign — the git-calling model is the knot that keeps
-the largest number of tests out of reach.
+**Phase 2 is complete and export-audited** (`git-ops` crate) — its
+acceptance spec is `app/test/unit/git/**` (51 files recursively: 45 top-level plus 6 under
+`pull/` and `rebase/`); see the exit criteria below. Phase 3 work can continue, starting with the
+§7 IPC channel-table pass in `MIGRATION_MAP.md`, while the remaining exported-behavior deferrals
+listed there are implemented by their named owners.
+Nine of the 15 tests re-scoped in Step 4 were subsequently recovered through the
+`Repository.url` redesign, trailer/regex extraction, and app-state decomposition. The remaining
+five are assigned to Phases 3, 5, and 7 in `MIGRATION_MAP.md` §6.
 
-### Phase 2 — Git backend (`git-ops` crate) — **IN PROGRESS (final stretch)**
+### Phase 2 — Git backend (`git-ops` crate) — **COMPLETE — EXPORT-AUDITED**
 
-**Current state, measured.** `lib/git` is 60 files / 9,485 lines. `git-ops` is 62 files /
-32,839 lines with 900 tests of its own; the workspace runs 1,024 Rust tests plus 547 TypeScript ones,
+**Minimum git.** rdc runs the **system** git, where upstream bundled its own — so an option newer than a
+supported distro's git is a real failure, not a hypothetical one. Two are shimmed rather than assumed
+(`cherry-pick --empty`, `hook run --to-stdin`), and CI holds the line with a job on git 2.39. Ubuntu 22.04
+ships 2.34, Debian 12 ships 2.39, Ubuntu 24.04 ships 2.43, and the primary target Ubuntu 26.04 ships 2.53.
+Use `exec::supports_flag` rather than a version comparison; see `MIGRATION_MAP.md` §8.
+
+**Current state, measured.** `lib/git` is 60 files / 9,485 lines. `git-ops` is 74 files /
+32,900 lines with 903 tests of its own; the workspace runs 1,027 Rust tests plus 547 TypeScript ones,
 with `fmt`/`clippy -D warnings`/`test`/`tsc` green. 67 commands are exposed.
+
+#### Exit criteria, and what they deliberately exclude
+
+Phase 2 owns **git**: running it, parsing it, and the helper binaries git itself invokes. It is
+closed when every exported `lib/git` and `lib/hooks` behaviour either exists in `git-ops` or is
+recorded against the phase that owns its blocker. File counterparts alone are insufficient:
+`MIGRATION_MAP.md` §3 now carries the export-level checklist used for closure.
+
+- **Every `lib/git` file has a counterpart** — 60 of 60, once the nine that map by concern rather than by
+  name are followed through: `core.ts` → `exec`+`error`+`git_error_kind`, `spawn`/`create-tail-stream`/
+  `push-terminal-chunk`/`coerce-to-*` → `exec`+`terminal_output`, `credential.ts` → the `trampoline`
+  crate, `index.ts` → a barrel with nothing to port, and `environment.ts` → `authentication.rs` for the
+  half that has a Tauri equivalent.
+- **`lib/hooks/**` is ported**, by concern rather than by filename: discovery, shell selection, shell
+  environment, transport, runner and wiring, plus `rdc-printenvz` and `rdc-hook-proxy`.
+- **Nine upstream bugs found and fixed**, each recorded in `MIGRATION_MAP.md` §8 with its consequence.
+- **No deferral without a named owner.** The export-level audit found additional deferrals beyond
+  the earlier file-level count. The complete list and owner for each is in `MIGRATION_MAP.md` §3;
+  the major groups are:
+
+| Left open | Owner | Why it isn't Phase 2 |
+|---|---|---|
+| Hook output, terminal capture and the failure prompt for commit/merge/rebase/push/pull | Phase 3 | The backend is complete; what's missing is commands passing a `HookInterception` and putting its callbacks on Channels. The enable setting behind it is Phase 7 state. |
+| Image diffs, and commands for `get_blob_contents`/`get_partial_blob_contents` | Phase 3 | Both wait on one decision — how raw bytes cross IPC — which is the IPC surface's to make, not the git layer's. |
+| `envForProxy`, `getGlobalConfigPath` | Phase 4 | Electron's `session.resolveProxy` and the `git config --edit` editor trick are platform integrations. **No remote operation has proxy support today**; that is a known gap, not an oversight. |
+| `getFilesDiffText`, the remaining rev-list queries, `getConfigValueWithOrigin` and its formatters, accounts/keychain, SSH env | Phase 7 | Each lands with its consumer, and the config formatters emit UI strings. |
+
+What Phase 2 does **not** own, and never did: deciding *whether* to intercept hooks, how bytes reach the
+webview, or where a proxy comes from. Those are the three places this phase stops.
+
+The implementation gates and the 60-file counterpart count are green. Every deferred export in
+the checklist now has an explicit Phase 3, 4, or 7 owner, so formal closure does not depend on
+implementing those later-phase features.
 
 | | |
 |---|---|
-| `lib/git` files with a Rust counterpart | **59 of 60**, with named deferrals inside some ports. The gap is `environment.ts` — see below |
+| `lib/git` files covered by a Rust concern | **60 of 60**. There are 59 filename-level counterparts; `environment.ts` is intentionally split between `authentication.rs` and Phase 4 proxy integration — see below |
 | `lib/diff-parser.ts` | ported to Rust, TypeScript version deleted |
 | `lib/git/log.ts` | ported to Rust |
 | `lib/git/show.ts`, `lib/git/diff-index.ts` | ported to Rust |
@@ -945,8 +992,9 @@ adaptation remain Phase 3 work.
 
 **What remains, by what blocks it:**
 
-- **Whole-file counterparts:** **59 of 60**. `environment.ts` is the exception: `envForAuthentication`
-  is `authentication.rs`, but `envForProxy` resolves a proxy through Electron's
+- **Filename-level whole-file counterparts:** **59 of 60; export coverage is 60 of 60 by concern.**
+  `environment.ts` is the split exception: `envForAuthentication` is `authentication.rs`, but
+  `envForProxy` resolves a proxy through Electron's
   `session.resolveProxy`, which has no Tauri counterpart — it needs reading the OS proxy configuration
   natively, so it belongs with Phase 4's platform integrations. **No remote operation has proxy
   support today**, not just the deferred ones; that gap is wider than the branch-deletion note below
@@ -976,8 +1024,9 @@ adaptation remain Phase 3 work.
 - `crates/git-ops/src/test_support.rs` — `empty_repository()` with deterministic branch name and
   identity/signing config, so tests don't depend on the developer's global git config.
 
-**Test-suite reality check.** `app/test/unit/git/**` is **45 files, 36 of which build real
-repositories** from fixtures — this is an integration suite, not a set of string-parsing unit
+**Test-suite reality check.** `app/test/unit/git/**` is **51 files recursively** (45 top-level
+plus 6 under `pull/` and `rebase/`), at least 36 of which build real repositories from fixtures
+— this is an integration suite, not a set of string-parsing unit
 tests. So Phase 2 needs a fixture harness (copy fixture dir → temp dir, rename `**/_git` → `.git`
 — the mechanism is simple), and the fixtures themselves are **8.7 MB**, 4.6 MB of that a single
 image-diff repo. **Vendor fixtures lazily**, per module as its tests are ported, rather than
@@ -1343,17 +1392,18 @@ work rather than being guessed at now.
 
 **Next:** step 2, then step 3.
 
-<details><summary>original phase description</summary>
-- Port `app/test/unit/git/**` (45 files, largest single test category) as the acceptance spec for `crates/git-ops`.
+<details><summary>original phase description (count corrected after recursive audit)</summary>
+- Port `app/test/unit/git/**` (51 files recursively, largest single test category) as the acceptance spec for `crates/git-ops`.
 - **Keep shelling out to the system `git` binary** (Rust `tokio::process::Command`), do **not** switch to `git2`/libgit2. This mirrors dugite's own deliberate choice — libgit2 has known gaps with LFS, credential helpers, partial clone, and hook execution that real desktop Git clients depend on. Reimplementing dugite's spawn/parse logic in Rust is more work than a libgit2 rewrite would save, and avoids a category of subtle correctness bugs.
 - Each `dugite`-based file in `app/src/lib/git/` maps to one Rust module in `crates/git-ops/src/`; port the parsing/formatting logic test-by-test.
 - `trampoline/` (10 files) + `ssh/` (4 files) → `crates/trampoline`, compiled as a small Rust sidecar binary bundled via Tauri's sidecar mechanism, replacing the vendored `desktop-trampoline` native binary. This is a real improvement: one Rust toolchain instead of a separately-maintained vendored binary per platform.
 
 </details>
 
-### Phase 3 — IPC surface → Tauri commands — **first vertical slice DONE**
+### Phase 3 — IPC surface → Tauri commands — **IN PROGRESS — 67 COMMANDS**
 
-The first command is wired end to end: `get_status` runs git in Rust and renders in React.
+The phase started with `get_status` wired end to end from Rust to React. The same command pattern now
+covers 67 registered commands; the full upstream channel inventory remains the next organizing pass.
 
 **Decisions settled by the slice, each of which was blocking:**
 - **Native Tauri IPC, no codegen** (see the struck-through item below), with a wire-contract test as
@@ -1411,8 +1461,8 @@ merge, noop merge, merge conflict/abort, merge-base lookup, rebase conflict stat
 continue, resolved continue, omitted tracked files, selected unrelated tracked changes, and keeping
 untracked files out of the replayed commit.
 
-One scope boundary remains explicit: interactive rebase waits for `reorder`/`squash` and the
-generated todo-list flow. It is not needed for the ordinary branch-on-branch rebase now exposed.
+Interactive rebase subsequently landed through the `reorder` and `squash` commands and their
+generated todo-list flows; ordinary branch-on-branch rebase remains the simpler path described here.
 
 The port pins `rebase.backend=merge`. The state/status code already expects the
 `.git/rebase-merge/**` files (`orig-head`, `head-name`, `onto`), and relying on a user's global
@@ -1428,9 +1478,9 @@ checkout wrappers accept an optional frontend callback, while always supplying t
 Channel. A closed webview drops progress updates without cancelling git and leaving the repository
 half-switched.
 
-Until submodule updates land, checkout emits an explicit `value: 1` after git succeeds. The original
-reserved the final 10% for submodules; preserving that weighting before the submodule step exists
-would leave every checkout apparently stuck at 90%.
+Checkout reserves the final 10% for submodule updates, matching the original weighting. The
+submodule implementation has now landed and fills that final portion; before it existed, checkout
+temporarily emitted an explicit `value: 1` after git succeeded.
 
 **Rebase now reuses that stream.** Start and continue parse Git's `Rebasing (n/m)` stderr records
 incrementally and emit the existing `IMultiCommitOperationProgress` domain shape through a Channel.
@@ -1446,9 +1496,9 @@ event.
 different state layout. `git-ops` stays independent of Tauri throughout — only the command layer
 adapts callbacks to Channels.
 
-**Current command count: 15. Next in this phase:** the remaining `ipc-shared.ts` channel inventory,
-merge/rebase hook and terminal output, and the trampoline handlers (the transport is done; the
-handlers need account state).
+**Current command count: 67. Next in this phase:** complete the literal `ipc-shared.ts` channel
+inventory, then use it to drive the remaining hook/terminal Channels, raw-byte blob commands,
+configuration/reset surfaces, and trampoline handlers that need account state.
 
 Note the sequencing argument here competes with Phase 2's: the channel inventory produces a *queue*,
 whereas `diff` removes the thing that makes the app unusable. `diff` first, then the inventory.
@@ -1550,7 +1600,8 @@ Port `app/test/unit/ui/**` (~30 files) alongside each component group, component
 - **Optional modernization** (explicitly not required for parity): many GH-Desktop-era components are class-based `PureComponent`s for manual `shouldComponentUpdate` optimization. React 19 supports class components fine — don't force a hooks rewrite during the port. Revisit per-component after parity, where profiling shows it's worth it.
 
 ### Phase 8 — E2E
-- Resolve the Playwright-vs-Tauri-driver question from Phase 0's spike.
+- Keep the Phase 0 decision: use `tauri-driver` through the Linux-only Compose harness. Choose the
+  WebDriver client library when the real specs land; that does not reopen the driver/backend decision.
 - Port `app-launch.e2e.ts` and the mock-update-server-based update flow test last, once Phase 4's updater swap has landed — the old test is intrinsically Squirrel-shaped and needs rewriting against `tauri-plugin-updater`'s flow, not a straight port.
 
 ### Phase 9 — Packaging & CLI

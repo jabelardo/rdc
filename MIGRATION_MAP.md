@@ -136,21 +136,21 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/config.ts` | `crates/git-ops/src/config.rs` — **partially done**: repository get/set/remove + boolean, a `GlobalConfig` type for the global scope, and `addSafeDirectory`/`addGlobalConfigValueIfMissing` (**contains an upstream bug fix — see §8**). Deferred: `getGlobalConfigPath` (needs the `git config --edit` + `GIT_EDITOR=printf` trick; a Phase 4 editor concern) and `getConfigValueWithOrigin` + `formatConfigScope`/`formatConfigPath`/`isConditionalInclude`/`getOriginFilePath` (display strings like `"global, via [includeIf]"` → frontend, same reasoning as `getDescriptionForError`). | 2 / 4 |
 | `lib/git/rev-parse.ts` | `crates/git-ops/src/rev_parse.rs` — **done**: `RepositoryType` (`Regular`/`Bare`/`Missing`/`Unsafe`), `get_repository_type`, and the upstream-ref helpers. | 2 |
 | `lib/git/rev-list.ts` (`getCommitsBetweenCommits`) | `crates/git-ops/src/rev_list.rs` — **partially done**: full-SHA/summary commit lists in replay order, used by rebase progress and recovery snapshots. The remaining rev-list queries land with their callers. | 2 / 3 |
-| `lib/helpers/default-branch.ts` (`getDefaultBranch`/`setDefaultBranch`) | **now unblocked** by `config.rs`'s `GlobalConfig`, but still outstanding: the `"main"` fallback is app policy that belongs above the git layer, so wire it up there rather than inside `git-ops`. | 2 |
+| `lib/helpers/default-branch.ts` (`getDefaultBranch`/`setDefaultBranch`) | **now unblocked** by `config.rs`'s `GlobalConfig`, but still outstanding: the `"main"` fallback is app policy that belongs above the git layer. The command surface is Phase 3; preference/tutorial consumers are Phase 7. | 3 / 7 |
 | `lib/status-parser.ts` + the status types from `models/status.ts` | `crates/git-ops/src/status_parser.rs` — **done**. **Supersedes the Phase 1 TypeScript port**: `src/lib/status-parser.ts` and its test are deleted, as is `src/lib/split-buffer.ts` (its only consumer was that parser, and it is Node `Buffer`-based so unusable in a webview). Decision recorded in `MIGRATION_PLAN.md` Phase 2: since `lib/git/status.ts` becomes a Rust command, parsing had to move with it, or Rust would ship raw porcelain over IPC for the frontend to interpret. | 2 |
 | `lib/trampoline/**` (11 files) + the vendored `desktop-trampoline` C binary | `src-tauri/crates/trampoline/` — **done**: transport, sidecar, credential protocol, session state, and askpass/credential handlers. Account storage and interactive UI decisions stay behind traits for Phase 7. One Rust crate replaces both the C binary and the TypeScript half. | 2 |
 | `lib/ssh/ssh.ts` (`parseAddSSHHostPrompt` only) | `rdc/src/lib/ssh/ssh-host-prompt.ts` — **done**. `getSSHEnvironment` stays with the trampoline/shell work; it produces `SSH_ASKPASS`/`GIT_SSH_COMMAND` pointing at the trampoline binary. | 2 / 4 |
 | `lib/git/status.ts` | `crates/git-ops/src/status.rs` — **done**: `get_status`, `StatusResult`, `AppFileStatus`, `ConflictedFileStatus`, header parsing and conflict-detail gathering. Returns git facts only; `WorkingDirectoryFileChange`/`DiffSelection`/`WorkingDirectoryStatus` stay frontend (see §8). | 2 |
 | `lib/git/merge.ts` (`isMergeHeadSet`, `isSquashMsgSet`), `lib/git/cherry-pick.ts` (`isCherryPickHeadFound`), `lib/git/rebase.ts` (`isRebaseHeadSet`, `getRebaseInternalState`) + `models/rebase.ts` (`RebaseInternalState`) | `crates/git-ops/src/operation_state.rs` — **done**. Collected into one module because these are the marker-file checks `status` needs and nothing else from those (154/499/627-line) files; the rest lands with each module's own port. | 2 |
 | `lib/git/diff-check.ts` | `crates/git-ops/src/diff_check.rs` — **done**. | 2 |
-| `lib/git/diff.ts` | `crates/git-ops/src/diff.rs` — **text path done**: working-directory, commit, range, conflict-resolution, size guards, submodules, and binary detection. Image previews remain deferred; the shared LFS plumbing is done in `lfs.rs`. **Contains an upstream bug fix — see §8.** | 2 |
+| `lib/git/diff.ts` | `crates/git-ops/src/diff.rs` — **text core done**: working-directory, commit, range, conflict-resolution, size guards, submodules, and binary detection. Branch-merge-base/changed-file helpers and `getFilesDiffText` land with their Phase 7 store consumers; byte IPC is Phase 3 and image UI is Phase 7. **Contains an upstream bug fix — see §8.** | 2 / 3 / 7 |
 | `lib/git/git-delimiter-parser.ts` (`createLogParser`) | `crates/git-ops/src/git_delimiter_parser.rs::LogParser` — **done** (needed by `getBinaryPaths`'s `check-attr` parsing). | 2 |
 | `lib/git/branch.ts` | `crates/git-ops/src/branch.rs` — **done**: `create_branch`, `get_branch_names`, `rename_branch` (incl. the case-only-rename retry), `delete_local_branch`, `delete_remote_branch`, `get_branches_pointed_at`, `get_merged_branches`. Remote deletion propagates authentication failures rather than classifying them, which is the original's explicit choice, and cleans up a stale tracking ref when the remote branch is already gone. Proxy support is absent here as everywhere — see `environment.ts`. | 2 |
 | `lib/git/for-each-ref.ts` | `crates/git-ops/src/for_each_ref.rs` — **done**: `get_branches` and `get_branches_differing_from_upstream`. This is the branch *list*; `branch.rs` is the branch *operations*. Hydrated into the `Branch` class by `src/lib/branch-ipc.ts`. Two deliberate improvements — epoch seconds instead of a `new Date()` parse of git's `iso8601`, and a canonicalized worktree-path comparison — see §8. | 2 |
 | `lib/git/environment.ts` | **partially ported, and the one `lib/git` file without a full counterpart.** `envForAuthentication` is `crates/git-ops/src/authentication.rs`; `getFallbackUrlForProxyResolve` and `envForProxy` are **not** ported, because `envForProxy` resolves through Electron's `session.resolveProxy`. There is no Tauri equivalent — it needs reading the OS proxy configuration natively, so it belongs with the Phase 4 platform integrations. Consequence: **no remote operation has proxy support today.** | 4 |
 | `lib/git/git-delimiter-parser.ts` | `crates/git-ops/src/git_delimiter_parser.rs` — **done**, including the `%x00` log parser. | 2 |
 | `lib/git/refs.ts` | `crates/git-ops/src/refs.rs` — **done** (`format_as_local_ref`, `get_symbolic_ref`). | 2 |
-| `lib/git/update-ref.ts` (`deleteRef`) | `crates/git-ops/src/update_ref.rs` — **done**. `updateRef` itself lands when a caller needs it. | 2 |
+| `lib/git/update-ref.ts` (`deleteRef`) | `crates/git-ops/src/update_ref.rs` — **done**. `updateRef` has no consumer anywhere in upstream and is deliberately dropped rather than carried as dead API. | 2 |
 | `lib/git/merge.ts` | `crates/git-ops/src/merge.rs` — **done**: merge (including squash/no-verify), merge-base lookup, conflict result, noop result, and abort. Hook/terminal streaming waits for the shared Channel/hook infrastructure. | 2 / 3 |
 | `lib/git/rebase.ts` | `crates/git-ops/src/rebase.rs` — **done except hook/terminal output**: start/continue/abort, selected-file staging, manual conflict resolutions, Channel progress, recovery snapshots, reorder, and squash. `rebase.backend=merge` is pinned because status and snapshot recovery consume `.git/rebase-merge/**`. | 2 / 3 |
 | `lib/git/worktree-include.ts`, `worktree.ts` | `crates/git-ops/src/worktree_include.rs` + `worktree.rs` — porcelain listing, linked-worktree fallback, lifecycle operations, ignore-pattern selection, and guarded best-effort copies **done**. | 2 |
@@ -233,6 +233,104 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/source-map-support.ts` | *(dropped)* | Node-specific stack-trace remapping for the Electron main process; superseded by Rust panic hook + Sentry (Phase 6) | 6 |
 | `lib/release-notes.ts` | `rdc/src/lib/release-notes.ts` **(tentative)** | see improvement flag in §2 — may not need a Rust command at all if changelog data becomes a bundled asset | 1 |
 
+### Phase 2 export-level closure checklist
+
+Audited against the recursive `desktop-plus/app/src/lib/git/**/*.ts` and
+`desktop-plus/app/src/lib/hooks/**/*.ts` trees, not against matching filenames in rdc. **Complete**
+means every exported runtime behavior is implemented or deliberately superseded. **Deferred**
+means the behavior has a concrete owner; the later phase need not implement it before Phase 2
+closes, but it must accept the handoff. Exported TypeScript-only types are tracked with the runtime
+operation that consumes them rather than counted as separate backend behavior.
+
+#### `lib/git` — 60 files
+
+| Upstream file | Exported behavior disposition | Status / owner |
+|---|---|---|
+| `add.ts` | `addConflictedFile` → `add_conflicted_file` | **complete** |
+| `apply.ts` | partial staging and discard → `apply.rs` + `patch_formatter.rs` | **complete** |
+| `authentication.ts` | authentication environment and error classification → `authentication.rs` + `git_error_kind.rs` | **complete** |
+| `branch.ts` | create, list names, rename, local/remote delete, pointed-at and merged queries → `branch.rs` | **complete** |
+| `checkout-index.ts` | `checkoutIndex` → `checkout_index.rs` | **complete** |
+| `checkout.ts` | branch/commit/path/conflict checkout and progress → `checkout.rs` | **complete** |
+| `cherry-pick.ts` | start, snapshot, continue, abort and state detection → `cherry_pick.rs` + `operation_state.rs` | **complete** |
+| `clean.ts` | `cleanUntrackedFiles` → `clean.rs` | **complete** |
+| `clone.ts` | clone and progress → `clone.rs` | **complete** |
+| `coerce-to-buffer.ts` | Node `Buffer` coercion is superseded by byte-native `GitOutput` | **complete — superseded** |
+| `coerce-to-string.ts` | string coercion is superseded by explicit lossy/trimmed output conversion | **complete — superseded** |
+| `commit.ts` | create/amend and merge commits → `commit.rs`; hook/terminal Channel adaptation remains | backend **complete**; Channel handoff **Phase 3**, enable state **Phase 7** |
+| `config.ts` | repository/global get/set/add/remove and booleans → `config.rs`; global config path remains platform/editor work; origin/display formatters remain frontend work | backend **complete**; deferred **Phase 4 / Phase 7** |
+| `core.ts` | process execution, output, errors, auth classification, rebase flags and SHA parsing → `exec.rs`, `error.rs`, `git_error_kind.rs` and callers; config-lock/user-facing descriptions remain frontend policy | backend **complete**; descriptions/config-lock presentation **Phase 7**; hook adaptation **Phase 3** |
+| `create-tail-stream.ts` | bounded terminal history → `terminal_output.rs` / `multi_operation_terminal_output.rs` | **complete — superseded** |
+| `credential.ts` | credential parse/format/fill/approve/reject protocol → `trampoline` | **complete** |
+| `description.ts` | read/write repository description → `description.rs` | **complete** |
+| `diff-check.ts` | conflict-marker detection → `diff_check.rs` | **complete** |
+| `diff-index.ts` | index status, null tree and index changes → `diff_index.rs` + `models/index-status.ts` | **complete** |
+| `diff.ts` | working-directory, commit, range and resolution text diffs plus binary detection → `diff.rs`; branch-merge-base diff/changed-files, commit-range changed-files and `getFilesDiffText` wait for store consumers; image production waits for byte IPC and UI | backend text core **complete**; query consumers **Phase 7**; byte IPC **Phase 3**, image UI **Phase 7** |
+| `environment.ts` | authentication half → `authentication.rs`; proxy fallback/resolution has no Electron-free equivalent yet | **deferred Phase 4** |
+| `fetch.ts` | fetch, refspec fetch and fast-forward → `fetch.rs` | **complete** |
+| `for-each-ref.ts` | branches and upstream-difference queries → `for_each_ref.rs` | **complete** |
+| `format-patch.ts` | mailbox patch generation → `format_patch.rs` | **complete** |
+| `git-delimiter-parser.ts` | log and for-each-ref delimiter parsers → `git_delimiter_parser.rs` | **complete** |
+| `gitignore.ts` | root read/save/append and escaping → `gitignore.rs` | **complete** |
+| `index.ts` | barrel exports only; consumers import the replacement modules directly | **complete — dropped barrel** |
+| `init.ts` | repository initialization → `init.rs`; default branch is an explicit caller argument | **complete** |
+| `interpret-trailers.ts` | parsing/merging → `interpret_trailers.rs`; trailer model/predicate → `models/trailer.ts` | **complete — split** |
+| `lfs.ts` | filter/hook installation and attribute queries → `lfs.rs` | **complete** |
+| `log.ts` | commits, changed files, raw/numstat parsing, commit and authors → `log.rs` | **complete** |
+| `merge-tree.ts` | mergeability calculation → `merge_tree.rs` | **complete** |
+| `merge.ts` | merge, base, abort and state detection → `merge.rs` + `operation_state.rs`; hook/terminal Channel adaptation remains | backend **complete**; Channel handoff **Phase 3**, enable state **Phase 7** |
+| `multi-operation-terminal-output.ts` | bounded replay and live fan-out → `multi_operation_terminal_output.rs`; per-command Channel adapter remains | backend **complete**; deferred **Phase 3** |
+| `pull.ts` | pull and progress → `pull.rs`; hook/terminal Channel adaptation remains | backend **complete**; Channel handoff **Phase 3**, enable state **Phase 7** |
+| `push-terminal-chunk.ts` | bounded terminal chunk handling → `terminal_output.rs` | **complete** |
+| `push.ts` | push, lease and progress → `push.rs`; hook/terminal Channel adaptation remains | backend **complete**; Channel handoff **Phase 3**, enable state **Phase 7** |
+| `rebase.ts` | state, snapshot, start/continue/abort and interactive reorder/squash → `rebase.rs`, `reorder.rs`, `squash.rs`; hook/terminal adaptation remains | backend **complete**; Channel handoff **Phase 3**, enable state **Phase 7** |
+| `reflog.ts` | recent branches and branch checkouts → `reflog.rs` | **complete** |
+| `refs.ts` | local-ref formatting and symbolic ref → `refs.rs` | **complete** |
+| `remote.ts` | list/add/remove/set/get URL and remote HEAD → `remote.rs`; frontend memoization is intentionally dropped | **complete** |
+| `reorder.ts` | interactive reorder → `reorder.rs` | **complete** |
+| `reset.ts` | `unstageAll` → `reset.rs`; reset modes and path/reset entry points are used by stores and need commands/wire types | partial; command surface **Phase 3**, consumers **Phase 7** |
+| `rev-list.ts` | range builders and commit-range queries → `rev_list.rs`; ahead/behind and merge-after-commit queries remain with store consumers | partial; deferred **Phase 7** |
+| `rev-parse.ts` | repository type and upstream ref/remote queries → `rev_parse.rs` | **complete** |
+| `revert.ts` | revert and progress → `revert.rs` | **complete** |
+| `rm.ts` | unstage-all/remove-conflicted behavior → `reset.rs` + `rm.rs` | **complete — split** |
+| `show.ts` | full and capped blob reads → `show.rs`; no byte-returning Tauri command yet | backend **complete**; command/representation **Phase 3** |
+| `spawn.ts` | dugite spawn wrapper → byte-native async `exec.rs` | **complete — superseded** |
+| `squash.ts` | interactive squash → `squash.rs` | **complete** |
+| `stage.ts` | manual and batch conflict resolution staging → `stage.rs` | **complete** |
+| `stash.ts` | list/create/drop/pop/move/rename/last-entry/files → `stash.rs` | **complete** |
+| `status.ts` | status execution, parsing and operation state → `status.rs` + `status_parser.rs` + `operation_state.rs` | **complete** |
+| `submodule.ts` | update/list/reset and checkout integration → `submodule.rs` | **complete** |
+| `tag.ts` | create/delete/list/tags-to-push → `tag.rs` | **complete** |
+| `update-index.ts` | whole-file and partial selection staging → `update_index.rs` | **complete** |
+| `update-ref.ts` | `deleteRef` → `update_ref.rs`; `updateRef` has no consumer anywhere in upstream and is deliberately not carried as dead API | **complete — unused export dropped** |
+| `var.ts` | author identity → `var.rs` | **complete** |
+| `worktree-include.ts` | patterns, matching copies and add-with-includes → `worktree_include.rs` | **complete** |
+| `worktree.ts` | parse/list/add/remove/move worktrees → `worktree.rs` | **complete** |
+
+#### `lib/hooks` — 7 files
+
+| Upstream file | Exported behavior disposition | Status / owner |
+|---|---|---|
+| `config.ts` | hook enable/cache/shell preferences are frontend `localStorage` state | **deferred Phase 7** |
+| `get-repo-hooks.ts` | hook discovery → `hooks/discovery.rs` | **complete** |
+| `get-shell-env.ts` | login-shell environment loading → `hooks/shell_env.rs` + `rdc-printenvz` | **complete** |
+| `get-shell.ts` | Unix shell selection → `hooks/shell.rs`; Git Bash/Windows selection remains platform work | Unix **complete**; Windows **Phase 4** |
+| `hooks-proxy.ts` | proxy transport/runner/server → `hooks/{protocol,client,server,runner}.rs` + `rdc-hook-proxy` | backend **complete**; command Channel handoff **Phase 3** |
+| `shell-escape.ts` | POSIX shell escaping → `hooks/shell.rs`; cmd/PowerShell escaping remains Windows platform work | Unix **complete**; Windows **Phase 4** |
+| `with-hooks-env.ts` | stand-ins, server lifetime and environment injection → `hooks/with_env.rs`; commands still opt in | backend **complete**; command handoff **Phase 3**, enable state **Phase 7** |
+
+#### Adjacent Phase 2 handoffs
+
+- `lib/helpers/default-branch.ts`: `getDefaultBranch`/`setDefaultBranch` are app policy over global
+  config. The configuration command surface is **Phase 3**; preference and tutorial consumers are
+  **Phase 7**.
+- `crates/trampoline`: Linux and macOS credential/askpass transport is complete. Windows token
+  generation requires `BCryptGenRandom`, and Windows shell selection/escaping is likewise absent;
+  the Windows port is explicitly owned by **Phase 4**. Until then, Windows is not a supported rdc
+  target.
+- The acceptance suite count is **51 recursively**, not 45: 45 files at `test/unit/git/` plus four
+  under `git/pull/` and two under `git/rebase/`.
+
 Everything else in `lib/**` not listed above → §2 (portable, stays TS as-is).
 
 ---
@@ -287,13 +385,13 @@ Phase: 7 (all rows).
 
 | Old path | New home | Notes |
 |---|---|---|
-| `test/unit/git/**` (45 files) | `crates/git-ops/src/**` (`#[cfg(test)]`, inline per Rust convention) | acceptance spec for Phase 2 |
+| `test/unit/git/**` (51 files recursively: 45 top-level + 6 nested) | `crates/git-ops/src/**` (`#[cfg(test)]`, inline per Rust convention) | acceptance spec for Phase 2 |
 | `test/unit/stores/**` (5 + `updates/`) | `rdc/src/lib/stores/**/*.test.ts` (Vitest, colocated) | Phase 7 |
 | `test/unit/main-process/**` (2: menu, spell-checker-menu) | `src-tauri/src/platform/menu/**` (`#[cfg(test)]`) | Phase 4 |
 | `test/unit/ui/**` (~30 `.tsx`) | `rdc/src/ui/**/*.test.tsx` (Vitest + Testing Library, colocated) | Phase 7 |
 | remaining ~25 top-level `*-test.ts` (lib utils / models) | colocated `*.test.ts` next to the ported file in `rdc/src/lib/**` or `rdc/src/models/**` | Phase 1 |
 
-### Ported in Phase 1 (31 files, 288 tests, all green)
+### Landed in the initial Phase 1 slice (historical: 31 files, 288 tests)
 
 Colocated as `src/**/*.test.ts`, converted from `node:test` per the recipe in
 `MIGRATION_PLAN.md` Phase 1. Assertions kept verbatim (still `node:assert`) so these function
@@ -315,14 +413,16 @@ needs `@github/copilot-sdk` for a *type-only* import, and that package pulls `ko
 FFI binary that doesn't belong in a webview frontend's dependency tree. Revisit if/when the
 Copilot feature is actually migrated; the type could also just be declared locally.
 
-Also ported (Step 2): `diff-parser` → `src/lib/diff-parser.test.ts`, alongside
-`src/lib/diff-parser.ts` and the new `src/lib/diff-hunks.ts` (see §8).
+Also ported in Step 2: `diff-parser` → `src/lib/diff-parser.test.ts`, alongside
+`src/lib/diff-parser.ts` and the new `src/lib/diff-hunks.ts` (see §8). Phase 2 later moved parsing
+to Rust and deleted both TypeScript parser implementations/tests; these counts are the Phase 1
+closure snapshot, not the current tree.
 
 **Blocked** (5, was 15): `ipc-contract`, `popup-manager`, `format-commit-message`, `stats-store`,
-`app-store-test-harness`. All six are now genuinely phase-gated rather than blocked by
+`app-store-test-harness`. All five are now genuinely phase-gated rather than blocked by
 layering — what each needs, and in which phase, is tabulated in `MIGRATION_PLAN.md`.
 
-**Recovered (2):**
+**Recovered (9):**
 - `create-branch` → `src/lib/create-branch.test.ts` (9 tests), by extracting the trailer type out
   of the git layer.
 - `pull-request-refs` → `src/lib/pull-request-refs.test.ts` (6 tests), by extracting the
@@ -335,7 +435,7 @@ layering — what each needs, and in which phase, is tabulated in `MIGRATION_PLA
   `src/lib/multi-commit-operation.test.ts` (20 tests), by decomposing `lib/app-state.ts` into
   `src/lib/app-state/` and narrowing two over-specified parameter types (§8).
 
-**Re-checked after `status` landed: still all 15.** Porting git to Rust could not unblock them —
+**Historical checkpoint after `status` landed: still all 15.** Porting git to Rust could not unblock them —
 they are TypeScript tests whose closure reaches `lib/git/**` via `import`, and a Rust
 implementation gives TypeScript nothing to import. The blocker is not "git isn't implemented" but
 "TypeScript still asks for git the Node way". The eight edges responsible, and the cheapest way to
@@ -347,10 +447,11 @@ tests". Short version: `interpret-trailers` → Rust unblocks `create-branch` ou
 
 ## 7. IPC channel table (`app/src/lib/ipc-shared.ts`, 77 channels)
 
-Not yet populated — build this table at the start of Phase 3: one row per channel name,
-its direction (request/response vs main→renderer push), and its target Tauri
-command/event name. Do it as a dedicated pass over `ipc-shared.ts` rather than ad hoc as UI
-components get ported, per `MIGRATION_PLAN.md` Phase 3.
+**Partially populated**, and the remaining work is the first Phase 3 task: the rows below were added as
+each backend slice shipped a command, which is ad hoc by construction. The dedicated pass over
+`ipc-shared.ts` — one row per channel name, its direction (request/response vs main→renderer push), and
+its target Tauri command or event — has not been done, and it is what shows which of the 77 channels the
+67 existing commands actually cover.
 
 Each row's TypeScript wrapper lives in a `src/lib/*-ipc.ts` module grouped by domain, and the JSON
 shape of everything it carries is pinned by a wire-contract test on the Rust side.
@@ -727,9 +828,14 @@ tree, Electron, and `lib/stores`:
 | `crates/git-ops/src/rev_parse.rs` (Phase 2) | `resolve()` is lexical, not `std::fs::canonicalize` | The original used Node's `path.resolve`, which does not resolve symlinks. Canonicalizing would return a different path than the caller passed in — immediately visible on macOS, where the temp dir is a symlink (`/var` → `/private/var`), breaking any comparison against the input path. Unit-tested directly for the empty-cdup, walk-up, relative and absolute cases. |
 | `crates/git-ops/src/rev_parse.rs` (Phase 2) | test env vars are passed per-invocation via `get_repository_type_with_env`, not by mutating the process environment | The original's unsafe-repository test set `process.env` and restored it with `process.env[k] = undefined`, which in Node assigns the **literal string `"undefined"`** — leaving `GIT_TEST_ASSUME_DIFFERENT_OWNER` set to a non-empty value for everything running afterwards in that process. Per-invocation env makes that class of leakage impossible. |
 | `crates/git-ops/src/test_support.rs` (Phase 2) | `conflicted_repository()` merges `main`; the original `setupConflictedRepo` merged `master` | Follows from `empty_repository()` pinning `main`. Also note the helper needs `run_allowing_failure` for the merge step: the conflict means git exits non-zero *by design*, which the TypeScript helpers got for free because dugite's `exec` returns a result instead of throwing. |
+| `crates/git-ops/src/config.rs` (Phase 2) | `GlobalConfig::with_home` now also pins `GIT_CONFIG_GLOBAL`, not just `HOME` | The type exists so a test cannot write to the developer's real `~/.gitconfig`, and that guarantee was **defeatable**: `GIT_CONFIG_GLOBAL` outranks `HOME`, so an ambient one sent both reads and writes back to the real file. Found while reproducing a CI-only failure by running the suite with a hostile ambient config; `rev_parse`'s dubious-ownership test had the same hole. Pointing the variable at the stub file overrides an ambient value instead of relying on it being unset. |
+| `crates/git-ops/src/{config,var}.rs` (Phase 2) | two tests rewritten to pin the global config, after passing locally and failing in CI | Both asked what git does when the *repository* config has no answer — the one case where ambient global and system config decide. `vouching_for_a_repository_makes_git_work_in_it` was suppressed by a system-wide `safe.directory = *` (CI images set one), so it asserted a refusal that never came; `falls_back_past_the_repository_config` relied on the developer having a global identity **and** on macOS's hostname carrying a domain for git to synthesise an email from, neither of which holds on a fresh Linux runner. Reproduced locally via `GIT_CONFIG_SYSTEM`/`GIT_CONFIG_GLOBAL` before changing anything. The fix added `var::get_author_identity_with_env`, following `rev_parse::get_repository_type_with_env`, which also let the previously-uncovered `useConfigOnly`-with-nothing-anywhere case be tested at last. A guard test now asserts the `safe.directory` stub actually restores the check, so it cannot rot into a vacuous pass. |
 | `crates/git-ops/src/exec.rs` (Phase 2) | a capped read reports truncation as **success**, where Node's `maxBuffer` made it an error | The original's `getPartialBlobContents` set `maxBuffer` and then *caught* the rejection to recover `e.stdout` as its answer — the bytes it wanted arrived by way of an error path. That is an artifact of Node's API, not behaviour worth reproducing: `git_capped` returns the prefix with `truncated: true`, so a caller finds its answer where answers go. What the port does have to reproduce is the killing: once reading stops, git blocks writing to a full pipe and would never exit, so it is killed — and because that death is a signal, the exit status is deliberately not classified. Stderr drains in its own task, since a git that filled *stderr* while stdout was being read would block before writing the bytes being waited for. A test with a 4 MiB blob and a 10-byte cap fails by hanging if either half is wrong. |
 | `crates/git-ops/src/hooks/protocol.rs` (Phase 2) | a **new** wire protocol, not a ported one, modelled on `trampoline` | `process-proxy` ships a native binary, so there was nothing to port. Three choices differ from the trampoline's message, each for a reason: the **token is positional and first**, so it can be checked before anything else is parsed (the trampoline inherited its placement inside the environment block from the vendored C client); **stdin is length-prefixed bytes**, because it is written to a file for `git hook run --to-stdin` and must survive byte for byte; and the **response is framed** (`E` chunks then one `X` exit code) rather than a single reply, because output has to arrive while the hook runs and an exit code has to follow it. The request is size-capped because the server must read before it can authenticate. |
 | `crates/git-ops/src/hooks/with_env.rs` (Phase 2) | escapes the stand-in directory in `GIT_CONFIG_PARAMETERS`, **closing an upstream TODO** | The original wrote `'core.hooksPath=${tmpHooksDir}'` with a comment asking whether the path could contain a single quote — "probably not?". It can: the parent is `TMPDIR`, which is the user's to set, and an unescaped quote would end the quoted item early, leaving git to read the rest of the path as further configuration. git parses this variable with its shell-style `sq_dequote`, so a quote is escaped as `'\''`. Tested. |
+| `crates/git-ops/src/hooks/with_env.rs` (Phase 2) | stand-ins are **symlinks**, not copies | Copying an executable and then running it races with `fork` in another thread: Linux fails `execve` with `ETXTBSY` ("Text file busy") while any process holds the file open for writing, and `CLOEXEC` closes an inherited descriptor only *after* the kernel has made that check. Measured on Debian: **370 of 400 copied executables failed to run, and 0 of 400 symlinked ones**. It surfaced as an intermittent CI failure in the tests; in the app the window is smaller but git spawns plenty of subprocesses of its own. A symlinked inode is never open for writing, so there is no window. Falls back to copying where symlinks need a privilege (Windows). A test asserts the stand-in is a link, so a change back to copying fails with the reason attached. |
+| `crates/git-ops/src/cherry_pick.rs` (Phase 2) | picks the spelling of "keep an empty commit" that this git has | `--empty=keep`, which upstream passes, needs git **2.45** — and **Ubuntu 24.04 LTS ships 2.43**, where it makes every cherry-pick fail with exit 129 and a usage dump about an option the user never typed. `--keep-redundant-commits` is its documented deprecated synonym and behaves identically; verified on 2.39 and 2.53, both keeping the empty commit. The modern spelling is still preferred where it exists, since the synonym will eventually go. Upstream could ignore this because it bundles its own git; rdc runs the system one. Probed with `exec::supports_flag`, which is where the technique is explained. |
+| `crates/git-ops/src/hooks/runner.rs` (Phase 2) | probes for `git hook run --to-stdin` and fails the hook with an explanation when it is missing | The option is **newer than `git hook run` itself**, and it is the only way to give a hook stdin — git otherwise runs one with none (verified on 2.39 and 2.50), so piping is not an alternative. Upstream never had to ask because it **bundles its own git**, and says so: "we can't be certain the user's Git binary is new enough". rdc runs the system git, and distros inside their support windows lack it: **Ubuntu 22.04 LTS ships git 2.34.1 and Debian 12 ships 2.39.5, neither with `--to-stdin`**; Ubuntu 24.04 (2.43), Ubuntu 26.04 (2.53) and `ubuntu-latest` all have it. Without the probe, a `pre-push` on such a machine fails with `error: unknown option 'to-stdin'` — an error about a flag the user never typed. With it, the message names the hook and says a newer git enables it, and the hook is **not** run without the data it expects, since a `pre-push` that reads no refs could approve a push it was written to reject. `hook run -h` is the probe: it lists the options this git has and runs no hook. |
 | `crates/git-ops/src/hooks/runner.rs` (Phase 2) | resolves git to an **absolute path** before replacing the environment; no `ensureGitExecPathEnv` equivalent | Rust resolves a bare program name through the **child's** `PATH` (verified experimentally), and the hook's environment is the *shell's* — so `git` alone would let a hook's shell decide which git runs it, or fail outright if that environment had no `PATH`. Resolving against rdc's own `PATH` keeps hook execution on the same git as every other operation here. That also removes the need for upstream's `ensureGitExecPathEnv`, which existed only because it invoked a *bundled* git built without a prefix, which set `GIT_EXEC_PATH` to a path that doesn't exist. |
 | `crates/git-ops/src/hooks/runner.rs` (Phase 2) | sets **`RDC=1`** alongside upstream's `GITHUB_DESKTOP=1` | Hooks in the wild test for `GITHUB_DESKTOP` (upstream added it for desktop/desktop#19001), so dropping it would silently change how those behave — it is kept as **compatibility, not identity**. rdc is not GitHub Desktop, so `RDC` is the variable to test for from here on, and both are documented in the runner. |
 | `crates/git-ops/src/bin/rdc-hook-proxy.rs` (Phase 2) | **fails closed** when the app can't be reached | A hook that didn't run is not a hook that passed. Exiting zero would let a commit through that the user's `pre-commit` hook would have blocked; the cost of the opposite choice is a confusing failure, which is the better failure. Also reads stdin only for the five hooks git pipes it to — reading unconditionally would block until git closed the pipe, the same trap `rdc-trampoline` documents for askpass, and there is a timeout-guarded test for it. |

@@ -27,26 +27,25 @@ fn printenvz() -> PathBuf {
 
 /// Writes a stand-in shell whose "init file" is `body`, and returns it as a [`Shell`].
 ///
-/// It receives the same arguments a real shell would — `-ilc` and then one quoted command — so `$2` is
-/// the command to run. Running it through `sh -c` is what a shell does with `-c`.
+/// The script receives the same arguments a real shell would — `-ilc` and then one quoted command — so
+/// `$2` is the command to run, and running it through `sh -c` is what a shell does with `-c`.
+///
+/// # `/bin/sh <script>` rather than executing the script
+///
+/// `Shell::path` is `/bin/sh` with the script as its first argument, so the interpreter **reads** the
+/// script instead of the kernel executing it. Executing a file that was just written races with `fork` in
+/// another thread — Linux answers `ETXTBSY`, "Text file busy" — and with tests running in parallel that is
+/// frequent enough to fail CI while passing when run alone. `ETXTBSY` applies to `execve` only, so reading
+/// the script sidesteps it entirely, the same reasoning as the symlinked stand-ins in
+/// `hooks::with_env::install_stand_in`.
 fn shell_that_exports(dir: &Path, body: &str) -> Shell {
     let path = dir.join("stand-in-shell");
-    std::fs::write(
-        &path,
-        format!("#!/bin/sh\n{body}\nexec /bin/sh -c \"$2\"\n"),
-    )
-    .expect("failed to write the stand-in shell");
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
-            .expect("failed to make the stand-in shell executable");
-    }
+    std::fs::write(&path, format!("{body}\nexec /bin/sh -c \"$2\"\n"))
+        .expect("failed to write the stand-in shell");
 
     Shell {
-        path,
-        args: vec!["-ilc".to_owned()],
+        path: PathBuf::from("/bin/sh"),
+        args: vec![path.to_string_lossy().into_owned(), "-ilc".to_owned()],
     }
 }
 
@@ -160,6 +159,11 @@ async fn a_path_with_a_space_or_a_quote_still_runs() {
     let awkward = dir.path().join("bin dir's");
     std::fs::create_dir(&awkward).expect("failed to create the directory");
     let copied = awkward.join("rdc-printenvz");
+    // Linked rather than copied: running an executable that was just written races with `fork` in another
+    // thread and Linux answers `ETXTBSY`. See `hooks::with_env::install_stand_in`.
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(printenvz(), &copied).expect("failed to link the binary");
+    #[cfg(not(unix))]
     std::fs::copy(printenvz(), &copied).expect("failed to copy the binary");
 
     let shell = shell_that_exports(dir.path(), "export QUOTED_OK=yes");
@@ -176,6 +180,7 @@ async fn a_path_with_a_space_or_a_quote_still_runs() {
 
 #[tokio::test]
 async fn reports_a_shell_that_cannot_be_run() {
+    // A real `Shell` here, not the `/bin/sh <script>` harness: this is about the shell itself missing.
     let shell = Shell {
         path: PathBuf::from("/nonexistent/shell"),
         args: vec!["-ilc".to_owned()],

@@ -118,8 +118,9 @@ fn fill_random(buffer: &mut [u8]) {
 
 #[cfg(not(unix))]
 fn fill_random(_buffer: &mut [u8]) {
-    // rdc targets Linux and macOS. A Windows port must supply a real CSPRNG here — a weak token
+    // Phase 4 owns the Windows platform port and must supply a real CSPRNG here — a weak token
     // would let any local process impersonate git, so failing loudly beats a guessable fallback.
+    // Until that handoff lands, rdc supports the Unix implementation only.
     unimplemented!("token generation needs a Windows CSPRNG (BCryptGenRandom)")
 }
 

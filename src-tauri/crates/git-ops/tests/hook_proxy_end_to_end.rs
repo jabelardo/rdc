@@ -16,10 +16,20 @@ use git_ops::hooks::server::{runner, HookRequest, HookServer, ServerHandle, Stde
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc;
 
-/// Places a copy of the proxy binary under `hook`'s name, the way `core.hooksPath` will need it.
+/// Puts a stand-in for `hook` in `dir`, the way `core.hooksPath` will need it.
+///
+/// A **symlink**, for the reason `hooks::with_env::install_stand_in` documents: copying an executable and
+/// then running it races with `fork` in another thread, and Linux answers `ETXTBSY`. These tests spawn
+/// many processes at once, which is where that first showed up.
 fn stand_in(dir: &Path, hook: &str) -> PathBuf {
     let path = dir.join(hook);
-    std::fs::copy(env!("CARGO_BIN_EXE_rdc-hook-proxy"), &path).expect("failed to copy the binary");
+    let binary = Path::new(env!("CARGO_BIN_EXE_rdc-hook-proxy"));
+
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(binary, &path).expect("failed to link the binary");
+    #[cfg(not(unix))]
+    std::fs::copy(binary, &path).expect("failed to copy the binary");
+
     path
 }
 
