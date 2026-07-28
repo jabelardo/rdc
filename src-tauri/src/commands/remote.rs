@@ -117,6 +117,43 @@ pub async fn push(
     Ok(())
 }
 
+/// Deletes a branch on a remote.
+///
+/// ```js
+/// await invoke('delete_remote_branch', {
+///   repositoryPath, remoteName: 'origin', remoteBranchName: 'topic', isBackgroundTask: false,
+/// })
+/// ```
+///
+/// No `Channel`: a deletion pushes nothing, so git reports no progress to stream.
+///
+/// A branch already deleted on the remote resolves rather than failing — the local remote-tracking ref
+/// is cleaned up instead, which is the state the caller asked for.
+#[tauri::command]
+pub async fn delete_remote_branch(
+    state: State<'_, TrampolineState>,
+    repository_path: String,
+    remote_name: String,
+    remote_branch_name: String,
+    is_background_task: Option<bool>,
+) -> Result<(), CommandError> {
+    let remote = state
+        .session_for(&repository_path, is_background_task.unwrap_or(false))
+        .await
+        .map_err(bind_error)?;
+
+    git_ops::branch::delete_remote_branch(
+        &repository_path,
+        &remote_name,
+        &remote_branch_name,
+        &remote.env,
+    )
+    .await
+    .map_err(|error| remote_error(&remote, error))?;
+
+    Ok(())
+}
+
 /// Fetches from a remote.
 ///
 /// ```js

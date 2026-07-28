@@ -7,25 +7,40 @@
 //! The original's `stageFiles` took `WorkingDirectoryFileChange`, which carries a `DiffSelection` —
 //! the per-line ticks the user has made in the UI. That is view state, so it doesn't belong in this
 //! crate (the same reasoning as in [`crate::status`]). Instead the frontend sends a
-//! [`FileToStage`] per fully-selected file, which is everything the index needs.
-//!
-//! # Deferred: partial selections
-//!
-//! The original routed partially-selected files through `applyPatchToIndex`, which builds a patch
-//! from the `DiffSelection` and pipes it to `git apply --cached`. That needs the patch formatter
-//! (`lib/patch-formatter.ts`) ported too, so it is **not implemented here** — see
-//! `MIGRATION_MAP.md` §9. [`stage_files`] handles whole-file staging, which is what every
-//! non-partial commit path needs.
+//! [`FileToStage`] per file: index facts for a whole-file stage, and for a partially-ticked file the
+//! line indices plus the status needed to build a patch out of them ([`PartialSelection`]).
 
 use std::ffi::OsStr;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::apply::apply_patch_to_index;
 use crate::error::GitError;
 use crate::exec::{git, GitOptions};
+use crate::patch_formatter::LineSelection;
+use crate::status::AppFileStatus;
 
-/// A file the user has selected for staging in full.
+/// The lines a user ticked in a file they only partly selected.
+///
+/// Carries the status because a patch — unlike an index update — depends on *how* the file changed: a
+/// new file's patch has no old side to write context against, and a rename's has to be rebuilt in the
+/// index before it can be targeted. Whole-file staging needs none of that, which is why the status
+/// lives here rather than on [`FileToStage`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PartialSelection {
+    /// How the file changed.
+    pub status: AppFileStatus,
+
+    /// Indices of the selected lines, counted across the whole unified diff.
+    ///
+    /// Absolute rather than per-hunk, matching `DiffSelection` in the UI and
+    /// [`LineSelection`](crate::patch_formatter::LineSelection): index zero is the first hunk's header.
+    pub selected_lines: Vec<u32>,
+}
+
+/// A file the user has selected for staging.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileToStage {
@@ -41,6 +56,14 @@ pub struct FileToStage {
     /// Whether the file is gone from the working tree.
     #[serde(default)]
     pub deleted: bool,
+
+    /// Set when only some of the file's lines were ticked.
+    ///
+    /// Its presence, not its contents, is what routes the file: a file with a selection is staged by
+    /// applying a patch, and the other three fields are then ignored — [`apply_patch_to_index`] derives
+    /// what it needs from the status.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub partial: Option<PartialSelection>,
 }
 
 impl FileToStage {
@@ -50,6 +73,7 @@ impl FileToStage {
             path: path.into(),
             old_path: None,
             deleted: false,
+            partial: None,
         }
     }
 
@@ -59,6 +83,7 @@ impl FileToStage {
             path: path.into(),
             old_path: None,
             deleted: true,
+            partial: None,
         }
     }
 
@@ -68,6 +93,24 @@ impl FileToStage {
             path: path.into(),
             old_path: Some(old_path.into()),
             deleted: false,
+            partial: None,
+        }
+    }
+
+    /// A file of which only `selected_lines` were ticked.
+    pub fn partial(
+        path: impl Into<String>,
+        status: AppFileStatus,
+        selected_lines: impl IntoIterator<Item = u32>,
+    ) -> Self {
+        Self {
+            path: path.into(),
+            old_path: None,
+            deleted: false,
+            partial: Some(PartialSelection {
+                status,
+                selected_lines: selected_lines.into_iter().collect(),
+            }),
         }
     }
 }
@@ -145,6 +188,11 @@ async fn update_index(
 /// 3. **Force-remove deleted paths.** Step 2 can resurrect a deletion: `--remove` only drops a path
 ///    git considers gone, and a staged delete alongside an untracked file at the same path is
 ///    ambiguous. This pass makes the deletion stick.
+///
+/// A fourth pass then applies a patch per partially-selected file. Those files are held out of the
+/// first three: updating the index from the working tree would stage the whole file, which is the
+/// opposite of what was asked. Renames need no special handling here either — the patch path rebuilds
+/// them itself.
 pub async fn stage_files(
     repository: impl AsRef<Path>,
     files: &[FileToStage],
@@ -154,8 +202,14 @@ pub async fn stage_files(
     let mut normal = Vec::new();
     let mut old_renamed = Vec::new();
     let mut deleted = Vec::new();
+    let mut partial = Vec::new();
 
     for file in files {
+        if let Some(selection) = &file.partial {
+            partial.push((file.path.as_str(), selection));
+            continue;
+        }
+
         normal.push(file.path.clone());
 
         if let Some(old_path) = &file.old_path {
@@ -180,6 +234,11 @@ pub async fn stage_files(
         UpdateIndexOptions { force_remove: true },
     )
     .await?;
+
+    for (path, selection) in partial {
+        let selected_lines = LineSelection::new(selection.selected_lines.iter().copied());
+        apply_patch_to_index(repository, path, &selection.status, &selected_lines).await?;
+    }
 
     Ok(())
 }
@@ -235,7 +294,56 @@ async fn staged_status(repository: impl AsRef<Path>) -> Vec<(String, String)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::diff::{get_working_directory_diff, Diff};
     use crate::test_support::{commit_file, empty_repository};
+
+    fn modified() -> AppFileStatus {
+        AppFileStatus::Modified {
+            submodule_status: None,
+        }
+    }
+
+    async fn selected_line_indices(
+        repository: &Path,
+        path: &str,
+        status: &AppFileStatus,
+        selected_text: &[&str],
+    ) -> Vec<u32> {
+        let diff = get_working_directory_diff(repository, path, status, false)
+            .await
+            .expect("diffing should succeed");
+        let data = match diff {
+            Diff::Text(data) | Diff::LargeText(data) => data,
+            other => panic!("expected a text diff, got {:?}", other.kind()),
+        };
+
+        data.hunks
+            .iter()
+            .flat_map(|hunk| {
+                hunk.lines
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, line)| selected_text.contains(&line.text.as_str()))
+                    .map(|(offset, _)| {
+                        hunk.unified_diff_start
+                            + u32::try_from(offset).expect("test diff should fit in u32")
+                    })
+            })
+            .collect()
+    }
+
+    async fn staged_contents(repository: &Path, path: &str) -> String {
+        git(
+            &["show", &format!(":{path}")],
+            repository,
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("show should succeed")
+        .stdout_lossy()
+        .into_owned()
+    }
 
     #[tokio::test]
     async fn stages_nothing_when_given_no_files() {
@@ -276,6 +384,36 @@ mod tests {
             .expect("should succeed");
 
         assert_eq!(staged_paths(repo.path()).await, vec!["wanted".to_owned()]);
+    }
+
+    #[tokio::test]
+    async fn stages_only_the_selected_lines_of_a_partial_file() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "partial.txt", "one\ntwo\nthree\n", "first");
+        std::fs::write(repo.path().join("partial.txt"), "ONE\ntwo\nTHREE\n")
+            .expect("failed to write");
+
+        let status = modified();
+        let selected_lines =
+            selected_line_indices(&repo.path(), "partial.txt", &status, &["-one", "+ONE"]).await;
+
+        stage_files(
+            repo.path(),
+            &[FileToStage::partial("partial.txt", status, selected_lines)],
+        )
+        .await
+        .expect("partial staging should succeed");
+
+        assert_eq!(
+            staged_contents(&repo.path(), "partial.txt").await,
+            "ONE\ntwo\nthree\n",
+            "only the selected change reaches the index"
+        );
+        assert_eq!(
+            std::fs::read_to_string(repo.path().join("partial.txt")).expect("failed to read"),
+            "ONE\ntwo\nTHREE\n",
+            "partial staging leaves every working-tree change intact"
+        );
     }
 
     #[tokio::test]

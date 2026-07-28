@@ -104,14 +104,23 @@ export async function getStatus(
   })
 }
 
+/** The lines selected from a partially-selected text file. */
+export interface IPartialSelection {
+  /** The file status determines how Rust constructs the partial patch. */
+  readonly status: AppFileStatus
+  /**
+   * Absolute indices across the unified diff, including hunk headers.
+   *
+   * These are the same indices consumed by `DiffSelection`.
+   */
+  readonly selectedLines: ReadonlyArray<number>
+}
+
 /**
- * A file the user has selected for staging, in full.
+ * A file the user has selected for staging.
  *
- * `oldPath` and `deleted` both have defaults on the Rust side, so a plain added or modified file is
- * just `{ path }`.
- *
- * Partially-selected files can't be sent yet — the Rust side stages whole files only, because
- * per-line staging needs the patch formatter ported first.
+ * `oldPath`, `deleted`, and `partial` have defaults on the Rust side, so a fully-selected added or
+ * modified file is just `{ path }`.
  */
 export interface IFileToStage {
   readonly path: string
@@ -119,6 +128,8 @@ export interface IFileToStage {
   readonly oldPath?: string
   /** Whether the file is gone from the working tree. */
   readonly deleted?: boolean
+  /** Present when only the listed lines should be staged. */
+  readonly partial?: IPartialSelection
 }
 
 /** Options for {@linkcode createCommit}. Every flag defaults to off. */
@@ -336,10 +347,7 @@ export async function rebaseBranch(
 }
 
 /**
- * Stages fully-selected files and manual resolutions, then continues the active rebase.
- *
- * Do not include untracked or partially-selected files. Partial selections remain gated on the
- * patch formatter, as they are for commits.
+ * Stages selected files and manual resolutions, then continues the active rebase.
  */
 export async function continueRebase(
   repositoryPath: string,

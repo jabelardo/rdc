@@ -5,15 +5,17 @@
 //! libgit2 — the same deliberate choice dugite made, because libgit2 has known gaps around LFS,
 //! credential helpers, partial clone and hook execution.
 //!
-//! The acceptance spec is `desktop-plus/app/test/unit/git/**` (47 files); modules are ported
+//! The acceptance spec is `desktop-plus/app/test/unit/git/**` (45 files); modules are ported
 //! test-by-test, and `MIGRATION_MAP.md` tracks which are done.
 
 #![warn(clippy::all)]
 
 pub mod add;
+pub mod apply;
 pub mod authentication;
 pub mod branch;
 pub mod checkout;
+pub mod checkout_index;
 pub mod cherry_pick;
 pub mod clean;
 pub mod clone;
@@ -27,13 +29,20 @@ pub mod diff_parser;
 pub mod error;
 pub mod exec;
 pub mod fetch;
+pub mod for_each_ref;
+pub mod format_patch;
 pub mod git_delimiter_parser;
 pub mod git_error_kind;
+pub mod gitignore;
 pub mod init;
 pub mod interpret_trailers;
+pub mod lfs;
 pub mod log;
 pub mod merge;
+pub mod merge_tree;
+pub mod multi_operation_terminal_output;
 pub mod operation_state;
+pub mod patch_formatter;
 pub mod progress;
 pub mod pull;
 pub mod push;
@@ -60,21 +69,25 @@ pub mod terminal_output;
 pub mod update_index;
 pub mod update_ref;
 pub mod var;
+pub mod worktree;
+pub mod worktree_include;
 
 #[cfg(test)]
 mod test_support;
 
 pub use add::add_conflicted_file;
+pub use apply::{apply_patch_to_index, discard_changes_from_selection};
 pub use authentication::{env_for_authentication, AUTHENTICATION_ERRORS};
 pub use branch::{
-    create_branch, delete_local_branch, get_branch_names, get_branches_pointed_at,
-    get_merged_branches, rename_branch,
+    create_branch, delete_local_branch, delete_remote_branch, get_branch_names,
+    get_branches_pointed_at, get_merged_branches, rename_branch,
 };
 pub use checkout::{
     checkout_branch, checkout_branch_with_progress, checkout_commit, checkout_commit_with_progress,
     checkout_conflicted_file, checkout_paths, CheckoutProgress, CheckoutProgressKind,
     CheckoutTarget, ManualConflictResolution,
 };
+pub use checkout_index::checkout_index;
 pub use cherry_pick::{
     abort_cherry_pick, cherry_pick, continue_cherry_pick, get_cherry_pick_snapshot,
     CherryPickResult, CherryPickSnapshot,
@@ -87,8 +100,9 @@ pub use config::{
 };
 pub use description::{get_description, write_description, DEFAULT_DESCRIPTION};
 pub use diff::{
-    get_binary_paths, get_commit_diff, get_commit_range_diff, get_working_directory_diff, Diff,
-    DiffType, LineEnding, LineEndingsChange, SubmoduleDiffData, TextDiffData,
+    get_binary_paths, get_commit_diff, get_commit_range_diff, get_resolution_diff,
+    get_working_directory_diff, Diff, DiffType, LineEnding, LineEndingsChange, ResolutionDiff,
+    ResolutionDiffTarget, SubmoduleDiffData, TextDiffData,
 };
 pub use diff_check::get_files_with_conflict_markers;
 pub use diff_index::{get_index_changes, IndexStatus, NULL_TREE_SHA};
@@ -100,25 +114,39 @@ pub use diff_parser::{
 pub use error::GitError;
 pub use exec::{git, git_with_stderr, GitOptions, GitOutput, TERMINAL_OUTPUT_CAPACITY};
 pub use fetch::{fast_forward_branches, fetch, fetch_refspec, FetchProgress, FetchProgressKind};
+pub use format_patch::format_commit_range_patch;
 pub use git_delimiter_parser::ForEachRefParser;
 pub use git_error_kind::{parse_bad_config_value, parse_error, BadConfigValue, GitErrorKind};
+pub use gitignore::{
+    append_ignore_files, append_ignore_rules, escape_git_special_characters,
+    read_gitignore_at_root, save_gitignore,
+};
 pub use init::init_repository;
 pub use interpret_trailers::{
     get_trailer_separator_characters, merge_trailers, parse_raw_unfolded_trailers,
     parse_single_unfolded_trailer, parse_trailers, Trailer,
+};
+pub use lfs::{
+    files_not_tracked_by_lfs, install_global_lfs_filters, install_lfs_hooks, is_tracked_by_lfs,
+    is_using_lfs,
 };
 pub use log::{
     get_authors, get_changed_files, get_commit, get_commits, parse_raw_log_with_numstat,
     ChangesetData, Commit, CommitIdentity, CommittedFileChange,
 };
 pub use merge::{abort_merge, get_merge_base, merge, MergeOptions, MergeResult};
+pub use merge_tree::{determine_mergeability, MergeTreeResult};
+pub use multi_operation_terminal_output::{
+    MultiOperationTerminalOutput, TerminalOutputSubscription,
+};
 pub use operation_state::{
     get_rebase_internal_state, is_cherry_pick_head_found, is_merge_head_set, is_rebase_head_set,
     is_squash_msg_set, RebaseInternalState,
 };
+pub use patch_formatter::{format_patch, format_patch_to_discard_changes, LineSelection};
 pub use progress::{
-    parse_progress_line, GitProgress, GitProgressInfo, GitProgressParser, ProgressLineSplitter,
-    ProgressStep,
+    parse_progress_line, GitLfsProgressParser, GitProgress, GitProgressInfo, GitProgressParser,
+    ProgressLineSplitter, ProgressStep,
 };
 pub use pull::{pull, PullProgress, PullProgressKind};
 pub use push::{push, PushOptions, PushProgress, PushProgressKind, PushTarget};
@@ -161,6 +189,15 @@ pub use status_parser::{
 pub use submodule::{list_submodules, reset_submodule_paths, update_submodules, SubmoduleEntry};
 pub use tag::{create_tag, delete_tag, fetch_tags_to_push, get_all_tags};
 pub use terminal_output::{push_terminal_bytes, push_terminal_chunk};
-pub use update_index::{stage_files, FileToStage};
+pub use update_index::{stage_files, FileToStage, PartialSelection};
 pub use update_ref::delete_ref;
 pub use var::get_author_identity;
+pub use worktree::{
+    add_worktree, list_worktrees, list_worktrees_from_git_dir,
+    list_worktrees_from_git_dir_fallback, move_worktree, parse_worktree_porcelain_output,
+    remove_worktree, AddWorktreeOptions, WorktreeEntry, WorktreeType,
+};
+pub use worktree_include::{
+    add_worktree_with_includes, copy_worktree_include_files, get_ignored_files_matching_patterns,
+    read_worktree_include_patterns,
+};

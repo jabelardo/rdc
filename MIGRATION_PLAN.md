@@ -240,18 +240,19 @@ Note that ~15 of the tests re-scoped in Step 4 also depend on it, so they unbloc
 effect. Start with the `Repository.url` redesign — the git-calling model is the knot that keeps
 the largest number of tests out of reach.
 
-### Phase 2 — Git backend (`git-ops` crate) — **IN PROGRESS (~half)**
+### Phase 2 — Git backend (`git-ops` crate) — **IN PROGRESS (final stretch)**
 
-**Current state, measured.** `lib/git` is 60 files / 9,485 lines. `git-ops` is 29 modules /
-10,934 lines with 324 Rust tests, `fmt`/`clippy -D warnings`/`test` green.
+**Current state, measured.** `lib/git` is 60 files / 9,485 lines. `git-ops` is 62 files /
+27,340 lines with 750 tests of its own; the workspace runs 874 Rust tests plus 545 TypeScript ones,
+with `fmt`/`clippy -D warnings`/`test`/`tsc` green. 66 commands are exposed.
 
 | | |
 |---|---|
-| `lib/git` files with a Rust counterpart | **24 of 60** (5 of them explicitly partial) |
+| `lib/git` files with a Rust counterpart | **59 of 60**, with named deferrals inside some ports. The gap is `environment.ts` — see below |
 | `lib/diff-parser.ts` | ported to Rust, TypeScript version deleted |
 | `lib/git/log.ts` | ported to Rust |
 | `lib/git/show.ts`, `lib/git/diff-index.ts` | ported to Rust |
-| `lib/git/diff.ts` | text diff path ported; image/LFS deferred |
+| `lib/git/diff.ts` | text and conflict-resolution diff paths ported; image path deferred |
 | `lib/trampoline/**`, `lib/git/credential.ts` | handlers ported; accounts/UI behind traits |
 | `lib/git/{push,fetch,pull}.ts`, `lib/progress/**` | ported to Rust; hooks deferred |
 | `lib/git/{clone,remote}.ts` | ported to Rust |
@@ -259,13 +260,24 @@ the largest number of tests out of reach.
 | `lib/git/submodule.ts` | ported to Rust; closes `checkout`'s deferral |
 | `lib/git/{squash,reorder}.ts` | ported to Rust; closes `rebase`'s interactive deferral |
 | `lib/git/{tag,revert,reflog,description,var,clean}.ts` | ported to Rust |
-| Original `app/test/unit/git/**` files migrated | **16 of 45** |
+| `lib/git/apply.ts` + `lib/patch-formatter.ts` | ported to Rust; partial staging and partial discard done |
+| `lib/git/{gitignore,checkout-index,format-patch}.ts` | ported to Rust |
+| `lib/git/{worktree,worktree-include,merge-tree}.ts` | ported to Rust |
+| `lib/git/lfs.ts`, `lib/progress/lfs.ts` | filters, attributes, and live transfer progress ported |
+| `lib/git/multi-operation-terminal-output.ts` | bounded replay and live aggregation ported |
+| `lib/git/for-each-ref.ts` | ported to Rust; the branch list, with hydration into the `Branch` class |
+| `lib/git/environment.ts` | **partially ported**: the authentication env lives in `authentication.rs`; `envForProxy` has no Tauri equivalent — see below |
 
 **Ported:** `exec`+`error`+`git_error_kind` (`core.ts`, less the frontend error copy), `status`,
-`status_parser`, `rebase` (non-interactive), `checkout`, `branch`, `commit`, `config`, `rev_parse`,
+`status_parser`, `rebase` (including interactive), `checkout`, `branch`, `commit`, `config`, `rev_parse`,
 `update_index`, `interpret_trailers`, `terminal_output`, `git_delimiter_parser`, `operation_state`,
 `merge`, `stage`, `rev_list` (partial), `reset` (`unstageAll`), `update_ref` (`deleteRef`), `add`,
-`diff_check`, `refs`, `init`, `rm`, `diff` (**`getBinaryPaths` only — 1 of 12 functions**).
+`apply`, `patch_formatter`, `diff_check`, `refs`, `init`, `rm`, the text-diff path, `diff_parser`,
+`diff_index`, `show`, `log`, `push`, `fetch`, `pull`, `clone`, `remote`, `stash`, `cherry_pick`,
+`submodule`, `squash`, `reorder`, `tag`, `revert`, `reflog`, `description`, `var`, and `clean`.
+`gitignore`, `checkout_index`, `format_patch`, `worktree`, `worktree_include`, and `merge_tree` are
+also ported. LFS installation, attribute queries, and progress tracking are ported in `lfs` and
+`progress`.
 
 Narratives for the slices that landed as full vertical slices — merge, rebase, checkout progress
 streaming — are written up under **Phase 3** below, because each shipped backend *and* command
@@ -397,7 +409,9 @@ exceeds the limit in bytes but not in characters.
 **Deferred, with the reason:** image diffs need the blob-bytes-over-IPC decision from `show`, so a
 binary image currently reports `Binary` and an SVG reports plain text — the original wrapped the SVG's
 text diff inside an image diff, so the text half is intact and only the second view mode is missing.
-`getFilesDiffText`, `getResolutionDiff` and LFS need temp-file plumbing or their own modules.
+`getFilesDiffText` remains with its store consumer. `getResolutionDiff` now has its own backend-local
+temp-file path. The shared LFS command and progress layer is also ported; image previews remain
+blocked on the raw-bytes-over-IPC decision.
 
 **The trampoline handlers landed**, which is the structural blocker for the eight network-bound files.
 Three pieces: the credential protocol (`credential.rs`), per-operation session state and the
@@ -484,7 +498,8 @@ declining makes git fall through to *its* helpers, so a repository reachable ove
 agent, or over HTTPS with a system credential manager, works now. Accounts, keychain and the prompt UI
 are Phase 7.
 
-**`clone` and `remote` finished the network group** apart from LFS. 35 commands.
+**`clone` and `remote` finished the initial network group.** The LFS command and progress layer
+followed in the later slice described below. 35 commands at this point.
 
 Two things checked against real git rather than inferred, both of which corrected a test I had already
 written:
@@ -642,23 +657,134 @@ worktree at `repo/../linked-worktree` — which resolves into the *shared* syste
 passed alone and then failed in the full run against a leftover from the earlier one. Tests must write
 only inside their own temp directory; it now uses a dedicated one.
 
-**The percentage flatters it.** Everything above is the *write* path. The *read* path a user
-actually looks at is the gap: `diff.ts` is the largest file in the git layer at 1,032 lines with
-1 of 12 functions ported, and `log.ts` (376) has none. Phase 7 cannot show a change or a history
-without them, so they are the critical path, not `push`/`pull`.
+**Partial staging landed next.** `lib/git/apply.ts` and its only prerequisite,
+`lib/patch-formatter.ts`, now live in `apply.rs` and `patch_formatter.rs`. `FileToStage` carries the
+domain `AppFileStatus` plus absolute selected-line indices only when a file is partial; full-file
+staging keeps its small shape. `stage_files` preserves the original order: rebuild whole-file index
+state first, then apply each partial patch sequentially.
+
+The formatter keeps the non-obvious patch arithmetic the original depended on: an unselected
+addition disappears, an unselected deletion becomes context, and a new file has no old side on
+which context can exist. Partial staging uses `git apply --cached --unidiff-zero`; partial discard
+omits `--cached` and takes the exact diff the user selected against, so a stale file fails rather
+than discarding different lines.
+
+Two details worth keeping:
+
+- **`--unidiff-zero` is not optional.** A partial patch legitimately rewrites its own context — an
+  unselected deletion becomes a context line — so git's usual check that the surrounding lines match
+  would reject a patch that is correct.
+- **The discard command takes the diff as an argument**, the only command that does. The line indices
+  only mean anything against the diff the user was shown, so re-reading it in the backend could
+  discard different lines. That gave the boundary its first *reverse* hydration:
+  `dehydrateTextDiff` in `diff-ipc.ts` turns the domain classes back into the wire shape, and the
+  proof it agrees with Rust is a test that dehydrates Rust's own snapshot output and compares, plus a
+  Rust test that deserializes the same snapshot bytes back into `TextDiffData`.
+
+Partial staging needs no command of its own: it travels as the `partial` field of an existing
+`FileToStage`, so every path that already stages files — commit, merge commit, rebase continue, stash
+— gained per-line selections without a new endpoint. 63 commands.
+
+**`for-each-ref` landed next, and it was not in the plan — the plan said it was done.** A file-by-file
+recount against the tree found it unported: `refs.rs` is `refs.ts`, and nothing produced the branch
+list. That makes it the largest single thing Phase 2 was still missing, since `getBranches` feeds the
+branch dropdown, the compare view and history, and `getBranchesDifferingFromUpstream` feeds
+fast-forwarding. The lesson is the counting method: matching module names 1:1 makes a *missing* file
+look like a renamed one, so the recount compared upstream filenames against the tree rather than
+against the doc.
+
+Both functions came over with the four upstream tests plus twelve more, and two fixtures
+(`repo-with-many-refs`, `repo-with-non-updated-branches`) were vendored for them. `Branch` hydrates in
+`branch-ipc.ts`, since its getters derive `remoteName`, `nameWithoutRemote` and `upstreamRemoteName`.
+65 commands.
+
+Three details worth keeping:
+
+- **Timestamps come from git as epoch seconds, not ISO strings.** The original asked for
+  `%(authordate:iso8601)` and handed the result to `new Date()` — but git's `iso8601` is
+  space-separated (`2021-01-22 11:45:28 +0100`), which the ECMAScript spec does not require an engine
+  to parse; it worked because V8 accepts it. `%(authordate:unix)` removes the parse and matches how
+  every other timestamp crosses this boundary.
+- **The worktree-path comparison canonicalizes both sides.** `getBranchesDifferingFromUpstream`
+  excludes branches checked out in *other* worktrees by comparing `%(worktreepath)` against the
+  repository path. git prints a fully resolved path, so on macOS — where a temp directory is reached
+  through `/var` but reported as `/private/var` — the original's string comparison would have
+  classified a branch checked out *here* as belonging elsewhere. A test reaches a repository through a
+  symlink to pin this.
+- **The SHA comparison is why this is one git invocation.** Ahead/behind counts would need a rev-list
+  per branch; comparing each local tip against its upstream's tip answers "does it differ?" from a
+  single `for-each-ref`.
+
+**`deleteRemoteBranch` closed `branch.rs`.** Its recorded blocker had been stale for several slices —
+`envForAuthentication` landed with the trampoline — so all it needed was the credential env the caller
+already threads through push, pull and fetch. 66 commands.
+
+Two behaviours are worth knowing, both the original's:
+
+- **Authentication failures propagate as errors here**, unlike in `push` where they come back
+  classified. The original said why in a comment: the caller handles them. So only
+  `BranchDeletionFailed` is declared expected.
+- **That one expected failure means the remote ref was already gone**, and the response is to delete the
+  local remote-tracking ref instead of reporting anything. Someone else deleting the branch first
+  produces the state the user asked for, and leaving the tracking ref would point at a branch that no
+  longer exists.
+
+**Three small local primitives landed next.** `gitignore.rs` preserves the original line-ending
+rules driven by `core.autocrlf` and `core.safecrlf`, including its deliberate escaping set for file
+patterns. `checkout_index.rs` sends NUL-delimited paths to `checkout-index --stdin -z`, so newline
+paths remain unambiguous, and keeps exit 1 as an accepted partial result. `format_patch.rs` emits
+the original minimal, one-line-context mailbox patch for an exclusive commit range. These are
+backend-local building blocks, so they add no IPC surface until a frontend workflow needs them.
+
+**The whole-file counterpart sweep is complete.** `worktree.rs` preserves the NUL-delimited
+porcelain parser, linked-admin-directory fallback, and add/move/remove operations.
+`worktree_include.rs` uses Git-compatible ignore matching, copies only already-ignored files, and
+keeps the original best-effort copy behavior plus its lexical path-traversal guard. `merge_tree.rs`
+uses `merge-tree --write-tree` without touching the index or worktree, counts conflicted paths, and
+classifies unrelated histories as invalid. These remain backend-local until their store/UI
+consumers land.
+
+**The LFS slice landed next.** `lfs.rs` installs global filters and repository hooks, detects
+configured LFS patterns from `lfs track --json`, asks Git's attribute engine whether individual
+paths use the LFS filter, and filters batches without reimplementing `.gitattributes` matching.
+`GitLfsProgressParser` preserves the side-channel protocol and aggregates byte counts across files.
+
+`git_with_stderr_and_lfs` creates a private progress file, tails it while Git is running, and removes
+it on completion. Clone, fetch, pull, push, checkout, revert, and submodule update now report those
+events. The progress file is a side channel because Git LFS is a filter process and does not write
+its detailed transfer records to Git's stderr. Image previews remain a separate Phase 7 concern:
+they require choosing how raw blob bytes cross IPC, not additional LFS plumbing.
+
+**Conflict-resolution diffs followed as a backend-local slice.** `get_resolution_diff` compares the
+working-tree conflict-marker file with either caller-supplied resolved content or Git's stage 2/3
+blob. A missing stage is the deletion side of a modify/delete conflict and intentionally becomes an
+empty target, matching the original. Private temporary files are removed by their RAII directory,
+and the result keeps both exact content strings for later syntax highlighting and context expansion.
+All five cases from `diff-resolution-test.ts` and `diff-stage-test.ts` are ported; no IPC shape was
+needed.
+
+**Multi-operation terminal output is now backend-local too.** A cloneable aggregator replaces the
+original's nested callback/listener API: sequential Git operations share one bounded history, late
+subscribers receive that history before live chunks, and live chunks remain untrimmed. Subscription
+handles unsubscribe on drop. The six upstream cases run against two real `git version` processes;
+one additional Rust test pins the RAII ownership behavior. Per-command capture and Tauri Channel
+adaptation remain Phase 3 work.
 
 **What remains, by what blocks it:**
 
-- **Blocked on the trampoline handlers** (transport done; handlers need account state): `push`,
-  `pull`, `fetch`, `clone`, `remote`, `credential`, `environment`, `lfs` — ~900 lines.
-- **Unblocked, purely local:** `diff` (1,032), `cherry-pick` (499), `stash` (390), `log` (376),
-  `submodule` (212), `squash` (173), `worktree` (166), `gitignore` (157), `reorder` (153),
-  `tag` (134), `reflog` (127), `apply` (120), `diff-index` (116), `revert`, `show`, `var`,
-  `merge-tree`, `checkout-index`.
-- **Deferred inside ported modules**, each with a named prerequisite: partial per-line staging
-  (needs `patch-formatter`), hook + terminal output for commit/merge/rebase (Channels — the
-  streaming runner now exists, so this is cheaper than it was), checkout submodule updates,
-  interactive rebase (needs `reorder`/`squash`).
+- **Whole-file counterparts:** **59 of 60**. `environment.ts` is the exception: `envForAuthentication`
+  is `authentication.rs`, but `envForProxy` resolves a proxy through Electron's
+  `session.resolveProxy`, which has no Tauri counterpart — it needs reading the OS proxy configuration
+  natively, so it belongs with Phase 4's platform integrations. **No remote operation has proxy
+  support today**, not just the deferred ones; that gap is wider than the branch-deletion note below
+  implied and is recorded here rather than inside one module.
+- **Not a `lib/git` file, but adjacent and unported:** `app/src/lib/hooks/**` (7 files, 863 lines) —
+  hook discovery, shell resolution and the hook environment, reached from `core.ts`. It is the real
+  prerequisite for the hook-output deferral, which several modules name without pointing at it.
+- **Deferred inside ported modules:** hook output and per-command terminal capture/Channel wiring for
+  commit/merge/rebase/push/pull, image diffs, capped partial-blob reads, `getFilesDiffText`,
+  remote-branch deletion, and the remaining config/proxy helpers. Each has a named later consumer or
+  platform prerequisite.
 
 **Landed, in order** (the counts below are historical, from each slice as it landed):
 - `src-tauri` is now a **Cargo workspace** (root package = the Tauri app, members = `crates/*`)
@@ -676,7 +802,7 @@ without them, so they are the critical path, not `push`/`pull`.
 - `crates/git-ops/src/test_support.rs` — `empty_repository()` with deterministic branch name and
   identity/signing config, so tests don't depend on the developer's global git config.
 
-**Test-suite reality check.** `app/test/unit/git/**` is **47 files, 36 of which build real
+**Test-suite reality check.** `app/test/unit/git/**` is **45 files, 36 of which build real
 repositories** from fixtures — this is an integration suite, not a set of string-parsing unit
 tests. So Phase 2 needs a fixture harness (copy fixture dir → temp dir, rename `**/_git` → `.git`
 — the mechanism is simple), and the fixtures themselves are **8.7 MB**, 4.6 MB of that a single
@@ -738,8 +864,8 @@ wire it up above `git-ops`, not inside it.
 
 **Also landed (fifth slice, 118 Rust tests): `branch` and its helpers.**
 - `branch.rs` — create/rename/delete/list, `get_branches_pointed_at`, `get_merged_branches`.
-  `deleteRemoteBranch` is **deferred**: it pushes a deletion, so it needs `envForRemoteOperation`
-  (trampoline credentials + proxy), both outstanding.
+  `deleteRemoteBranch` **has since landed** — see the slice note below. (Its blocker was stale by the
+  time anyone checked: `envForAuthentication` arrived with the trampoline.)
 - `git_delimiter_parser.rs` (`createForEachRefParser`), `refs.rs`, `update_ref.rs` (`deleteRef`).
 - `GitError::Parse` added, for "git succeeded but its output didn't match the requested shape".
 
@@ -1086,10 +1212,9 @@ likewise derived from the Rust source rather than hand-typed, so its 60 variants
 commands are now exposed. Three things are deliberately deferred, each with a named prerequisite
 rather than an intention:
 
-- **Partial (per-line) staging** needs `lib/patch-formatter.ts` ported — the original built a patch
-  from the UI's `DiffSelection` and piped it to `git apply --cached`. Whole-file staging works.
+- ~~**Partial (per-line) staging**~~ **Done**, in the `apply` + `patch_formatter` slice below.
 - **Checkout progress** is now a `Channel`, not a callback (see the streaming note above).
-  **Submodule updates** still need `lib/git/submodule.ts`.
+  ~~**Submodule updates**~~ **Done**, with `lib/git/submodule.ts`.
 - **Hook output** (`interceptHooks`, `onHookProgress`) is also a Channel. Hooks still *run* — git runs
   them regardless; what's missing is showing their output.
 

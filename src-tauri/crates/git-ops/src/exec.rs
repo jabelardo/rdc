@@ -9,7 +9,7 @@
 //! - dugite's regex-based error classification (`GitError`) and `getDescriptionForError`
 //! - trampoline/askpass credential environment (`withTrampolineEnv`)
 //! - hook interception (`withHooksEnv`)
-//! - LFS progress tracking
+//! - hook interception
 //!
 //! Timing/measurement is intentionally *not* a port of `ui/lib/git-perf.ts` — see
 //! MIGRATION_MAP.md §9; it belongs here as `tracing` spans when tracing is introduced.
@@ -17,6 +17,9 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
@@ -191,6 +194,89 @@ where
     F: FnMut(&[u8]) + Send,
 {
     git_streaming(args, path, name, options, on_stdout, |_| {}).await
+}
+
+/// Runs git while streaming stderr and the line protocol written to `GIT_LFS_PROGRESS`.
+pub async fn git_with_stderr_and_lfs<E, L>(
+    args: &[impl AsRef<std::ffi::OsStr>],
+    path: impl AsRef<Path>,
+    name: &str,
+    mut options: GitOptions,
+    on_stderr: E,
+    on_lfs_progress: L,
+) -> Result<GitOutput, GitError>
+where
+    E: FnMut(&[u8]) + Send,
+    L: FnMut(&str) + Send,
+{
+    let Ok(progress_file) = tempfile::NamedTempFile::new() else {
+        return git_with_stderr(
+            args,
+            path,
+            name,
+            options.without_env("GIT_LFS_PROGRESS"),
+            on_stderr,
+        )
+        .await;
+    };
+    let progress_file = progress_file.into_temp_path();
+    let progress_path = progress_file.to_path_buf();
+    options.remove_env.remove("GIT_LFS_PROGRESS");
+    options = options.with_env(
+        "GIT_LFS_PROGRESS",
+        progress_path.to_string_lossy().into_owned(),
+    );
+
+    let done = Arc::new(AtomicBool::new(false));
+    let git_done = Arc::clone(&done);
+    let git_future = async {
+        let result = git_with_stderr(args, path, name, options, on_stderr).await;
+        git_done.store(true, Ordering::Release);
+        result
+    };
+    let tail_future = tail_lfs_progress(&progress_path, done, on_lfs_progress);
+    let (result, ()) = tokio::join!(git_future, tail_future);
+    drop(progress_file);
+    result
+}
+
+async fn tail_lfs_progress<L>(path: &Path, done: Arc<AtomicBool>, mut on_line: L)
+where
+    L: FnMut(&str),
+{
+    let Ok(mut file) = tokio::fs::File::open(path).await else {
+        return;
+    };
+    let mut pending = Vec::new();
+    let mut chunk = [0_u8; 4096];
+
+    loop {
+        match file.read(&mut chunk).await {
+            Ok(0) if done.load(Ordering::Acquire) => break,
+            Ok(0) => tokio::time::sleep(Duration::from_millis(10)).await,
+            Ok(count) => {
+                pending.extend_from_slice(&chunk[..count]);
+                emit_complete_lines(&mut pending, &mut on_line);
+            }
+            Err(_) => return,
+        }
+    }
+
+    if !pending.is_empty() {
+        let line = String::from_utf8_lossy(&pending);
+        on_line(line.trim_end_matches('\r'));
+    }
+}
+
+fn emit_complete_lines<L>(pending: &mut Vec<u8>, on_line: &mut L)
+where
+    L: FnMut(&str),
+{
+    while let Some(end) = pending.iter().position(|byte| *byte == b'\n') {
+        let line = pending.drain(..=end).collect::<Vec<_>>();
+        let text = String::from_utf8_lossy(&line[..line.len() - 1]);
+        on_line(text.trim_end_matches('\r'));
+    }
 }
 
 /// Runs git, delivering both streams as they arrive.
@@ -535,6 +621,27 @@ mod tests {
             output.stdout_trimmed(),
             "ce013625030ba8dba906f756967f9e9ca394464a"
         );
+    }
+
+    #[tokio::test]
+    async fn streams_lines_written_to_the_lfs_progress_file() {
+        let repo = empty_repository().await;
+        let alias =
+            "alias.emit-lfs=!printf 'download 1/1 5/5 file.bin\\n' >> \"$GIT_LFS_PROGRESS\"";
+        let mut lines = Vec::new();
+
+        git_with_stderr_and_lfs(
+            &["-c", alias, "emit-lfs"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+            |_| {},
+            |line| lines.push(line.to_owned()),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(lines, ["download 1/1 5/5 file.bin"]);
     }
 
     #[tokio::test]

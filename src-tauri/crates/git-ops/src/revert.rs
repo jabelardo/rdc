@@ -19,12 +19,13 @@
 //! and honest about what the number means.
 
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::{git, git_with_stderr, GitOptions};
-use crate::progress::ProgressLineSplitter;
+use crate::exec::{git, git_with_stderr_and_lfs, GitOptions};
+use crate::progress::{GitLfsProgressParser, GitProgress, ProgressLineSplitter};
 
 /// A revert progress update.
 ///
@@ -67,26 +68,44 @@ where
     }
     args.push(commit.to_owned());
 
-    let Some(mut on_progress) = on_progress else {
+    let Some(on_progress) = on_progress else {
         git(&args, repository, "revert", GitOptions::default()).await?;
         return Ok(());
     };
 
     let mut splitter = ProgressLineSplitter::new();
+    let mut lfs_parser = GitLfsProgressParser::default();
+    let progress = Arc::new(Mutex::new(on_progress));
+    let regular_progress = Arc::clone(&progress);
+    let lfs_progress = Arc::clone(&progress);
 
-    git_with_stderr(
+    git_with_stderr_and_lfs(
         &args,
         repository,
         "revert",
         GitOptions::default(),
         |chunk| {
             for line in splitter.push(chunk) {
-                on_progress(RevertProgress {
-                    kind: RevertProgressKind::Revert,
-                    // Always zero, as upstream — there is nothing to compute it from.
-                    value: 0.0,
-                    title: String::new(),
-                    description: Some(line),
+                with_progress_callback(&regular_progress, |callback| {
+                    callback(RevertProgress {
+                        kind: RevertProgressKind::Revert,
+                        // Always zero, as upstream — there is nothing to compute it from.
+                        value: 0.0,
+                        title: String::new(),
+                        description: Some(line),
+                    });
+                });
+            }
+        },
+        |line| {
+            if let GitProgress::Progress { percent, details } = lfs_parser.parse(line) {
+                with_progress_callback(&lfs_progress, |callback| {
+                    callback(RevertProgress {
+                        kind: RevertProgressKind::Revert,
+                        value: percent,
+                        title: details.title,
+                        description: Some(details.text),
+                    });
                 });
             }
         },
@@ -94,6 +113,13 @@ where
     .await?;
 
     Ok(())
+}
+
+fn with_progress_callback<F, R>(callback: &Mutex<F>, invoke: impl FnOnce(&mut F) -> R) -> R {
+    let mut callback = callback
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    invoke(&mut callback)
 }
 
 #[cfg(test)]

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { GitStatusEntry } from '../models/status'
+import { AppFileStatusKind, GitStatusEntry } from '../models/status'
 import { ManualConflictResolution } from '../models/manual-conflict-resolution'
 
 /**
@@ -90,6 +90,35 @@ describe('the git commands', () => {
     expect(invoke).toHaveBeenCalledWith(
       'create_commit',
       expect.objectContaining({ files: [{ path: 'after', oldPath: 'before' }] })
+    )
+  })
+
+  it('createCommit passes a partial line selection through', async () => {
+    invoke.mockResolvedValue('a'.repeat(40))
+
+    await createCommit(REPO, 'partial', [
+      {
+        path: 'src/thing.ts',
+        partial: {
+          status: { kind: AppFileStatusKind.Modified },
+          selectedLines: [2, 3, 7],
+        },
+      },
+    ])
+
+    expect(invoke).toHaveBeenCalledWith(
+      'create_commit',
+      expect.objectContaining({
+        files: [
+          {
+            path: 'src/thing.ts',
+            partial: {
+              status: { kind: 'Modified' },
+              selectedLines: [2, 3, 7],
+            },
+          },
+        ],
+      })
     )
   })
 

@@ -20,8 +20,10 @@
 //!   in a `textDiff` field so the viewer could offer both; the text half is what this produces, so no
 //!   information is lost — only the second view mode is missing.
 //!
-//! **`getFilesDiffText`, `getResolutionDiff`, LFS.** The first two need temp-file plumbing and
-//! `getPartialBlobContents`; LFS needs its own module. None are on the path to rendering a change.
+//! **`getFilesDiffText`.** This remains with its store consumer. [`get_resolution_diff`] is
+//! backend-local and complete; it needs full blob contents, not the deferred capped-read helper.
+//! Git LFS installation, attributes, and transfer progress live in [`crate::lfs`] and
+//! [`crate::progress`]; image previews remain deferred with the raw-bytes IPC decision above.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -37,6 +39,7 @@ use crate::error::GitError;
 use crate::exec::{git, GitOptions};
 use crate::git_delimiter_parser::LogParser;
 use crate::git_error_kind::GitErrorKind;
+use crate::show::get_blob_contents;
 use crate::status::AppFileStatus;
 use crate::status_parser::SubmoduleStatus;
 
@@ -440,6 +443,25 @@ pub enum Diff {
     Unrenderable,
 }
 
+/// The candidate resolution to compare with the conflict-marker file on disk.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResolutionDiffTarget<'a> {
+    /// Caller-supplied resolved content, such as a Copilot suggestion.
+    Content(&'a str),
+    /// Stage 2 in Git's unmerged index.
+    Ours,
+    /// Stage 3 in Git's unmerged index.
+    Theirs,
+}
+
+/// A resolution diff and the exact content of both sides used to produce it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolutionDiff {
+    pub diff: Diff,
+    pub old_contents: String,
+    pub new_contents: String,
+}
+
 impl Diff {
     /// The discriminator the frontend switches on.
     pub fn kind(&self) -> DiffType {
@@ -761,6 +783,110 @@ fn push_pathspecs(args: &mut Vec<String>, path: &str, status: &AppFileStatus) {
     }
 }
 
+/// Diffs the conflict-marker file on disk against a proposed resolution.
+pub async fn get_resolution_diff(
+    repository: impl AsRef<Path>,
+    path: &str,
+    target: ResolutionDiffTarget<'_>,
+    hide_whitespace: bool,
+) -> Result<ResolutionDiff, GitError> {
+    let repository = repository.as_ref();
+    let working_tree_path = repository.join(path);
+    let old_contents = tokio::fs::read(&working_tree_path)
+        .await
+        .map_err(|source| diff_file_error("getResolutionDiff", working_tree_path, source))
+        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())?;
+
+    let new_contents = match target {
+        ResolutionDiffTarget::Content(contents) => contents.to_owned(),
+        ResolutionDiffTarget::Ours | ResolutionDiffTarget::Theirs => {
+            let stage = match target {
+                ResolutionDiffTarget::Ours => ":2",
+                ResolutionDiffTarget::Theirs => ":3",
+                ResolutionDiffTarget::Content(_) => unreachable!("matched above"),
+            };
+
+            // A missing stage means that side deleted the file. The original catches every show
+            // failure here and treats it as empty content, so a modify/delete conflict renders as
+            // a complete deletion rather than failing the whole resolution view.
+            get_blob_contents(repository, stage, path)
+                .await
+                .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+                .unwrap_or_default()
+        }
+    };
+
+    let temporary_directory = tempfile::tempdir()
+        .map_err(|source| diff_file_error("getResolutionDiff", repository.to_path_buf(), source))?;
+    let base_path = temporary_directory.path().join("resolution-diff-base");
+    let target_path = temporary_directory.path().join("resolution-diff-target");
+
+    tokio::fs::write(&base_path, &old_contents)
+        .await
+        .map_err(|source| diff_file_error("getResolutionDiff", base_path.clone(), source))?;
+    tokio::fs::write(&target_path, &new_contents)
+        .await
+        .map_err(|source| diff_file_error("getResolutionDiff", target_path.clone(), source))?;
+
+    let mut args = vec!["diff".to_owned()];
+    if hide_whitespace {
+        args.push("-w".to_owned());
+    }
+    args.extend([
+        "--no-ext-diff".to_owned(),
+        "--patch-with-raw".to_owned(),
+        "-z".to_owned(),
+        "--no-color".to_owned(),
+        "--no-index".to_owned(),
+        "--".to_owned(),
+        base_path.to_string_lossy().into_owned(),
+        target_path.to_string_lossy().into_owned(),
+    ]);
+
+    let output = git(
+        &args,
+        repository,
+        "getResolutionDiff",
+        GitOptions::default().with_success_exit_codes([1]),
+    )
+    .await?;
+
+    Ok(ResolutionDiff {
+        diff: build_resolution_diff(&output.stdout)?,
+        old_contents,
+        new_contents,
+    })
+}
+
+fn build_resolution_diff(output: &[u8]) -> Result<Diff, GitError> {
+    if output.len() > MAX_DIFF_BUFFER_SIZE {
+        return Ok(Diff::Unrenderable);
+    }
+
+    let raw = diff_from_raw_diff_output(output)?;
+    let data = TextDiffData {
+        text: raw.contents.clone(),
+        hunks: raw.hunks.clone(),
+        line_endings_change: None,
+        max_line_number: raw.max_line_number,
+        has_hidden_bidi_chars: raw.has_hidden_bidi_chars,
+    };
+
+    if output.len() >= MAX_REASONABLE_DIFF_SIZE || is_diff_too_large(&raw) {
+        Ok(Diff::LargeText(data))
+    } else {
+        Ok(Diff::Text(data))
+    }
+}
+
+fn diff_file_error(name: &str, path: PathBuf, source: std::io::Error) -> GitError {
+    GitError::Spawn {
+        name: name.to_owned(),
+        path,
+        source,
+    }
+}
+
 /// Diffs a file in the working directory against the index or `HEAD`.
 ///
 /// Three shapes, following the original:
@@ -974,6 +1100,66 @@ mod text_diff_tests {
             Diff::Text(data) => data,
             other => panic!("expected a text diff, got {:?}", other.kind()),
         }
+    }
+
+    async fn repository_with_conflict(
+        base: &str,
+        ours: &str,
+        theirs: Option<&str>,
+    ) -> crate::test_support::TempRepository {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "file.txt", base, "base");
+
+        git(
+            &["checkout", "-b", "feature"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("feature checkout should succeed");
+        match theirs {
+            Some(contents) => commit_file(&repo.path(), "file.txt", contents, "feature"),
+            None => {
+                git(
+                    &["rm", "--", "file.txt"],
+                    repo.path(),
+                    "test",
+                    GitOptions::default(),
+                )
+                .await
+                .expect("feature deletion should succeed");
+                git(
+                    &["commit", "-m", "feature deletes file"],
+                    repo.path(),
+                    "test",
+                    GitOptions::default(),
+                )
+                .await
+                .expect("feature deletion commit should succeed");
+            }
+        }
+
+        git(
+            &["checkout", "main"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("main checkout should succeed");
+        commit_file(&repo.path(), "file.txt", ours, "main");
+
+        git(
+            &["merge", "feature", "--no-commit"],
+            repo.path(),
+            "test",
+            GitOptions::default().with_success_exit_codes([1]),
+        )
+        .await
+        .expect("the deliberately conflicting merge should run");
+
+        repo
     }
 
     // --- pathspec handling ---
@@ -1311,6 +1497,98 @@ mod text_diff_tests {
             expect_text(&hidden).hunks.is_empty(),
             "and is suppressed with -w"
         );
+    }
+
+    #[tokio::test]
+    async fn diffs_resolved_content_against_the_on_disk_file() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "file.txt", "original\n", "init");
+
+        let result = get_resolution_diff(
+            repo.path(),
+            "file.txt",
+            ResolutionDiffTarget::Content("modified\n"),
+            false,
+        )
+        .await
+        .expect("resolution diff should succeed");
+
+        let text = &expect_text(&result.diff).text;
+        assert!(text.contains("-original"), "got {text}");
+        assert!(text.contains("+modified"), "got {text}");
+        assert_eq!(result.old_contents, "original\n");
+        assert_eq!(result.new_contents, "modified\n");
+    }
+
+    #[tokio::test]
+    async fn diffs_ours_against_the_conflict_marker_file() {
+        let repo = repository_with_conflict(
+            "line 1\nline 2\nline 3\n",
+            "line 1\nmain change\nline 3\n",
+            Some("line 1\nfeature change\nline 3\n"),
+        )
+        .await;
+
+        let result =
+            get_resolution_diff(repo.path(), "file.txt", ResolutionDiffTarget::Ours, false)
+                .await
+                .expect("ours diff should succeed");
+
+        let text = &expect_text(&result.diff).text;
+        assert!(text.contains("-feature change"), "got {text}");
+        assert!(result.old_contents.contains("<<<<<<<"));
+        assert_eq!(result.new_contents, "line 1\nmain change\nline 3\n");
+    }
+
+    #[tokio::test]
+    async fn diffs_theirs_against_the_conflict_marker_file() {
+        let repo = repository_with_conflict(
+            "line 1\nline 2\nline 3\n",
+            "line 1\nmain change\nline 3\n",
+            Some("line 1\nfeature change\nline 3\n"),
+        )
+        .await;
+
+        let result =
+            get_resolution_diff(repo.path(), "file.txt", ResolutionDiffTarget::Theirs, false)
+                .await
+                .expect("theirs diff should succeed");
+
+        let text = &expect_text(&result.diff).text;
+        assert!(text.contains("-main change"), "got {text}");
+        assert_eq!(result.new_contents, "line 1\nfeature change\nline 3\n");
+    }
+
+    #[tokio::test]
+    async fn missing_stage_blob_is_an_empty_resolution() {
+        let repo = repository_with_conflict("base content\n", "main modified\n", None).await;
+
+        let result =
+            get_resolution_diff(repo.path(), "file.txt", ResolutionDiffTarget::Theirs, false)
+                .await
+                .expect("a deleted stage should produce a deletion diff");
+
+        let text = &expect_text(&result.diff).text;
+        assert!(text.contains("-main modified"), "got {text}");
+        assert!(result.new_contents.is_empty());
+    }
+
+    #[tokio::test]
+    async fn resolution_diff_can_hide_whitespace_changes() {
+        let repo = repository_with_conflict(
+            "hello world\n",
+            "hello world\nother\n",
+            Some("hello  world\nextra\n"),
+        )
+        .await;
+
+        let result =
+            get_resolution_diff(repo.path(), "file.txt", ResolutionDiffTarget::Theirs, true)
+                .await
+                .expect("whitespace-hidden resolution diff should succeed");
+
+        let text = &expect_text(&result.diff).text;
+        assert!(text.contains("extra"), "got {text}");
     }
 
     #[tokio::test]

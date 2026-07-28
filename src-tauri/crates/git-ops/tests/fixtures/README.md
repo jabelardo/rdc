@@ -40,3 +40,5 @@ copy), and don't run any formatter or line-ending conversion over it.
 | Fixture | Size | Used by |
 |---|---|---|
 | `test-repo` | 88K | `exec.rs` harness tests |
+| `repo-with-many-refs` | 100K | `for_each_ref.rs` — three local branches with known tips. Its branches are `master`-era names; that is part of the snapshot |
+| `repo-with-non-updated-branches` | 164K | `for_each_ref.rs` — local branches ahead of, behind, both, and level with their upstreams, plus `main` checked out |

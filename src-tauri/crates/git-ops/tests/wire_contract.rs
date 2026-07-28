@@ -41,6 +41,7 @@ use git_ops::diff::{Diff, LineEnding, LineEndingsChange, SubmoduleDiffData, Text
 use git_ops::diff_index::IndexStatus;
 use git_ops::diff_parser::parse_diff;
 use git_ops::fetch::{FetchProgress, FetchProgressKind};
+use git_ops::for_each_ref::{Branch, BranchAuthor, BranchTip, BranchType, TrackingBranch};
 use git_ops::interpret_trailers::Trailer;
 use git_ops::log::{ChangesetData, Commit, CommitIdentity, CommittedFileChange};
 use git_ops::merge::{MergeOptions, MergeResult};
@@ -766,6 +767,67 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
         to_value(CherryPickResult::ConflictsEncountered),
     );
 
+    // The branch list. `type` is a numeric enum, `upstream` is `string | null` rather than optional,
+    // and both `type` and `ref` are Rust keywords renamed on the way out — so all three are worth
+    // pinning. The frontend builds the `Branch` class from these, which is what checks the shape.
+    cases.insert(
+        "branch",
+        to_value(Branch {
+            name: "main".to_owned(),
+            upstream: Some("origin/main".to_owned()),
+            tip: BranchTip {
+                sha: "a".repeat(40),
+                author: BranchAuthor {
+                    date: 1_611_312_328,
+                },
+            },
+            branch_type: BranchType::Local,
+            canonical_ref: "refs/heads/main".to_owned(),
+            is_gone: false,
+        }),
+    );
+    cases.insert(
+        "goneBranch",
+        to_value(Branch {
+            name: "topic".to_owned(),
+            upstream: Some("origin/topic".to_owned()),
+            tip: BranchTip {
+                sha: "b".repeat(40),
+                author: BranchAuthor {
+                    date: 1_611_312_400,
+                },
+            },
+            branch_type: BranchType::Local,
+            canonical_ref: "refs/heads/topic".to_owned(),
+            is_gone: true,
+        }),
+    );
+    cases.insert(
+        "remoteBranch",
+        to_value(Branch {
+            name: "origin/main".to_owned(),
+            upstream: None,
+            tip: BranchTip {
+                sha: "c".repeat(40),
+                author: BranchAuthor {
+                    date: 1_611_312_328,
+                },
+            },
+            branch_type: BranchType::Remote,
+            canonical_ref: "refs/remotes/origin/main".to_owned(),
+            is_gone: false,
+        }),
+    );
+    cases.insert(
+        "trackingBranch",
+        to_value(TrackingBranch {
+            canonical_ref: "refs/heads/behind".to_owned(),
+            sha: "d".repeat(40),
+            upstream_ref: "refs/remotes/origin/behind".to_owned(),
+            upstream_sha: "e".repeat(40),
+        }),
+    );
+
     // Both submodule shapes: git omits the describe value for an uninitialized or conflicted
     // submodule, and those entries must still be listed.
     cases.insert(
@@ -850,13 +912,14 @@ fn snapshot_path() -> PathBuf {
 
 #[test]
 fn a_file_to_stage_accepts_the_minimal_object() {
-    // `oldPath` and `deleted` both have serde defaults, so the frontend can send just a path.
+    // Optional index details have serde defaults, so the frontend can send just a path.
     let parsed: FileToStage =
         serde_json::from_value(json!({ "path": "src/thing.ts" })).expect("deserializes");
 
     assert_eq!(parsed, FileToStage::new("src/thing.ts"));
     assert_eq!(parsed.old_path, None);
     assert!(!parsed.deleted);
+    assert_eq!(parsed.partial, None);
 }
 
 #[test]
@@ -869,6 +932,56 @@ fn a_file_to_stage_round_trips_a_rename_and_a_deletion() {
     let deleted: FileToStage =
         serde_json::from_value(json!({ "path": "gone", "deleted": true })).expect("deserializes");
     assert_eq!(deleted, FileToStage::deleted("gone"));
+}
+
+#[test]
+fn a_file_to_stage_accepts_a_partial_line_selection() {
+    let parsed: FileToStage = serde_json::from_value(json!({
+        "path": "src/thing.ts",
+        "partial": {
+            "status": { "kind": "Modified" },
+            "selectedLines": [2, 3, 7],
+        },
+    }))
+    .expect("deserializes");
+
+    assert_eq!(
+        parsed,
+        FileToStage::partial(
+            "src/thing.ts",
+            AppFileStatus::Modified {
+                submodule_status: None,
+            },
+            [2, 3, 7],
+        )
+    );
+}
+
+#[test]
+fn a_text_diff_can_be_sent_back_as_a_command_argument() {
+    // `discard_changes_from_selection` takes the diff the user was looking at, so the exact payload
+    // Rust serialized has to deserialize again — the frontend hydrates it into classes in between and
+    // `dehydrateTextDiff` reverses that. A field this side renames without the other following would
+    // fail here rather than at runtime.
+    if std::env::var_os("UPDATE_WIRE_SNAPSHOT").is_some() {
+        // The snapshot writer is rewriting the file in a sibling test right now, so reading it here
+        // would race. What this test checks is the committed bytes, which an update run is replacing
+        // anyway.
+        return;
+    }
+
+    let committed = std::fs::read_to_string(snapshot_path()).expect("the snapshot is committed");
+    let snapshot: serde_json::Value =
+        serde_json::from_str(&committed).expect("the snapshot is valid JSON");
+    let sent = snapshot
+        .get("textDiff")
+        .expect("the snapshot has a text diff")
+        .clone();
+
+    let parsed: TextDiffData =
+        serde_json::from_value(sent.clone()).expect("a serialized text diff deserializes");
+
+    assert_eq!(to_value(Diff::Text(parsed)), sent, "round trips unchanged");
 }
 
 #[test]

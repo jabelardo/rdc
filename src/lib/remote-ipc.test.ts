@@ -35,6 +35,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 const {
   push,
+  deleteRemoteBranch,
   fetch,
   pull,
   fastForwardBranches,
@@ -182,6 +183,27 @@ describe('the remote commands', () => {
 
     expect(invoke).toHaveBeenCalledWith(
       'fetch',
+      expect.objectContaining({ isBackgroundTask: true })
+    )
+  })
+
+  it('deleteRemoteBranch sends no Channel, since a deletion has no progress', async () => {
+    await deleteRemoteBranch(REPO, 'origin', 'topic')
+
+    expect(invoke).toHaveBeenCalledWith('delete_remote_branch', {
+      repositoryPath: REPO,
+      remoteName: 'origin',
+      remoteBranchName: 'topic',
+      isBackgroundTask: false,
+    })
+    expect(channelInstances).toHaveLength(0)
+  })
+
+  it('deleteRemoteBranch forwards isBackgroundTask when set', async () => {
+    await deleteRemoteBranch(REPO, 'origin', 'topic', true)
+
+    expect(invoke).toHaveBeenCalledWith(
+      'delete_remote_branch',
       expect.objectContaining({ isBackgroundTask: true })
     )
   })

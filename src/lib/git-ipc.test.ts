@@ -186,6 +186,8 @@ describe('the git IPC wire shape', () => {
     // which would otherwise silently skip the type check for it.
     expect(Object.keys(snapshot).sort()).toEqual([
       'binaryDiff',
+      // The branch shapes — covered by branch-ipc.test.ts (hydrated into Branch).
+      'branch',
       // Covered by log-ipc.test.ts (hydrated into CommittedFileChange).
       'changesetData',
       'checkoutProgress',
@@ -197,6 +199,7 @@ describe('the git IPC wire shape', () => {
       'commit',
       'emptyStatusResult',
       'fetchProgress',
+      'goneBranch',
       // Covered by diff-ipc.test.ts.
       'indexChanges',
       'largeTextDiff',
@@ -213,6 +216,7 @@ describe('the git IPC wire shape', () => {
       'rebaseResult',
       'rebaseSnapshot',
       'remote',
+      'remoteBranch',
       'renamed',
       'resolvedTextConflict',
       // Covered by misc-ipc.test.ts.
@@ -226,6 +230,7 @@ describe('the git IPC wire shape', () => {
       // The IDiff union — covered by diff-ipc.test.ts.
       'textDiff',
       'textDiffWithLineEndingsChange',
+      'trackingBranch',
       'uninitializedSubmoduleEntry',
       'unrenderableDiff',
     ])

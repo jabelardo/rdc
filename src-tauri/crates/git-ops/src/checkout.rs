@@ -16,13 +16,14 @@
 
 use std::ffi::OsStr;
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::{git, git_with_stderr, GitOptions};
+use crate::exec::{git, git_with_stderr_and_lfs, GitOptions};
+use crate::progress::{GitLfsProgressParser, GitProgress};
 
 /// A checkout progress update sent to the frontend.
 ///
@@ -202,7 +203,11 @@ where
 
     on_progress(make_progress(0.0, "Switching to branch".to_owned()));
     let mut parser = CheckoutProgressParser::default();
-    git_with_stderr(
+    let progress = Arc::new(Mutex::new(&mut on_progress));
+    let regular_progress = Arc::clone(&progress);
+    let lfs_progress = Arc::clone(&progress);
+    let mut lfs_parser = GitLfsProgressParser::default();
+    git_with_stderr_and_lfs(
         &args,
         repository,
         "checkoutBranch",
@@ -210,11 +215,24 @@ where
         |chunk| {
             for (value, description) in parser.push(chunk) {
                 // Scaled into the first 90%; submodules own the rest.
-                on_progress(make_progress(value * CHECKOUT_STEP_WEIGHT, description));
+                with_progress_callback(&regular_progress, |callback| {
+                    callback(make_progress(value * CHECKOUT_STEP_WEIGHT, description));
+                });
+            }
+        },
+        |line| {
+            let parsed = lfs_parser.parse(line);
+            if let GitProgress::Progress { percent, details } = parsed {
+                with_progress_callback(&lfs_progress, |callback| {
+                    callback(make_progress(percent * CHECKOUT_STEP_WEIGHT, details.text));
+                });
             }
         },
     )
     .await?;
+    drop(regular_progress);
+    drop(lfs_progress);
+    drop(progress);
     if let Some((value, description)) = parser.finish() {
         on_progress(make_progress(value * CHECKOUT_STEP_WEIGHT, description));
     }
@@ -303,23 +321,47 @@ where
 
     on_progress(make_progress(0.0, title.clone()));
     let mut parser = CheckoutProgressParser::default();
-    git_with_stderr(
+    let progress = Arc::new(Mutex::new(&mut on_progress));
+    let regular_progress = Arc::clone(&progress);
+    let lfs_progress = Arc::clone(&progress);
+    let mut lfs_parser = GitLfsProgressParser::default();
+    git_with_stderr_and_lfs(
         &args,
         repository,
         "checkoutCommit",
         GitOptions::default(),
         |chunk| {
             for (value, description) in parser.push(chunk) {
-                on_progress(make_progress(value, description));
+                with_progress_callback(&regular_progress, |callback| {
+                    callback(make_progress(value, description));
+                });
+            }
+        },
+        |line| {
+            let parsed = lfs_parser.parse(line);
+            if let GitProgress::Progress { percent, details } = parsed {
+                with_progress_callback(&lfs_progress, |callback| {
+                    callback(make_progress(percent, details.text));
+                });
             }
         },
     )
     .await?;
+    drop(regular_progress);
+    drop(lfs_progress);
+    drop(progress);
     if let Some((value, description)) = parser.finish() {
         on_progress(make_progress(value, description));
     }
     on_progress(make_progress(1.0, title.clone()));
     Ok(())
+}
+
+fn with_progress_callback<F, R>(callback: &Mutex<&mut F>, invoke: impl FnOnce(&mut F) -> R) -> R {
+    let mut callback = callback
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    invoke(&mut callback)
 }
 
 /// Restores the given paths from `HEAD`, discarding working-tree changes to them.

@@ -2,6 +2,19 @@
   "binaryDiff": {
     "kind": 2
   },
+  "branch": {
+    "isGone": false,
+    "name": "main",
+    "ref": "refs/heads/main",
+    "tip": {
+      "author": {
+        "date": 1611312328
+      },
+      "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "type": 0,
+    "upstream": "origin/main"
+  },
   "changesetData": {
     "files": [
       {
@@ -83,6 +96,19 @@
     "remote": "origin",
     "title": "Fetching origin",
     "value": 0.45
+  },
+  "goneBranch": {
+    "isGone": true,
+    "name": "topic",
+    "ref": "refs/heads/topic",
+    "tip": {
+      "author": {
+        "date": 1611312400
+      },
+      "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "type": 0,
+    "upstream": "origin/topic"
   },
   "indexChanges": [
     [
@@ -308,6 +334,19 @@
     "name": "origin",
     "url": "https://github.com/o/r.git"
   },
+  "remoteBranch": {
+    "isGone": false,
+    "name": "origin/main",
+    "ref": "refs/remotes/origin/main",
+    "tip": {
+      "author": {
+        "date": 1611312328
+      },
+      "sha": "cccccccccccccccccccccccccccccccccccccccc"
+    },
+    "type": 1,
+    "upstream": null
+  },
   "renamed": {
     "kind": "Renamed",
     "oldPath": "before",
@@ -497,6 +536,12 @@
     },
     "maxLineNumber": 1,
     "text": "@@ -1 +1 @@\n-old\n+new"
+  },
+  "trackingBranch": {
+    "ref": "refs/heads/behind",
+    "sha": "dddddddddddddddddddddddddddddddddddddddd",
+    "upstreamRef": "refs/remotes/origin/behind",
+    "upstreamSha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
   },
   "uninitializedSubmoduleEntry": {
     "path": "other",

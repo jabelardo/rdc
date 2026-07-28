@@ -13,6 +13,8 @@ import {
 } from './diff-hunks'
 import { IndexStatus } from '../models/index-status'
 import {
+  dehydrateTextDiff,
+  discardChangesFromSelection,
   hydrateDiff,
   hydrateRawDiff,
   type IDiffWire,
@@ -294,5 +296,67 @@ describe('the IDiff union', () => {
   it('sends null rather than omitting a submodule url', () => {
     // `url` is `string | null` on the domain type, not optional.
     expect('url' in submoduleDiff).toBe(true)
+  })
+})
+
+describe('sending a diff back for a partial discard', () => {
+  const textDiff = snapshot.textDiff as IDiffWire
+
+  beforeEach(() => {
+    invoke.mockReset()
+    invoke.mockResolvedValue(undefined)
+  })
+
+  it('dehydration reverses hydration exactly', () => {
+    // The two directions have to agree byte for byte, because Rust re-reads what it sent. Comparing
+    // against Rust's own snapshot output — not against a hand-written fixture — is what makes this a
+    // check of the boundary rather than of my transcription.
+    if (textDiff.kind !== DiffType.Text) {
+      throw new Error('the snapshot fixture should be a text diff')
+    }
+    const hydrated = hydrateDiff(textDiff)
+    if (hydrated.kind !== DiffType.Text) {
+      throw new Error('narrowing failed')
+    }
+
+    const { kind, ...wire } = textDiff
+    expect(dehydrateTextDiff(hydrated)).toEqual(wire)
+    expect(kind).toBe(DiffType.Text)
+  })
+
+  it('keeps the hunk classes out of the payload', () => {
+    // A structured clone of a DiffHunk would carry its prototype's shape along; dehydration returns
+    // plain data, which is what serde deserializes into.
+    if (textDiff.kind !== DiffType.Text) {
+      throw new Error('the snapshot fixture should be a text diff')
+    }
+    const hydrated = hydrateDiff(textDiff)
+    if (hydrated.kind !== DiffType.Text) {
+      throw new Error('narrowing failed')
+    }
+
+    expect(hydrated.hunks[0]).toBeInstanceOf(DiffHunk)
+    expect(dehydrateTextDiff(hydrated).hunks[0]).not.toBeInstanceOf(DiffHunk)
+  })
+
+  it('sends the diff alongside the selected line indices', async () => {
+    if (textDiff.kind !== DiffType.Text) {
+      throw new Error('the snapshot fixture should be a text diff')
+    }
+    const hydrated = hydrateDiff(textDiff)
+    if (hydrated.kind !== DiffType.Text) {
+      throw new Error('narrowing failed')
+    }
+
+    await discardChangesFromSelection('/tmp/repo', 'a.txt', hydrated, [4, 5])
+
+    const { kind, ...wire } = textDiff
+    expect(invoke).toHaveBeenCalledWith('discard_changes_from_selection', {
+      repositoryPath: '/tmp/repo',
+      filePath: 'a.txt',
+      diff: wire,
+      selectedLines: [4, 5],
+    })
+    expect(kind).toBe(DiffType.Text)
   })
 })

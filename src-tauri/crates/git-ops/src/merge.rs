@@ -1,7 +1,8 @@
 //! Merging branches.
 //!
-//! Ported from `desktop-plus/app/src/lib/git/merge.ts`. Hook interception and terminal-output
-//! streaming remain deferred until the shared Channel/hook infrastructure lands; git still runs
+//! Ported from `desktop-plus/app/src/lib/git/merge.ts`. Shared multi-operation aggregation is ported
+//! in [`crate::multi_operation_terminal_output`]; capturing merge/commit output and adapting it to a
+//! Tauri Channel remain deferred until the shared Channel/hook infrastructure lands. Git still runs
 //! hooks normally, but their output is not surfaced incrementally.
 
 use std::path::Path;

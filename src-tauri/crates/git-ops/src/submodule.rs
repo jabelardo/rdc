@@ -11,15 +11,15 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::OnceLock;
+use std::sync::{Arc, Mutex, OnceLock};
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::authentication::AUTHENTICATION_ERRORS;
 use crate::error::GitError;
-use crate::exec::{git, git_with_stderr, GitOptions};
-use crate::progress::ProgressLineSplitter;
+use crate::exec::{git, git_with_stderr_and_lfs, GitOptions};
+use crate::progress::{GitLfsProgressParser, GitProgress, ProgressLineSplitter};
 use crate::rev_parse::resolve_git_dir;
 
 /// A submodule as `git submodule status` reports it.
@@ -218,32 +218,62 @@ where
         options = options.with_env(key.clone(), value.clone());
     }
 
-    let Some(mut on_progress) = on_progress else {
+    let Some(on_progress) = on_progress else {
         git(&args, repository, "updateSubmodules", options).await?;
         return Ok(());
     };
 
-    on_progress(0.0, "Updating submodules".to_owned());
+    let progress = Arc::new(Mutex::new(on_progress));
+    with_progress_callback(&progress, |callback| {
+        callback(0.0, "Updating submodules".to_owned());
+    });
 
     let mut events = 0_u32;
     let mut splitter = ProgressLineSplitter::new();
+    let mut lfs_parser = GitLfsProgressParser::default();
+    let regular_progress = Arc::clone(&progress);
+    let lfs_progress = Arc::clone(&progress);
 
-    git_with_stderr(&args, repository, "updateSubmodules", options, |chunk| {
-        for line in splitter.push(chunk) {
-            if is_submodule_event(&line) {
-                events += 1;
+    git_with_stderr_and_lfs(
+        &args,
+        repository,
+        "updateSubmodules",
+        options,
+        |chunk| {
+            for line in splitter.push(chunk) {
+                if is_submodule_event(&line) {
+                    events += 1;
+                }
+                with_progress_callback(&regular_progress, |callback| {
+                    callback(
+                        fake_progress(events),
+                        format!("Updating submodules: {line}"),
+                    );
+                });
             }
-            on_progress(
-                fake_progress(events),
-                format!("Updating submodules: {line}"),
-            );
-        }
-    })
+        },
+        |line| {
+            if let GitProgress::Progress { percent, details } = lfs_parser.parse(line) {
+                with_progress_callback(&lfs_progress, |callback| {
+                    callback(percent, details.text);
+                });
+            }
+        },
+    )
     .await?;
 
-    on_progress(1.0, "Submodules updated".to_owned());
+    with_progress_callback(&progress, |callback| {
+        callback(1.0, "Submodules updated".to_owned());
+    });
 
     Ok(())
+}
+
+fn with_progress_callback<F, R>(callback: &Mutex<F>, invoke: impl FnOnce(&mut F) -> R) -> R {
+    let mut callback = callback
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    invoke(&mut callback)
 }
 
 /// Whether a line marks a submodule having been dealt with.

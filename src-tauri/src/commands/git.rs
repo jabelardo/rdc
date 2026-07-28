@@ -6,9 +6,11 @@
 use git_ops::checkout::CheckoutProgress;
 use git_ops::checkout::CheckoutTarget;
 use git_ops::commit::CommitOptions;
-use git_ops::diff::Diff;
+use git_ops::diff::{Diff, TextDiffData};
 use git_ops::diff_index::IndexStatus;
+use git_ops::for_each_ref::{Branch, TrackingBranch};
 use git_ops::merge::{MergeOptions, MergeResult};
+use git_ops::patch_formatter::LineSelection;
 use git_ops::rebase::{
     MultiCommitOperationProgress, RebaseConflictResolution, RebaseResult, RebaseSnapshot,
 };
@@ -56,8 +58,9 @@ pub async fn get_status(
 /// })
 /// ```
 ///
-/// `files` must contain only fully-selected files. Partial (per-line) selections still need the patch
-/// formatter — see `git_ops::update_index` — so the frontend cannot route them here yet.
+/// A file the user only partly ticked carries a `partial` selection instead of the index fields, and is
+/// staged by applying a patch rather than by reading the working tree — see
+/// `git_ops::update_index::PartialSelection`.
 ///
 /// The SHA is the full 40-character one. The original returned git's abbreviation, and returned the
 /// literal string `"(root-commit)"` for a repository's first commit; see `git_ops::commit`.
@@ -324,6 +327,48 @@ pub async fn get_rebase_snapshot(
         .map_err(CommandError::from)
 }
 
+/// Lists branches, local and remote, in the order git reports them.
+///
+/// ```js
+/// await invoke('get_branches', { repositoryPath, prefixes: [] })
+/// // -> [{ name: 'main', upstream: 'origin/main', tip: { sha, author: { date } }, type: 0, ref: 'refs/heads/main', isGone: false }]
+/// ```
+///
+/// `prefixes` narrows the ref namespaces; an empty list means `refs/heads` and `refs/remotes`.
+///
+/// The result is the **arguments `Branch`'s constructor takes**, not a `Branch` — its derived getters
+/// (`remoteName`, `nameWithoutRemote`, …) stay in TypeScript. `type` is a number, since `BranchType`
+/// is a numeric enum whose values also decide sort order.
+///
+/// A path that isn't a repository yields an empty list rather than an error.
+#[tauri::command]
+pub async fn get_branches(
+    repository_path: String,
+    prefixes: Vec<String>,
+) -> Result<Vec<Branch>, CommandError> {
+    git_ops::for_each_ref::get_branches(&repository_path, &prefixes)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Lists local branches whose tip differs from their upstream's.
+///
+/// ```js
+/// await invoke('get_branches_differing_from_upstream', { repositoryPath })
+/// ```
+///
+/// Feeds `fast_forward_branches`, which takes `(upstreamRef, ref)` pairs built from these. The current
+/// branch and branches checked out in other worktrees are excluded — neither can be moved by a ref
+/// update alone.
+#[tauri::command]
+pub async fn get_branches_differing_from_upstream(
+    repository_path: String,
+) -> Result<Vec<TrackingBranch>, CommandError> {
+    git_ops::for_each_ref::get_branches_differing_from_upstream(&repository_path)
+        .await
+        .map_err(CommandError::from)
+}
+
 /// Lists what the index holds that `HEAD` does not, and how each path differs.
 ///
 /// ```js
@@ -400,6 +445,39 @@ pub async fn get_commit_diff(
         &status,
         &commitish,
         hide_whitespace.unwrap_or(false),
+    )
+    .await
+    .map_err(CommandError::from)
+}
+
+/// Discards the selected lines of a file from the working tree.
+///
+/// ```js
+/// await invoke('discard_changes_from_selection', {
+///   repositoryPath,
+///   filePath: 'src/thing.ts',
+///   diff: dehydrateTextDiff(diff),   // the diff the user was looking at
+///   selectedLines: [4, 5, 9],
+/// })
+/// ```
+///
+/// The diff is a **parameter rather than something the backend re-reads**, because `selectedLines`
+/// indexes into the diff the user was shown. Re-reading could discard different lines; passing it means
+/// a file that changed underneath makes git reject the patch instead.
+///
+/// An empty `selectedLines` is a no-op, not an error — nothing was asked for.
+#[tauri::command]
+pub async fn discard_changes_from_selection(
+    repository_path: String,
+    file_path: String,
+    diff: TextDiffData,
+    selected_lines: Vec<u32>,
+) -> Result<(), CommandError> {
+    git_ops::apply::discard_changes_from_selection(
+        &repository_path,
+        &file_path,
+        &diff,
+        &LineSelection::new(selected_lines),
     )
     .await
     .map_err(CommandError::from)

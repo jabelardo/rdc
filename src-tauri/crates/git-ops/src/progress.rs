@@ -1,7 +1,7 @@
 //! Interpreting git's transfer progress.
 //!
-//! Ported from `desktop-plus/app/src/lib/progress/git.ts`, plus the step tables in
-//! `progress/{push,fetch,pull}.ts`.
+//! Ported from `desktop-plus/app/src/lib/progress/git.ts`, `progress/lfs.ts`, plus the step tables
+//! in `progress/{push,fetch,pull}.ts`.
 //!
 //! # What git emits
 //!
@@ -29,6 +29,7 @@
 //! - **Progress must not go backwards.** A line that isn't recognised reports the last percentage
 //!   rather than zero, which is why the parser is stateful and single-use per operation.
 
+use std::collections::HashMap;
 use std::sync::OnceLock;
 
 use regex::Regex;
@@ -75,6 +76,122 @@ pub enum GitProgress {
         percent: f64,
         text: String,
     },
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LfsFileProgress {
+    transferred: u64,
+    size: u64,
+    done: bool,
+}
+
+/// Parses the line protocol written to `GIT_LFS_PROGRESS`.
+#[derive(Debug, Default, Clone)]
+pub struct GitLfsProgressParser {
+    files: HashMap<String, LfsFileProgress>,
+}
+
+impl GitLfsProgressParser {
+    pub fn parse(&mut self, line: &str) -> GitProgress {
+        let Some(captures) = lfs_progress_pattern().captures(line) else {
+            return GitProgress::Context {
+                percent: 0.0,
+                text: line.to_owned(),
+            };
+        };
+        let Some(direction) = captures.get(1).map(|value| value.as_str()) else {
+            return lfs_context(line);
+        };
+        let Some(estimated_file_count) = captures
+            .get(3)
+            .and_then(|value| value.as_str().parse::<usize>().ok())
+        else {
+            return lfs_context(line);
+        };
+        let Some(file_transferred) = captures
+            .get(4)
+            .and_then(|value| value.as_str().parse::<u64>().ok())
+        else {
+            return lfs_context(line);
+        };
+        let Some(file_size) = captures
+            .get(5)
+            .and_then(|value| value.as_str().parse::<u64>().ok())
+        else {
+            return lfs_context(line);
+        };
+        let Some(file_name) = captures.get(6).map(|value| value.as_str()) else {
+            return lfs_context(line);
+        };
+
+        self.files.insert(
+            file_name.to_owned(),
+            LfsFileProgress {
+                transferred: file_transferred,
+                size: file_size,
+                done: file_transferred == file_size,
+            },
+        );
+
+        let total_transferred = self.files.values().map(|file| file.transferred).sum();
+        let total_estimated = self.files.values().map(|file| file.size).sum();
+        let finished_files = self.files.values().filter(|file| file.done).count();
+        let file_count = estimated_file_count.max(self.files.len());
+        let verb = match direction {
+            "upload" => "Uploading",
+            "checkout" => "Checking out",
+            _ => "Downloading",
+        };
+        let transfer_progress = format!(
+            "{} / {}",
+            format_bytes(total_transferred),
+            format_bytes(total_estimated)
+        );
+
+        GitProgress::Progress {
+            percent: 0.0,
+            details: GitProgressInfo {
+                title: format!("{verb} \"{file_name}\""),
+                value: total_transferred,
+                total: Some(total_estimated),
+                percent: Some(0),
+                done: false,
+                text: format!(
+                    "{verb} {file_name} ({finished_files} out of an estimated {file_count} \
+                     completed, {transfer_progress})"
+                ),
+            },
+        }
+    }
+}
+
+fn lfs_context(line: &str) -> GitProgress {
+    GitProgress::Context {
+        percent: 0.0,
+        text: line.to_owned(),
+    }
+}
+
+fn lfs_progress_pattern() -> &'static Regex {
+    static PATTERN: OnceLock<Regex> = OnceLock::new();
+    PATTERN.get_or_init(|| {
+        Regex::new(r"^(.+?)\s(\d+)/(\d+)\s(\d+)/(\d+)\s(.+)$").expect("pattern is valid")
+    })
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 9] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"];
+    if bytes == 0 {
+        return "0 B".to_owned();
+    }
+    let unit = ((bytes as f64).log(1024.0).floor() as usize).min(UNITS.len() - 1);
+    let value = bytes as f64 / 1024_f64.powi(unit as i32);
+    let rounded = (value * 10.0).round() / 10.0;
+    if rounded.fract() == 0.0 {
+        format!("{} {}", rounded as u64, UNITS[unit])
+    } else {
+        format!("{rounded:.1} {}", UNITS[unit])
+    }
 }
 
 impl GitProgress {
@@ -407,6 +524,56 @@ mod tests {
 
     fn info(line: &str) -> GitProgressInfo {
         parse_progress_line(line).unwrap_or_else(|| panic!("{line:?} should parse"))
+    }
+
+    #[test]
+    fn lfs_parser_understands_a_valid_line() {
+        let mut parser = GitLfsProgressParser::default();
+        let progress = parser.parse("download 1/2 5/300 my cool image.jpg");
+
+        match progress {
+            GitProgress::Progress { percent, details } => {
+                assert_eq!(percent, 0.0);
+                assert_eq!(details.title, "Downloading \"my cool image.jpg\"");
+                assert_eq!(details.value, 5);
+                assert_eq!(details.total, Some(300));
+                assert_eq!(
+                    details.text,
+                    "Downloading my cool image.jpg (0 out of an estimated 2 completed, 5 B / 300 B)"
+                );
+            }
+            other => panic!("expected LFS progress, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn lfs_parser_aggregates_files_and_uses_the_larger_observed_count() {
+        let mut parser = GitLfsProgressParser::default();
+        parser.parse("upload 1/1 1024/1024 one.bin");
+        let progress = parser.parse("upload 2/1 512/2048 two.bin");
+
+        match progress {
+            GitProgress::Progress { details, .. } => {
+                assert_eq!(details.title, "Uploading \"two.bin\"");
+                assert_eq!(details.value, 1536);
+                assert_eq!(details.total, Some(3072));
+                assert!(details.text.contains("1 out of an estimated 2 completed"));
+                assert!(details.text.contains("1.5 KiB / 3 KiB"));
+            }
+            other => panic!("expected LFS progress, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn lfs_parser_treats_unknown_lines_as_context() {
+        let mut parser = GitLfsProgressParser::default();
+        assert_eq!(
+            parser.parse("All this happened, more or less."),
+            GitProgress::Context {
+                percent: 0.0,
+                text: "All this happened, more or less.".to_owned()
+            }
+        );
     }
 
     // --- line parsing ---

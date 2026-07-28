@@ -2,9 +2,8 @@
 //!
 //! Ported from `desktop-plus/app/src/lib/git/branch.ts`.
 //!
-//! `deleteRemoteBranch` is **not** ported yet: it pushes a deletion, which needs
-//! `envForRemoteOperation` — i.e. `envForAuthentication` (the trampoline/askpass credential
-//! helper) and `envForProxy`. Both are outstanding, so it lands with the credential work.
+//! [`get_branches`](crate::for_each_ref::get_branches) is deliberately elsewhere: upstream splits
+//! branch *operations* (here) from the branch *list* (`for-each-ref.ts`), and this port keeps that.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -17,6 +16,8 @@ use crate::exec::{git, GitOptions};
 use crate::git_delimiter_parser::ForEachRefParser;
 use crate::git_error_kind::GitErrorKind;
 use crate::refs::format_as_local_ref;
+use crate::remote_progress::remote_env;
+use crate::update_ref::delete_ref;
 
 /// Creates a branch at `start_point`, or at HEAD when `start_point` is `None`.
 ///
@@ -161,6 +162,55 @@ pub async fn delete_local_branch(
     Ok(())
 }
 
+/// Deletes `remote_branch_name` from `remote_name` by pushing an empty refspec.
+///
+/// `env` carries the credential environment, for the same reason [`crate::push::push`] takes one: this
+/// crate doesn't build the trampoline variables itself, the caller merges them in. Upstream also
+/// resolved a proxy here from the remote's URL, which is why its signature took a whole `IRemote`; that
+/// half has no Tauri equivalent yet, so the URL isn't needed and isn't asked for — see
+/// `MIGRATION_MAP.md` for `environment.ts`.
+///
+/// **Authentication failures propagate as errors**, unlike in `push`, and that is the original's
+/// choice rather than an oversight — its comment says so outright: the caller handles them. So only
+/// [`GitErrorKind::BranchDeletionFailed`] is declared expected.
+///
+/// That one failure means the remote ref was already gone. Rather than reporting it, the local
+/// remote-tracking ref is deleted — the same end state a successful push would have produced, which is
+/// what the user asked for. Anything else about it would leave a ref pointing at a branch that no
+/// longer exists on the remote.
+pub async fn delete_remote_branch(
+    repository: impl AsRef<Path>,
+    remote_name: &str,
+    remote_branch_name: &str,
+    env: &HashMap<String, String>,
+) -> Result<(), GitError> {
+    let repository = repository.as_ref();
+
+    // An empty source in a refspec means "delete the destination".
+    let refspec = format!(":{remote_branch_name}");
+
+    let mut options =
+        GitOptions::default().with_expected_errors([GitErrorKind::BranchDeletionFailed]);
+    for (key, value) in remote_env(env) {
+        options = options.with_env(key, value);
+    }
+
+    let output = git(
+        &["push", remote_name, &refspec],
+        repository,
+        "deleteRemoteBranch",
+        options,
+    )
+    .await?;
+
+    if output.git_error == Some(GitErrorKind::BranchDeletionFailed) {
+        let ref_name = format!("refs/remotes/{remote_name}/{remote_branch_name}");
+        delete_ref(repository, &ref_name, None).await?;
+    }
+
+    Ok(())
+}
+
 /// Branch names whose tip is `committish`, or `None` if it couldn't be resolved.
 pub async fn get_branches_pointed_at(
     repository: impl AsRef<Path>,
@@ -231,6 +281,83 @@ pub async fn get_merged_branches(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::for_each_ref::get_branches;
+
+    /// A bare repository to push into, so no network is involved.
+    async fn bare_remote() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("failed to create a temporary directory");
+        git(
+            &["init", "--bare", "--initial-branch=main"],
+            dir.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("init --bare should succeed");
+        dir
+    }
+
+    /// A repository with `origin` pointing at a bare repository, and `main` plus `topic` pushed to it.
+    async fn repo_with_pushed_branches() -> (crate::test_support::TempRepository, tempfile::TempDir)
+    {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+        let remote = bare_remote().await;
+
+        git(
+            &["remote", "add", "origin", &remote.path().to_string_lossy()],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("remote add should succeed");
+        git(
+            &["branch", "topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("branch should succeed");
+        git(
+            &["push", "origin", "main", "topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("push should succeed");
+
+        (repo, remote)
+    }
+
+    /// The branches the bare repository holds.
+    async fn branches_on_remote(remote: &Path) -> Vec<String> {
+        git(
+            &["branch", "--format=%(refname:short)"],
+            remote,
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("branch should succeed")
+        .stdout_lossy()
+        .lines()
+        .map(str::to_owned)
+        .collect()
+    }
+
+    /// The remote-tracking refs this repository still holds.
+    async fn tracking_refs(repo: &Path) -> Vec<String> {
+        get_branches(repo, &["refs/remotes".to_owned()])
+            .await
+            .expect("listing should succeed")
+            .into_iter()
+            .map(|branch| branch.canonical_ref)
+            .collect()
+    }
+
     use crate::test_support::{commit_file, empty_repository, fixture_repository};
 
     /// A repository with one commit on `main`.
@@ -600,5 +727,121 @@ mod tests {
             .await
             .expect("should not error");
         assert_eq!(merged.get("refs/heads/merged"), Some(&head));
+    }
+    // --- deleteRemoteBranch ---
+
+    #[tokio::test]
+    async fn deletes_a_branch_from_the_remote() {
+        let (repo, remote) = repo_with_pushed_branches().await;
+        assert!(branches_on_remote(remote.path())
+            .await
+            .contains(&"topic".to_owned()));
+
+        delete_remote_branch(repo.path(), "origin", "topic", &HashMap::new())
+            .await
+            .expect("deleting should succeed");
+
+        let remaining = branches_on_remote(remote.path()).await;
+        assert!(!remaining.contains(&"topic".to_owned()), "{remaining:?}");
+        assert!(remaining.contains(&"main".to_owned()), "main is untouched");
+    }
+
+    #[tokio::test]
+    async fn drops_the_local_remote_tracking_ref_too() {
+        let (repo, _remote) = repo_with_pushed_branches().await;
+        assert!(tracking_refs(&repo.path())
+            .await
+            .contains(&"refs/remotes/origin/topic".to_owned()));
+
+        delete_remote_branch(repo.path(), "origin", "topic", &HashMap::new())
+            .await
+            .expect("deleting should succeed");
+
+        let refs = tracking_refs(&repo.path()).await;
+        assert!(
+            !refs.contains(&"refs/remotes/origin/topic".to_owned()),
+            "git removes it as part of the push: {refs:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn succeeds_when_the_remote_branch_is_already_gone() {
+        // The case the BranchDeletionFailed handling exists for: someone else deleted it first. The
+        // user asked for it to be gone, and it is.
+        let (repo, remote) = repo_with_pushed_branches().await;
+        git(
+            &["push", "origin", ":topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("the first deletion should succeed");
+        // Put the stale tracking ref back, as it would be if this client hadn't done the deleting.
+        git(
+            &[
+                "update-ref",
+                "refs/remotes/origin/topic",
+                "refs/heads/topic",
+            ],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("recreating the tracking ref should succeed");
+
+        delete_remote_branch(repo.path(), "origin", "topic", &HashMap::new())
+            .await
+            .expect("an already-deleted branch is not an error");
+
+        assert!(!branches_on_remote(remote.path())
+            .await
+            .contains(&"topic".to_owned()));
+        let refs = tracking_refs(&repo.path()).await;
+        assert!(
+            !refs.contains(&"refs/remotes/origin/topic".to_owned()),
+            "the stale tracking ref is cleaned up rather than left behind: {refs:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn fails_rather_than_guessing_when_the_remote_does_not_exist() {
+        // Authentication and connection failures propagate, which is the original's explicit choice —
+        // the caller decides whether to prompt.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+
+        delete_remote_branch(repo.path(), "nowhere", "topic", &HashMap::new())
+            .await
+            .expect_err("an unknown remote is an error");
+    }
+
+    #[tokio::test]
+    async fn passes_the_credential_environment_through() {
+        // `env` is how the trampoline variables reach git. Proven by handing git a value it will act
+        // on: an unusable credential helper plus a URL that needs credentials.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+        git(
+            &["remote", "add", "origin", "https://127.0.0.1:1/repo.git"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("remote add should succeed");
+
+        let env = HashMap::from([("GIT_CONFIG_COUNT".to_owned(), "not-a-number".to_owned())]);
+
+        let error = delete_remote_branch(repo.path(), "origin", "topic", &env)
+            .await
+            .expect_err("git rejects the bogus configuration it was handed");
+
+        // The variable reached git rather than being dropped on the floor.
+        assert!(
+            format!("{error:?}").contains("GIT_CONFIG_COUNT"),
+            "the environment must reach git: {error:?}"
+        );
     }
 }

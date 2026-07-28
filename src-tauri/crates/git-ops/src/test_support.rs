@@ -1,6 +1,6 @@
 //! Test helpers for building real git repositories.
 //!
-//! Ported from `desktop-plus/app/test/helpers/repositories.ts`. 36 of the 47 files in
+//! Ported from `desktop-plus/app/test/helpers/repositories.ts`. 36 of the 45 files in
 //! `app/test/unit/git/**` set up a real repository, so this is the gate for most of Phase 2.
 //!
 //! Setup deliberately uses [`std::process::Command`] rather than this crate's own

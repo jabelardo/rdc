@@ -1,17 +1,20 @@
 //! Running a remote operation while streaming its progress.
 //!
 //! `push`, `fetch` and `pull` differ in their arguments and step weights but share everything else:
-//! stream stderr, split it into progress lines, run them through a [`GitProgressParser`], and report a
-//! fraction plus a description. That common part lives here so the three modules stay close to their
-//! originals.
+//! stream stderr and the `GIT_LFS_PROGRESS` side channel, parse both, and report a fraction plus a
+//! description. That common part lives here so the three modules stay close to their originals.
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use crate::authentication::{env_for_authentication, AUTHENTICATION_ERRORS};
 use crate::error::GitError;
-use crate::exec::{git_with_stderr, GitOptions, GitOutput};
-use crate::progress::{GitProgress, GitProgressParser, ProgressLineSplitter};
+use crate::exec::{git_with_stderr_and_lfs, GitOptions, GitOutput};
+use crate::progress::{
+    parse_progress_line, GitLfsProgressParser, GitProgress, GitProgressParser, ProgressLineSplitter,
+};
 
 /// Which non-progress lines are worth reporting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,7 +72,7 @@ pub(crate) struct RemoteRun<'a> {
 pub(crate) async fn run_with_progress<F>(
     repository: impl AsRef<Path>,
     run: RemoteRun<'_>,
-    mut on_progress: F,
+    on_progress: F,
 ) -> Result<GitOutput, GitError>
 where
     F: FnMut(f64, String) + Send,
@@ -91,25 +94,56 @@ where
         options = options.with_env(key, value);
     }
 
+    let on_progress = Arc::new(Mutex::new(on_progress));
+    let regular_callback = Arc::clone(&on_progress);
+    let lfs_callback = Arc::clone(&on_progress);
+    let lfs_active = Arc::new(AtomicBool::new(false));
+    let regular_lfs_active = Arc::clone(&lfs_active);
+    let lfs_lfs_active = Arc::clone(&lfs_active);
     let mut splitter = ProgressLineSplitter::new();
+    let mut lfs_parser = GitLfsProgressParser::default();
 
-    let output = git_with_stderr(args, repository, name, options, |chunk| {
-        for line in splitter.push(chunk) {
-            report(&mut parser, context, &line, &mut on_progress);
-        }
-    })
+    let output = git_with_stderr_and_lfs(
+        args,
+        repository,
+        name,
+        options,
+        |chunk| {
+            for line in splitter.push(chunk) {
+                with_callback(&regular_callback, |callback| {
+                    report(&mut parser, context, &line, &regular_lfs_active, callback);
+                });
+            }
+        },
+        |line| {
+            let progress = lfs_parser.parse(line);
+            if matches!(progress, GitProgress::Progress { .. }) {
+                lfs_lfs_active.store(true, Ordering::Release);
+                with_callback(&lfs_callback, |callback| {
+                    callback(progress.percent(), progress.description().to_owned());
+                });
+            }
+        },
+    )
     .await?;
 
     // git's last progress line may arrive without a trailing delimiter.
     if let Some(line) = splitter.flush() {
-        report(&mut parser, context, &line, &mut on_progress);
+        with_callback(&on_progress, |callback| {
+            report(&mut parser, context, &line, &lfs_active, callback);
+        });
     }
 
     Ok(output)
 }
 
-fn report<F>(parser: &mut GitProgressParser, context: ContextLines, line: &str, on_progress: &mut F)
-where
+fn report<F>(
+    parser: &mut GitProgressParser,
+    context: ContextLines,
+    line: &str,
+    lfs_active: &AtomicBool,
+    on_progress: &mut F,
+) where
     F: FnMut(f64, String),
 {
     let progress = parser.parse(line);
@@ -119,11 +153,26 @@ where
             on_progress(progress.percent(), progress.description().to_owned());
         }
         GitProgress::Context { text, .. } => {
+            if lfs_active.load(Ordering::Acquire) {
+                if let Some(details) = parse_progress_line(line) {
+                    if details.title == "Filtering content" && details.done {
+                        lfs_active.store(false, Ordering::Release);
+                    }
+                }
+                return;
+            }
             if context.allows(text) {
                 on_progress(progress.percent(), text.clone());
             }
         }
     }
+}
+
+fn with_callback<F, R>(callback: &Mutex<F>, invoke: impl FnOnce(&mut F) -> R) -> R {
+    let mut callback = callback
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    invoke(&mut callback)
 }
 
 #[cfg(test)]
@@ -173,6 +222,7 @@ mod tests {
                 &mut parser,
                 ContextLines::OnlyCountingObjects,
                 line,
+                &AtomicBool::new(false),
                 &mut |percent, text| reported.push((percent, text)),
             );
         }
@@ -181,5 +231,37 @@ mod tests {
         assert_eq!(reported[0].1, "remote: Counting objects: 5");
         assert_eq!(reported[1].1, "Receiving objects:  50% (1/2)");
         assert!(reported[1].0 > reported[0].0);
+    }
+
+    #[tokio::test]
+    async fn reports_live_lfs_progress_from_the_side_channel() {
+        let repo = crate::test_support::empty_repository().await;
+        let args = vec![
+            "-c".to_owned(),
+            "alias.emit-lfs=!printf 'download 1/1 5/5 file.bin\\n' >> \
+             \"$GIT_LFS_PROGRESS\""
+                .to_owned(),
+            "emit-lfs".to_owned(),
+        ];
+        let mut updates = Vec::new();
+
+        run_with_progress(
+            repo.path(),
+            RemoteRun {
+                args: &args,
+                name: "test",
+                env: &HashMap::new(),
+                success_exit_codes: &[],
+                parser: GitProgressParser::fetch(),
+                context: ContextLines::Include,
+            },
+            |value, description| updates.push((value, description)),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].0, 0.0);
+        assert!(updates[0].1.starts_with("Downloading file.bin"));
     }
 }

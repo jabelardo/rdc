@@ -77,6 +77,29 @@ export async function push(
   })
 }
 
+/**
+ * Deletes `remoteBranchName` on `remoteName`, by pushing an empty refspec.
+ *
+ * Takes no progress callback: a deletion pushes no objects, so git reports nothing to stream.
+ *
+ * A branch that is *already* gone from the remote resolves rather than rejecting — the stale local
+ * remote-tracking ref is removed instead, which is the state the caller asked for. Authentication
+ * failures do reject, so the caller can prompt and retry.
+ */
+export async function deleteRemoteBranch(
+  repositoryPath: string,
+  remoteName: string,
+  remoteBranchName: string,
+  isBackgroundTask = false
+): Promise<void> {
+  return invoke<void>('delete_remote_branch', {
+    repositoryPath,
+    remoteName,
+    remoteBranchName,
+    isBackgroundTask,
+  })
+}
+
 /** Fetches from `remoteName`, pruning tracking refs for branches deleted upstream. */
 export async function fetch(
   repositoryPath: string,

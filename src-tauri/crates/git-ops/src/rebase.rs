@@ -1,9 +1,9 @@
 //! Non-interactive rebase operations.
 //!
 //! Ported from `desktop-plus/app/src/lib/git/rebase.ts`. The core start/continue/abort flow lives
-//! here. Progress parsing/snapshots and interactive rebase remain deferred: progress is streaming
-//! output and therefore belongs on a Tauri Channel, while interactive rebase also depends on the
-//! reorder/squash slice.
+//! here, with progress streaming over a Tauri Channel. Interactive rebase lives in
+//! [`rebase_interactive`](crate::rebase::rebase_interactive) and is what [`crate::squash`] and
+//! [`crate::reorder`] drive.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -298,9 +298,8 @@ pub async fn abort_rebase(repository: impl AsRef<Path>) -> Result<(), GitError> 
 
 /// Stages the selected files and proceeds with the current rebase.
 ///
-/// Untracked files must not be included in `files`; the frontend constructs this list from status
-/// and sends only tracked, fully-selected changes. Partial selections remain gated on the patch
-/// formatter, like commit staging.
+/// Untracked files must not be included in `files`; the frontend constructs this list from status and
+/// sends only tracked changes. A partly-ticked file is staged by patch, exactly as in a commit.
 pub async fn continue_rebase(
     repository: impl AsRef<Path>,
     files: &[FileToStage],

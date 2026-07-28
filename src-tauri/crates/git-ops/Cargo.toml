@@ -5,12 +5,13 @@ edition = "2021"
 description = "Git operations for rdc — replaces desktop-plus's app/src/lib/git/** (dugite)"
 
 [dependencies]
+ignore = { workspace = true }
 regex = { workspace = true }
 serde = { workspace = true }
-thiserror = { workspace = true }
-tokio = { workspace = true, features = ["process", "io-util", "rt", "macros", "fs"] }
-
-[dev-dependencies]
 serde_json = { workspace = true }
 tempfile = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["process", "io-util", "rt", "macros", "fs", "time"] }
+
+[dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

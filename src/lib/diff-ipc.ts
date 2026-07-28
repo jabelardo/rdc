@@ -36,6 +36,7 @@ import {
   DiffType,
   IRawDiff,
   type IDiff,
+  type ITextDiff,
   type LineEndingsChange,
 } from '../models/diff'
 
@@ -281,4 +282,70 @@ export async function getCommitRangeDiff(
   })
 
   return hydrateDiff(diff)
+}
+
+/**
+ * Turns a diff back into the shape Rust reads.
+ *
+ * The mirror of {@linkcode hydrateTextDiffData}, and needed for the same reason: the domain hunks are
+ * class instances, and relying on the IPC layer's structured clone to flatten them would leave the
+ * agreement between the two sides unchecked. Writing it out means a field renamed on either side stops
+ * compiling here.
+ *
+ * Takes {@linkcode ITextDiff} rather than the shared text payload because that is what the original's
+ * `discardChangesFromSelection` took, so a `LargeText` diff can't be discarded from — the Rust side
+ * would accept one. Widening it is a UI decision for Phase 7, not something to slip in here.
+ */
+export function dehydrateTextDiff(diff: ITextDiff): ITextDiffDataWire {
+  return {
+    text: diff.text,
+    hunks: diff.hunks.map(hunk => ({
+      header: {
+        oldStartLine: hunk.header.oldStartLine,
+        oldLineCount: hunk.header.oldLineCount,
+        newStartLine: hunk.header.newStartLine,
+        newLineCount: hunk.header.newLineCount,
+      },
+      lines: hunk.lines.map(line => ({
+        text: line.text,
+        type: line.type,
+        originalLineNumber: line.originalLineNumber,
+        oldLineNumber: line.oldLineNumber,
+        newLineNumber: line.newLineNumber,
+        noTrailingNewLine: line.noTrailingNewLine,
+      })),
+      unifiedDiffStart: hunk.unifiedDiffStart,
+      unifiedDiffEnd: hunk.unifiedDiffEnd,
+      expansionType: hunk.expansionType,
+    })),
+    lineEndingsChange: diff.lineEndingsChange,
+    maxLineNumber: diff.maxLineNumber,
+    hasHiddenBidiChars: diff.hasHiddenBidiChars,
+  }
+}
+
+/**
+ * Discards the given lines of a file from the working tree.
+ *
+ * `selectedLines` are absolute indices across the unified diff — the same ones `DiffSelection` uses,
+ * where index zero is the first hunk's header.
+ *
+ * **`diff` must be the diff the selection was made against.** It is sent rather than re-read for that
+ * reason: if the file has changed since, git rejects the patch instead of discarding whichever lines
+ * now happen to sit at those indices.
+ *
+ * Discarding nothing resolves without touching the file.
+ */
+export async function discardChangesFromSelection(
+  repositoryPath: string,
+  filePath: string,
+  diff: ITextDiff,
+  selectedLines: ReadonlyArray<number>
+): Promise<void> {
+  await invoke('discard_changes_from_selection', {
+    repositoryPath,
+    filePath,
+    diff: dehydrateTextDiff(diff),
+    selectedLines,
+  })
 }
