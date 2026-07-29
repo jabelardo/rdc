@@ -194,6 +194,42 @@ pub async fn fetch(
     Ok(())
 }
 
+/// Fetches a single refspec.
+///
+/// ```js
+/// await invoke('fetch_refspec', {
+///   repositoryPath,
+///   remoteName: 'origin',
+///   refspec: 'refs/pull/1/head:refs/remotes/origin/pr/1',
+/// })
+/// ```
+///
+/// No progress channel, unlike [`fetch`]: a single ref is one object graph and usually a small one, and
+/// the original passed no callback either.
+///
+/// **A refspec that doesn't exist on the remote resolves rather than rejecting.** `git_ops` treats exit
+/// code 128 as success here, because the common case is a pull request ref that has since been deleted —
+/// which is news about the remote, not a failure of the fetch.
+#[tauri::command]
+pub async fn fetch_refspec(
+    state: State<'_, TrampolineState>,
+    repository_path: String,
+    remote_name: String,
+    refspec: String,
+    is_background_task: Option<bool>,
+) -> Result<(), CommandError> {
+    let remote = state
+        .session_for(&repository_path, is_background_task.unwrap_or(false))
+        .await
+        .map_err(bind_error)?;
+
+    git_ops::fetch::fetch_refspec(&repository_path, &remote_name, &refspec, &remote.env)
+        .await
+        .map_err(|error| remote_error(&remote, error))?;
+
+    Ok(())
+}
+
 /// Pulls from a remote.
 ///
 /// ```js

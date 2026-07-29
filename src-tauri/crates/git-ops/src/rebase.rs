@@ -18,9 +18,10 @@ use crate::git_error_kind::GitErrorKind;
 use crate::operation_state::is_rebase_head_set;
 use crate::rev_list::{get_commits_between_commits, CommitOneLine};
 use crate::rev_parse::{get_repository_type, resolve_git_dir, RepositoryType};
-use crate::stage::{stage_manual_conflict_resolution_with_entries, ManualConflictResolution};
+use crate::stage::stage_manual_conflict_resolution_with_entries;
+
+pub use crate::stage::ManualResolution;
 use crate::status::{get_status, AppFileStatus};
-use crate::status_parser::GitStatusEntry;
 use crate::update_index::{stage_files, FileToStage};
 
 /// The app-specific result of attempting or continuing a rebase.
@@ -32,16 +33,6 @@ pub enum RebaseResult {
     OutstandingFilesNotStaged,
     Aborted,
     Error,
-}
-
-/// A manual resolution to apply before continuing a rebase.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RebaseConflictResolution {
-    pub path: String,
-    pub resolution: ManualConflictResolution,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub entries: Option<(GitStatusEntry, GitStatusEntry)>,
 }
 
 /// Progress applying a sequence of commits.
@@ -303,7 +294,7 @@ pub async fn abort_rebase(repository: impl AsRef<Path>) -> Result<(), GitError> 
 pub async fn continue_rebase(
     repository: impl AsRef<Path>,
     files: &[FileToStage],
-    manual_resolutions: &[RebaseConflictResolution],
+    manual_resolutions: &[ManualResolution],
     no_verify: bool,
 ) -> Result<RebaseResult, GitError> {
     continue_rebase_impl(repository, files, manual_resolutions, no_verify, None).await
@@ -313,7 +304,7 @@ pub async fn continue_rebase(
 pub async fn continue_rebase_with_progress<F>(
     repository: impl AsRef<Path>,
     files: &[FileToStage],
-    manual_resolutions: &[RebaseConflictResolution],
+    manual_resolutions: &[ManualResolution],
     no_verify: bool,
     mut on_progress: F,
 ) -> Result<RebaseResult, GitError>
@@ -333,7 +324,7 @@ where
 async fn continue_rebase_impl(
     repository: impl AsRef<Path>,
     files: &[FileToStage],
-    manual_resolutions: &[RebaseConflictResolution],
+    manual_resolutions: &[ManualResolution],
     no_verify: bool,
     progress_callback: Option<&mut (dyn FnMut(MultiCommitOperationProgress) + Send)>,
 ) -> Result<RebaseResult, GitError> {

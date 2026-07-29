@@ -134,9 +134,7 @@ describe('the history wire shape', () => {
 const invoke = vi.hoisted(() => vi.fn())
 vi.mock('@tauri-apps/api/core', () => ({ invoke }))
 
-const { getCommits, getCommit, getChangedFiles, getAuthors } = await import(
-  './log-ipc'
-)
+const { getCommits, getCommit, getChangedFiles } = await import('./log-ipc')
 
 const REPO = '/tmp/repo'
 
@@ -204,19 +202,5 @@ describe('the history commands', () => {
       sha: 'abc123',
     })
     expect(changeset.files[0]).toBeInstanceOf(CommittedFileChange)
-  })
-
-  it('getAuthors hydrates each identity', async () => {
-    invoke.mockResolvedValue([commitData.author, commitData.committer])
-
-    const authors = await getAuthors(REPO, ['a', 'b'])
-
-    expect(invoke).toHaveBeenCalledWith('get_authors', {
-      repositoryPath: REPO,
-      shas: ['a', 'b'],
-    })
-    expect(authors).toHaveLength(2)
-    expect(authors[0]).toBeInstanceOf(CommitIdentity)
-    expect(authors[0].date).toBeInstanceOf(Date)
   })
 })

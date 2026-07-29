@@ -212,6 +212,38 @@ pub async fn conflicted_repository() -> TempRepository {
     repo
 }
 
+/// Builds a repository with a **modify/delete** conflict in a file named `foo`.
+///
+/// `HEAD` modified it and the merged branch deleted it, so git reports `UD` — "deleted by them". This
+/// is the conflict whose resolution cannot be expressed by content alone: choosing the side that
+/// deleted the file means staging a removal, and `git checkout --theirs` refuses the path outright
+/// ("does not have their version").
+pub async fn delete_modify_conflicted_repository() -> TempRepository {
+    let repo = empty_repository().await;
+    let path = repo.path();
+
+    commit_file(&path, "foo", "base\n", "first");
+
+    run(&path, &["branch", "deletes-it"]);
+    commit_file(&path, "foo", "changed\n", "modified on the current branch");
+
+    run(&path, &["checkout", "deletes-it"]);
+    run(&path, &["rm", "--", "foo"]);
+    run(&path, &["commit", "-m", "deleted on the other branch"]);
+
+    run(&path, &["checkout", "main"]);
+
+    // Expected to fail: this is the conflict the fixture exists to produce.
+    let merge = run_allowing_failure(&path, &["merge", "deletes-it"]);
+    assert!(
+        !merge.status.success(),
+        "the merge was supposed to conflict but succeeded; the setup no longer produces a \
+         modify/delete conflict"
+    );
+
+    repo
+}
+
 /// Paths with unmerged (conflicted) entries in the index.
 ///
 /// Uses git as the oracle — `git ls-files -u` lists unmerged entries — so tests don't have to go

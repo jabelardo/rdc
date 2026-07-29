@@ -701,9 +701,12 @@ async fn without_interception_the_hook_still_runs_but_not_through_us() {
 }
 
 #[tokio::test]
-async fn amending_also_intercepts_post_rewrite() {
+async fn amending_intercepts_post_rewrite_without_dropping_its_stdin() {
     // The one hook whose presence depends on the flags: only an amend rewrites a commit. Which is why the
-    // hook list belongs to the operation rather than to the caller.
+    // hook list belongs to the operation rather than to the caller. `post-rewrite` receives the rewritten
+    // SHAs on stdin, so Git 2.39 cannot run it through interception: that version has `git hook run` but
+    // not `--to-stdin`. As with `pre-push`, refusing the hook is safer than silently running it without
+    // the data it expects. Git ignores a post-rewrite failure, so the amend itself still succeeds.
     let fixture = Fixture::new().await;
     fixture.write_hook(
         "post-rewrite",
@@ -724,10 +727,17 @@ async fn amending_also_intercepts_post_rewrite() {
     .await
     .expect("the amend should succeed");
 
-    assert!(
-        fixture.path().join("rewrote.txt").exists(),
-        "post-rewrite is intercepted when amending"
-    );
+    if supports_to_stdin(&fixture.path()).await {
+        assert!(
+            fixture.path().join("rewrote.txt").exists(),
+            "post-rewrite is intercepted when Git can preserve its stdin"
+        );
+    } else {
+        assert!(
+            !fixture.path().join("rewrote.txt").exists(),
+            "post-rewrite must not run without the rewritten SHAs it expects"
+        );
+    }
 }
 
 #[tokio::test]

@@ -241,18 +241,21 @@ global-namespace blind spot in import analysis, and the Node 26 `localStorage` s
 
 **Phase 2 is complete and export-audited** (`git-ops` crate) — its
 acceptance spec is `app/test/unit/git/**` (51 files recursively: 45 top-level plus 6 under
-`pull/` and `rebase/`); see the exit criteria below. Phase 3 work can continue, starting with the
-§7 IPC channel-table pass in `MIGRATION_MAP.md`, while the remaining exported-behavior deferrals
-listed there are implemented by their named owners.
+`pull/` and `rebase/`); see the exit criteria below. Phase 3 subsequently completed the git command
+surface and the exact §7 IPC channel-table audit; remaining exported-behavior deferrals are implemented
+by their named later-phase owners.
 Nine of the 15 tests re-scoped in Step 4 were subsequently recovered through the
 `Repository.url` redesign, trailer/regex extraction, and app-state decomposition. The remaining
-five are assigned to Phases 3, 5, and 7 in `MIGRATION_MAP.md` §6.
+four are assigned to Phases 5 and 7 in `MIGRATION_MAP.md` §6. The former `ipc-contract` deferral is
+superseded by the exact channel measurement and regression tests, while `format-commit-message` now has
+its Phase 3 `merge_trailers` command and retains only Phase 7 consumer-layer work.
 
 ### Phase 2 — Git backend (`git-ops` crate) — **COMPLETE — EXPORT-AUDITED**
 
 **Minimum git.** rdc runs the **system** git, where upstream bundled its own — so an option newer than a
-supported distro's git is a real failure, not a hypothetical one. Two are shimmed rather than assumed
-(`cherry-pick --empty`, `hook run --to-stdin`), and CI holds the line with a job on git 2.39. Ubuntu 22.04
+supported distro's git is a real failure, not a hypothetical one. `cherry-pick --empty` is shimmed and
+`hook run --to-stdin` is capability-guarded rather than assumed; CI holds the line with a job on git
+2.39. Ubuntu 22.04
 ships 2.34, Debian 12 ships 2.39, Ubuntu 24.04 ships 2.43, and the primary target Ubuntu 26.04 ships 2.53.
 Use `exec::supports_flag` rather than a version comparison; see `MIGRATION_MAP.md` §8.
 
@@ -281,8 +284,9 @@ recorded against the phase that owns its blocker. File counterparts alone are in
 
 | Left open | Owner | Why it isn't Phase 2 |
 |---|---|---|
-| Hook output, terminal capture and the failure prompt for commit/merge/rebase/push/pull | Phase 3 | The backend is complete; what's missing is commands passing a `HookInterception` and putting its callbacks on Channels. The enable setting behind it is Phase 7 state. |
-| Image diffs, and commands for `get_blob_contents`/`get_partial_blob_contents` | Phase 3 | Both wait on one decision — how raw bytes cross IPC — which is the IPC surface's to make, not the git layer's. |
+| Commit terminal transport | Phase 3 | **Done:** combined stdout/stderr crosses a command-scoped Channel. The only production consumer upstream is commit progress. |
+| Commit terminal history/dialog and the hook-failure decision | Phase 7 | These require repository state, a late-subscriber buffer, popup lifecycle, and an answer from the user. They are consumers of the Phase 3 seams, not transport work. |
+| Image diff production and blob transport | Phase 3 / Phase 7 | **Phase 3 done:** image diffs use scoped `rdc-blob` capability URLs, with no raw-byte command. Phase 7 owns rendering and the bounded text-prefix consumer. |
 | `envForProxy`, `getGlobalConfigPath` | Phase 4 | Electron's `session.resolveProxy` and the `git config --edit` editor trick are platform integrations. **No remote operation has proxy support today**; that is a known gap, not an oversight. |
 | `getFilesDiffText`, the remaining rev-list queries, `getConfigValueWithOrigin` and its formatters, accounts/keychain, SSH env | Phase 7 | Each lands with its consumer, and the config formatters emit UI strings. |
 
@@ -299,9 +303,9 @@ implementing those later-phase features.
 | `lib/diff-parser.ts` | ported to Rust, TypeScript version deleted |
 | `lib/git/log.ts` | ported to Rust |
 | `lib/git/show.ts`, `lib/git/diff-index.ts` | ported to Rust |
-| `lib/git/diff.ts` | text and conflict-resolution diff paths ported; image path deferred |
+| `lib/git/diff.ts` | text, image, and conflict-resolution diff production ported; Phase 7 owns image rendering |
 | `lib/trampoline/**`, `lib/git/credential.ts` | handlers ported; accounts/UI behind traits |
-| `lib/git/{push,fetch,pull}.ts`, `lib/progress/**` | ported to Rust; hooks deferred |
+| `lib/git/{push,fetch,pull}.ts`, `lib/progress/**` | ported to Rust; hook command handoff subsequently completed in Phase 3 |
 | `lib/git/{clone,remote}.ts` | ported to Rust |
 | `lib/git/{stash,cherry-pick}.ts` | ported to Rust |
 | `lib/git/submodule.ts` | ported to Rust; closes `checkout`'s deferral |
@@ -394,13 +398,11 @@ output, and inventing a stricter rule risks rejecting output it does produce.
 needed. Both are small, and scoping them was driven by asking who actually consumes each export:
 
 - `get_blob_contents` is used only by `diff.ts` internals (`getResolutionDiff`, `getBlobImage`), so it
-  is **Rust-internal with no command**. Sending raw bytes over IPC needs a representation decision —
-  base64, a byte array, a custom protocol response — and the consumers that would force that choice
-  are the deferred image paths. Deciding it now would be guessing.
+  is **Rust-internal with no command**. Phase 3 later settled the byte representation with scoped
+  `rdc-blob` capability URLs rather than base64 or a byte-array command response.
 - `getPartialBlobContents` **has since landed** — see the `git_capped` slice note below. It has no
-  command either, for the same reason as `get_blob_contents`: its consumer is
-  `ui/diff/syntax-highlighting/index.ts` (Phase 7), and raw bytes over IPC still needs the
-  representation decision.
+  command because its only consumer is `ui/diff/syntax-highlighting/index.ts` (Phase 7); that phase
+  will expose the bounded prefix in the text shape its consumer needs.
 - `get_index_changes` is consumed by `lib/stores/git-store.ts`, so it **is** exposed as a command.
 
 Two things verified rather than assumed:
@@ -450,12 +452,10 @@ used `line.text.length` on a JavaScript string, i.e. UTF-16 code units; measurin
 have declared a file of CJK text unrenderable at a third of the real limit. A test pins a fixture that
 exceeds the limit in bytes but not in characters.
 
-**Deferred, with the reason:** image diffs need the blob-bytes-over-IPC decision from `show`, so a
-binary image currently reports `Binary` and an SVG reports plain text — the original wrapped the SVG's
-text diff inside an image diff, so the text half is intact and only the second view mode is missing.
-`getFilesDiffText` remains with its store consumer. `getResolutionDiff` now has its own backend-local
-temp-file path. The shared LFS command and progress layer is also ported; image previews remain
-blocked on the raw-bytes-over-IPC decision.
+**Subsequent disposition:** Phase 3 added image diff production and scoped `rdc-blob` capability URLs;
+the bytes do not enter JSON. `getFilesDiffText`, the bounded syntax-highlighting prefix, and the image
+viewer remain with their Phase 7 consumers. `getResolutionDiff` has its own backend-local temp-file
+path, and the shared LFS command and progress layer is ported.
 
 **The trampoline handlers landed**, which is the structural blocker for the eight network-bound files.
 Three pieces: the credential protocol (`credential.rs`), per-operation session state and the
@@ -922,9 +922,9 @@ and ours still applies. And the directory is **`sq_quote`-escaped**, which close
 open ("could it possibly include a single quote? probably not?"): the parent is `TMPDIR`, which the user
 sets, and an unescaped quote would let git read the rest of the path as configuration.
 
-What is left is outside this crate. Whether to intercept at all is frontend state, and the four commands
-that name hook deferrals have to pass a `HookInterception` and put its progress and failure callbacks on
-Tauri Channels — Phase 3 work with a Phase 7 decision behind it.
+What was left outside this crate is now split cleanly: Phase 3 wired `HookInterception`, progress, abort,
+and failure callbacks through the four commands that actually intercept upstream. Phase 7 still owns the
+preference that enables interception and the failure dialog that answers abort/ignore.
 
 **A capped read closed `show`'s deferral.** `getPartialBlobContents` reads the beginning of a blob —
 enough for syntax highlighting to tokenize what is on screen — and the point is not to hold the rest in
@@ -987,8 +987,9 @@ needed.
 original's nested callback/listener API: sequential Git operations share one bounded history, late
 subscribers receive that history before live chunks, and live chunks remain untrimmed. Subscription
 handles unsubscribe on drop. The six upstream cases run against two real `git version` processes;
-one additional Rust test pins the RAII ownership behavior. Per-command capture and Tauri Channel
-adaptation remain Phase 3 work.
+one additional Rust test pins the RAII ownership behavior. Phase 3 subsequently added the concrete
+per-command capture and Tauri Channel adapter for `create_commit`; the other upstream optional terminal
+callbacks have no production consumer and are recorded for Phase 7 rather than exposed speculatively.
 
 **What remains, by what blocks it:**
 
@@ -1002,11 +1003,13 @@ adaptation remain Phase 3 work.
 - **Not a `lib/git` file, but adjacent:** `app/src/lib/hooks/**` (7 files, 863 lines). Discovery, shell
   selection, login-shell environment loading **and the proxy transport** have landed; `config.ts` is
   `localStorage`, so it belongs to Phase 7. Discovery, the shell environment, the transport, the runner
-  and `withHooksEnv` have **all** landed — see the slice notes below. What remains is not in this crate:
-  the four commands have to *ask* for interception and put its callbacks on Channels, which is Phase 3.
-- **Deferred inside ported modules:** hook output and per-command terminal capture/Channel wiring for
-  commit/merge/rebase/push/pull, image diffs, `getFilesDiffText`, and the remaining config/proxy
-  helpers. Each has a named later consumer or platform prerequisite.
+  and `withHooksEnv` have **all** landed — see the slice notes below. Phase 3 wired the four commands and
+  their progress Channels. Phase 7 still owns the preference that enables interception and the
+  bidirectional hook-failure prompt.
+- **Deferred inside ported modules:** the commit terminal stream now crosses in Phase 3. Phase 7 retains
+  its bounded history and renders the progress dialog. Merge/rebase/push expose the same optional callback
+  upstream but have no production consumer; pull declares it but never wires it into the Git options.
+  `getFilesDiffText` and the remaining config/proxy helpers retain their named later owners.
 
 **Landed, in order** (the counts below are historical, from each slice as it landed):
 - `src-tauri` is now a **Cargo workspace** (root package = the Tauri app, members = `crates/*`)
@@ -1378,17 +1381,20 @@ breaks.
 in `lib/ssh/ssh.ts` next to `getSSHEnvironment`, which imports the trampoline paths and `fs`. Sixth
 instance of the co-located-declaration pattern; extracted to `lib/ssh/ssh-host-prompt.ts` (4 tests).
 
-**Remaining 5:** `ipc-contract` and `format-commit-message` (Phase 3, IPC), `popup-manager`
-(Phase 5/7), `stats-store` and `app-store-test-harness` (Phase 7).
+**Historical handoff, subsequently reconciled:** `ipc-contract` is superseded by the exact 82-channel
+measurement plus its regression tests. Phase 3 supplied the `merge_trailers` command required by
+`format-commit-message`; its helper/test now travels with the Phase 7 store and UI consumers.
+The remaining four deferred test modules are `popup-manager` (Phase 5/7), `format-commit-message`,
+`stats-store`, and `app-store-test-harness` (Phase 7).
 
-**Next:** the rest of `lib/git/**` —
+**Historical next step (now complete):** the rest of `lib/git/**` —
 commit/checkout/merge/rebase/stash/push/pull/fetch/log/remote/tag. The remote ones
 (push/pull/fetch/clone, and `deleteRemoteBranch`) can now use the trampoline for credentials, though
-they need the handlers to be wired up in Phase 3 before they work end to end.
+their handlers were subsequently wired through Phase 3 commands.
 
-**Note for Phase 3:** the status types carry no `serde`/`specta` derives yet. They will need them
-to cross IPC, but the representation is an IPC decision, so it belongs with the binding-generation
-work rather than being guessed at now.
+**Subsequent Phase 3 disposition:** the status types now carry their serde contracts and are pinned by
+the Rust serializer snapshot plus TypeScript fixtures. Binding generation was evaluated and rejected;
+the paired contract tests prevent drift without duplicating domain types.
 
 **Next:** step 2, then step 3.
 
@@ -1400,54 +1406,84 @@ work rather than being guessed at now.
 
 </details>
 
-### Phase 3 — IPC surface → Tauri commands — **IN PROGRESS — 106 COMMANDS**
+### Phase 3 — IPC surface → Tauri commands — **COMPLETE — 104 COMMANDS**
 
 The phase started with `get_status` wired end to end from Rust to React. The same command pattern now
-covers 67 registered commands.
+covers **104 registered commands**, each with a typed wrapper in `src/lib/*-ipc.ts`.
 
 #### What this phase is, measured
 
-**The 77 channels in `ipc-shared.ts` are almost entirely not git.** They are menus, window state, crash
-reporting, the auto-updater, notifications, dialogs, theme, URL and CLI actions, accounts and
-`resolve-proxy` — which route to Phases 4, 6, 7 and 9, not here. Git never crossed IPC in Electron at all:
-the renderer called dugite in-process. That is why every git row in `MIGRATION_MAP.md` §7 reads "no direct
-equivalent — new", and why the channel inventory is a *routing* exercise rather than a work list.
+**The 82 channels in `ipc-shared.ts` are entirely not git** — the routing pass confirmed it, with **not one
+channel owned by this phase**. They are menus, window state, crash reporting, the auto-updater,
+notifications, dialogs, theme, URL and CLI actions, accounts and `resolve-proxy`: 71 to Phase 4, 5 to
+Phase 6, 3 each to Phases 5 and 9. Git never crossed IPC in Electron at all — the renderer called dugite
+in-process — which is why every git row in `MIGRATION_MAP.md` §7.2 reads "no direct equivalent — new",
+and why the channel inventory was a *routing* exercise rather than a work list. (82, not the 77 this
+document claimed for two phases; the number had never been derived from the file.)
 
-The work list is the **store layer's call surface**, which is knowable now: upstream's `lib/stores/**`
-imports **104 distinct functions** from `lib/git`. Every one has a proven consumer, which is the bar a new
-command has to meet.
+The work list is the **store layer's call surface**: upstream's `lib/stores/**` imports **122 names** from
+`lib/git`, of which 13 are types, leaving **109 functions**. Every one has a proven consumer, which is the
+bar a new command has to meet.
 
-| | Count | What it needs |
+**`scripts/measure-store-surface.mjs` produces these numbers**, and it exists because the earlier figure in
+this document — "104 distinct functions" — could not be reproduced. Whatever filter produced it went
+unrecorded, so a recount disagreed with it and there was no way to tell which count was wrong. The script
+takes the classifications that used to live in prose here (which names are types, which belong in
+TypeScript, which a later phase owns) and turns them into data it checks, exiting non-zero when anything
+is uncovered. It needs the upstream checkout, so it is a local gate at the end of a slice rather than a CI
+job. A number in a plan that nobody can re-derive is a claim, not a measurement.
+
+| | Count | Note |
 |---|---|---|
-| A command already exists | 58 | — |
-| Ported in `git-ops`, no command | 33 | command + typed wrapper + snapshot case |
-| **Not ported at all** | 8 | port first, then expose |
+| Has a command | 97 | of 104 registered |
+| Lives in TypeScript by design | 8 | the script verifies the named file exports it |
 | Owned by a later phase | 4 | `envForRemoteOperation`, `getGlobalConfigPath` (Phase 4); `getConfigValueWithOrigin`, `getFilesDiffText` (Phase 7) |
+| **Not covered** | 0 | the classification is exhaustive |
 
-Two caveats on the 33: a couple are existing commands under a different name (`merge` → `merge_branch`,
-`rebase` → `rebase_branch`), and one or two are **pure string helpers** — `formatAsLocalRef`, and
-`revRange`/`revSymmetricDifference` alongside them — which belong in `src/lib/**` as TypeScript rather than
-as a round trip to Rust. A command that computes a string from a string is a command that shouldn't exist.
+**The 8 in TypeScript**, each because a round trip would buy nothing: `formatAsLocalRef`, `revRange` and
+`revSymmetricDifference` are string manipulation; `isCoAuthoredByTrailer` is a predicate over one object;
+`getBranchAheadBehind` composes `get_ahead_behind` with `revSymmetricDifference` and its branch-specific
+cases are decidable from data the frontend already holds; `git` is the exec wrapper that `git-ops`
+replaces rather than exposes; and `memoizedGetRemotesFromPath` is a caching decorator, which is the store
+layer's call to make and not something to bake into the boundary.
+`parseSingleUnfoldedTrailer` is pure line parsing beside `isCoAuthoredByTrailer`; the Rust copy remains
+for backend parsing, while the frontend copy avoids one IPC round trip per commit-message line. A command
+that computes a string from a string is a command that shouldn't exist.
 
-The 8 genuine gaps are **function-level holes that the file-level count hid**, all inside modules the map
-already marks "partially done" — the same lesson as the `for-each-ref` recount, one level down:
+**The two former gaps are closed**:
 
-- `rev-list.ts` — `getAheadBehind`, `getBranchAheadBehind` (2 of its 8 functions are ported)
-- `reset.ts` — `reset`, `resetPaths` (1 of 3)
-- `stage.ts` — `stageResolvedConflictFiles` (1 of 2)
-- `diff.ts` — `getBranchMergeBaseDiff`, `getBranchMergeBaseChangedFiles`, `getCommitRangeChangedFiles`
+- **`fetchRefspec`** now has a command and typed wrapper, using
+  `TrampolineState::session_for` exactly as `fetch` and `delete_remote_branch` do.
+  Note this **corrects an earlier claim**: the credential env was filed under Phase 4 via
+  `envForRemoteOperation`, but the trampoline landed in Phase 2, so what Phase 4 still owns is proxy
+  support and account state, not this.
+- **`parseSingleUnfoldedTrailer`** now lives in `src/models/trailer.ts` next to
+  `isCoAuthoredByTrailer`; it deliberately has no command.
 
-Nothing was mis-recorded, but the plan had never named them. Count functions, not files.
+**The three commands that had no consumer were removed**, while their backend functions and tests remain:
+
+| Command | Upstream situation |
+|---|---|
+| `get_authors` | `getAuthors` has **no caller at all** upstream, not even a test — dead since some earlier refactor |
+| `fetch_tags_to_push` | called only by `app/test/unit/git/tag-test.ts`; the tags-to-push indicator is fed from local storage instead |
+| `stage_manual_conflict_resolution` | **internal** to upstream's `lib/git`, called by `stageFiles` and `cherry-pick.ts` — and ours is internal too, since `create_commit` stages manual resolutions itself |
+
+They were speculative wire surface rather than missing functionality. The reverse-direction check now
+finds **zero consumerless commands**: 97 answer store imports and 7 have named consumers outside the store
+import set.
+
+The earlier recount lesson still holds and now has a second layer: **count functions, not files**, and
+**check both directions** — coverage of the consumer list says nothing about surface the list never asked
+for.
 
 #### Decisions settled before starting
 
-**Raw bytes cross IPC as a custom URI protocol, not in a command response.** An `rdc-blob://` scheme
-handler in Rust serves blob contents, so `<img src>` and CSS reach them directly and the bytes never enter
-JSON. base64 in a response was the alternative and is rejected for the consumer that forced the question:
+**Raw bytes cross the process boundary as a custom URI protocol, not in a command response.** An
+`rdc-blob://` scheme handler in Rust serves blob contents, so `<img src>` and CSS reach them directly and
+the bytes never enter JSON. base64 in a response was the alternative and is rejected for the consumer that forced the question:
 a 4 MB PNG becomes ~5.5 MB of JSON string, copied twice, living in JS memory for as long as the diff is
-open. **The handler needs scoping** — a page must not be able to read an arbitrary path off disk by
-constructing a URL — so it validates against the repositories the app has open, in the spirit of the
-trampoline's per-operation token. That scoping is the design work in the slice; serving bytes is not.
+open. The implemented handler is scoped with an opaque, random capability token whose registry entry
+binds it to one repository/revision/path request; constructing a repository path in a URL grants nothing.
 
 **Order: Phase 2's handovers first, then the command surface.** The hook and byte-representation work is
 what other phases are blocked on, and the hooks half is freshest now.
@@ -1458,8 +1494,9 @@ what other phases are blocked on, and the hooks half is freshest now.
    scope: upstream intercepts in **four** modules, not five. `rebase.ts` passes no `interceptHooks` at all,
    which a grep confirmed before any code was written.
 2. ~~**`rdc-blob://` plus image diffs.**~~ **Done** — see the slice note below. The protocol handler and its scoping, then `getBlobImage`/
-   `getWorkingDirectoryImage` and the `DiffType::Image` arm, then commands for the two blob readers.
-   Closes `diff.rs`'s image deferral and `show.rs`'s lack of commands. Checked before starting:
+   `getWorkingDirectoryImage` and the `DiffType::Image` arm. Blob readers remain Rust-internal: the full
+   read is served through the capability URL, while the bounded text-prefix consumer belongs to Phase 7.
+   Closes `diff.rs`'s image-production deferral without adding raw-byte commands. Checked before starting:
 
    - **`DiffType.Image` already exists** in the ported enum at discriminant **1**, so the Rust arm slots
      into the existing numeric contract without touching it.
@@ -1470,29 +1507,56 @@ what other phases are blocked on, and the hooks half is freshest now.
      away, with no base64 inflation and nothing large in JSON. It is a **ported type changing while its
      consumer is unported**, which is the cheapest moment for it: Phase 7 writes against the new shape
      from the start.
-   - **`getMediaType` is not ported** and belongs in Rust now, because the protocol handler is what sets
-     `Content-Type`. Note upstream answers `image/jpg` for `.jpg`, which is not a registered media type
-     (`image/jpeg` is) — verify against a real webview before copying it.
+   - **`getMediaType` is ported in Rust**, because the protocol handler is what sets `Content-Type`.
+     The port uses the registered `image/jpeg` media type rather than upstream's `image/jpg`.
    - **CSP is currently `null`.** When Phase 5 adds one it must allow `rdc-blob:` in `img-src` and
      `connect-src`; recorded there rather than guessed at here.
    - **URL construction goes through a helper**, since Tauri serves custom schemes through different URL
      forms per platform. Verified in the Linux container before anything is built on top of it.
-3. **Command batches, by domain**, porting the 8 gaps as their domain comes up: branch operations →
-   reset/stage → rev-list ahead/behind → the three diff functions → config → worktrees → gitignore → LFS
-   → mergeability and repository state → trailers. Each batch is a full vertical slice: command, typed
-   wrapper, both halves of the wire contract, tests.
+3. ~~**Command batches, by domain**~~ **Done.** Branch operations → reset/stage →
+   rev-list ahead/behind → the three diff functions → config → worktrees → gitignore → LFS →
+   mergeability and repository state → trailers, each a full vertical slice: command, typed wrapper, both
+   halves of the wire contract, tests. `fetchRefspec` is exposed, `parseSingleUnfoldedTrailer` is kept in
+   TypeScript by design, and the three consumerless commands are gone.
 4. **The routing table** (`MIGRATION_MAP.md` §7): one row per upstream channel, its direction, and the
-   phase that owns it. Documentation only, and cheap — its value is that no channel gets ported twice or
-   forgotten.
+   phase that owns it. The measurement script parses the table and compares the exact upstream names,
+   directions, and counts, so a channel cannot be ported twice or forgotten silently.
 
 #### Exit criteria
 
-- Every function `lib/stores/**` imports from `lib/git` either **has a command** or **names the phase that
-  owns it** — the same rule Phase 2 closed on.
-- **No command without a consumer.** The store list is the evidence; a command that exists because it
-  might be useful is speculative surface with a wire contract to maintain.
-- Every shape that crosses is in the snapshot, with a TypeScript fixture annotated against `src/models/**`.
-- The 77 channels are each routed, so Phase 4/6/7/9 inherit a list rather than a search.
+Measured by `scripts/measure-store-surface.mjs`; all implementation criteria are green.
+
+- ✅ Every function `lib/stores/**` imports from `lib/git` either **has a command**, **stays in
+  TypeScript by design**, or **names the later phase that owns it** — the same rule Phase 2 closed on.
+  **109 of 109**, with zero uncovered.
+- ✅ **No command without a consumer.** **104 of 104** — 97 answer store imports and 7 name a consumer
+  outside that import set.
+- ✅ Every shape that crosses is in the snapshot, with a TypeScript fixture annotated against
+  `src/models/**`. **50 keys, every one referenced from a test** — checked by walking the snapshot rather
+  than by inspection, since an unused key is invisible.
+- ✅ Every command has an actual typed TypeScript `invoke()` wrapper. **104 of 104.**
+- ✅ The 82 channels are each routed, so Phase 4/6/7/9 inherit a list rather than a search —
+  `MIGRATION_MAP.md` §7.1. The script checks all **53 request** and **29 request/response** names against
+  upstream rather than accepting a matching total, and checks each row's direction against the type that
+  declares it: request/response exactly when the channel is in `RequestResponseChannels`. Which way a
+  *simplex* channel points was read from whether `ipcRenderer.send`/`ipcMain.on` or
+  `ipcWebContents.send`/`ipcRenderer.on` names it, and that half is not re-derived on each run — a table
+  edit could get an arrow backwards without failing the check.
+
+**Closed 2026-07-29:** Phase 3's implementation and measurement criteria are complete. The closure
+revision passed the required local gates and is held to the same standard in CI. Remaining work is
+explicitly owned elsewhere: platform commands and proxy integration by Phase 4, the capability URL's
+production CSP by Phase 5, and UI/store consumers—including terminal history and the unused upstream
+merge/rebase/push/pull terminal callbacks—by Phase 7.
+
+**What closing on these criteria does not buy, learned immediately after.** A review of the closure
+revision found `create_merge_commit` dropping a conflict's index entries, which made a modify/delete
+conflict resolved in favour of the deleting side *uncommittable* — see `MIGRATION_MAP.md` §8. **All four
+exit criteria were green while that bug existed, and would have stayed green.** They measure the
+*surface*: that every consumer has a command, every command has a caller, every shape is pinned, every
+channel is routed. None of them looks at whether a command does the right thing — that is what tests do,
+and the gap was a missing test, not a missing measurement. Worth remembering when Phase 4 writes its own
+exit criteria: a command counted is not a command that works.
 
 **Decisions settled by the slice, each of which was blocking:**
 - **Native Tauri IPC, no codegen** (see the struck-through item below), with a wire-contract test as
@@ -1512,9 +1576,10 @@ what other phases are blocked on, and the hooks half is freshest now.
   specific failure without parsing prose — which is also what keeps user-facing wording in the
   frontend, per the `getDescriptionForError` decision.
 - **Streaming uses Channels, not events.** Tauri's docs are explicit that events are not for
-  high-throughput data. So the original's `processCallback`/`onTerminalOutputAvailable` — git progress
-  and terminal output during push/pull/fetch — maps to a `Channel`, not `app.emit`. Worth knowing
-  before those commands are written.
+  high-throughput data. Git progress and the concrete commit terminal stream therefore use Channels.
+  `create_commit` is the only terminal stream added: it is the only one with a production consumer
+  upstream. Merge/rebase/push merely expose unused optional callbacks, and pull declares one without
+  passing it to Git.
 
 Also committed the generator for `git_error_kind.rs`
 (`crates/git-ops/scripts/generate-git-error-kind.mjs`), which previously lived only in a scratch
@@ -1529,8 +1594,9 @@ rather than an intention:
 - ~~**Partial (per-line) staging**~~ **Done**, in the `apply` + `patch_formatter` slice below.
 - **Checkout progress** is now a `Channel`, not a callback (see the streaming note above).
   ~~**Submodule updates**~~ **Done**, with `lib/git/submodule.ts`.
-- **Hook output** (`interceptHooks`, `onHookProgress`) is also a Channel. Hooks still *run* — git runs
-  them regardless; what's missing is showing their output.
+- **Hook progress** (`interceptHooks`, `onHookProgress`) is also a Channel. Hooks still *run* — git runs
+  them regardless. The Phase 7 setting decides whether rdc intercepts them with the user's shell
+  environment, and its failure dialog supplies the abort/ignore decision.
 
 A third upstream bug turned up here, and this one was pinned by a test: `parseCommitSHA` returns the
 string `"(root-commit)"` instead of a SHA for a repository's first commit, and the original asserted
@@ -1585,15 +1651,16 @@ event.
 different state layout. `git-ops` stays independent of Tauri throughout — only the command layer
 adapts callbacks to Channels.
 
-**Current command count: 67. Next in this phase:** complete the literal `ipc-shared.ts` channel
-inventory, then use it to drive the remaining hook/terminal Channels, raw-byte blob commands,
-configuration/reset surfaces, and trampoline handlers that need account state.
+**Historical checkpoint at 67 commands.** The next work at that point was the literal `ipc-shared.ts`
+inventory, hook and terminal Channels, raw-byte blob transport, configuration/reset surfaces, and
+trampoline handlers that needed account state. Those slices are described by their completed entries
+below rather than by this old queue.
 
 Note the sequencing argument here competes with Phase 2's: the channel inventory produces a *queue*,
 whereas `diff` removes the thing that makes the app unusable. `diff` first, then the inventory.
 
 <details><summary>original phase description</summary>
-- `app/src/lib/ipc-shared.ts` declares 77 channels — treat this as the literal spec. Build a table (in `MIGRATION_MAP.md`) of channel → Tauri command/event, and knock them out systematically rather than ad hoc as UI needs them.
+- `app/src/lib/ipc-shared.ts` declares 82 channels (this said 77) — treat this as the literal spec. Build a table (in `MIGRATION_MAP.md`) of channel → Tauri command/event, and knock them out systematically rather than ad hoc as UI needs them.
 - Request/response channels (`ipcMain.handle`) → `#[tauri::command]` + `invoke`.
 - Main→renderer push channels (`webContents.send`) → `app.emit()` + `listen()`, or a **Channel** for
   anything streaming (git progress, terminal output).
@@ -1663,6 +1730,24 @@ one property that makes it worth having, that it is Rust's real serializer outpu
 Nineteen tests drive the chain through `create_commit` itself: the hook sees the shell environment, a
 refusing `pre-commit` stops the commit, an amend intercepts `post-rewrite` and a plain commit does not, and
 the reported hooks are exactly the four a commit reaches, in git's order.
+
+**Slice 1b: commit terminal transport is wired, and only where it has a consumer.** Upstream's app store
+passes `onTerminalOutputAvailable` only to `createCommit`; that listener backs the “Show commit progress”
+dialog. `create_commit` therefore streams the real commit process's combined stdout and stderr through a
+`Channel<String>`. The `git-ops` side stays transport-neutral and a test observes the real Git commit
+summary; the TypeScript command test pins the Channel argument and chunk callback.
+
+The Channel is deliberately a live transport rather than frontend state. Phase 7 must attach its receiver
+when the command starts, retain a bounded history for a dialog opened later, expose the subscription through
+repository state, and clear it when the operation ends. Phase 7 also owns the separate hook-failure popup
+and its asynchronous abort/ignore answer. A one-way terminal stream cannot answer that prompt, so the two
+features must not be conflated.
+
+No matching Channel was added to merge, rebase, or push: each exposes the optional callback in its library
+API, but no production caller supplies it. Pull is stronger evidence against mechanical parity — it
+declares the callback but never puts it in the options passed to `git`, so it is a no-op upstream. Adding
+those four command arguments would violate the “no wire surface without a consumer” rule, and making pull
+work would be an unrecorded behavior change.
 
 **Slice 2: image diffs, over a URL rather than through JSON.** `rdc-blob://` serves blob bytes to the
 webview, and `Diff::Image` finally has something to name. No new command — deliberately: the point is that
@@ -1801,7 +1886,9 @@ because TypeScript string enums are **nominal** — which is precisely the prope
 check on the wire shape rather than a restatement of it, and precisely why ts-rs was rejected.
 
 **The expose-only batches landed together**: config, `.gitignore`, LFS, worktrees, mergeability, repository
-state, operation state, `checkout-index` and trailers. **106 commands**, and the Rust side needed no new logic —
+state, operation state, `checkout-index` and trailers. **106 commands at that historical checkpoint**;
+the final measured surface is 104 after three consumerless commands were removed and `fetch_refspec` was
+added. The Rust side needed no new logic —
 every one of them wraps a function that already had tests, which is what "expose-only" was supposed to mean.
 
 Three things still needed deciding rather than typing:
@@ -1876,6 +1963,12 @@ Electron's `webRequest` API (used for `alive-origin-filter.ts`, `same-origin-fil
 ### Phase 7 — UI migration (React 16.8.4 → 19)
 Port `app/test/unit/ui/**` (~30 files) alongside each component group, component-by-component, using the existing dispatcher/store pattern as the seam:
 - `app/src/ui/dispatcher/**` + `app/src/lib/stores/**` (27 files, e.g. `app-store.ts`) is a solid seam — keep it. Only the leaf calls that currently go through `ipc-renderer.ts`/`main-process-proxy.ts` need to change to `invoke`/`listen`; the store/dispatcher shape itself doesn't need to change.
+- **Consume the Phase 3 commit terminal Channel:** attach before invoking `create_commit`, retain at most
+  256 KiB for a progress dialog opened after output has started, expose a subscribe/replay handle in
+  repository state, and clear it after the operation. Port `commit-progress/**` and its xterm-backed
+  dialog against that state. Separately, connect hook failures to the abort/ignore popup and enable hook
+  interception from the existing preference; terminal chunks are one-way data, while hook failure
+  requires a user response.
 - **react-virtualized → replace, don't port.** It's effectively unmaintained and known to misbehave under React 18+ StrictMode/concurrent rendering. Replace with `@tanstack/react-virtual` (actively maintained, hooks-based, composes well with the existing function-component surfaces). This is a required change, not optional, given the React 19 target — flag it early since virtualized lists (`repositories-list`, `history`, `changes`) are core UI.
 - React 16.8.4 → 19 is a large jump: `ReactDOM.render` → `createRoot` (rdc's scaffold already uses `createRoot`), string refs (if any remain) must go, legacy `defaultProps` on function components now warns — grep for these before porting each component rather than discovering them at runtime.
 - CodeMirror 5, `dompurify`, `marked`, `@floating-ui/react-dom`, `focus-trap-react`, `dexie`, `@xterm/xterm` are all React-version-agnostic; port as-is. **Optional fast-follow improvement**: CodeMirror 5 → 6 has a much better TS-first API, but don't couple this to the Tauri migration — separate effort.

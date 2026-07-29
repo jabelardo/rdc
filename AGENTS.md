@@ -47,6 +47,14 @@ cargo fmt --check
 **Run all five before committing.** CI enforces exactly these, and `clippy -D warnings` has caught
 real bugs a passing test missed (an octal-looking `\0` escape, for one).
 
+```sh
+node scripts/measure-store-surface.mjs   # IPC coverage; needs ../desktop-plus, so not in CI
+```
+
+Not a per-commit gate — run it when closing a slice that adds or removes commands. It measures what
+`MIGRATION_PLAN.md`'s Phase 3 exit criteria assert, in both directions: a store import with no command,
+and a command no consumer asks for. Fix the numbers in the plan from its output, never by hand.
+
 ## Layout
 
 ```

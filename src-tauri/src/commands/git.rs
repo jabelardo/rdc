@@ -13,19 +13,19 @@ use git_ops::log::ChangesetData;
 use git_ops::merge::{MergeOptions, MergeResult};
 use git_ops::patch_formatter::LineSelection;
 use git_ops::rebase::{
-    MultiCommitOperationProgress, RebaseConflictResolution, RebaseResult, RebaseSnapshot,
+    ManualResolution, MultiCommitOperationProgress, RebaseResult, RebaseSnapshot,
 };
 use git_ops::reset::ResetMode;
-use git_ops::stage::{ManualConflictResolution, ResolvedConflict};
+use git_ops::stage::ResolvedConflict;
 use git_ops::status::AheadBehind;
 use git_ops::status::{AppFileStatus, StatusResult};
-use git_ops::status_parser::GitStatusEntry;
 use git_ops::update_index::FileToStage;
 
 use super::CommandError;
 use crate::blob_protocol::BlobRegistry;
 use crate::hook_state::{support_for, HookRegistry};
 use git_ops::hooks::runner::HookProgressUpdate;
+use git_ops::MultiOperationTerminalOutput;
 use tauri::ipc::Channel;
 use tauri::State;
 
@@ -76,7 +76,12 @@ pub async fn get_status(
 /// than the app's — see `git_ops::hooks`. Which hooks that covers is not the caller's to choose: a commit
 /// reaches `pre-commit`, `commit-msg` and friends, and `--amend` also reaches `post-rewrite`, so the list
 /// belongs with the operation. `onHookProgress` reports each of them starting and finishing, with an id
-/// `abort_hook` accepts.
+/// `abort_hook` accepts. `onTerminalOutput` streams the combined stdout and stderr of the commit process;
+/// it is always present on the wire so the Phase 7 store can attach its bounded buffer without changing
+/// the command contract.
+// A command's parameters are its wire API, so grouping them to satisfy the lint would change the shape the
+// frontend sends — the wrong reason to change an interface.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn create_commit(
     hooks: State<'_, HookRegistry>,
@@ -86,18 +91,25 @@ pub async fn create_commit(
     options: Option<CommitOptions>,
     intercept_hooks: Option<bool>,
     on_hook_progress: Channel<HookProgressUpdate>,
+    on_terminal_output: Channel<String>,
 ) -> Result<String, CommandError> {
     let support = support_for(intercept_hooks.unwrap_or(false), &hooks, on_hook_progress)
         .map_err(CommandError::message)?;
+    let terminal_output = MultiOperationTerminalOutput::default();
+    let _terminal_subscription = terminal_output.subscribe(move |chunk| {
+        // Losing the webview must not cancel a commit and leave the index in an unexpected state.
+        let _ = on_terminal_output.send(chunk.to_owned());
+    });
 
     // `options` is optional so the frontend can omit it entirely, matching the original's
     // `options?: { … }`. Absent means every flag off.
-    git_ops::commit::create_commit(
+    git_ops::commit::create_commit_with_terminal_output(
         &repository_path,
         &message,
         &files,
         options.unwrap_or_default(),
         support.as_ref(),
+        &terminal_output,
     )
     .await
     .map_err(CommandError::from)
@@ -134,7 +146,7 @@ pub fn abort_hook(hooks: State<'_, HookRegistry>, id: u64) -> bool {
 pub async fn create_merge_commit(
     repository_path: String,
     files: Vec<FileToStage>,
-    manual_resolutions: Vec<(String, ManualConflictResolution)>,
+    manual_resolutions: Vec<ManualResolution>,
 ) -> Result<String, CommandError> {
     git_ops::commit::create_merge_commit(&repository_path, &files, &manual_resolutions)
         .await
@@ -239,36 +251,6 @@ pub async fn checkout_paths(
         .map_err(CommandError::from)
 }
 
-/// Stages a conflicted file according to the side the user chose.
-///
-/// ```js
-/// await invoke('stage_manual_conflict_resolution', {
-///   repositoryPath,
-///   path: 'conflicted.txt',
-///   resolution: 'theirs',
-/// })
-/// ```
-///
-/// `entries` is the conflict's `[us, them]` index entries, from the file's `UnmergedEntry`. It is
-/// optional, but supplying it is what lets a side that *deleted* the file resolve to a deletion
-/// rather than to staging working-tree content.
-#[tauri::command]
-pub async fn stage_manual_conflict_resolution(
-    repository_path: String,
-    path: String,
-    resolution: ManualConflictResolution,
-    entries: Option<(GitStatusEntry, GitStatusEntry)>,
-) -> Result<(), CommandError> {
-    git_ops::stage::stage_manual_conflict_resolution_with_entries(
-        &repository_path,
-        &path,
-        resolution,
-        entries,
-    )
-    .await
-    .map_err(CommandError::from)
-}
-
 /// Merges a branch into the current branch.
 ///
 /// `interceptHooks` runs the repository's hooks with the user's shell environment. A merge reaches
@@ -341,7 +323,7 @@ pub async fn rebase_branch(
 pub async fn continue_rebase(
     repository_path: String,
     files: Vec<FileToStage>,
-    manual_resolutions: Vec<RebaseConflictResolution>,
+    manual_resolutions: Vec<ManualResolution>,
     no_verify: bool,
     on_progress: Channel<MultiCommitOperationProgress>,
 ) -> Result<RebaseResult, CommandError> {

@@ -28,6 +28,30 @@ pub use crate::checkout::ManualConflictResolution;
 ///
 /// The original took the app's `WorkingDirectoryFileChange` and inspected `status.entry`; this takes
 /// the two status entries directly, since the surrounding model is a frontend concern.
+/// A conflict the user resolved by picking a side in the app.
+///
+/// Carries the index entries, and that is the whole point: without them a resolution can only be
+/// staged as "take the chosen side's content", so a side that *deleted* the file cannot be honoured.
+/// `checkout --ours/--theirs` fails outright on such a path — "does not have their version" — so the
+/// entry-less form turns a resolvable modify/delete into an error.
+///
+/// The original passed its `WorkingDirectoryFileChange` and read `status.entry` off it. That is view
+/// state, so this carries the two entries directly and the frontend supplies them from the status it
+/// already has.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ManualResolution {
+    /// Path relative to the repository root.
+    pub path: String,
+
+    /// The side the user picked.
+    pub resolution: ManualConflictResolution,
+
+    /// The conflict's index entries, `(us, them)`, when the caller knows them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entries: Option<(GitStatusEntry, GitStatusEntry)>,
+}
+
 /// A conflict the user has finished with, as the git facts needed to stage it.
 ///
 /// The original took a `WorkingDirectoryFileChange` and a `Map` of resolutions. That is view state — see

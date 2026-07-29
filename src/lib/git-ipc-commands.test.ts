@@ -36,7 +36,6 @@ const {
   checkoutRemoteBranch,
   checkoutCommit,
   checkoutPaths,
-  stageManualConflictResolution,
   mergeBranch,
   getMergeBase,
   abortMerge,
@@ -75,8 +74,30 @@ describe('the git commands', () => {
       // side takes one unconditionally. Covered in hook-ipc.test.ts.
       interceptHooks: false,
       onHookProgress: expect.anything(),
+      onTerminalOutput: expect.any(Channel),
     })
     expect(sha).toHaveLength(40)
+  })
+
+  it('createCommit streams terminal output to its callback', async () => {
+    invoke.mockResolvedValue('a'.repeat(40))
+    const onTerminalOutput = vi.fn()
+
+    await createCommit(
+      REPO,
+      'Fix the thing',
+      [{ path: 'src/thing.ts' }],
+      undefined,
+      undefined,
+      onTerminalOutput
+    )
+
+    const args = invoke.mock.calls[0][1] as {
+      onTerminalOutput: InstanceType<typeof Channel>
+    }
+    args.onTerminalOutput.onmessage('running pre-commit hook\n')
+
+    expect(onTerminalOutput).toHaveBeenCalledWith('running pre-commit hook\n')
   })
 
   it('createCommit passes options through when given', async () => {
@@ -144,19 +165,48 @@ describe('the git commands', () => {
     })
   })
 
-  it('createMergeCommit sends resolutions as pairs, not a record', async () => {
-    // A path is an arbitrary string, so it is not a safe object key — the Rust side takes pairs.
+  it('createMergeCommit sends resolutions as a list, not a record keyed by path', async () => {
+    // A path is an arbitrary string, so it is not a safe object key — the Rust side takes a list.
     invoke.mockResolvedValue('a'.repeat(40))
 
     await createMergeCommit(
       REPO,
       [{ path: 'a.txt' }],
-      [['a.txt', ManualConflictResolution.theirs]]
+      [{ path: 'a.txt', resolution: ManualConflictResolution.theirs }]
     )
 
     expect(invoke).toHaveBeenCalledWith(
       'create_merge_commit',
-      expect.objectContaining({ manualResolutions: [['a.txt', 'theirs']] })
+      expect.objectContaining({
+        manualResolutions: [{ path: 'a.txt', resolution: 'theirs' }],
+      })
+    )
+  })
+
+  it('createMergeCommit forwards the index entries, which decide a deletion', async () => {
+    // Without these the resolution can only mean "take that side's content", and a side that deleted
+    // the file has none — `checkout --theirs` fails on such a path rather than staging a removal.
+    invoke.mockResolvedValue('a'.repeat(40))
+
+    await createMergeCommit(
+      REPO,
+      [{ path: 'gone.txt' }],
+      [
+        {
+          path: 'gone.txt',
+          resolution: ManualConflictResolution.theirs,
+          entries: [GitStatusEntry.UpdatedButUnmerged, GitStatusEntry.Deleted],
+        },
+      ]
+    )
+
+    expect(invoke).toHaveBeenCalledWith(
+      'create_merge_commit',
+      expect.objectContaining({
+        manualResolutions: [
+          { path: 'gone.txt', resolution: 'theirs', entries: ['U', 'D'] },
+        ],
+      })
     )
   })
 
@@ -216,37 +266,6 @@ describe('the git commands', () => {
       repositoryPath: REPO,
       paths: ['src/thing.ts'],
     })
-  })
-
-  it('stageManualConflictResolution sends the resolution as a git flag name', async () => {
-    // 'ours'/'theirs' go straight to git as --ours/--theirs, so the enum's values are load-bearing.
-    await stageManualConflictResolution(
-      REPO,
-      'conflicted.txt',
-      ManualConflictResolution.ours
-    )
-
-    expect(invoke).toHaveBeenCalledWith('stage_manual_conflict_resolution', {
-      repositoryPath: REPO,
-      path: 'conflicted.txt',
-      resolution: 'ours',
-      entries: undefined,
-    })
-  })
-
-  it('stageManualConflictResolution forwards the index entries when given', async () => {
-    // Supplying these is what lets a side that deleted the file resolve to a deletion.
-    await stageManualConflictResolution(
-      REPO,
-      'conflicted.txt',
-      ManualConflictResolution.theirs,
-      [GitStatusEntry.UpdatedButUnmerged, GitStatusEntry.Deleted]
-    )
-
-    expect(invoke).toHaveBeenCalledWith(
-      'stage_manual_conflict_resolution',
-      expect.objectContaining({ entries: ['U', 'D'] })
-    )
   })
 
   it('mergeBranch sends options to the merge command', async () => {

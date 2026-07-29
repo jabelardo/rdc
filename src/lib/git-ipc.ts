@@ -146,6 +146,9 @@ export interface IHookOptions {
   readonly onHookProgress?: (progress: IHookProgress) => void
 }
 
+/** A chunk of combined stdout/stderr from the Git commit process. */
+export type TerminalOutputCallback = (chunk: string) => void
+
 /**
  * The hook arguments for an `invoke` call.
  *
@@ -189,8 +192,15 @@ export enum RebaseResult {
   Error = 'Error',
 }
 
-/** A manual conflict choice to apply before continuing a rebase. */
-export interface IRebaseConflictResolution {
+/**
+ * A conflict the user resolved by picking a side in the app.
+ *
+ * `entries` is the conflict's `[us, them]` pair, from the file's `status.entry`. It is optional on the
+ * wire, but supply it whenever the status is to hand: without it the resolution can only be staged as
+ * "take the chosen side's content", and a side that **deleted** the file cannot be honoured at all —
+ * `git checkout --ours/--theirs` refuses such a path outright.
+ */
+export interface IManualResolution {
   readonly path: string
   readonly resolution: ManualConflictResolution
   readonly entries?: readonly [GitStatusEntry, GitStatusEntry]
@@ -213,7 +223,8 @@ export async function createCommit(
   message: string,
   files: ReadonlyArray<IFileToStage>,
   options?: ICommitOptions,
-  hooks?: IHookOptions
+  hooks?: IHookOptions,
+  onTerminalOutput?: TerminalOutputCallback
 ): Promise<string> {
   return invoke<string>('create_commit', {
     repositoryPath,
@@ -221,6 +232,7 @@ export async function createCommit(
     files,
     options,
     ...hookArgs(hooks),
+    onTerminalOutput: new Channel<string>(onTerminalOutput),
   })
 }
 
@@ -230,15 +242,14 @@ export async function createCommit(
  * Unlike {@linkcode createCommit} this does **not** clear the index first: a merge's staged state is
  * what git built while merging, and discarding it would throw away the resolution.
  *
- * `manualResolutions` is a list of `[path, resolution]` pairs rather than a record, because a
- * repository path is an arbitrary string and so isn't a safe object key.
+ * `manualResolutions` is a list rather than a record keyed by path, because a repository path is an
+ * arbitrary string and so isn't a safe object key. Each entry carries the conflict's index entries,
+ * which is what lets a resolution in favour of the side that deleted the file stage a deletion.
  */
 export async function createMergeCommit(
   repositoryPath: string,
   files: ReadonlyArray<IFileToStage>,
-  manualResolutions: ReadonlyArray<
-    readonly [string, ManualConflictResolution]
-  > = []
+  manualResolutions: ReadonlyArray<IManualResolution> = []
 ): Promise<string> {
   return invoke<string>('create_merge_commit', {
     repositoryPath,
@@ -305,27 +316,6 @@ export async function checkoutPaths(
   return invoke<void>('checkout_paths', { repositoryPath, paths })
 }
 
-/**
- * Stages a conflicted file according to the side the user chose.
- *
- * `entries` is the conflict's `[us, them]` pair, from the file's `status.entry`. Passing it is what
- * allows a side that *deleted* the file to resolve to a deletion instead of staging working-tree
- * content, so prefer to supply it whenever the status is to hand.
- */
-export async function stageManualConflictResolution(
-  repositoryPath: string,
-  path: string,
-  resolution: ManualConflictResolution,
-  entries?: readonly [GitStatusEntry, GitStatusEntry]
-): Promise<void> {
-  return invoke<void>('stage_manual_conflict_resolution', {
-    repositoryPath,
-    path,
-    resolution,
-    entries,
-  })
-}
-
 /** Merges `branch` into the current branch. */
 export async function mergeBranch(
   repositoryPath: string,
@@ -383,7 +373,7 @@ export async function rebaseBranch(
 export async function continueRebase(
   repositoryPath: string,
   files: ReadonlyArray<IFileToStage>,
-  manualResolutions: ReadonlyArray<IRebaseConflictResolution> = [],
+  manualResolutions: ReadonlyArray<IManualResolution> = [],
   noVerify = false,
   progressCallback?: (progress: IMultiCommitOperationProgress) => void
 ): Promise<RebaseResult> {

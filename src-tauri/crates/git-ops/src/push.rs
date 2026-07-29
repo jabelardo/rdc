@@ -7,7 +7,8 @@
 //! [`push`] takes the hook machinery and intercepts `pre-push`, the one hook a push reaches — the last
 //! chance to refuse what is about to leave the machine. See [`crate::hooks`].
 //!
-//! Terminal output remains with its store consumer, as for `commit` and `merge`.
+//! Upstream accepts an optional terminal-output callback, but no production caller supplies one.
+//! Phase 3 therefore adds no speculative Channel; Phase 7 may add one with a real consumer.
 
 use std::collections::HashMap;
 use std::path::Path;

@@ -4,27 +4,18 @@
 //!
 //! # What is here
 //!
-//! The **text diff path**: `get_working_directory_diff`, `get_commit_diff`, `get_commit_range_diff`,
-//! the size guards that decide whether a diff is renderable, submodule diffs, and `get_binary_paths`
-//! (ported earlier, because `status` needed it).
+//! Text and image diff production: working-directory, commit, range, branch/merge-base, and
+//! conflict-resolution queries; renderability guards; submodule diffs; and `get_binary_paths`
+//! (ported earlier because `status` needed it). Image contents are represented by scoped
+//! [`BlobUrl`] capability URLs, so raw bytes do not enter JSON IPC.
 //!
 //! # What is deferred, and why
 //!
-//! **Image diffs.** `getImageDiff`/`getBlobImage` read blob bytes and base64-encode them into a data
-//! URI. That needs the "how do raw bytes cross IPC" decision noted in [`crate::show`], and the UI
-//! that would consume it is Phase 7. Consequences, both deliberate and both visible:
-//!
-//! - A binary file with a known image extension currently reports [`DiffType::Binary`] rather than an
-//!   image preview.
-//! - An SVG reports a plain text diff. The original returned an *image* diff carrying the text diff
-//!   in a `textDiff` field so the viewer could offer both; the text half is what this produces, so no
-//!   information is lost — only the second view mode is missing.
-//!
-//! **`getFilesDiffText`.** This remains with its store consumer. [`get_resolution_diff`] is
-//! backend-local and complete; it needs full blob contents, so [`crate::show::get_blob_contents`] rather
-//! than the capped read.
-//! Git LFS installation, attributes, and transfer progress live in [`crate::lfs`] and
-//! [`crate::progress`]; image previews remain deferred with the raw-bytes IPC decision above.
+//! **`getFilesDiffText` and presentation.** The aggregate text helper remains with its Phase 7 store
+//! consumer, as do the image viewer and syntax-highlighting consumer. [`get_resolution_diff`] is
+//! backend-local and complete; it needs full blob contents, so it uses
+//! [`crate::show::get_blob_contents`] rather than the capped read. Git LFS installation, attributes,
+//! and transfer progress live in [`crate::lfs`] and [`crate::progress`].
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};

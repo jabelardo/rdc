@@ -32,7 +32,6 @@ const {
   createTag,
   deleteTag,
   getAllTags,
-  fetchTagsToPush,
   revertCommit,
   getRecentBranches,
   getBranchCheckouts,
@@ -121,19 +120,6 @@ describe('the smaller commands', () => {
   it('getAllTags resolves to an empty Map when there are no tags', async () => {
     invoke.mockResolvedValue([])
     await expect(getAllTags(REPO)).resolves.toEqual(new Map())
-  })
-
-  it('fetchTagsToPush takes isBackgroundTask because it contacts the remote', async () => {
-    invoke.mockResolvedValue(['v1.0'])
-
-    await fetchTagsToPush(REPO, 'origin', 'main', true)
-
-    expect(invoke).toHaveBeenCalledWith('fetch_tags_to_push', {
-      repositoryPath: REPO,
-      remoteName: 'origin',
-      branchName: 'main',
-      isBackgroundTask: true,
-    })
   })
 
   // --- revert ---

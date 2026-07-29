@@ -8,7 +8,8 @@
 //! reading `pull.rebase` and friends it intercepts every hook either path can reach — upstream's reasoning,
 //! and its list. See [`crate::hooks`].
 //!
-//! Terminal output remains with its store consumer, as for `commit` and `merge`.
+//! Upstream declares a terminal-output callback but does not pass it into Git execution, so it is a
+//! no-op there. Phase 3 preserves that behavior; Phase 7 may add transport if it introduces a consumer.
 
 use std::collections::HashMap;
 use std::path::Path;

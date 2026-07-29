@@ -123,6 +123,29 @@ export async function fetch(
 }
 
 /**
+ * Fetches a single `refspec` from `remoteName`.
+ *
+ * No progress callback — a single ref is one small object graph, and the original passed none either.
+ *
+ * **A refspec the remote doesn't have resolves rather than rejecting.** The common case is a pull request
+ * ref that has since been deleted, which is news about the remote rather than a failed fetch. Check for the
+ * ref afterwards if its absence matters.
+ */
+export async function fetchRefspec(
+  repositoryPath: string,
+  remoteName: string,
+  refspec: string,
+  isBackgroundTask = false
+): Promise<void> {
+  return invoke<void>('fetch_refspec', {
+    repositoryPath,
+    remoteName,
+    refspec,
+    isBackgroundTask,
+  })
+}
+
+/**
  * Pulls from `remoteName`.
  *
  * When the branches have diverged and the user hasn't configured `pull.ff`, this reconciles with

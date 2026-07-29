@@ -68,13 +68,14 @@ describe('asking for interception', () => {
     )
   })
 
-  it('createCommit sends a Channel even when nothing listens', async () => {
+  it('createCommit sends hook and terminal Channels even when nothing listens', async () => {
     // The Rust side takes one unconditionally, so its absence would be a deserialization error rather
-    // than a quietly unreported hook.
+    // than quietly unreported progress.
     await createCommit(REPO, 'message', [])
 
-    expect(channelInstances).toHaveLength(1)
+    expect(channelInstances).toHaveLength(2)
     expect(channelInstances[0].handler).toBeUndefined()
+    expect(channelInstances[1].handler).toBeUndefined()
   })
 
   it('createCommit forwards the progress callback when interception is on', async () => {

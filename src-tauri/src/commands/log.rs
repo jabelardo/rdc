@@ -4,7 +4,7 @@
 //! arguments* of the TypeScript `Commit`/`CommittedFileChange` classes; `src/lib/log-ipc.ts` builds
 //! the objects, so the fields those constructors derive have exactly one implementation.
 
-use git_ops::log::{ChangesetData, Commit, CommitIdentity};
+use git_ops::log::{ChangesetData, Commit};
 
 use super::CommandError;
 
@@ -67,24 +67,6 @@ pub async fn get_changed_files(
     sha: String,
 ) -> Result<ChangesetData, CommandError> {
     git_ops::log::get_changed_files(&repository_path, &sha)
-        .await
-        .map_err(CommandError::from)
-}
-
-/// Reads the author identity of each of `shas`, in the order given.
-///
-/// ```js
-/// await invoke('get_authors', { repositoryPath, shas: [sha1, sha2] })
-/// ```
-///
-/// Fails on duplicate shas: git answers once per distinct commit, so the result would silently
-/// misalign with the caller's list.
-#[tauri::command]
-pub async fn get_authors(
-    repository_path: String,
-    shas: Vec<String>,
-) -> Result<Vec<CommitIdentity>, CommandError> {
-    git_ops::log::get_authors(&repository_path, &shas)
         .await
         .map_err(CommandError::from)
 }

@@ -4,7 +4,6 @@
 //! modules of five lines. The `git-ops` side keeps the per-file mapping.
 
 use tauri::ipc::Channel;
-use tauri::State;
 
 use git_ops::interpret_trailers::Trailer;
 use git_ops::log::CommitIdentity;
@@ -14,7 +13,6 @@ use git_ops::rev_parse::RepositoryType;
 use git_ops::revert::RevertProgress;
 
 use super::CommandError;
-use crate::trampoline_state::TrampolineState;
 
 /// Creates an annotated tag on a commit.
 #[tauri::command]
@@ -50,31 +48,6 @@ pub async fn get_all_tags(repository_path: String) -> Result<Vec<(String, String
     // git's own order isn't meaningful once it's a map, so sort for a stable result.
     pairs.sort_by(|a, b| a.0.cmp(&b.0));
     Ok(pairs)
-}
-
-/// The tags a push would send, without sending them.
-///
-/// Contacts the remote, so it needs a credential session.
-#[tauri::command]
-pub async fn fetch_tags_to_push(
-    state: State<'_, TrampolineState>,
-    repository_path: String,
-    remote_name: String,
-    branch_name: String,
-    is_background_task: Option<bool>,
-) -> Result<Vec<String>, CommandError> {
-    let remote = state
-        .session_for(&repository_path, is_background_task.unwrap_or(false))
-        .await
-        .map_err(|error| CommandError {
-            message: format!("could not start the credential server: {error}"),
-            kind: None,
-            is_auth_failure: false,
-        })?;
-
-    git_ops::tag::fetch_tags_to_push(&repository_path, &remote_name, &branch_name, &remote.env)
-        .await
-        .map_err(CommandError::from)
 }
 
 /// Creates a commit undoing another.

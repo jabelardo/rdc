@@ -9,9 +9,9 @@
 //! anywhere else. See [`crate::hooks`]. Passing `None` is not a downgrade: git runs the hooks either way,
 //! it just runs them with whatever environment the app happens to have.
 //!
-//! Still with the frontend: **terminal output**. The aggregation is ported in
-//! [`crate::multi_operation_terminal_output`]; what is missing is a command streaming it, which lands with
-//! the store consumer that displays it.
+//! Terminal output from the commit invocation can be streamed through
+//! [`create_commit_with_terminal_output`]. The command layer adapts that transport-neutral stream to a
+//! Tauri Channel; the store and dialog that retain and display it belong to the frontend.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -19,9 +19,11 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::{git, GitOptions};
+use crate::exec::{git, git_streaming, GitOptions};
 use crate::hooks::with_env::{with_hooks_env, HookSupport};
+use crate::multi_operation_terminal_output::MultiOperationTerminalOutput;
 use crate::reset::unstage_all;
+use crate::stage::{stage_manual_conflict_resolution_with_entries, ManualResolution};
 use crate::update_index::{stage_files, FileToStage};
 
 /// Options for [`create_commit`], all off by default.
@@ -64,6 +66,40 @@ pub async fn create_commit(
     files: &[FileToStage],
     options: CommitOptions,
     hooks: Option<&HookSupport>,
+) -> Result<String, GitError> {
+    create_commit_inner(repository, message, files, options, hooks, None).await
+}
+
+/// Creates a commit while capturing the commit process's combined stdout and stderr.
+///
+/// Staging and the final `rev-parse` are deliberately absent from the stream: upstream attached its
+/// terminal listener only to `git commit`, which is the operation the progress dialog describes.
+pub async fn create_commit_with_terminal_output(
+    repository: impl AsRef<Path>,
+    message: &str,
+    files: &[FileToStage],
+    options: CommitOptions,
+    hooks: Option<&HookSupport>,
+    terminal_output: &MultiOperationTerminalOutput,
+) -> Result<String, GitError> {
+    create_commit_inner(
+        repository,
+        message,
+        files,
+        options,
+        hooks,
+        Some(terminal_output.clone()),
+    )
+    .await
+}
+
+async fn create_commit_inner(
+    repository: impl AsRef<Path>,
+    message: &str,
+    files: &[FileToStage],
+    options: CommitOptions,
+    hooks: Option<&HookSupport>,
+    terminal_output: Option<MultiOperationTerminalOutput>,
 ) -> Result<String, GitError> {
     let repository = repository.as_ref();
 
@@ -113,7 +149,20 @@ pub async fn create_commit(
                 git_options = git_options.with_env(name, value);
             }
 
-            git(&args, repository, "createCommit", git_options).await
+            if let Some(terminal_output) = terminal_output {
+                let stdout = terminal_output.clone();
+                git_streaming(
+                    &args,
+                    repository,
+                    "createCommit",
+                    git_options,
+                    move |chunk| stdout.push(chunk),
+                    move |chunk| terminal_output.push(chunk),
+                )
+                .await
+            } else {
+                git(&args, repository, "createCommit", git_options).await
+            }
         },
     )
     .await??;
@@ -132,15 +181,25 @@ pub async fn create_commit(
 pub async fn create_merge_commit(
     repository: impl AsRef<Path>,
     files: &[FileToStage],
-    manual_resolutions: &[(String, crate::stage::ManualConflictResolution)],
+    manual_resolutions: &[ManualResolution],
 ) -> Result<String, GitError> {
     let repository = repository.as_ref();
 
-    for (path, resolution) in manual_resolutions {
+    for manual in manual_resolutions {
         // The original logged and skipped when a resolution named a file that wasn't in the list.
         // Here the caller passes resolutions for paths it also passes as files, so an unmatched
         // resolution is still applied by path rather than silently dropped.
-        crate::stage::stage_manual_conflict_resolution(repository, path, *resolution).await?;
+        //
+        // `entries` is passed through, which is what lets a side that deleted the file resolve to a
+        // deletion. Without them this took the content-only path, and a modify/delete resolved in
+        // favour of the deleting side failed outright — see the note in `stage::ManualResolution`.
+        stage_manual_conflict_resolution_with_entries(
+            repository,
+            &manual.path,
+            manual.resolution,
+            manual.entries,
+        )
+        .await?;
     }
 
     let resolved: Vec<FileToStage> = files
@@ -148,7 +207,7 @@ pub async fn create_merge_commit(
         .filter(|file| {
             !manual_resolutions
                 .iter()
-                .any(|(path, _)| *path == file.path)
+                .any(|manual| manual.path == file.path)
         })
         .cloned()
         .collect();
@@ -190,10 +249,15 @@ async fn resolve_head(repository: impl AsRef<Path>) -> Result<String, GitError> 
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
     use super::*;
     use crate::stage::ManualConflictResolution;
     use crate::status::get_status;
-    use crate::test_support::{commit_file, conflicted_repository, empty_repository};
+    use crate::status_parser::GitStatusEntry;
+    use crate::test_support::{
+        commit_file, conflicted_repository, delete_modify_conflicted_repository, empty_repository,
+    };
 
     /// The subject and body of a commit, as git formats them.
     async fn commit_message(repo: &Path, revision: &str) -> (String, String) {
@@ -273,6 +337,43 @@ mod tests {
             status.files.is_empty(),
             "the working directory should be clean, got {:?}",
             status.files
+        );
+    }
+
+    #[tokio::test]
+    async fn streams_the_commit_process_terminal_output() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "README.md", "Hello\n", "first");
+        std::fs::write(repo.path().join("README.md"), "Hi world\n").expect("failed to write");
+
+        let terminal_output = MultiOperationTerminalOutput::default();
+        let chunks = Arc::new(Mutex::new(Vec::new()));
+        let received = Arc::clone(&chunks);
+        let _subscription = terminal_output.subscribe(move |chunk| {
+            received
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .push(chunk.to_owned());
+        });
+
+        create_commit_with_terminal_output(
+            repo.path(),
+            "streamed commit",
+            &[FileToStage::new("README.md")],
+            CommitOptions::default(),
+            None,
+            &terminal_output,
+        )
+        .await
+        .expect("committing should succeed");
+
+        let transcript = chunks
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .join("");
+        assert!(
+            transcript.contains("streamed commit"),
+            "the git commit summary should be streamed, got {transcript:?}"
         );
     }
 
@@ -587,7 +688,14 @@ mod tests {
         let sha = create_merge_commit(
             repo.path(),
             &[FileToStage::new("foo")],
-            &[("foo".to_owned(), ManualConflictResolution::Theirs)],
+            &[ManualResolution {
+                path: "foo".to_owned(),
+                resolution: ManualConflictResolution::Theirs,
+                entries: Some((
+                    GitStatusEntry::UpdatedButUnmerged,
+                    GitStatusEntry::UpdatedButUnmerged,
+                )),
+            }],
         )
         .await
         .expect("the merge commit should succeed");
@@ -608,6 +716,46 @@ mod tests {
         assert!(
             !committed.contains("<<<<<<<"),
             "choosing a side must not commit conflict markers, got {committed:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_merge_commit_stages_a_chosen_deletion_as_a_deletion() {
+        // The case index entries exist for. `foo` was modified here and deleted on the merged branch,
+        // and the user chose the deleting side. Content alone cannot express that: `checkout --theirs`
+        // fails with "does not have their version", so before the entries were passed through this
+        // could not be committed at all rather than merely being committed wrongly.
+        let repo = delete_modify_conflicted_repository().await;
+
+        let sha = create_merge_commit(
+            repo.path(),
+            &[FileToStage::new("foo")],
+            &[ManualResolution {
+                path: "foo".to_owned(),
+                resolution: ManualConflictResolution::Theirs,
+                entries: Some((GitStatusEntry::UpdatedButUnmerged, GitStatusEntry::Deleted)),
+            }],
+        )
+        .await
+        .expect("the merge commit should succeed");
+
+        assert_eq!(sha.len(), 40);
+
+        // git as the oracle: the tree the commit points at must not contain the file.
+        let tree = git(
+            &["ls-tree", "--name-only", "HEAD"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("ls-tree should succeed")
+        .stdout_lossy()
+        .into_owned();
+
+        assert!(
+            !tree.lines().any(|line| line == "foo"),
+            "the file the user chose to delete should not be in the commit, got {tree:?}"
         );
     }
 }

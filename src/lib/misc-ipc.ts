@@ -51,25 +51,6 @@ export async function getAllTags(
 }
 
 /**
- * The tags a push would send, without sending them.
- *
- * Contacts the remote, so it can fail for the usual authentication reasons.
- */
-export async function fetchTagsToPush(
-  repositoryPath: string,
-  remoteName: string,
-  branchName: string,
-  isBackgroundTask = false
-): Promise<ReadonlyArray<string>> {
-  return invoke<ReadonlyArray<string>>('fetch_tags_to_push', {
-    repositoryPath,
-    remoteName,
-    branchName,
-    isBackgroundTask,
-  })
-}
-
-/**
  * Creates a commit undoing another.
  *
  * `parentCount` comes from the commit's `parentSHAs`. A merge commit needs it: undoing one is ambiguous

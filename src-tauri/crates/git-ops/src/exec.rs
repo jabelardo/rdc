@@ -7,8 +7,8 @@
 //!
 //! The backend concerns from `core.ts` are ported: error classification lives in
 //! `error.rs`/`git_error_kind.rs`, credentials in the `trampoline` crate, and hook interception in
-//! `hooks`. The remaining work is deliberately above this module: frontend error descriptions and
-//! Phase 3's per-command Channel/hook adapters.
+//! `hooks`. Phase 3's command layer adapts streaming and hooks to Tauri Channels. The remaining work
+//! is deliberately above this module: frontend error descriptions and consumer policy.
 //!
 //! Timing/measurement is intentionally *not* a port of `ui/lib/git-perf.ts` — see
 //! MIGRATION_MAP.md §9; it belongs here as `tracing` spans when tracing is introduced.

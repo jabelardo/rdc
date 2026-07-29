@@ -175,21 +175,3 @@ export async function getChangedFiles(
 
   return hydrateChangesetData(changeset)
 }
-
-/**
- * Reads the author identity of each of `shas`, in the order given.
- *
- * Rejects if `shas` contains duplicates: git answers once per distinct commit, so the result would
- * silently misalign with the list passed in.
- */
-export async function getAuthors(
-  repositoryPath: string,
-  shas: ReadonlyArray<string>
-): Promise<ReadonlyArray<CommitIdentity>> {
-  const authors = await invoke<ReadonlyArray<ICommitIdentityData>>(
-    'get_authors',
-    { repositoryPath, shas }
-  )
-
-  return authors.map(hydrateCommitIdentity)
-}

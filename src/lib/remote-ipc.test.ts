@@ -37,6 +37,7 @@ const {
   push,
   deleteRemoteBranch,
   fetch,
+  fetchRefspec,
   pull,
   fastForwardBranches,
   clone,
@@ -207,6 +208,28 @@ describe('the remote commands', () => {
 
     expect(invoke).toHaveBeenCalledWith(
       'delete_remote_branch',
+      expect.objectContaining({ isBackgroundTask: true })
+    )
+  })
+
+  it('fetchRefspec sends the refspec and no Channel', async () => {
+    await fetchRefspec(REPO, 'origin', 'refs/pull/1/head:refs/remotes/origin/pr/1')
+
+    expect(invoke).toHaveBeenCalledWith('fetch_refspec', {
+      repositoryPath: REPO,
+      remoteName: 'origin',
+      refspec: 'refs/pull/1/head:refs/remotes/origin/pr/1',
+      isBackgroundTask: false,
+    })
+    // A single ref is one small object graph, so the original streamed nothing either.
+    expect(channelInstances).toHaveLength(0)
+  })
+
+  it('fetchRefspec forwards isBackgroundTask when set', async () => {
+    await fetchRefspec(REPO, 'origin', 'refs/heads/main', true)
+
+    expect(invoke).toHaveBeenCalledWith(
+      'fetch_refspec',
       expect.objectContaining({ isBackgroundTask: true })
     )
   })

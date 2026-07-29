@@ -52,8 +52,8 @@ use git_ops::merge_tree::MergeTreeResult;
 use git_ops::pull::{PullProgress, PullProgressKind};
 use git_ops::push::{PushProgress, PushProgressKind};
 use git_ops::rebase::{
-    MultiCommitOperationProgress, MultiCommitOperationProgressKind, RebaseConflictResolution,
-    RebaseResult, RebaseSnapshot,
+    ManualResolution, MultiCommitOperationProgress, MultiCommitOperationProgressKind, RebaseResult,
+    RebaseSnapshot,
 };
 use git_ops::remote::Remote;
 use git_ops::reset::ResetMode;
@@ -1271,8 +1271,8 @@ fn merge_options_accept_an_omitted_or_partial_object() {
 }
 
 #[test]
-fn rebase_resolution_matches_the_frontend_shape() {
-    let parsed: RebaseConflictResolution = serde_json::from_value(json!({
+fn a_manual_resolution_matches_the_frontend_shape() {
+    let parsed: ManualResolution = serde_json::from_value(json!({
         "path": "conflicted.txt",
         "resolution": "theirs",
         "entries": ["U", "D"],
@@ -1281,12 +1281,22 @@ fn rebase_resolution_matches_the_frontend_shape() {
 
     assert_eq!(
         parsed,
-        RebaseConflictResolution {
+        ManualResolution {
             path: "conflicted.txt".to_owned(),
             resolution: ManualConflictResolution::Theirs,
             entries: Some((GitStatusEntry::UpdatedButUnmerged, GitStatusEntry::Deleted)),
         }
     );
+
+    // `entries` is optional on the wire, so a caller without the status to hand can omit it. It
+    // deserializes to `None` rather than failing — which is why the field carries `serde(default)`.
+    let without_entries: ManualResolution = serde_json::from_value(json!({
+        "path": "conflicted.txt",
+        "resolution": "ours",
+    }))
+    .expect("deserializes without entries");
+
+    assert_eq!(without_entries.entries, None);
 }
 
 #[test]

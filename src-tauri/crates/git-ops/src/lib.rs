@@ -156,8 +156,8 @@ pub use pull::{pull, PullProgress, PullProgressKind};
 pub use push::{push, PushOptions, PushProgress, PushProgressKind, PushTarget};
 pub use rebase::{
     abort_rebase, continue_rebase, continue_rebase_with_progress, get_rebase_snapshot, rebase,
-    rebase_with_progress, MultiCommitOperationProgress, MultiCommitOperationProgressKind,
-    RebaseConflictResolution, RebaseResult, RebaseSnapshot,
+    rebase_with_progress, ManualResolution, MultiCommitOperationProgress,
+    MultiCommitOperationProgressKind, RebaseResult, RebaseSnapshot,
 };
 pub use rebase::{rebase_interactive, render_todo, TodoAction, TodoStep};
 pub use reflog::{get_branch_checkouts, get_recent_branches};

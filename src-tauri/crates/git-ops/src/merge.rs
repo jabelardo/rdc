@@ -9,8 +9,9 @@
 //! merge, while `--squash` leaves a second invocation that is a commit in every way that matters. See
 //! [`crate::hooks`].
 //!
-//! Terminal output is still with the frontend: the aggregation is ported in
-//! [`crate::multi_operation_terminal_output`], and a command to stream it lands with its consumer.
+//! Upstream also accepts an optional terminal-output callback here, but no production caller supplies
+//! one. The backend aggregation remains available in [`crate::multi_operation_terminal_output`];
+//! Phase 7 may add a command Channel if it ports a real consumer.
 
 use std::collections::HashMap;
 use std::path::Path;
