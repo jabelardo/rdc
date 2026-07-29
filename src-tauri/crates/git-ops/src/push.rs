@@ -2,10 +2,12 @@
 //!
 //! Ported from `desktop-plus/app/src/lib/git/push.ts`.
 //!
-//! # Deferred
+//! # Hooks
 //!
-//! Hook interception (`pre-push`) and terminal output, as for `commit` and `merge` — those map to a
-//! Channel and need the streaming runner extended to hooks, not to `push` specifically.
+//! [`push`] takes the hook machinery and intercepts `pre-push`, the one hook a push reaches — the last
+//! chance to refuse what is about to leave the machine. See [`crate::hooks`].
+//!
+//! Terminal output remains with its store consumer, as for `commit` and `merge`.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -14,6 +16,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
 use crate::exec::GitOutput;
+use crate::hooks::with_env::{with_hooks_env, HookSupport};
 use crate::progress::GitProgressParser;
 use crate::remote_progress::{run_with_progress, ContextLines, RemoteRun};
 
@@ -78,7 +81,39 @@ pub struct PushTarget<'a> {
 ///
 /// Authentication failures come back as [`GitOutput::git_error`] rather than an `Err`, so the caller
 /// can prompt and retry.
+/// Runs the operation with the repository's hooks intercepted, when the caller asked for it.
+///
+/// A push reaches one hook, `pre-push`, which is the last chance to refuse what is about to leave the machine.
+///
+/// `hooks` is the machinery only — the list above belongs to the operation, since which hooks git can reach
+/// is a property of the command being run rather than of the caller. See
+/// [`HookSupport`](crate::hooks::with_env::HookSupport).
 pub async fn push<F>(
+    repository: impl AsRef<Path>,
+    target: PushTarget<'_>,
+    env: &HashMap<String, String>,
+    options: PushOptions,
+    on_progress: Option<F>,
+    hooks: Option<&HookSupport>,
+) -> Result<GitOutput, GitError>
+where
+    F: FnMut(PushProgress) + Send,
+{
+    let repository = repository.as_ref();
+    let interception = hooks.map(|support| support.intercepting(["pre-push"]));
+
+    // Wrapped rather than threaded: the hooks server has to stay alive for the whole invocation, and this
+    // operation has more than one way out of it.
+    with_hooks_env(
+        repository,
+        interception.as_ref(),
+        env.clone(),
+        |env| async move { push_impl(repository, target, &env, options, on_progress).await },
+    )
+    .await?
+}
+
+async fn push_impl<F>(
     repository: impl AsRef<Path>,
     target: PushTarget<'_>,
     env: &HashMap<String, String>,
@@ -237,6 +272,7 @@ mod tests {
             &HashMap::new(),
             PushOptions::default(),
             None::<fn(PushProgress)>,
+            None,
         )
         .await
         .expect("push should succeed");
@@ -273,6 +309,7 @@ mod tests {
             &HashMap::new(),
             PushOptions::default(),
             None::<fn(PushProgress)>,
+            None,
         )
         .await
         .expect("push should succeed");
@@ -301,6 +338,7 @@ mod tests {
             &HashMap::new(),
             PushOptions::default(),
             None::<fn(PushProgress)>,
+            None,
         )
         .await
         .expect("push should succeed");
@@ -326,6 +364,7 @@ mod tests {
             &HashMap::new(),
             PushOptions::default(),
             None::<fn(PushProgress)>,
+            None,
         )
         .await
         .expect("the first push should succeed");
@@ -351,6 +390,7 @@ mod tests {
             &HashMap::new(),
             PushOptions::default(),
             None::<fn(PushProgress)>,
+            None,
         )
         .await;
 
@@ -372,6 +412,7 @@ mod tests {
             &HashMap::new(),
             PushOptions::default(),
             None::<fn(PushProgress)>,
+            None,
         )
         .await
         .expect("the first push should succeed");
@@ -399,6 +440,7 @@ mod tests {
                 ..PushOptions::default()
             },
             None::<fn(PushProgress)>,
+            None,
         )
         .await
         .expect("a lease should allow the overwrite");
@@ -431,6 +473,7 @@ mod tests {
             &HashMap::new(),
             PushOptions::default(),
             Some(|progress: PushProgress| updates.push(progress)),
+            None,
         )
         .await
         .expect("push should succeed");
@@ -460,6 +503,7 @@ mod tests {
             &HashMap::new(),
             PushOptions::default(),
             Some(|progress: PushProgress| values.push(progress.value)),
+            None,
         )
         .await
         .expect("push should succeed");

@@ -114,6 +114,87 @@ impl HookInterception {
     }
 }
 
+/// Everything hook interception needs **except which hooks** — the operation decides that.
+///
+/// # Why the split
+///
+/// Which hooks an invocation can trigger is a property of the git command being run, not of the caller:
+/// `commit` reaches `pre-commit` and `commit-msg`, `commit --amend` also reaches `post-rewrite`, `push`
+/// reaches only `pre-push`. Upstream hardcodes the list inside each git function for exactly that reason,
+/// and a frontend has no way to know it. So the app supplies the machinery — where the binaries are, which
+/// shell, who to tell — and each operation names its own hooks through [`HookSupport::intercepting`].
+#[derive(Clone)]
+pub struct HookSupport {
+    /// The `rdc-hook-proxy` binary.
+    pub proxy_binary: PathBuf,
+
+    /// The `rdc-printenvz` binary.
+    pub printenvz: PathBuf,
+
+    /// The shell to load the environment from. `None` uses the user's.
+    pub shell: Option<Shell>,
+
+    /// Called when a hook starts, finishes or fails.
+    pub on_progress: ProgressCallback,
+
+    /// Called when a hook fails and the failure is worth asking about.
+    pub on_failure: FailureCallback,
+}
+
+impl HookSupport {
+    /// The machinery, with nothing reported and nothing ignored.
+    pub fn new(proxy_binary: impl Into<PathBuf>, printenvz: impl Into<PathBuf>) -> Self {
+        Self {
+            proxy_binary: proxy_binary.into(),
+            printenvz: printenvz.into(),
+            shell: None,
+            on_progress: Arc::new(|_| {}),
+            on_failure: Arc::new(|_, _| Box::pin(async { FailureDecision::Fail })),
+        }
+    }
+
+    /// Reports progress to `callback`.
+    pub fn with_progress<F>(mut self, callback: F) -> Self
+    where
+        F: Fn(HookProgress) + Send + Sync + 'static,
+    {
+        self.on_progress = Arc::new(callback);
+        self
+    }
+
+    /// Asks `callback` about a failing hook.
+    pub fn with_failure_prompt<F, Fut>(mut self, callback: F) -> Self
+    where
+        F: Fn(String, Vec<u8>) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = FailureDecision> + Send + 'static,
+    {
+        self.on_failure = Arc::new(move |hook, output| Box::pin(callback(hook, output)));
+        self
+    }
+
+    /// Loads the environment from `shell` instead of the user's.
+    pub fn with_shell(mut self, shell: Shell) -> Self {
+        self.shell = Some(shell);
+        self
+    }
+
+    /// Intercepts the hooks this operation can trigger.
+    pub fn intercepting<I, S>(&self, hooks: I) -> HookInterception
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        HookInterception {
+            hooks: hooks.into_iter().map(Into::into).collect(),
+            proxy_binary: self.proxy_binary.clone(),
+            printenvz: self.printenvz.clone(),
+            shell: self.shell.clone(),
+            on_progress: Arc::clone(&self.on_progress),
+            on_failure: Arc::clone(&self.on_failure),
+        }
+    }
+}
+
 /// Runs `operation` with git pointed at stand-ins for the repository's hooks.
 ///
 /// `env` is the environment the git invocation would otherwise use; `operation` receives it with the

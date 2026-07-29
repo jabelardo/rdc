@@ -60,7 +60,11 @@ const EXCLUDED_FROM_HOOKS: [&str; 7] = [
 const SAFE_PREFIXES: [&str; 2] = ["GIT_", "GITHEAD_"];
 
 /// Where a hook is in its life.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Serializes to the original's `onHookProgress` strings — `started`, `finished`, `failed` — because that
+/// is what the frontend is typed against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum HookStatus {
     Started,
     Finished,
@@ -75,6 +79,23 @@ pub struct HookProgress {
     pub status: HookStatus,
     /// Stops the hook. Only meaningful on [`HookStatus::Started`].
     pub abort: HookAbort,
+}
+
+/// Hook progress as it crosses IPC.
+///
+/// [`HookProgress`] itself cannot: it carries a [`HookAbort`], which is a live handle rather than data. So
+/// the wire carries an **id** the app can look that handle up by — the trade every callback makes when it
+/// has to become a message. The app owns the table; this is only the shape.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookProgressUpdate {
+    /// Identifies this run of this hook, so a start can be matched to its end and either can be aborted.
+    pub id: u64,
+
+    /// The hook's name, e.g. `pre-commit`.
+    pub hook: String,
+
+    pub status: HookStatus,
 }
 
 /// A handle that stops a running hook.

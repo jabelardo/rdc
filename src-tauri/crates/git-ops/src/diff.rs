@@ -428,6 +428,73 @@ pub struct SubmoduleDiffData {
     pub new_sha: Option<String>,
 }
 
+/// Which version of a file a URL should serve.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum BlobSource {
+    /// As of a commit, tag or anything else git resolves.
+    Commit(String),
+
+    /// As it is on disk right now.
+    WorkingTree,
+}
+
+/// Mints URLs the webview can fetch a blob's bytes from.
+///
+/// # Why this is a trait
+///
+/// An image diff has to name bytes, and this crate cannot: a URL's shape belongs to the webview host, and
+/// the table that maps a URL back to a blob is application state. So the app injects the minting — the same
+/// arrangement as `HookSupport` in [`crate::hooks`], and for the same reason.
+///
+/// The alternative, base64 in the payload, is what upstream did and what this port deliberately does not:
+/// a 4 MB PNG becomes ~5.5 MB of JSON, copied twice, resident for as long as the diff is open.
+pub trait BlobUrls: Send + Sync {
+    /// A URL serving `path` in `repository`, as of `source`.
+    fn url_for(&self, repository: &Path, path: &str, source: BlobSource) -> String;
+}
+
+/// One side of an image diff.
+///
+/// Mirrors the `Image` class in `src/models/diff/image.ts`, which this port **changed**: upstream carried
+/// base64 `contents` plus an `ArrayBuffer`, and it now carries a URL. Its only consumer builds an
+/// `<img src>` from it — or, for a DirectDraw Surface texture, fetches the bytes to convert them — so a URL
+/// serves both cases without either paying for base64.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageData {
+    /// Where the webview can fetch the bytes.
+    pub url: String,
+
+    /// So the viewer can tell a DirectDraw Surface from something it can render directly.
+    pub media_type: String,
+
+    /// Size in bytes. The two-up view shows both sides' sizes and the difference between them, which is why
+    /// this is worth a `cat-file -s` rather than being left out.
+    pub bytes: u64,
+}
+
+/// An image diff: the file before, the file after, or both.
+///
+/// A side is absent when it does not exist — no `previous` for an added file, no `current` for a deleted
+/// one. **Both** are absent for a conflicted binary, which is upstream's answer too: it would take showing
+/// three versions and asking the user which they mean.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageDiffData {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous: Option<ImageData>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current: Option<ImageData>,
+
+    /// The text diff as well, for an SVG — which is text that can also be rendered.
+    ///
+    /// When present the viewer offers a "Code" tab first, which is upstream's behaviour; nothing is lost by
+    /// showing an SVG both ways.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_diff: Option<TextDiffData>,
+}
+
 /// A diff, ready to render.
 ///
 /// Mirrors the TypeScript `IDiff` union, which discriminates on a **numeric** `kind`. Serde's
@@ -439,6 +506,8 @@ pub enum Diff {
     Text(TextDiffData),
     /// Renderable but large; the UI shows it on request. Carries the same payload as `Text`.
     LargeText(TextDiffData),
+    /// A file the app can show as a picture — and an SVG, which it can show both ways.
+    Image(ImageDiffData),
     Binary,
     Submodule(SubmoduleDiffData),
     Unrenderable,
@@ -469,6 +538,7 @@ impl Diff {
         match self {
             Self::Text(_) => DiffType::Text,
             Self::LargeText(_) => DiffType::LargeText,
+            Self::Image(_) => DiffType::Image,
             Self::Binary => DiffType::Binary,
             Self::Submodule(_) => DiffType::Submodule,
             Self::Unrenderable => DiffType::Unrenderable,
@@ -510,6 +580,19 @@ impl Serialize for Diff {
                 map.serialize_entry("oldSHA", &data.old_sha)?;
                 map.serialize_entry("newSHA", &data.new_sha)?;
             }
+            Self::Image(data) => {
+                // Omitted rather than null: `previous` and `current` are optional properties on
+                // `IImageDiff`, and a side that doesn't exist is absent rather than empty.
+                if let Some(previous) = &data.previous {
+                    map.serialize_entry("previous", previous)?;
+                }
+                if let Some(current) = &data.current {
+                    map.serialize_entry("current", current)?;
+                }
+                if let Some(text) = &data.text_diff {
+                    map.serialize_entry("textDiff", text)?;
+                }
+            }
             Self::Binary | Self::Unrenderable => {}
         }
 
@@ -534,6 +617,9 @@ impl<'de> Deserialize<'de> for Diff {
             has_hidden_bidi_chars: Option<bool>,
             full_path: Option<String>,
             path: Option<String>,
+            previous: Option<ImageData>,
+            current: Option<ImageData>,
+            text_diff: Option<TextDiffData>,
             url: Option<String>,
             status: Option<SubmoduleStatus>,
             #[serde(rename = "oldSHA")]
@@ -572,9 +658,11 @@ impl<'de> Deserialize<'de> for Diff {
                 old_sha: any.old_sha,
                 new_sha: any.new_sha,
             })),
-            DiffType::Image => Err(serde::de::Error::custom(
-                "image diffs are not produced yet; see the module docs",
-            )),
+            DiffType::Image => Ok(Self::Image(ImageDiffData {
+                previous: any.previous,
+                current: any.current,
+                text_diff: any.text_diff,
+            })),
         }
     }
 }
@@ -635,6 +723,7 @@ fn is_diff_too_large(diff: &RawDiff) -> bool {
 ///
 /// Order matters: the hard buffer limit is checked **before parsing**, because past it the original
 /// couldn't decode the buffer at all.
+#[allow(clippy::too_many_arguments)]
 async fn build_diff(
     output: &[u8],
     repository: &Path,
@@ -643,6 +732,8 @@ async fn build_diff(
     newest_commitish: &str,
     oldest_commitish: &str,
     line_endings_change: Option<LineEndingsChange>,
+    side: DiffSide,
+    blobs: Option<&dyn BlobUrls>,
 ) -> Result<Diff, GitError> {
     if let Some(submodule_status) = submodule_status_of(status) {
         return build_submodule_diff(output, repository, path, status, submodule_status).await;
@@ -669,29 +760,301 @@ async fn build_diff(
 
     Ok(convert_diff(
         &raw,
+        repository,
         path,
+        status,
         data,
         newest_commitish,
         oldest_commitish,
-    ))
+        side,
+        blobs,
+    )
+    .await)
 }
 
-/// Classifies a parsed diff as text or binary.
+/// Extensions the app can show as a picture.
 ///
-/// See the module docs for why a known image extension still yields [`Diff::Binary`] and why an SVG
-/// yields plain text: both cases want the image path, which isn't ported.
-fn convert_diff(
+/// `.dds` is **not** here, matching upstream's default: it gates DirectDraw Surface previews behind a
+/// feature flag, and its converter is frontend code. Until that lands a `.dds` file is a binary diff, which
+/// is what upstream shows with the flag off.
+const IMAGE_EXTENSIONS: [&str; 8] = ["png", "jpg", "jpeg", "gif", "ico", "webp", "bmp", "avif"];
+
+/// Whether `path` names something the app can show as a picture.
+fn is_image_path(path: &str) -> bool {
+    let extension = Path::new(path)
+        .extension()
+        .map(|extension| extension.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+
+    IMAGE_EXTENSIONS.contains(&extension.as_str())
+}
+
+/// Whether `path` is an SVG — text that can also be rendered.
+fn is_svg_path(path: &str) -> bool {
+    Path::new(path)
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("svg"))
+}
+
+/// One side of an image diff, or `None` when that version doesn't exist.
+///
+/// The size comes from `git cat-file -s` for a committed blob — which answers without reading the object —
+/// and from the filesystem for the working tree. Nothing here reads the bytes: that happens when the webview
+/// fetches the URL, if it ever does.
+///
+/// A blob that can't be read yields `None` rather than an error, which also settles a TODO the original left
+/// on `${oldestCommitish}^`: for a file added in a repository's first commit there is no parent to read, and
+/// "no previous version" is exactly what an added file has.
+async fn image_side(
+    repository: &Path,
+    path: &str,
+    source: BlobSource,
+    blobs: &dyn BlobUrls,
+) -> Option<ImageData> {
+    let bytes = match &source {
+        BlobSource::Commit(commitish) => blob_size(repository, commitish, path).await?,
+        BlobSource::WorkingTree => tokio::fs::metadata(repository.join(path)).await.ok()?.len(),
+    };
+
+    Some(ImageData {
+        url: blobs.url_for(repository, path, source),
+        media_type: media_type_for(path).to_owned(),
+        bytes,
+    })
+}
+
+/// The size of a blob, without reading it.
+async fn blob_size(repository: &Path, commitish: &str, path: &str) -> Option<u64> {
+    let output = git(
+        &["cat-file", "-s", &format!("{commitish}:{path}")],
+        repository,
+        "blobSize",
+        GitOptions::default(),
+    )
+    .await
+    .ok()?;
+
+    output.stdout_trimmed().parse().ok()
+}
+
+/// Builds an image diff for a file in the working tree.
+///
+/// `previous` comes from `HEAD` — of the *old* path when the file was renamed, or there would be nothing
+/// there to read.
+async fn working_tree_image_diff(
+    repository: &Path,
+    path: &str,
+    status: &AppFileStatus,
+    blobs: &dyn BlobUrls,
+) -> ImageDiffData {
+    // A conflicted binary gets neither side, which is upstream's answer as well: showing it properly would
+    // mean rendering three versions and asking the user which they mean.
+    if matches!(status, AppFileStatus::Conflicted(_)) {
+        return ImageDiffData {
+            previous: None,
+            current: None,
+            text_diff: None,
+        };
+    }
+
+    let current = if matches!(status, AppFileStatus::Deleted { .. }) {
+        None
+    } else {
+        image_side(repository, path, BlobSource::WorkingTree, blobs).await
+    };
+
+    let previous = if matches!(
+        status,
+        AppFileStatus::New { .. } | AppFileStatus::Untracked { .. }
+    ) {
+        None
+    } else {
+        let old_path = old_path_or_default(path, status);
+        image_side(
+            repository,
+            old_path,
+            BlobSource::Commit("HEAD".to_owned()),
+            blobs,
+        )
+        .await
+    };
+
+    ImageDiffData {
+        previous,
+        current,
+        text_diff: None,
+    }
+}
+
+/// Builds an image diff for a file in a commit.
+async fn commit_image_diff(
+    repository: &Path,
+    path: &str,
+    status: &AppFileStatus,
+    newest_commitish: &str,
+    oldest_commitish: &str,
+    blobs: &dyn BlobUrls,
+) -> ImageDiffData {
+    let current = if matches!(status, AppFileStatus::Deleted { .. }) {
+        None
+    } else {
+        image_side(
+            repository,
+            path,
+            BlobSource::Commit(newest_commitish.to_owned()),
+            blobs,
+        )
+        .await
+    };
+
+    let old_path = old_path_or_default(path, status);
+    let previous = if matches!(
+        status,
+        AppFileStatus::New { .. } | AppFileStatus::Untracked { .. }
+    ) {
+        None
+    } else if matches!(status, AppFileStatus::Deleted { .. }) {
+        // A deleted file exists in the commit's parent, and `oldest_commitish` is already that side of the
+        // range for the caller that asks about one.
+        image_side(
+            repository,
+            old_path,
+            BlobSource::Commit(oldest_commitish.to_owned()),
+            blobs,
+        )
+        .await
+    } else {
+        image_side(
+            repository,
+            old_path,
+            BlobSource::Commit(format!("{oldest_commitish}^")),
+            blobs,
+        )
+        .await
+    };
+
+    ImageDiffData {
+        previous,
+        current,
+        text_diff: None,
+    }
+}
+
+/// The path a change's *old* side lives at — the source of a rename, or the path itself.
+fn old_path_or_default<'a>(path: &'a str, status: &'a AppFileStatus) -> &'a str {
+    match status {
+        AppFileStatus::Renamed { old_path, .. } | AppFileStatus::Copied { old_path, .. } => {
+            old_path
+        }
+        _ => path,
+    }
+}
+
+/// Classifies a parsed diff as text, image or binary.
+///
+/// The order is upstream's, and the SVG case comes first for a reason: an SVG is *text* that can also be
+/// rendered, so it becomes an image diff that **also carries the text diff**, and the viewer offers both.
+///
+/// Without a [`BlobUrls`] to name bytes with, an image is reported as [`Diff::Binary`] — which is what the
+/// app showed before this existed, and what it still shows when nothing asked for image previews.
+#[allow(clippy::too_many_arguments)]
+async fn convert_diff(
     raw: &RawDiff,
-    _path: &str,
+    repository: &Path,
+    path: &str,
+    status: &AppFileStatus,
     data: TextDiffData,
-    _newest_commitish: &str,
-    _oldest_commitish: &str,
+    newest_commitish: &str,
+    oldest_commitish: &str,
+    side: DiffSide,
+    blobs: Option<&dyn BlobUrls>,
 ) -> Diff {
+    let Some(blobs) = blobs else {
+        return if raw.is_binary {
+            Diff::Binary
+        } else {
+            Diff::Text(data)
+        };
+    };
+
+    if is_svg_path(path) {
+        let mut image = image_diff(
+            repository,
+            path,
+            status,
+            newest_commitish,
+            oldest_commitish,
+            side,
+            blobs,
+        )
+        .await;
+
+        // A binary SVG is a contradiction, but git decides what is binary — so only attach the text when it
+        // actually parsed as text.
+        if !raw.is_binary {
+            image.text_diff = Some(data);
+        }
+
+        return Diff::Image(image);
+    }
+
     if raw.is_binary {
-        return Diff::Binary;
+        return if is_image_path(path) {
+            Diff::Image(
+                image_diff(
+                    repository,
+                    path,
+                    status,
+                    newest_commitish,
+                    oldest_commitish,
+                    side,
+                    blobs,
+                )
+                .await,
+            )
+        } else {
+            // Some format we have no way to present. Upstream's words: "never mind".
+            Diff::Binary
+        };
     }
 
     Diff::Text(data)
+}
+
+/// Which pair of versions an image diff compares.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DiffSide {
+    /// The working tree against `HEAD`.
+    WorkingTree,
+    /// Two revisions.
+    Commits,
+}
+
+/// Dispatches to the working-tree or commit sides.
+#[allow(clippy::too_many_arguments)]
+async fn image_diff(
+    repository: &Path,
+    path: &str,
+    status: &AppFileStatus,
+    newest_commitish: &str,
+    oldest_commitish: &str,
+    side: DiffSide,
+    blobs: &dyn BlobUrls,
+) -> ImageDiffData {
+    match side {
+        DiffSide::WorkingTree => working_tree_image_diff(repository, path, status, blobs).await,
+        DiffSide::Commits => {
+            commit_image_diff(
+                repository,
+                path,
+                status,
+                newest_commitish,
+                oldest_commitish,
+                blobs,
+            )
+            .await
+        }
+    }
 }
 
 /// The submodule status a change carries, if any.
@@ -888,6 +1251,41 @@ fn diff_file_error(name: &str, path: PathBuf, source: std::io::Error) -> GitErro
     }
 }
 
+/// The media type of a path, from its extension.
+///
+/// Ported from `getMediaType` in `diff.ts`. Used both for the `Content-Type` of a served blob and for the
+/// value carried in an image diff — one source, so the two cannot disagree.
+///
+/// # `image/jpeg`, where upstream said `image/jpg`
+///
+/// `image/jpg` is not a registered media type; `image/jpeg` is. Checked before changing it: the only place
+/// any consumer *compares* a media type is the DirectDraw Surface branch of `ImageContainer`, so nothing
+/// depends on the wrong spelling. Serving a real type matters more here than it did upstream, because this
+/// value becomes a `Content-Type` header rather than the middle of a `data:` URI.
+///
+/// `text/plain` is the fallback, which is what the original called "as per the spec".
+pub fn media_type_for(path: &str) -> &'static str {
+    let extension = Path::new(path)
+        .extension()
+        .map(|extension| extension.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+
+    match extension.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "ico" => "image/x-icon",
+        "webp" => "image/webp",
+        "bmp" => "image/bmp",
+        "avif" => "image/avif",
+        "svg" => "image/svg+xml",
+        // Not a registered type either, but it is what the DDS branch of the image viewer compares against,
+        // so it has to stay spelled exactly this way.
+        "dds" => "image/vnd-ms.dds",
+        _ => "text/plain",
+    }
+}
+
 /// Diffs a file in the working directory against the index or `HEAD`.
 ///
 /// Three shapes, following the original:
@@ -908,6 +1306,7 @@ pub async fn get_working_directory_diff(
     path: &str,
     status: &AppFileStatus,
     hide_whitespace: bool,
+    blobs: Option<&dyn BlobUrls>,
 ) -> Result<Diff, GitError> {
     let repository = repository.as_ref();
 
@@ -959,6 +1358,8 @@ pub async fn get_working_directory_diff(
         "HEAD",
         "HEAD",
         line_endings_change,
+        DiffSide::WorkingTree,
+        blobs,
     )
     .await
 }
@@ -970,6 +1371,7 @@ pub async fn get_commit_diff(
     status: &AppFileStatus,
     commitish: &str,
     hide_whitespace: bool,
+    blobs: Option<&dyn BlobUrls>,
 ) -> Result<Diff, GitError> {
     let repository = repository.as_ref();
 
@@ -1001,6 +1403,8 @@ pub async fn get_commit_diff(
         commitish,
         commitish,
         None,
+        DiffSide::Commits,
+        blobs,
     )
     .await
 }
@@ -1018,6 +1422,7 @@ pub async fn get_commit_range_diff(
     status: &AppFileStatus,
     commits: &[String],
     hide_whitespace: bool,
+    blobs: Option<&dyn BlobUrls>,
 ) -> Result<Diff, GitError> {
     let repository = repository.as_ref();
 
@@ -1070,6 +1475,8 @@ pub async fn get_commit_range_diff(
             latest,
             &oldest_commitish,
             None,
+            DiffSide::Commits,
+            blobs,
         )
         .await;
     }
@@ -1428,7 +1835,7 @@ mod text_diff_tests {
         commit_file(&repo.path(), "a.txt", "one\ntwo\n", "first");
         std::fs::write(repo.path().join("a.txt"), "one\nTWO\n").expect("failed to write");
 
-        let diff = get_working_directory_diff(repo.path(), "a.txt", &modified(), false)
+        let diff = get_working_directory_diff(repo.path(), "a.txt", &modified(), false, None)
             .await
             .expect("should diff");
 
@@ -1451,7 +1858,7 @@ mod text_diff_tests {
         commit_file(&repo.path(), "tracked", "x\n", "first");
         std::fs::write(repo.path().join("new.txt"), "alpha\nbeta\n").expect("failed to write");
 
-        let diff = get_working_directory_diff(repo.path(), "new.txt", &untracked(), false)
+        let diff = get_working_directory_diff(repo.path(), "new.txt", &untracked(), false, None)
             .await
             .expect("an untracked file should diff, not fail");
 
@@ -1470,7 +1877,7 @@ mod text_diff_tests {
         let repo = empty_repository().await;
         commit_file(&repo.path(), "a.txt", "one\n", "first");
 
-        let diff = get_working_directory_diff(repo.path(), "a.txt", &modified(), false)
+        let diff = get_working_directory_diff(repo.path(), "a.txt", &modified(), false, None)
             .await
             .expect("should diff");
 
@@ -1483,7 +1890,7 @@ mod text_diff_tests {
         commit_file(&repo.path(), "a.txt", "one\n", "first");
         std::fs::write(repo.path().join("a.txt"), "one   \n").expect("failed to write");
 
-        let shown = get_working_directory_diff(repo.path(), "a.txt", &modified(), false)
+        let shown = get_working_directory_diff(repo.path(), "a.txt", &modified(), false, None)
             .await
             .expect("should diff");
         assert!(
@@ -1491,7 +1898,7 @@ mod text_diff_tests {
             "a whitespace-only change is a change by default"
         );
 
-        let hidden = get_working_directory_diff(repo.path(), "a.txt", &modified(), true)
+        let hidden = get_working_directory_diff(repo.path(), "a.txt", &modified(), true, None)
             .await
             .expect("should diff");
         assert!(
@@ -1617,7 +2024,7 @@ mod text_diff_tests {
         std::fs::write(repo.path().join("blob.bin"), [3_u8, 4, 5, 0, 254])
             .expect("failed to write");
 
-        let diff = get_working_directory_diff(repo.path(), "blob.bin", &modified(), false)
+        let diff = get_working_directory_diff(repo.path(), "blob.bin", &modified(), false, None)
             .await
             .expect("should diff");
 
@@ -1630,7 +2037,7 @@ mod text_diff_tests {
         commit_file(&repo.path(), "a.txt", "one\n", "first");
         commit_file(&repo.path(), "a.txt", "two\n", "second");
 
-        let diff = get_commit_diff(repo.path(), "a.txt", &modified(), "HEAD", false)
+        let diff = get_commit_diff(repo.path(), "a.txt", &modified(), "HEAD", false, None)
             .await
             .expect("should diff");
 
@@ -1670,7 +2077,7 @@ mod text_diff_tests {
             rename_includes_modifications: false,
         };
 
-        let diff = get_commit_diff(repo.path(), "after", &status, "HEAD", false)
+        let diff = get_commit_diff(repo.path(), "after", &status, "HEAD", false, None)
             .await
             .expect("should diff");
 
@@ -1699,9 +2106,10 @@ mod text_diff_tests {
         };
 
         // Second and third commits: the diff spans `second^` (the first) to the third.
-        let diff = get_commit_range_diff(repo.path(), "a.txt", &modified(), &shas[1..], false)
-            .await
-            .expect("should diff");
+        let diff =
+            get_commit_range_diff(repo.path(), "a.txt", &modified(), &shas[1..], false, None)
+                .await
+                .expect("should diff");
 
         let texts: Vec<&str> = expect_text(&diff).hunks[0]
             .lines
@@ -1729,7 +2137,7 @@ mod text_diff_tests {
         .expect("rev-parse should succeed")
         .stdout_trimmed();
 
-        let diff = get_commit_range_diff(repo.path(), "a.txt", &modified(), &[sha], false)
+        let diff = get_commit_range_diff(repo.path(), "a.txt", &modified(), &[sha], false, None)
             .await
             .expect("a root commit should fall back to the null tree");
 
@@ -1747,7 +2155,7 @@ mod text_diff_tests {
     async fn diffing_no_commits_is_an_error() {
         let repo = empty_repository().await;
         assert!(matches!(
-            get_commit_range_diff(repo.path(), "a.txt", &modified(), &[], false).await,
+            get_commit_range_diff(repo.path(), "a.txt", &modified(), &[], false, None).await,
             Err(GitError::Parse { .. })
         ));
     }
@@ -1814,7 +2222,7 @@ mod text_diff_tests {
             }),
         };
 
-        let diff = get_working_directory_diff(repo.path(), "sub", &status, false)
+        let diff = get_working_directory_diff(repo.path(), "sub", &status, false, None)
             .await
             .expect("should diff");
 
@@ -1831,5 +2239,252 @@ mod text_diff_tests {
             }
             other => panic!("expected a submodule diff, got {:?}", other.kind()),
         }
+    }
+    #[test]
+    fn reports_the_media_type_of_an_image() {
+        assert_eq!(media_type_for("a.png"), "image/png");
+        assert_eq!(media_type_for("deep/dir/a.webp"), "image/webp");
+        assert_eq!(media_type_for("icon.ico"), "image/x-icon");
+    }
+
+    #[test]
+    fn spells_jpeg_the_way_the_registry_does() {
+        // Upstream answered `image/jpg`, which is not a registered media type. Safe to correct: the only
+        // consumer that compares a media type at all is the DirectDraw Surface branch of the image viewer.
+        assert_eq!(media_type_for("a.jpg"), "image/jpeg");
+        assert_eq!(media_type_for("a.jpeg"), "image/jpeg");
+    }
+
+    #[test]
+    fn keeps_the_dds_spelling_a_consumer_depends_on() {
+        assert_eq!(media_type_for("texture.dds"), "image/vnd-ms.dds");
+    }
+
+    #[test]
+    fn ignores_the_case_of_an_extension() {
+        // `.PNG` is an ordinary way to name a file, and an extension is not case-sensitive to a browser.
+        assert_eq!(media_type_for("A.PNG"), "image/png");
+        assert_eq!(media_type_for("A.JpG"), "image/jpeg");
+    }
+
+    #[test]
+    fn falls_back_to_text_for_anything_else() {
+        assert_eq!(media_type_for("notes.txt"), "text/plain");
+        assert_eq!(media_type_for("Makefile"), "text/plain");
+        assert_eq!(media_type_for(""), "text/plain");
+    }
+    // --- image diffs ---
+
+    /// Mints predictable URLs, so a test can assert on what a diff names.
+    struct TestBlobs;
+
+    impl BlobUrls for TestBlobs {
+        fn url_for(&self, _repository: &Path, path: &str, source: BlobSource) -> String {
+            match source {
+                BlobSource::WorkingTree => format!("test://working/{path}"),
+                BlobSource::Commit(commitish) => format!("test://{commitish}/{path}"),
+            }
+        }
+    }
+
+    /// A tiny PNG — the signature is enough for git to call it binary.
+    const PNG: [u8; 12] = [0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13];
+
+    #[tokio::test]
+    async fn a_modified_image_diffs_as_a_picture_with_both_sides() {
+        let repo = empty_repository().await;
+        std::fs::write(repo.path().join("logo.png"), PNG).expect("failed to write");
+        commit_all(&repo.path(), "adds a logo").await;
+        std::fs::write(
+            repo.path().join("logo.png"),
+            [PNG.as_slice(), &[1, 2, 3]].concat(),
+        )
+        .expect("failed to write");
+
+        let diff = get_working_directory_diff(
+            repo.path(),
+            "logo.png",
+            &modified(),
+            false,
+            Some(&TestBlobs),
+        )
+        .await
+        .expect("diffing should succeed");
+
+        match diff {
+            Diff::Image(image) => {
+                let current = image.current.expect("the working tree has it");
+                let previous = image.previous.expect("HEAD has it");
+                assert_eq!(current.url, "test://working/logo.png");
+                assert_eq!(previous.url, "test://HEAD/logo.png");
+                assert_eq!(current.media_type, "image/png");
+                // Sizes come from `cat-file -s` and the filesystem, not from reading the blobs.
+                assert_eq!(previous.bytes, PNG.len() as u64);
+                assert_eq!(current.bytes, PNG.len() as u64 + 3);
+                assert!(image.text_diff.is_none(), "a PNG has no text to show");
+            }
+            other => panic!("expected an image diff, got {:?}", other.kind()),
+        }
+    }
+
+    #[tokio::test]
+    async fn an_added_image_has_no_previous_side() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+        std::fs::write(repo.path().join("new.png"), PNG).expect("failed to write");
+
+        let diff = get_working_directory_diff(
+            repo.path(),
+            "new.png",
+            &untracked(),
+            false,
+            Some(&TestBlobs),
+        )
+        .await
+        .expect("diffing should succeed");
+
+        match diff {
+            Diff::Image(image) => {
+                assert!(image.current.is_some());
+                assert!(
+                    image.previous.is_none(),
+                    "there is no earlier version to show"
+                );
+            }
+            other => panic!("expected an image diff, got {:?}", other.kind()),
+        }
+    }
+
+    #[tokio::test]
+    async fn an_svg_is_a_picture_and_a_text_diff() {
+        // Text that can also be rendered, so the viewer offers both.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "icon.svg", "<svg/>\n", "first");
+        std::fs::write(repo.path().join("icon.svg"), "<svg viewBox=\"0 0 1 1\"/>\n")
+            .expect("failed to write");
+
+        let diff = get_working_directory_diff(
+            repo.path(),
+            "icon.svg",
+            &modified(),
+            false,
+            Some(&TestBlobs),
+        )
+        .await
+        .expect("diffing should succeed");
+
+        match diff {
+            Diff::Image(image) => {
+                assert_eq!(
+                    image.current.expect("a current side").media_type,
+                    "image/svg+xml"
+                );
+                let text = image.text_diff.expect("an SVG carries its text diff too");
+                assert!(text.text.contains("viewBox"), "{}", text.text);
+            }
+            other => panic!("expected an image diff, got {:?}", other.kind()),
+        }
+    }
+
+    #[tokio::test]
+    async fn without_url_minting_an_image_is_still_binary() {
+        // What the app showed before this existed, and what it shows when nothing asked for previews.
+        let repo = empty_repository().await;
+        std::fs::write(repo.path().join("logo.png"), PNG).expect("failed to write");
+        commit_all(&repo.path(), "adds a logo").await;
+        std::fs::write(
+            repo.path().join("logo.png"),
+            [PNG.as_slice(), &[9]].concat(),
+        )
+        .expect("failed to write");
+
+        let diff = get_working_directory_diff(repo.path(), "logo.png", &modified(), false, None)
+            .await
+            .expect("diffing should succeed");
+
+        assert_eq!(diff.kind(), DiffType::Binary);
+    }
+
+    #[tokio::test]
+    async fn a_binary_that_is_not_an_image_stays_binary() {
+        // Upstream's words for this branch: "some extension we don't know how to parse, never mind".
+        let repo = empty_repository().await;
+        std::fs::write(repo.path().join("blob.bin"), [0_u8, 1, 2, 0, 255])
+            .expect("failed to write");
+        commit_all(&repo.path(), "adds a blob").await;
+        std::fs::write(repo.path().join("blob.bin"), [3_u8, 4, 5, 0, 254])
+            .expect("failed to write");
+
+        let diff = get_working_directory_diff(
+            repo.path(),
+            "blob.bin",
+            &modified(),
+            false,
+            Some(&TestBlobs),
+        )
+        .await
+        .expect("diffing should succeed");
+
+        assert_eq!(diff.kind(), DiffType::Binary);
+    }
+
+    #[tokio::test]
+    async fn a_renamed_image_reads_its_previous_side_from_the_old_path() {
+        // The old path is where the earlier version lives; the new one has nothing at `HEAD`.
+        //
+        // The content changes as well as the name: a rename that changes nothing produces a diff with no
+        // binary marker, so git — and therefore upstream — reports it as text. There is no picture to show
+        // when neither side differs.
+        let repo = empty_repository().await;
+        std::fs::write(repo.path().join("before.png"), PNG).expect("failed to write");
+        commit_all(&repo.path(), "adds it").await;
+        std::fs::rename(
+            repo.path().join("before.png"),
+            repo.path().join("after.png"),
+        )
+        .expect("failed to rename");
+        git(&["add", "-A"], repo.path(), "test", GitOptions::default())
+            .await
+            .expect("add should succeed");
+        std::fs::write(
+            repo.path().join("after.png"),
+            [PNG.as_slice(), &[7, 7, 7]].concat(),
+        )
+        .expect("failed to write");
+
+        let status = AppFileStatus::Renamed {
+            old_path: "before.png".to_owned(),
+            submodule_status: None,
+            rename_includes_modifications: true,
+        };
+        let diff =
+            get_working_directory_diff(repo.path(), "after.png", &status, false, Some(&TestBlobs))
+                .await
+                .expect("diffing should succeed");
+
+        match diff {
+            Diff::Image(image) => {
+                assert_eq!(
+                    image.previous.expect("the old path has it").url,
+                    "test://HEAD/before.png"
+                );
+            }
+            other => panic!("expected an image diff, got {:?}", other.kind()),
+        }
+    }
+
+    /// Stages and commits everything.
+    async fn commit_all(repo: &Path, message: &str) {
+        git(&["add", "-A"], repo, "test", GitOptions::default())
+            .await
+            .expect("add should succeed");
+        git(
+            &["commit", "-m", message],
+            repo,
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("commit should succeed");
     }
 }

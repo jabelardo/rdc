@@ -1400,10 +1400,99 @@ work rather than being guessed at now.
 
 </details>
 
-### Phase 3 — IPC surface → Tauri commands — **IN PROGRESS — 67 COMMANDS**
+### Phase 3 — IPC surface → Tauri commands — **IN PROGRESS — 68 COMMANDS**
 
 The phase started with `get_status` wired end to end from Rust to React. The same command pattern now
-covers 67 registered commands; the full upstream channel inventory remains the next organizing pass.
+covers 67 registered commands.
+
+#### What this phase is, measured
+
+**The 77 channels in `ipc-shared.ts` are almost entirely not git.** They are menus, window state, crash
+reporting, the auto-updater, notifications, dialogs, theme, URL and CLI actions, accounts and
+`resolve-proxy` — which route to Phases 4, 6, 7 and 9, not here. Git never crossed IPC in Electron at all:
+the renderer called dugite in-process. That is why every git row in `MIGRATION_MAP.md` §7 reads "no direct
+equivalent — new", and why the channel inventory is a *routing* exercise rather than a work list.
+
+The work list is the **store layer's call surface**, which is knowable now: upstream's `lib/stores/**`
+imports **104 distinct functions** from `lib/git`. Every one has a proven consumer, which is the bar a new
+command has to meet.
+
+| | Count | What it needs |
+|---|---|---|
+| A command already exists | 58 | — |
+| Ported in `git-ops`, no command | 33 | command + typed wrapper + snapshot case |
+| **Not ported at all** | 8 | port first, then expose |
+| Owned by a later phase | 4 | `envForRemoteOperation`, `getGlobalConfigPath` (Phase 4); `getConfigValueWithOrigin`, `getFilesDiffText` (Phase 7) |
+
+Two caveats on the 33: a couple are existing commands under a different name (`merge` → `merge_branch`,
+`rebase` → `rebase_branch`), and one or two are **pure string helpers** — `formatAsLocalRef`, and
+`revRange`/`revSymmetricDifference` alongside them — which belong in `src/lib/**` as TypeScript rather than
+as a round trip to Rust. A command that computes a string from a string is a command that shouldn't exist.
+
+The 8 genuine gaps are **function-level holes that the file-level count hid**, all inside modules the map
+already marks "partially done" — the same lesson as the `for-each-ref` recount, one level down:
+
+- `rev-list.ts` — `getAheadBehind`, `getBranchAheadBehind` (2 of its 8 functions are ported)
+- `reset.ts` — `reset`, `resetPaths` (1 of 3)
+- `stage.ts` — `stageResolvedConflictFiles` (1 of 2)
+- `diff.ts` — `getBranchMergeBaseDiff`, `getBranchMergeBaseChangedFiles`, `getCommitRangeChangedFiles`
+
+Nothing was mis-recorded, but the plan had never named them. Count functions, not files.
+
+#### Decisions settled before starting
+
+**Raw bytes cross IPC as a custom URI protocol, not in a command response.** An `rdc-blob://` scheme
+handler in Rust serves blob contents, so `<img src>` and CSS reach them directly and the bytes never enter
+JSON. base64 in a response was the alternative and is rejected for the consumer that forced the question:
+a 4 MB PNG becomes ~5.5 MB of JSON string, copied twice, living in JS memory for as long as the diff is
+open. **The handler needs scoping** — a page must not be able to read an arbitrary path off disk by
+constructing a URL — so it validates against the repositories the app has open, in the spirit of the
+trampoline's per-operation token. That scoping is the design work in the slice; serving bytes is not.
+
+**Order: Phase 2's handovers first, then the command surface.** The hook and byte-representation work is
+what other phases are blocked on, and the hooks half is freshest now.
+
+#### Slices, in order
+
+1. ~~**Hook interception, wired.**~~ **Done** — see the slice note below. Note the plan overstated the
+   scope: upstream intercepts in **four** modules, not five. `rebase.ts` passes no `interceptHooks` at all,
+   which a grep confirmed before any code was written.
+2. ~~**`rdc-blob://` plus image diffs.**~~ **Done** — see the slice note below. The protocol handler and its scoping, then `getBlobImage`/
+   `getWorkingDirectoryImage` and the `DiffType::Image` arm, then commands for the two blob readers.
+   Closes `diff.rs`'s image deferral and `show.rs`'s lack of commands. Checked before starting:
+
+   - **`DiffType.Image` already exists** in the ported enum at discriminant **1**, so the Rust arm slots
+     into the existing numeric contract without touching it.
+   - **The `Image` domain model changes** from `{ rawContents, contents, mediaType, bytes }` to
+     `{ url, mediaType, bytes }`. Its only consumer is one component — `ImageContainer.loadImage` — which
+     builds a `data:` URI for everything except DirectDraw Surface textures, where it converts
+     `rawContents` in JS. A URL makes the first case simpler than it is today and the second a `fetch`
+     away, with no base64 inflation and nothing large in JSON. It is a **ported type changing while its
+     consumer is unported**, which is the cheapest moment for it: Phase 7 writes against the new shape
+     from the start.
+   - **`getMediaType` is not ported** and belongs in Rust now, because the protocol handler is what sets
+     `Content-Type`. Note upstream answers `image/jpg` for `.jpg`, which is not a registered media type
+     (`image/jpeg` is) — verify against a real webview before copying it.
+   - **CSP is currently `null`.** When Phase 5 adds one it must allow `rdc-blob:` in `img-src` and
+     `connect-src`; recorded there rather than guessed at here.
+   - **URL construction goes through a helper**, since Tauri serves custom schemes through different URL
+     forms per platform. Verified in the Linux container before anything is built on top of it.
+3. **Command batches, by domain**, porting the 8 gaps as their domain comes up: branch operations →
+   reset/stage → rev-list ahead/behind → the three diff functions → config → worktrees → gitignore → LFS
+   → mergeability and repository state → trailers. Each batch is a full vertical slice: command, typed
+   wrapper, both halves of the wire contract, tests.
+4. **The routing table** (`MIGRATION_MAP.md` §7): one row per upstream channel, its direction, and the
+   phase that owns it. Documentation only, and cheap — its value is that no channel gets ported twice or
+   forgotten.
+
+#### Exit criteria
+
+- Every function `lib/stores/**` imports from `lib/git` either **has a command** or **names the phase that
+  owns it** — the same rule Phase 2 closed on.
+- **No command without a consumer.** The store list is the evidence; a command that exists because it
+  might be useful is speculative surface with a wire contract to maintain.
+- Every shape that crosses is in the snapshot, with a TypeScript fixture annotated against `src/models/**`.
+- The 77 channels are each routed, so Phase 4/6/7/9 inherit a list rather than a search.
 
 **Decisions settled by the slice, each of which was blocking:**
 - **Native Tauri IPC, no codegen** (see the struck-through item below), with a wire-contract test as
@@ -1539,6 +1628,83 @@ whereas `diff` removes the thing that makes the app unusable. `diff` first, then
 
   The rule that came out of it: **if a type already exists in `src/models/**`, the IPC layer imports
   it — never redeclares it.**
+
+**Slice 1: hook interception is wired.** The four operations that reach hooks — `commit`, `merge`, `push`,
+`pull` — now take the machinery and run the repository's hooks with the **user's shell environment**. 68
+commands.
+
+The design decision worth keeping is **who owns the list of hooks**. It is the operation, not the caller:
+a commit reaches `pre-commit`/`prepare-commit-msg`/`commit-msg`/`post-commit`, `--amend` also reaches
+`post-rewrite`, a squash merge reaches the commit hooks *in addition* to the merge ones, and a push reaches
+only `pre-push`. A frontend cannot know that, and a list it could pass would let it ask for a hook git never
+runs — or miss one it does. So the app supplies a `HookSupport` (where the binaries are, which shell, who to
+tell) and each operation names its own hooks. The four lists are upstream's, taken from its own reading of
+`githooks(5)`.
+
+Three consequences of turning callbacks into messages:
+
+- **`HookProgress` cannot cross IPC**, because it carries an abort handle — a live thing, not data. So the
+  wire carries an **id**, the app keeps a table of running hooks, and `abort_hook(id)` looks the handle up.
+  `false` from it means the hook had already ended, which is not an error: the user cancelled a moment late.
+- **The failure prompt is a seam, not a stub.** A failing hook can be *ignored* by the user, which needs an
+  answer from the UI, so `HookSupport::with_failure_prompt` is left at its conservative default: a failure
+  is a failure and git aborts the operation, exactly as it would without rdc. That is the trampoline's
+  `Decline` decision again — declining is correct behaviour — and Phase 7 fills the seam rather than
+  changing anything here.
+- **Interception is off unless asked for.** The switch is a `localStorage` setting upstream, so nothing
+  turns it on until the preferences UI exists. `None` is not a degraded mode: git runs the hooks either way,
+  just with the app's environment rather than the user's.
+
+The wire type moved to `git-ops` mid-slice, for a reason worth recording: it started in the app crate, where
+**the snapshot generator cannot reach it** — and a hand-written JSON literal in the snapshot would break the
+one property that makes it worth having, that it is Rust's real serializer output. `HookStatus` grew a
+`Serialize` derive instead of a second wire-only twin, since `git-ops` already serializes dozens of types.
+
+Nineteen tests drive the chain through `create_commit` itself: the hook sees the shell environment, a
+refusing `pre-commit` stops the commit, an amend intercepts `post-rewrite` and a plain commit does not, and
+the reported hooks are exactly the four a commit reaches, in git's order.
+
+**Slice 2: image diffs, over a URL rather than through JSON.** `rdc-blob://` serves blob bytes to the
+webview, and `Diff::Image` finally has something to name. No new command — deliberately: the point is that
+bytes *don't* cross as a command result.
+
+**A URL is a capability, not a query.** The design that first suggests itself —
+`rdc-blob://…?repo=…&rev=…&path=…`, validated against the repositories the app has open — turns out to be
+unimplementable today, and finding out why was the useful part: there is no backend list of open
+repositories. That state lives in the frontend store until Phase 7, so a validating handler would have had
+nothing to validate against, and "serve any path on disk" is the failure mode. Instead Rust registers a blob
+it has decided to expose and returns an opaque token. The webview fetches what it was handed and can name
+nothing else, which makes the scoping structural rather than a rule I could get wrong — the trampoline's
+argument, reused.
+
+Consequences worth keeping:
+
+- **`git-ops` cannot mint URLs**, since a URL's shape belongs to the webview host and the table that resolves
+  one is app state. So it takes a `BlobUrls` trait, the same arrangement as `HookSupport` — and with no
+  minting passed, an image is reported as `Binary`, which is exactly what the app showed before.
+- **The `Image` model changed** from base64 to `{ url, mediaType, bytes }`. Its only consumer builds an
+  `<img src>` — or fetches bytes for a DirectDraw Surface texture — so both cases are served without anyone
+  paying for base64. Changing a ported type while its consumer is unported is as cheap as this ever gets.
+- **Sizes come from `git cat-file -s`**, which answers without reading the object. The two-up view shows both
+  sides and the difference between them, so the number is not optional.
+- **An SVG is both.** It gets an image diff that also carries the text diff, so the viewer can offer a Code
+  tab — upstream's behaviour, and nothing is lost by keeping it.
+- **An unreadable side is absent, not an error**, which settles a TODO upstream left on `${oldest}^`: a file
+  added in a repository's first commit has no parent to read, and "no previous version" is what an added file
+  has.
+
+`getMediaType` came over too, with one correction: upstream answers `image/jpg` for `.jpg`, which is not a
+registered media type. Checked before changing it — the only place any consumer *compares* a media type is
+the DirectDraw branch — and it matters more here than upstream, because the value is now a `Content-Type`
+header rather than the middle of a `data:` URI.
+
+`.dds` is excluded from the image extensions, matching upstream's default: it gates those previews behind a
+feature flag whose converter is frontend code.
+
+Also worth recording, because it invalidated part of the plan: **the two blob readers do not need commands.**
+That bullet assumed bytes would cross as results. Images go over the protocol, and the one remaining consumer
+— syntax highlighting — wants a bounded *text* prefix, which JSON carries perfectly well. When it lands it
+will be an ordinary command returning a string.
 
 ### Phase 3.5 — Wayland/X11 reality on the primary target (decided ahead of schedule, in Phase 0)
 

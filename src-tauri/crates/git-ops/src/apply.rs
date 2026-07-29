@@ -42,7 +42,9 @@ pub async fn apply_patch_to_index(
         recreate_rename_in_index(repository, path, old_path).await?;
     }
 
-    let diff = get_working_directory_diff(repository, path, status, false).await?;
+    // No `BlobUrls`: a patch is built from text, and an image diff has no lines to select — the arm below
+    // rejects it either way.
+    let diff = get_working_directory_diff(repository, path, status, false, None).await?;
 
     let text = match &diff {
         Diff::Text(data) | Diff::LargeText(data) => data,
@@ -199,7 +201,7 @@ mod tests {
 
     /// The diff of `path`, which the tests need in order to pick line indices.
     async fn text_diff(repo: &Path, path: &str, status: &AppFileStatus) -> TextDiffData {
-        match get_working_directory_diff(repo, path, status, false)
+        match get_working_directory_diff(repo, path, status, false, None)
             .await
             .expect("diffing should succeed")
         {

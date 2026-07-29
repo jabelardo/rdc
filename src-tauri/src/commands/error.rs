@@ -35,6 +35,20 @@ pub struct CommandError {
     pub is_auth_failure: bool,
 }
 
+impl CommandError {
+    /// A failure of rdc's own, with no git error behind it to classify.
+    ///
+    /// `kind` is `None` because there genuinely isn't one — a missing helper binary is not a git failure —
+    /// and the frontend already has to handle that case.
+    pub fn message(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+            kind: None,
+            is_auth_failure: false,
+        }
+    }
+}
+
 impl From<GitError> for CommandError {
     fn from(error: GitError) -> Self {
         let kind = match &error {

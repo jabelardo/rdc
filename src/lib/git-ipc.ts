@@ -17,6 +17,7 @@
  */
 
 import { Channel, invoke } from '@tauri-apps/api/core'
+import type { IHookProgress } from './hook-ipc'
 import type { AppFileStatus, GitStatusEntry } from '../models/status'
 import type { ManualConflictResolution } from '../models/manual-conflict-resolution'
 import { GitErrorKind } from '../models/git-error-kind'
@@ -132,6 +133,31 @@ export interface IFileToStage {
   readonly partial?: IPartialSelection
 }
 
+/**
+ * Whether to run the repository's hooks with the user's shell environment, and where to report them.
+ *
+ * Omitting this leaves interception **off**, which is the conservative default: git still runs the hooks
+ * itself, exactly as it would without rdc involved. Turning it on is a user setting, so the preferences UI
+ * decides — see `src/lib/hook-ipc.ts` for why the list of hooks is not a parameter.
+ */
+export interface IHookOptions {
+  readonly interceptHooks: boolean
+  readonly onHookProgress?: (progress: IHookProgress) => void
+}
+
+/**
+ * The hook arguments for an `invoke` call.
+ *
+ * A Channel is sent even when nothing listens, because the Rust side takes one unconditionally — the same
+ * shape the progress Channels already use.
+ */
+function hookArgs(hooks: IHookOptions | undefined) {
+  return {
+    interceptHooks: hooks?.interceptHooks ?? false,
+    onHookProgress: new Channel<IHookProgress>(hooks?.onHookProgress),
+  }
+}
+
 /** Options for {@linkcode createCommit}. Every flag defaults to off. */
 export interface ICommitOptions {
   readonly amend?: boolean
@@ -185,13 +211,15 @@ export async function createCommit(
   repositoryPath: string,
   message: string,
   files: ReadonlyArray<IFileToStage>,
-  options?: ICommitOptions
+  options?: ICommitOptions,
+  hooks?: IHookOptions
 ): Promise<string> {
   return invoke<string>('create_commit', {
     repositoryPath,
     message,
     files,
     options,
+    ...hookArgs(hooks),
   })
 }
 
@@ -301,12 +329,14 @@ export async function stageManualConflictResolution(
 export async function mergeBranch(
   repositoryPath: string,
   branch: string,
-  options?: IMergeOptions
+  options?: IMergeOptions,
+  hooks?: IHookOptions
 ): Promise<MergeResult> {
   return invoke<MergeResult>('merge_branch', {
     repositoryPath,
     branch,
     options,
+    ...hookArgs(hooks),
   })
 }
 

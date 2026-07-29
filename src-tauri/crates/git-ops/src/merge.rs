@@ -1,10 +1,18 @@
 //! Merging branches.
 //!
-//! Ported from `desktop-plus/app/src/lib/git/merge.ts`. Shared multi-operation aggregation is ported
-//! in [`crate::multi_operation_terminal_output`]; capturing merge/commit output and adapting it to a
-//! Tauri Channel remain deferred until the shared Channel/hook infrastructure lands. Git still runs
-//! hooks normally, but their output is not surfaced incrementally.
+//! Ported from `desktop-plus/app/src/lib/git/merge.ts`.
+//!
+//! # Hooks
+//!
+//! [`merge`] takes the hook machinery. A merge and the commit that concludes a **squash** merge reach
+//! different hooks, and upstream lists them separately for a reason: a plain merge commits as part of the
+//! merge, while `--squash` leaves a second invocation that is a commit in every way that matters. See
+//! [`crate::hooks`].
+//!
+//! Terminal output is still with the frontend: the aggregation is ported in
+//! [`crate::multi_operation_terminal_output`], and a command to stream it lands with its consumer.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -12,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::GitError;
 use crate::exec::{git, GitOptions};
 use crate::git_error_kind::GitErrorKind;
+use crate::hooks::with_env::{with_hooks_env, HookSupport};
 
 /// The app-specific result of attempting a merge.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -37,6 +46,7 @@ pub async fn merge(
     repository: impl AsRef<Path>,
     branch: &str,
     options: MergeOptions,
+    hooks: Option<&HookSupport>,
 ) -> Result<MergeResult, GitError> {
     let repository = repository.as_ref();
     let mut args = vec!["merge"];
@@ -48,26 +58,64 @@ pub async fn merge(
     }
     args.push(branch);
 
-    let output = git(
-        &args,
+    // The merge itself and the commit that concludes a squash merge reach **different** hooks, and
+    // upstream lists them separately for that reason: a plain merge commits as part of the merge, while
+    // `--squash` leaves the commit to a second invocation which is a commit in every way that matters.
+    let merge_hooks =
+        hooks.map(|support| support.intercepting(["pre-merge-commit", "post-merge", "commit-msg"]));
+
+    let output = with_hooks_env(
         repository,
-        "merge",
-        GitOptions::default().with_expected_errors([GitErrorKind::MergeConflicts]),
+        merge_hooks.as_ref(),
+        HashMap::new(),
+        |env| async move {
+            let mut git_options =
+                GitOptions::default().with_expected_errors([GitErrorKind::MergeConflicts]);
+            for (name, value) in env {
+                git_options = git_options.with_env(name, value);
+            }
+
+            git(&args, repository, "merge", git_options).await
+        },
     )
-    .await?;
+    .await??;
 
     if output.exit_code != 0 {
         return Ok(MergeResult::Failed);
     }
 
     if options.squash {
-        let commit = git(
-            &["commit", "--no-edit"],
+        let commit_hooks = hooks.map(|support| {
+            support.intercepting([
+                "pre-merge-commit",
+                "prepare-commit-msg",
+                "commit-msg",
+                "post-commit",
+                "pre-auto-gc",
+            ])
+        });
+
+        let commit = with_hooks_env(
             repository,
-            "createSquashMergeCommit",
-            GitOptions::default(),
+            commit_hooks.as_ref(),
+            HashMap::new(),
+            |env| async move {
+                let mut git_options = GitOptions::default();
+                for (name, value) in env {
+                    git_options = git_options.with_env(name, value);
+                }
+
+                git(
+                    &["commit", "--no-edit"],
+                    repository,
+                    "createSquashMergeCommit",
+                    git_options,
+                )
+                .await
+            },
         )
-        .await?;
+        .await??;
+
         if commit.exit_code != 0 {
             return Ok(MergeResult::Failed);
         }
@@ -142,13 +190,13 @@ mod tests {
     async fn merges_a_branch_and_detects_the_following_noop() {
         let repo = divergent_repository().await;
         assert_eq!(
-            merge(repo.path(), "dev", MergeOptions::default())
+            merge(repo.path(), "dev", MergeOptions::default(), None)
                 .await
                 .expect("merge should succeed"),
             MergeResult::Success
         );
         assert_eq!(
-            merge(repo.path(), "dev", MergeOptions::default())
+            merge(repo.path(), "dev", MergeOptions::default(), None)
                 .await
                 .expect("second merge should succeed"),
             MergeResult::AlreadyUpToDate
@@ -163,7 +211,7 @@ mod tests {
         abort_merge(repo.path())
             .await
             .expect("setup merge should abort");
-        let result = merge(repo.path(), "main", MergeOptions::default())
+        let result = merge(repo.path(), "main", MergeOptions::default(), None)
             .await
             .expect("a declared conflict should be a result");
         assert_eq!(result, MergeResult::Failed);

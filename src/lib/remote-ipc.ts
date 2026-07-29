@@ -20,6 +20,8 @@
  */
 
 import { Channel, invoke } from '@tauri-apps/api/core'
+import type { IHookProgress } from './hook-ipc'
+import type { IHookOptions } from './git-ipc'
 import type { IRemote } from '../models/remote'
 import type {
   ICloneProgress,
@@ -61,7 +63,8 @@ export async function push(
   tags: ReadonlyArray<string> = [],
   options: IPushOptions = {},
   progressCallback?: (progress: IPushProgress) => void,
-  isBackgroundTask = false
+  isBackgroundTask = false,
+  hooks?: IHookOptions
 ): Promise<void> {
   const onProgress = new Channel<IPushProgress>(progressCallback)
 
@@ -74,6 +77,8 @@ export async function push(
     options,
     isBackgroundTask,
     onProgress,
+    interceptHooks: hooks?.interceptHooks ?? false,
+    onHookProgress: new Channel<IHookProgress>(hooks?.onHookProgress),
   })
 }
 
@@ -128,7 +133,8 @@ export async function pull(
   remoteName: string,
   progressCallback?: (progress: IPullProgress) => void,
   noVerify = false,
-  isBackgroundTask = false
+  isBackgroundTask = false,
+  hooks?: IHookOptions
 ): Promise<void> {
   const onProgress = new Channel<IPullProgress>(progressCallback)
 
@@ -138,6 +144,8 @@ export async function pull(
     noVerify,
     isBackgroundTask,
     onProgress,
+    interceptHooks: hooks?.interceptHooks ?? false,
+    onHookProgress: new Channel<IHookProgress>(hooks?.onHookProgress),
   })
 }
 

@@ -127,6 +127,9 @@ describe('the remote commands', () => {
       options: {},
       isBackgroundTask: false,
       onProgress: expect.anything(),
+      // Hook interception is off unless asked for; covered in hook-ipc.test.ts.
+      interceptHooks: false,
+      onHookProgress: expect.anything(),
     })
   })
 
@@ -150,7 +153,8 @@ describe('the remote commands', () => {
     const callback = vi.fn()
     await push(REPO, 'origin', 'main', null, [], {}, callback)
 
-    expect(channelInstances).toHaveLength(1)
+    // Two Channels now: progress, then the hook Channel every hook-capable command carries. Asserting on
+    // the *progress* one keeps this about what it was written to check.
     expect(channelInstances[0].handler).toBe(callback)
 
     const sent = invoke.mock.calls[0][1] as { onProgress: unknown }
@@ -161,7 +165,6 @@ describe('the remote commands', () => {
     // The Rust side always enables --progress, so a Channel must always be there to receive it.
     await push(REPO, 'origin', 'main', null)
 
-    expect(channelInstances).toHaveLength(1)
     expect(channelInstances[0].handler).toBeUndefined()
   })
 
@@ -217,6 +220,8 @@ describe('the remote commands', () => {
       noVerify: true,
       isBackgroundTask: true,
       onProgress: expect.anything(),
+      interceptHooks: false,
+      onHookProgress: expect.anything(),
     })
   })
 

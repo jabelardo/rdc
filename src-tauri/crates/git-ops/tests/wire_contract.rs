@@ -37,11 +37,14 @@ use git_ops::checkout::{CheckoutProgress, CheckoutProgressKind};
 use git_ops::cherry_pick::CherryPickResult;
 use git_ops::clone::{CloneProgress, CloneProgressKind};
 use git_ops::commit::CommitOptions;
-use git_ops::diff::{Diff, LineEnding, LineEndingsChange, SubmoduleDiffData, TextDiffData};
+use git_ops::diff::{
+    Diff, ImageData, ImageDiffData, LineEnding, LineEndingsChange, SubmoduleDiffData, TextDiffData,
+};
 use git_ops::diff_index::IndexStatus;
 use git_ops::diff_parser::parse_diff;
 use git_ops::fetch::{FetchProgress, FetchProgressKind};
 use git_ops::for_each_ref::{Branch, BranchAuthor, BranchTip, BranchType, TrackingBranch};
+use git_ops::hooks::runner::{HookProgressUpdate, HookStatus};
 use git_ops::interpret_trailers::Trailer;
 use git_ops::log::{ChangesetData, Commit, CommitIdentity, CommittedFileChange};
 use git_ops::merge::{MergeOptions, MergeResult};
@@ -767,6 +770,66 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
         to_value(CherryPickResult::ConflictsEncountered),
     );
 
+    // Image diffs. Both sides present for a modified image; the SVG case additionally carries the text diff,
+    // which is what lets the viewer offer a "Code" tab. A URL rather than base64 — see `blob_protocol.rs`.
+    cases.insert(
+        "imageDiff",
+        to_value(Diff::Image(ImageDiffData {
+            previous: Some(ImageData {
+                url: "rdc-blob://localhost/0123456789abcdef0123456789abcdef".to_owned(),
+                media_type: "image/png".to_owned(),
+                bytes: 2048,
+            }),
+            current: Some(ImageData {
+                url: "rdc-blob://localhost/fedcba9876543210fedcba9876543210".to_owned(),
+                media_type: "image/png".to_owned(),
+                bytes: 4096,
+            }),
+            text_diff: None,
+        })),
+    );
+    cases.insert(
+        "addedImageDiff",
+        to_value(Diff::Image(ImageDiffData {
+            previous: None,
+            current: Some(ImageData {
+                url: "rdc-blob://localhost/00000000000000000000000000000001".to_owned(),
+                media_type: "image/webp".to_owned(),
+                bytes: 128,
+            }),
+            text_diff: None,
+        })),
+    );
+    cases.insert(
+        "svgImageDiff",
+        to_value(Diff::Image(ImageDiffData {
+            previous: None,
+            current: Some(ImageData {
+                url: "rdc-blob://localhost/00000000000000000000000000000002".to_owned(),
+                media_type: "image/svg+xml".to_owned(),
+                bytes: 64,
+            }),
+            text_diff: Some(TextDiffData {
+                text: "@@ -0,0 +1 @@\n+<svg/>\n".to_owned(),
+                hunks: Vec::new(),
+                line_endings_change: None,
+                max_line_number: 1,
+                has_hidden_bidi_chars: false,
+            }),
+        })),
+    );
+
+    // Hook progress. The status strings are the original's (`'started' | 'finished' | 'failed'`), and the
+    // `id` exists because a `HookAbort` is a live handle rather than data — see `src/hook_state.rs`.
+    cases.insert(
+        "hookProgress",
+        to_value(HookProgressUpdate {
+            id: 3,
+            hook: "pre-commit".to_owned(),
+            status: HookStatus::Started,
+        }),
+    );
+
     // The branch list. `type` is a numeric enum, `upstream` is `string | null` rather than optional,
     // and both `type` and `ref` are Rust keywords renamed on the way out — so all three are worth
     // pinning. The frontend builds the `Branch` class from these, which is what checks the shape.
@@ -955,6 +1018,31 @@ fn a_file_to_stage_accepts_a_partial_line_selection() {
             [2, 3, 7],
         )
     );
+}
+
+#[test]
+fn an_image_diff_round_trips() {
+    // `kind` is the numeric 1, and the two sides are omitted rather than null when absent — the shape
+    // `IImageDiff` declares. A round trip proves the hand-written serializer and deserializer agree.
+    let diff = Diff::Image(ImageDiffData {
+        previous: None,
+        current: Some(ImageData {
+            url: "rdc-blob://localhost/abc".to_owned(),
+            media_type: "image/png".to_owned(),
+            bytes: 7,
+        }),
+        text_diff: None,
+    });
+
+    let json = to_value(diff.clone());
+    assert_eq!(json["kind"], 1, "DiffType.Image");
+    assert!(
+        json.get("previous").is_none(),
+        "an added image has no previous side: {json}"
+    );
+
+    let back: Diff = serde_json::from_value(json).expect("deserializes");
+    assert_eq!(back, diff);
 }
 
 #[test]

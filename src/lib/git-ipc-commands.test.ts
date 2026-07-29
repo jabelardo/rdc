@@ -65,6 +65,10 @@ describe('the git commands', () => {
       message: 'Fix the thing',
       files: [{ path: 'src/thing.ts' }],
       options: undefined,
+      // Hook interception is off unless asked for, and the Channel is sent regardless because the Rust
+      // side takes one unconditionally. Covered in hook-ipc.test.ts.
+      interceptHooks: false,
+      onHookProgress: expect.anything(),
     })
     expect(sha).toHaveLength(40)
   })
@@ -246,6 +250,8 @@ describe('the git commands', () => {
       repositoryPath: REPO,
       branch: 'topic',
       options: { squash: true, noVerify: true },
+      interceptHooks: false,
+      onHookProgress: expect.anything(),
     })
   })
 

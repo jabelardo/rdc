@@ -2,20 +2,25 @@
 //!
 //! Ported from `desktop-plus/app/src/lib/git/commit.ts`.
 //!
-//! # Deferred: hook interception
+//! # Hooks
 //!
-//! The original passed `interceptHooks: ['pre-commit', 'prepare-commit-msg', …]` along with
-//! `onHookProgress`/`onHookFailure`/`onTerminalOutputAvailable` callbacks, so the UI could show hook
-//! output as it streamed. That maps to a Tauri **Channel**, not to these functions' return values —
-//! see `MIGRATION_MAP.md` §9. Commits work without it; hook *output* is what's missing, not hook
-//! *execution*, since git runs the hooks either way.
+//! [`create_commit`] takes the hook machinery and names the hooks a commit can reach itself — the list is a
+//! property of the command, not of the caller, which is why `--amend` adds `post-rewrite` here rather than
+//! anywhere else. See [`crate::hooks`]. Passing `None` is not a downgrade: git runs the hooks either way,
+//! it just runs them with whatever environment the app happens to have.
+//!
+//! Still with the frontend: **terminal output**. The aggregation is ported in
+//! [`crate::multi_operation_terminal_output`]; what is missing is a command streaming it, which lands with
+//! the store consumer that displays it.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
 use crate::exec::{git, GitOptions};
+use crate::hooks::with_env::{with_hooks_env, HookSupport};
 use crate::reset::unstage_all;
 use crate::update_index::{stage_files, FileToStage};
 
@@ -58,6 +63,7 @@ pub async fn create_commit(
     message: &str,
     files: &[FileToStage],
     options: CommitOptions,
+    hooks: Option<&HookSupport>,
 ) -> Result<String, GitError> {
     let repository = repository.as_ref();
 
@@ -80,13 +86,37 @@ pub async fn create_commit(
         args.push("--allow-empty");
     }
 
-    git(
-        &args,
+    // The hooks a commit can reach, from the original — which took them from
+    // <https://git-scm.com/docs/githooks>. `post-rewrite` only when amending, because that is the only
+    // case where a commit rewrites one. `pre-auto-gc` is here even though a user rarely writes one: a
+    // stand-in for it is how a commit delayed by garbage collection can say so.
+    let mut hook_names = vec![
+        "pre-commit",
+        "prepare-commit-msg",
+        "commit-msg",
+        "post-commit",
+    ];
+    if options.amend {
+        hook_names.push("post-rewrite");
+    }
+    hook_names.push("pre-auto-gc");
+
+    let interception = hooks.map(|support| support.intercepting(hook_names));
+
+    with_hooks_env(
         repository,
-        "createCommit",
-        GitOptions::default().with_stdin(message),
+        interception.as_ref(),
+        HashMap::new(),
+        |env| async move {
+            let mut git_options = GitOptions::default().with_stdin(message);
+            for (name, value) in env {
+                git_options = git_options.with_env(name, value);
+            }
+
+            git(&args, repository, "createCommit", git_options).await
+        },
     )
-    .await?;
+    .await??;
 
     resolve_head(repository).await
 }
@@ -220,6 +250,7 @@ mod tests {
             "Special commit",
             &[FileToStage::new("README.md")],
             CommitOptions::default(),
+            None,
         )
         .await
         .expect("committing should succeed");
@@ -258,6 +289,7 @@ mod tests {
             "Special commit\n\n# this is a comment",
             &[FileToStage::new("README.md")],
             CommitOptions::default(),
+            None,
         )
         .await
         .expect("committing should succeed");
@@ -280,6 +312,7 @@ mod tests {
             "added two files\n\nthis is a description",
             &[FileToStage::new("foo"), FileToStage::new("bar")],
             CommitOptions::default(),
+            None,
         )
         .await
         .expect("committing should succeed");
@@ -308,6 +341,7 @@ mod tests {
             "renamed",
             &[FileToStage::renamed("after", "before")],
             CommitOptions::default(),
+            None,
         )
         .await
         .expect("committing should succeed");
@@ -351,6 +385,7 @@ mod tests {
                 amend: true,
                 ..CommitOptions::default()
             },
+            None,
         )
         .await
         .expect("amending should succeed");
@@ -378,6 +413,7 @@ mod tests {
                 sign_off: true,
                 ..CommitOptions::default()
             },
+            None,
         )
         .await
         .expect("committing should succeed");
@@ -405,6 +441,7 @@ mod tests {
                 allow_empty: true,
                 ..CommitOptions::default()
             },
+            None,
         )
         .await
         .expect("an empty commit should be allowed");
@@ -419,9 +456,15 @@ mod tests {
         let repo = empty_repository().await;
         commit_file(&repo.path(), "foo", "contents\n", "first");
 
-        let error = create_commit(repo.path(), "should fail", &[], CommitOptions::default())
-            .await
-            .expect_err("committing nothing should fail");
+        let error = create_commit(
+            repo.path(),
+            "should fail",
+            &[],
+            CommitOptions::default(),
+            None,
+        )
+        .await
+        .expect_err("committing nothing should fail");
 
         assert!(
             matches!(error, GitError::UnexpectedExitCode { .. }),
@@ -453,6 +496,7 @@ mod tests {
             "only keep",
             &[FileToStage::new("keep")],
             CommitOptions::default(),
+            None,
         )
         .await
         .expect("committing should succeed");

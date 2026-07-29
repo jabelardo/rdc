@@ -11,10 +11,12 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use git_ops::commit::{create_commit, CommitOptions};
 use git_ops::exec::{git, GitOptions};
 use git_ops::hooks::runner::{supports_to_stdin, FailureDecision, HookStatus};
 use git_ops::hooks::shell::Shell;
-use git_ops::hooks::with_env::{with_hooks_env, HookInterception};
+use git_ops::hooks::with_env::{with_hooks_env, HookInterception, HookSupport};
+use git_ops::update_index::FileToStage;
 
 fn proxy_binary() -> PathBuf {
     PathBuf::from(env!("CARGO_BIN_EXE_rdc-hook-proxy"))
@@ -612,4 +614,160 @@ async fn a_shell_that_cannot_be_loaded_fails_the_hook_and_says_why() {
         "{error}"
     );
     assert_eq!(fixture.commit_count().await, 1);
+}
+
+// --- the operations that intercept ---
+//
+// The chain above is driven directly. These drive it the way the app does: through the git operation, which
+// owns the list of hooks it can reach. Upstream intercepts in exactly four modules — commit, merge, push and
+// pull — and `rebase.ts` deliberately does not.
+
+/// The machinery, with a stand-in shell, as the command layer supplies it.
+fn support(fixture: &Fixture) -> HookSupport {
+    HookSupport::new(proxy_binary(), printenvz()).with_shell(fixture.shell.clone())
+}
+
+#[tokio::test]
+async fn create_commit_runs_the_repository_hooks() {
+    // The whole point, through the real entry point: the hook sees the shell's environment, and the commit
+    // completes.
+    let fixture = Fixture::new().await;
+    fixture.write_hook(
+        "pre-commit",
+        "echo \"shell=$FROM_THE_SHELL\" > \"$(git rev-parse --show-toplevel)/hook-ran.txt\"",
+    );
+    std::fs::write(fixture.path().join("b.txt"), "two\n").expect("failed to write");
+
+    let sha = create_commit(
+        fixture.path(),
+        "with hooks",
+        &[FileToStage::new("b.txt")],
+        CommitOptions::default(),
+        Some(&support(&fixture)),
+    )
+    .await
+    .expect("the commit should succeed");
+
+    assert_eq!(sha.len(), 40);
+    let recorded = std::fs::read_to_string(fixture.path().join("hook-ran.txt"))
+        .expect("the hook should have run");
+    assert_eq!(recorded.trim(), "shell=yes");
+}
+
+#[tokio::test]
+async fn a_refusing_pre_commit_hook_stops_the_commit() {
+    let fixture = Fixture::new().await;
+    fixture.write_hook("pre-commit", "echo 'refusing' >&2\nexit 1");
+    std::fs::write(fixture.path().join("b.txt"), "two\n").expect("failed to write");
+    let before = fixture.commit_count().await;
+
+    let error = create_commit(
+        fixture.path(),
+        "should be refused",
+        &[FileToStage::new("b.txt")],
+        CommitOptions::default(),
+        Some(&support(&fixture)),
+    )
+    .await
+    .expect_err("the hook refused it");
+
+    assert!(format!("{error}").contains("refusing"), "{error}");
+    assert_eq!(
+        fixture.commit_count().await,
+        before,
+        "nothing was committed"
+    );
+}
+
+#[tokio::test]
+async fn without_interception_the_hook_still_runs_but_not_through_us() {
+    // git runs hooks regardless — interception only changes *how*. So a commit with no machinery passed must
+    // still honour the hook, just with whatever environment the app happens to have.
+    let fixture = Fixture::new().await;
+    fixture.write_hook("pre-commit", "echo 'refusing' >&2\nexit 1");
+    std::fs::write(fixture.path().join("b.txt"), "two\n").expect("failed to write");
+
+    let error = create_commit(
+        fixture.path(),
+        "should be refused",
+        &[FileToStage::new("b.txt")],
+        CommitOptions::default(),
+        None,
+    )
+    .await
+    .expect_err("git runs the hook itself");
+
+    assert!(format!("{error}").contains("refusing"), "{error}");
+}
+
+#[tokio::test]
+async fn amending_also_intercepts_post_rewrite() {
+    // The one hook whose presence depends on the flags: only an amend rewrites a commit. Which is why the
+    // hook list belongs to the operation rather than to the caller.
+    let fixture = Fixture::new().await;
+    fixture.write_hook(
+        "post-rewrite",
+        "echo ran > \"$(git rev-parse --show-toplevel)/rewrote.txt\"",
+    );
+
+    create_commit(
+        fixture.path(),
+        "amended",
+        &[],
+        CommitOptions {
+            amend: true,
+            allow_empty: true,
+            ..CommitOptions::default()
+        },
+        Some(&support(&fixture)),
+    )
+    .await
+    .expect("the amend should succeed");
+
+    assert!(
+        fixture.path().join("rewrote.txt").exists(),
+        "post-rewrite is intercepted when amending"
+    );
+}
+
+#[tokio::test]
+async fn reports_every_hook_a_commit_reaches() {
+    // Confirms the list the operation passes, by writing one of each and seeing which are reported.
+    let fixture = Fixture::new().await;
+    for hook in [
+        "pre-commit",
+        "prepare-commit-msg",
+        "commit-msg",
+        "post-commit",
+    ] {
+        fixture.write_hook(hook, "exit 0");
+    }
+    std::fs::write(fixture.path().join("b.txt"), "two\n").expect("failed to write");
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let recorded = Arc::clone(&seen);
+
+    create_commit(
+        fixture.path(),
+        "with hooks",
+        &[FileToStage::new("b.txt")],
+        CommitOptions::default(),
+        Some(&support(&fixture).with_progress(move |update| {
+            if update.status == HookStatus::Started {
+                recorded.lock().expect("not poisoned").push(update.hook)
+            }
+        })),
+    )
+    .await
+    .expect("the commit should succeed");
+
+    assert_eq!(
+        *seen.lock().expect("not poisoned"),
+        vec![
+            "pre-commit".to_owned(),
+            "prepare-commit-msg".to_owned(),
+            "commit-msg".to_owned(),
+            "post-commit".to_owned(),
+        ],
+        "in the order git runs them"
+    );
 }

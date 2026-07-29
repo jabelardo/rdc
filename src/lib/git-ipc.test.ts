@@ -185,6 +185,8 @@ describe('the git IPC wire shape', () => {
     // Guards against a new Rust case being added to the snapshot without a typed fixture here,
     // which would otherwise silently skip the type check for it.
     expect(Object.keys(snapshot).sort()).toEqual([
+      // The image diffs — covered by diff-ipc.test.ts (hydrated into the Image class).
+      'addedImageDiff',
       'binaryDiff',
       // The branch shapes — covered by branch-ipc.test.ts (hydrated into Branch).
       'branch',
@@ -200,6 +202,9 @@ describe('the git IPC wire shape', () => {
       'emptyStatusResult',
       'fetchProgress',
       'goneBranch',
+      // Covered by hook-ipc.test.ts.
+      'hookProgress',
+      'imageDiff',
       // Covered by diff-ipc.test.ts.
       'indexChanges',
       'largeTextDiff',
@@ -226,6 +231,7 @@ describe('the git IPC wire shape', () => {
       'statusResult',
       'submoduleDiff',
       'submoduleEntry',
+      'svgImageDiff',
       'textConflict',
       // The IDiff union — covered by diff-ipc.test.ts.
       'textDiff',

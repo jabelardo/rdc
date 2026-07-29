@@ -63,7 +63,9 @@ pub mod with_env;
 
 pub use discovery::{get_repo_hooks, KNOWN_HOOKS};
 pub use protocol::{HookRequest, HookResponse};
-pub use runner::{run_hook, FailureDecision, HookAbort, HookOutcome, HookProgress, HookStatus};
+pub use runner::{
+    run_hook, FailureDecision, HookAbort, HookOutcome, HookProgress, HookProgressUpdate, HookStatus,
+};
 pub use shell::{quote_command, Shell};
 pub use shell_env::{get_shell_env, ShellEnv};
-pub use with_env::{with_hooks_env, HookInterception};
+pub use with_env::{with_hooks_env, HookInterception, HookSupport};

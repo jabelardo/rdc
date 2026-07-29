@@ -309,7 +309,7 @@ mod tests {
         status: &AppFileStatus,
         selected_text: &[&str],
     ) -> Vec<u32> {
-        let diff = get_working_directory_diff(repository, path, status, false)
+        let diff = get_working_directory_diff(repository, path, status, false, None)
             .await
             .expect("diffing should succeed");
         let data = match diff {

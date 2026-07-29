@@ -2676,13 +2676,16 @@ name = "rdc"
 version = "0.1.0"
 dependencies = [
  "git-ops",
+ "http",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-opener",
+ "tempfile",
  "tokio",
  "trampoline",
+ "uuid",
 ]
 
 [[package]]

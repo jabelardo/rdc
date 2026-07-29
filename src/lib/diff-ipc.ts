@@ -34,6 +34,7 @@ import {
   DiffLine,
   DiffLineType,
   DiffType,
+  Image,
   IRawDiff,
   type IDiff,
   type ITextDiff,
@@ -158,9 +159,32 @@ export interface ITextDiffDataWire {
  * Discriminated on the same numeric `kind` as the domain union, so narrowing works identically
  * before and after hydration.
  */
+/** An {@linkcode Image} as it arrives over IPC — the constructor's arguments. */
+export interface IImageDataWire {
+  readonly url: string
+  readonly mediaType: string
+  readonly bytes: number
+}
+
+/**
+ * An image diff as it arrives over IPC.
+ *
+ * A side is **absent** rather than null when that version doesn't exist: no `previous` for an added file, no
+ * `current` for a deleted one, and neither for a conflicted binary — which would take showing three versions
+ * and asking the user which they mean.
+ *
+ * `textDiff` is present for an SVG, which is text that can also be rendered, so the viewer can offer both.
+ */
+export interface IImageDiffWire {
+  readonly previous?: IImageDataWire
+  readonly current?: IImageDataWire
+  readonly textDiff?: ITextDiffDataWire
+}
+
 export type IDiffWire =
   | ({ readonly kind: DiffType.Text } & ITextDiffDataWire)
   | ({ readonly kind: DiffType.LargeText } & ITextDiffDataWire)
+  | ({ readonly kind: DiffType.Image } & IImageDiffWire)
   | { readonly kind: DiffType.Binary }
   | { readonly kind: DiffType.Unrenderable }
   | {
@@ -172,6 +196,16 @@ export type IDiffWire =
       readonly oldSHA: string | null
       readonly newSHA: string | null
     }
+
+/**
+ * Builds an {@linkcode Image}, or leaves the side absent.
+ *
+ * `undefined` in, `undefined` out: a missing side is what an added or deleted file has, and inventing an
+ * empty `Image` would make the viewer render a broken one.
+ */
+function hydrateImage(data: IImageDataWire | undefined): Image | undefined {
+  return data && new Image(data.url, data.mediaType, data.bytes)
+}
 
 function hydrateTextDiffData(data: ITextDiffDataWire) {
   return {
@@ -196,6 +230,13 @@ export function hydrateDiff(data: IDiffWire): IDiff {
       return { kind: DiffType.Text, ...hydrateTextDiffData(data) }
     case DiffType.LargeText:
       return { kind: DiffType.LargeText, ...hydrateTextDiffData(data) }
+    case DiffType.Image:
+      return {
+        kind: DiffType.Image,
+        previous: hydrateImage(data.previous),
+        current: hydrateImage(data.current),
+        textDiff: data.textDiff && hydrateTextDiffData(data.textDiff),
+      }
     case DiffType.Binary:
       return { kind: DiffType.Binary }
     case DiffType.Unrenderable:

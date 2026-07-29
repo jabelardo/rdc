@@ -5,6 +5,7 @@ import {
   DiffHunkHeader,
   DiffLineType,
   DiffType,
+  Image,
 } from '../models/diff'
 import {
   getHunkHeaderExpansionType,
@@ -358,5 +359,65 @@ describe('sending a diff back for a partial discard', () => {
       selectedLines: [4, 5],
     })
     expect(kind).toBe(DiffType.Text)
+  })
+})
+
+describe('image diffs', () => {
+  const imageDiff = snapshot.imageDiff as IDiffWire
+  const addedImageDiff = snapshot.addedImageDiff as IDiffWire
+  const svgImageDiff = snapshot.svgImageDiff as IDiffWire
+
+  it('hydrates both sides into the Image class', () => {
+    const diff = hydrateDiff(imageDiff)
+    if (diff.kind !== DiffType.Image) {
+      throw new Error('narrowing failed')
+    }
+
+    expect(diff.previous).toBeInstanceOf(Image)
+    expect(diff.current).toBeInstanceOf(Image)
+    expect(diff.previous?.mediaType).toBe('image/png')
+    expect(diff.current?.bytes).toBe(4096)
+  })
+
+  it('carries a URL rather than the bytes', () => {
+    // The reason for the protocol: a 4 MB PNG would otherwise be ~5.5 MB of JSON, copied twice, held for as
+    // long as the diff is open. `<img src>` fetches this instead.
+    const diff = hydrateDiff(imageDiff)
+    if (diff.kind !== DiffType.Image) {
+      throw new Error('narrowing failed')
+    }
+
+    expect(diff.current?.url).toMatch(/^rdc-blob:/)
+    // Nothing in the payload should look like base64 image data.
+    expect(JSON.stringify(imageDiff)).not.toContain('base64')
+  })
+
+  it('leaves an absent side absent rather than empty', () => {
+    // An added image has no previous version, and an empty Image would make the viewer render a broken one.
+    expect('previous' in addedImageDiff).toBe(false)
+
+    const diff = hydrateDiff(addedImageDiff)
+    if (diff.kind !== DiffType.Image) {
+      throw new Error('narrowing failed')
+    }
+    expect(diff.previous).toBeUndefined()
+    expect(diff.current).toBeInstanceOf(Image)
+  })
+
+  it('gives an SVG both a picture and a text diff', () => {
+    // An SVG is text that can also be rendered, so the viewer offers both — upstream's behaviour, and
+    // nothing is lost by keeping it.
+    const diff = hydrateDiff(svgImageDiff)
+    if (diff.kind !== DiffType.Image) {
+      throw new Error('narrowing failed')
+    }
+
+    expect(diff.current?.mediaType).toBe('image/svg+xml')
+    expect(diff.textDiff?.text).toContain('<svg/>')
+  })
+
+  it('uses the numeric DiffType the ported enum declares', () => {
+    expect(snapshot.imageDiff.kind).toBe(DiffType.Image)
+    expect(DiffType.Image).toBe(1)
   })
 })

@@ -18,7 +18,9 @@ use git_ops::push::{PushOptions, PushProgress, PushTarget};
 use git_ops::remote::Remote;
 
 use super::CommandError;
+use crate::hook_state::{support_for, HookRegistry};
 use crate::trampoline_state::{RemoteSession, TrampolineState};
+use git_ops::hooks::runner::HookProgressUpdate;
 
 /// Turns a bind failure into a command error.
 ///
@@ -79,6 +81,7 @@ fn remote_error(remote: &RemoteSession, error: git_ops::GitError) -> CommandErro
 #[tauri::command]
 pub async fn push(
     state: State<'_, TrampolineState>,
+    hooks: State<'_, HookRegistry>,
     repository_path: String,
     remote_name: String,
     local_branch: String,
@@ -87,11 +90,15 @@ pub async fn push(
     options: Option<PushOptions>,
     is_background_task: Option<bool>,
     on_progress: Channel<PushProgress>,
+    intercept_hooks: Option<bool>,
+    on_hook_progress: Channel<HookProgressUpdate>,
 ) -> Result<(), CommandError> {
     let remote = state
         .session_for(&repository_path, is_background_task.unwrap_or(false))
         .await
         .map_err(bind_error)?;
+    let support = support_for(intercept_hooks.unwrap_or(false), &hooks, on_hook_progress)
+        .map_err(CommandError::message)?;
 
     let tags = tags.unwrap_or_default();
 
@@ -110,6 +117,7 @@ pub async fn push(
             // half-done.
             let _ = on_progress.send(progress);
         }),
+        support.as_ref(),
     )
     .await
     .map_err(|error| remote_error(&remote, error))?;
@@ -195,18 +203,26 @@ pub async fn fetch(
 /// When the branches have diverged and the user hasn't configured `pull.ff`, this reconciles with
 /// `--ff` — fast-forward if possible, otherwise merge — rather than letting git refuse.
 #[tauri::command]
+// A command's parameters are its wire API, so grouping them to satisfy the lint would change the shape the
+// frontend sends — the wrong reason to change an interface.
+#[allow(clippy::too_many_arguments)]
 pub async fn pull(
     state: State<'_, TrampolineState>,
+    hooks: State<'_, HookRegistry>,
     repository_path: String,
     remote_name: String,
     no_verify: Option<bool>,
     is_background_task: Option<bool>,
     on_progress: Channel<PullProgress>,
+    intercept_hooks: Option<bool>,
+    on_hook_progress: Channel<HookProgressUpdate>,
 ) -> Result<(), CommandError> {
     let remote = state
         .session_for(&repository_path, is_background_task.unwrap_or(false))
         .await
         .map_err(bind_error)?;
+    let support = support_for(intercept_hooks.unwrap_or(false), &hooks, on_hook_progress)
+        .map_err(CommandError::message)?;
 
     git_ops::pull::pull(
         &repository_path,
@@ -216,6 +232,7 @@ pub async fn pull(
         Some(|progress: PullProgress| {
             let _ = on_progress.send(progress);
         }),
+        support.as_ref(),
     )
     .await
     .map_err(|error| remote_error(&remote, error))?;

@@ -1,5 +1,10 @@
 // The IPC surface lives in `commands`; see that module for the conventions.
 mod commands;
+use tauri::Manager;
+
+mod blob_protocol;
+mod hook_state;
+
 mod trampoline_state;
 
 // WebKitGTK's native-Wayland GPU compositing path has known unresolved
@@ -27,8 +32,31 @@ pub fn run() {
         // Owns the credential server. Created eagerly, but it only binds a socket on the first
         // remote operation — see `trampoline_state`.
         .manage(trampoline_state::TrampolineState::new())
+        // Holds the abort handles of hooks currently running, so `abort_hook` can reach one.
+        .manage(hook_state::HookRegistry::new())
+        // Blobs the app has decided the webview may read. A URL is a capability: the frontend can fetch
+        // what it was handed and cannot name anything else — see src/blob_protocol.rs.
+        .manage(blob_protocol::BlobRegistry::new())
+        .register_asynchronous_uri_scheme_protocol(
+            blob_protocol::SCHEME,
+            |context, request, responder| {
+                // Reading a blob runs git, so this answers asynchronously rather than blocking the
+                // webview's thread while it happens.
+                let registry = context
+                    .app_handle()
+                    .state::<blob_protocol::BlobRegistry>()
+                    .inner()
+                    .clone();
+
+                tauri::async_runtime::spawn(async move {
+                    responder.respond(blob_protocol::respond(&registry, &request).await);
+                });
+            },
+        )
         .invoke_handler(tauri::generate_handler![
             commands::git::get_status,
+            commands::git::abort_hook,
+            commands::git::abort_hook,
             commands::git::create_commit,
             commands::git::create_merge_commit,
             commands::git::checkout_branch,

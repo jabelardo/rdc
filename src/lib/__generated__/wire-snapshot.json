@@ -1,4 +1,12 @@
 {
+  "addedImageDiff": {
+    "current": {
+      "bytes": 128,
+      "mediaType": "image/webp",
+      "url": "rdc-blob://localhost/00000000000000000000000000000001"
+    },
+    "kind": 1
+  },
   "binaryDiff": {
     "kind": 2
   },
@@ -109,6 +117,24 @@
     },
     "type": 0,
     "upstream": "origin/topic"
+  },
+  "hookProgress": {
+    "hook": "pre-commit",
+    "id": 3,
+    "status": "started"
+  },
+  "imageDiff": {
+    "current": {
+      "bytes": 4096,
+      "mediaType": "image/png",
+      "url": "rdc-blob://localhost/fedcba9876543210fedcba9876543210"
+    },
+    "kind": 1,
+    "previous": {
+      "bytes": 2048,
+      "mediaType": "image/png",
+      "url": "rdc-blob://localhost/0123456789abcdef0123456789abcdef"
+    }
   },
   "indexChanges": [
     [
@@ -432,6 +458,20 @@
     "describe": "v1.0",
     "path": "sub",
     "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "svgImageDiff": {
+    "current": {
+      "bytes": 64,
+      "mediaType": "image/svg+xml",
+      "url": "rdc-blob://localhost/00000000000000000000000000000002"
+    },
+    "kind": 1,
+    "textDiff": {
+      "hasHiddenBidiChars": false,
+      "hunks": [],
+      "maxLineNumber": 1,
+      "text": "@@ -0,0 +1 @@\n+<svg/>\n"
+    }
   },
   "textConflict": {
     "conflictMarkerCount": 3,

@@ -20,7 +20,11 @@ use git_ops::status_parser::GitStatusEntry;
 use git_ops::update_index::FileToStage;
 
 use super::CommandError;
+use crate::blob_protocol::BlobRegistry;
+use crate::hook_state::{support_for, HookRegistry};
+use git_ops::hooks::runner::HookProgressUpdate;
 use tauri::ipc::Channel;
+use tauri::State;
 
 /// Reads the status of the repository at `repository_path`.
 ///
@@ -64,13 +68,25 @@ pub async fn get_status(
 ///
 /// The SHA is the full 40-character one. The original returned git's abbreviation, and returned the
 /// literal string `"(root-commit)"` for a repository's first commit; see `git_ops::commit`.
+///
+/// `interceptHooks` decides whether the repository's hooks run with the **user's shell environment** rather
+/// than the app's — see `git_ops::hooks`. Which hooks that covers is not the caller's to choose: a commit
+/// reaches `pre-commit`, `commit-msg` and friends, and `--amend` also reaches `post-rewrite`, so the list
+/// belongs with the operation. `onHookProgress` reports each of them starting and finishing, with an id
+/// `abort_hook` accepts.
 #[tauri::command]
 pub async fn create_commit(
+    hooks: State<'_, HookRegistry>,
     repository_path: String,
     message: String,
     files: Vec<FileToStage>,
     options: Option<CommitOptions>,
+    intercept_hooks: Option<bool>,
+    on_hook_progress: Channel<HookProgressUpdate>,
 ) -> Result<String, CommandError> {
+    let support = support_for(intercept_hooks.unwrap_or(false), &hooks, on_hook_progress)
+        .map_err(CommandError::message)?;
+
     // `options` is optional so the frontend can omit it entirely, matching the original's
     // `options?: { … }`. Absent means every flag off.
     git_ops::commit::create_commit(
@@ -78,9 +94,24 @@ pub async fn create_commit(
         &message,
         &files,
         options.unwrap_or_default(),
+        support.as_ref(),
     )
     .await
     .map_err(CommandError::from)
+}
+
+/// Stops a hook that is still running.
+///
+/// ```js
+/// await invoke('abort_hook', { id })   // an id from an onHookProgress update
+/// ```
+///
+/// `false` means the hook had already ended, which is not an error: the user cancelled a moment too late
+/// and the operation carried on. Kills the `git hook run` process; a hook that spawned children of its own
+/// may leave them running, as upstream's `AbortController` also did.
+#[tauri::command]
+pub fn abort_hook(hooks: State<'_, HookRegistry>, id: u64) -> bool {
+    hooks.abort(id)
 }
 
 /// Creates the commit that concludes an in-progress merge, and returns its full SHA.
@@ -236,15 +267,30 @@ pub async fn stage_manual_conflict_resolution(
 }
 
 /// Merges a branch into the current branch.
+///
+/// `interceptHooks` runs the repository's hooks with the user's shell environment. A merge reaches
+/// `pre-merge-commit`, `post-merge` and `commit-msg`; a **squash** merge additionally commits, which reaches
+/// the commit hooks — so the operation names both sets rather than the caller.
 #[tauri::command]
 pub async fn merge_branch(
+    hooks: State<'_, HookRegistry>,
     repository_path: String,
     branch: String,
     options: Option<MergeOptions>,
+    intercept_hooks: Option<bool>,
+    on_hook_progress: Channel<HookProgressUpdate>,
 ) -> Result<MergeResult, CommandError> {
-    git_ops::merge::merge(&repository_path, &branch, options.unwrap_or_default())
-        .await
-        .map_err(CommandError::from)
+    let support = support_for(intercept_hooks.unwrap_or(false), &hooks, on_hook_progress)
+        .map_err(CommandError::message)?;
+
+    git_ops::merge::merge(
+        &repository_path,
+        &branch,
+        options.unwrap_or_default(),
+        support.as_ref(),
+    )
+    .await
+    .map_err(CommandError::from)
 }
 
 /// Returns the common ancestor of two refs, or `None` when there isn't one or a ref is missing.
@@ -411,6 +457,7 @@ pub async fn get_index_changes(
 /// `kind` in the result is a **number** — `DiffType` is a numeric enum in `src/models/diff`.
 #[tauri::command]
 pub async fn get_working_directory_diff(
+    blobs: State<'_, BlobRegistry>,
     repository_path: String,
     path: String,
     status: AppFileStatus,
@@ -421,6 +468,7 @@ pub async fn get_working_directory_diff(
         &path,
         &status,
         hide_whitespace.unwrap_or(false),
+        Some(&*blobs),
     )
     .await
     .map_err(CommandError::from)
@@ -433,6 +481,7 @@ pub async fn get_working_directory_diff(
 /// ```
 #[tauri::command]
 pub async fn get_commit_diff(
+    blobs: State<'_, BlobRegistry>,
     repository_path: String,
     path: String,
     status: AppFileStatus,
@@ -445,6 +494,7 @@ pub async fn get_commit_diff(
         &status,
         &commitish,
         hide_whitespace.unwrap_or(false),
+        Some(&*blobs),
     )
     .await
     .map_err(CommandError::from)
@@ -493,6 +543,7 @@ pub async fn discard_changes_from_selection(
 /// retries against git's empty tree, so a branch's first commit works without the caller knowing.
 #[tauri::command]
 pub async fn get_commit_range_diff(
+    blobs: State<'_, BlobRegistry>,
     repository_path: String,
     path: String,
     status: AppFileStatus,
@@ -505,6 +556,7 @@ pub async fn get_commit_range_diff(
         &status,
         &commits,
         hide_whitespace.unwrap_or(false),
+        Some(&*blobs),
     )
     .await
     .map_err(CommandError::from)

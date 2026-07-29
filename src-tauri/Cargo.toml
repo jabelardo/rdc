@@ -45,6 +45,11 @@ trampoline = { path = "crates/trampoline" }
 # `sync` for the lazy-start mutexes and `process` to ask git its version without going through
 # `git-ops` (which would install the trampoline environment and recurse).
 tokio = { workspace = true, features = ["sync", "process", "io-util"] }
+# Already in the tree via tauri; taken as a direct dependency for the blob tokens, which want an
+# unguessable id rather than a counter — see src/blob_protocol.rs.
+uuid = { version = "1", features = ["v4"] }
+# The `rdc-blob://` handler builds its own responses.
+http = "1"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
@@ -57,3 +62,4 @@ strip = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tempfile = { workspace = true }

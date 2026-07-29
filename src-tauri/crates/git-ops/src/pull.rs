@@ -2,11 +2,13 @@
 //!
 //! Ported from `desktop-plus/app/src/lib/git/pull.ts`.
 //!
-//! # Deferred
+//! # Hooks
 //!
-//! Hook interception. A pull runs merge *or* rebase hooks depending on configuration, and rather than
-//! inspecting `pull.rebase` the original intercepted every hook either path could trigger. That maps
-//! to a Channel, as for `commit` and `merge`.
+//! [`pull`] takes the hook machinery. A pull merges *or* rebases depending on configuration, so rather than
+//! reading `pull.rebase` and friends it intercepts every hook either path can reach — upstream's reasoning,
+//! and its list. See [`crate::hooks`].
+//!
+//! Terminal output remains with its store consumer, as for `commit` and `merge`.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -16,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::get_config_value;
 use crate::error::GitError;
 use crate::exec::GitOutput;
+use crate::hooks::with_env::{with_hooks_env, HookSupport};
 use crate::progress::GitProgressParser;
 use crate::remote_progress::{run_with_progress, ContextLines, RemoteRun};
 
@@ -62,7 +65,50 @@ async fn default_divergent_branch_arguments(repository: &Path) -> Vec<String> {
 /// `rebase.backend=apply` would silently produce a different layout.
 ///
 /// Authentication failures come back as [`GitOutput::git_error`] rather than an `Err`.
+/// Runs the operation with the repository's hooks intercepted, when the caller asked for it.
+///
+/// A pull may merge *or* rebase depending on configuration, so rather than reading `pull.rebase` and friends
+/// it intercepts every hook either path can reach — upstream's reasoning, and its list.
+///
+/// `hooks` is the machinery only — the list above belongs to the operation, since which hooks git can reach
+/// is a property of the command being run rather than of the caller. See
+/// [`HookSupport`](crate::hooks::with_env::HookSupport).
 pub async fn pull<F>(
+    repository: impl AsRef<Path>,
+    remote_name: &str,
+    env: &HashMap<String, String>,
+    no_verify: bool,
+    on_progress: Option<F>,
+    hooks: Option<&HookSupport>,
+) -> Result<GitOutput, GitError>
+where
+    F: FnMut(PullProgress) + Send,
+{
+    let repository = repository.as_ref();
+    let interception = hooks.map(|support| {
+        support.intercepting([
+            "pre-merge-commit",
+            "prepare-commit-msg",
+            "commit-msg",
+            "post-merge",
+            "pre-rebase",
+            "pre-commit",
+            "post-rewrite",
+        ])
+    });
+
+    // Wrapped rather than threaded: the hooks server has to stay alive for the whole invocation, and this
+    // operation has more than one way out of it.
+    with_hooks_env(
+        repository,
+        interception.as_ref(),
+        env.clone(),
+        |env| async move { pull_impl(repository, remote_name, &env, no_verify, on_progress).await },
+    )
+    .await?
+}
+
+async fn pull_impl<F>(
     repository: impl AsRef<Path>,
     remote_name: &str,
     env: &HashMap<String, String>,
@@ -207,6 +253,7 @@ mod tests {
             &HashMap::new(),
             false,
             None::<fn(PullProgress)>,
+            None,
         )
         .await
         .expect("pull should succeed");
@@ -226,6 +273,7 @@ mod tests {
             &HashMap::new(),
             false,
             None::<fn(PullProgress)>,
+            None,
         )
         .await
         .expect("an up-to-date pull should succeed");
@@ -244,6 +292,7 @@ mod tests {
             &HashMap::new(),
             false,
             None::<fn(PullProgress)>,
+            None,
         )
         .await
         .expect("a diverged pull should reconcile rather than refuse");
@@ -279,6 +328,7 @@ mod tests {
             &HashMap::new(),
             false,
             Some(|progress: PullProgress| updates.push(progress)),
+            None,
         )
         .await
         .expect("pull should succeed");
