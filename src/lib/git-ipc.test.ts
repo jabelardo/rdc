@@ -210,6 +210,9 @@ describe('the git IPC wire shape', () => {
       'largeTextDiff',
       'manualConflict',
       'mergeResult',
+      // Mergeability, repository state, worktrees and trailers — covered by misc-ipc.test.ts.
+      'mergeTreeClean',
+      'mergeTreeConflicts',
       'modified',
       'modifiedSubmodule',
       'multiCommitOperationProgress',
@@ -223,6 +226,9 @@ describe('the git IPC wire shape', () => {
       'remote',
       'remoteBranch',
       'renamed',
+      'repositoryTypeMissing',
+      'repositoryTypeRegular',
+      'repositoryTypeUnsafe',
       'resolvedTextConflict',
       // Covered by misc-ipc.test.ts.
       'revertProgress',
@@ -237,8 +243,11 @@ describe('the git IPC wire shape', () => {
       'textDiff',
       'textDiffWithLineEndingsChange',
       'trackingBranch',
+      'trailer',
       'uninitializedSubmoduleEntry',
       'unrenderableDiff',
+      // Covered by worktree-ipc.test.ts.
+      'worktreeEntry',
     ])
   })
 

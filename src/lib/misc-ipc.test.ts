@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CommitIdentity } from '../models/commit-identity'
 import type { IRevertProgress } from '../models/progress'
+import type { MergeTreeResult } from '../models/merge'
+import type { RepositoryType } from '../models/repository-type'
+import type { ITrailer } from '../models/trailer'
 import snapshot from './__generated__/wire-snapshot.json'
 
 /**
@@ -38,6 +41,14 @@ const {
   getAuthorIdentity,
   cleanUntrackedFiles,
   addSafeDirectory,
+  getConfigValue,
+  appendIgnoreRules,
+  appendIgnoreFiles,
+  installGlobalLFSFilters,
+  determineMergeability,
+  getRepositoryType,
+  getRebaseInternalState,
+  mergeTrailers,
 } = await import('./misc-ipc')
 
 const REPO = '/tmp/repo'
@@ -247,5 +258,134 @@ describe('the smaller commands', () => {
       repositoryPath: REPO,
     })
     expect(channelInstances).toHaveLength(0)
+  })
+})
+
+describe('mergeability, repository state and trailers', () => {
+  const clean = snapshot.mergeTreeClean as MergeTreeResult
+  const conflicts = snapshot.mergeTreeConflicts as MergeTreeResult
+  const regular = snapshot.repositoryTypeRegular as RepositoryType
+  const unsafe = snapshot.repositoryTypeUnsafe as RepositoryType
+  const trailer = snapshot.trailer as ITrailer
+
+  it('mergeability narrows on a lowercase kind', () => {
+    // The union's discriminants are the original's spellings, so ported code comparing against them works.
+    expect(clean.kind).toBe('clean')
+    if (conflicts.kind !== 'conflicts') {
+      throw new Error('narrowing failed')
+    }
+    expect(conflicts.conflictedFiles).toBe(3)
+  })
+
+  it('repository type carries the working directory and the git dir separately', () => {
+    // Both, because a linked worktree's `.git` is a file elsewhere — one cannot be derived from the other.
+    if (regular.kind !== 'regular') {
+      throw new Error('narrowing failed')
+    }
+    expect(regular.topLevelWorkingDirectory).toBe('/repos/thing')
+    expect(regular.gitDir).toBe('/repos/thing/.git')
+  })
+
+  it('an unsafe repository says which path git refused', () => {
+    // What addSafeDirectory needs — and the reason it takes a path rather than a repository.
+    if (unsafe.kind !== 'unsafe') {
+      throw new Error('narrowing failed')
+    }
+    expect(unsafe.path).toBe('/repos/borrowed')
+  })
+
+  it('a trailer is a token and a value, nothing more', () => {
+    expect(trailer.token).toBe('Co-Authored-By')
+    expect(trailer.value).toContain('@')
+  })
+})
+
+describe('the expose-only commands', () => {
+  beforeEach(() => {
+    invoke.mockReset()
+    invoke.mockResolvedValue(undefined)
+  })
+
+  it('getConfigValue defaults to the full cascade', async () => {
+    invoke.mockResolvedValue('input')
+
+    await expect(getConfigValue(REPO, 'core.autocrlf')).resolves.toBe('input')
+    expect(invoke).toHaveBeenCalledWith('get_config_value', {
+      repositoryPath: REPO,
+      name: 'core.autocrlf',
+      onlyLocal: false,
+    })
+  })
+
+  it('getConfigValue passes null through for an unset key', async () => {
+    invoke.mockResolvedValue(null)
+    await expect(getConfigValue(REPO, 'nothing.here')).resolves.toBeNull()
+  })
+
+  it('appendIgnoreRules and appendIgnoreFiles are different commands', async () => {
+    // Patterns are sent as written; file names get their glob characters escaped on the Rust side.
+    await appendIgnoreRules(REPO, ['*.log'])
+    expect(invoke).toHaveBeenLastCalledWith('append_ignore_rules', {
+      repositoryPath: REPO,
+      patterns: ['*.log'],
+    })
+
+    await appendIgnoreFiles(REPO, ['weird[1].txt'])
+    expect(invoke).toHaveBeenLastCalledWith('append_ignore_files', {
+      repositoryPath: REPO,
+      paths: ['weird[1].txt'],
+    })
+  })
+
+  it('installGlobalLFSFilters takes no repository', async () => {
+    // The operation isn't about one, so asking for a path would invite a caller to think it was.
+    await installGlobalLFSFilters()
+
+    expect(invoke).toHaveBeenCalledWith('install_global_lfs_filters', {
+      force: false,
+    })
+  })
+
+  it('determineMergeability names both sides', async () => {
+    invoke.mockResolvedValue({ kind: 'clean' })
+
+    await determineMergeability(REPO, 'main', 'topic')
+
+    expect(invoke).toHaveBeenCalledWith('determine_mergeability', {
+      repositoryPath: REPO,
+      ours: 'main',
+      theirs: 'topic',
+    })
+  })
+
+  it('getRepositoryType takes a path, since it may not be a repository at all', async () => {
+    invoke.mockResolvedValue({ kind: 'missing' })
+
+    await expect(getRepositoryType('/not/a/repo')).resolves.toEqual({
+      kind: 'missing',
+    })
+    expect(invoke).toHaveBeenCalledWith('get_repository_type', {
+      path: '/not/a/repo',
+    })
+  })
+
+  it('getRebaseInternalState resolves to null when no rebase is in progress', async () => {
+    invoke.mockResolvedValue(null)
+    await expect(getRebaseInternalState(REPO)).resolves.toBeNull()
+  })
+
+  it('mergeTrailers sends the trailers and the unfold flag', async () => {
+    invoke.mockResolvedValue('message\n\nCo-Authored-By: Someone\n')
+
+    await mergeTrailers(REPO, 'message', [
+      { token: 'Co-Authored-By', value: 'Someone' },
+    ])
+
+    expect(invoke).toHaveBeenCalledWith('merge_trailers', {
+      repositoryPath: REPO,
+      commitMessage: 'message',
+      trailers: [{ token: 'Co-Authored-By', value: 'Someone' }],
+      unfold: false,
+    })
   })
 })

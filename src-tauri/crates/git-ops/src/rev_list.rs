@@ -1,7 +1,12 @@
 //! Commit ranges from `git rev-list`.
 //!
-//! This is the subset of `desktop-plus/app/src/lib/git/rev-list.ts` needed by rebase progress.
-//! Ahead/behind and merge-commit queries land with their own consumers.
+//! Ported from `desktop-plus/app/src/lib/git/rev-list.ts`.
+//!
+//! Two of its exports are deliberately elsewhere. The **range helpers** — `revRange`,
+//! `revRangeInclusive`, `revSymmetricDifference` — are string concatenation, so they live in
+//! `src/lib/rev-range.ts` as TypeScript rather than as a round trip to Rust. And
+//! `doMergeCommitsExistAfterCommit` has no consumer outside `ui/history/**`, so it lands with those
+//! components in Phase 7.
 
 use std::path::Path;
 
@@ -10,6 +15,50 @@ use serde::{Deserialize, Serialize};
 use crate::error::GitError;
 use crate::exec::{git, GitOptions};
 use crate::git_error_kind::GitErrorKind;
+// The same `IAheadBehind` the status result already reports — one type, since `git status --branch` and
+// `rev-list --count` answer the same question about different ranges.
+pub use crate::status::AheadBehind;
+
+/// How many commits each side of `range` has that the other does not.
+///
+/// `--left-right --count` is what does the work: `--left-right` marks which side of the range each commit came
+/// from, and with `--count` git reports the two totals instead of the commits.
+///
+/// # `None` is an answer, not a failure
+///
+/// It means the question cannot be asked: a ref in the range no longer exists — most often an upstream branch
+/// that was deleted — so there is no "ahead" or "behind" to report. The original treated `BadRevision` that
+/// way, and also returned `null` for output it could not parse rather than raising; both are preserved,
+/// because a caller showing "3 ahead, 1 behind" has nothing to say either way and the alternative is a failed
+/// operation over a number in a label.
+pub async fn get_ahead_behind(
+    repository: impl AsRef<Path>,
+    range: &str,
+) -> Result<Option<AheadBehind>, GitError> {
+    let output = git(
+        &["rev-list", "--left-right", "--count", range, "--"],
+        repository,
+        "getAheadBehind",
+        GitOptions::default().with_expected_errors([GitErrorKind::BadRevision]),
+    )
+    .await?;
+
+    if output.git_error == Some(GitErrorKind::BadRevision) {
+        return Ok(None);
+    }
+
+    // `<ahead>\t<behind>`, and anything else is unparseable rather than wrong.
+    let stdout = output.stdout_trimmed();
+    let mut counts = stdout.split('\t');
+    let (Some(ahead), Some(behind), None) = (counts.next(), counts.next(), counts.next()) else {
+        return Ok(None);
+    };
+
+    match (ahead.trim().parse(), behind.trim().parse()) {
+        (Ok(ahead), Ok(behind)) => Ok(Some(AheadBehind { ahead, behind })),
+        _ => Ok(None),
+    }
+}
 
 /// The minimal commit shape used by progress and operation dialogs.
 ///
@@ -119,6 +168,97 @@ mod tests {
                 .await
                 .expect("rev-list should succeed"),
             Some(Vec::new())
+        );
+    }
+    // --- ahead/behind ---
+
+    #[tokio::test]
+    async fn counts_both_sides_of_a_range() {
+        // Two commits on the branch, one on main after they diverged.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "base");
+        git(
+            &["checkout", "-q", "-b", "topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("checkout should succeed");
+        commit_file(&repo.path(), "a.txt", "two\n", "topic one");
+        commit_file(&repo.path(), "a.txt", "three\n", "topic two");
+        git(
+            &["checkout", "-q", "main"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("checkout should succeed");
+        commit_file(&repo.path(), "b.txt", "main\n", "main one");
+
+        let counts = get_ahead_behind(repo.path(), "main...topic")
+            .await
+            .expect("the query should succeed")
+            .expect("both refs exist");
+
+        // The symmetric difference reads left-to-right: `main` has one the other lacks, `topic` has two.
+        assert_eq!(counts.ahead, 1);
+        assert_eq!(counts.behind, 2);
+    }
+
+    #[tokio::test]
+    async fn reports_zeroes_for_two_refs_at_the_same_commit() {
+        // Distinct from `None`: the question was asked and the answer is "level".
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+
+        let counts = get_ahead_behind(repo.path(), "HEAD...HEAD")
+            .await
+            .expect("the query should succeed")
+            .expect("HEAD exists");
+
+        assert_eq!(
+            counts,
+            AheadBehind {
+                ahead: 0,
+                behind: 0
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn reports_none_when_a_ref_in_the_range_is_gone() {
+        // The case that matters: an upstream branch was deleted, so there is nothing to be ahead *of*. A
+        // failure here would turn a missing number in a label into a failed operation.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+
+        let counts = get_ahead_behind(repo.path(), "main...origin/gone")
+            .await
+            .expect("a missing ref is an answer, not an error");
+
+        assert_eq!(counts, None);
+    }
+
+    #[tokio::test]
+    async fn counts_a_two_dot_range_one_way_only() {
+        // `..` asks "what does the right side have that the left does not", so the other count is zero.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+        commit_file(&repo.path(), "a.txt", "two\n", "second");
+
+        let counts = get_ahead_behind(repo.path(), "HEAD~1..HEAD")
+            .await
+            .expect("the query should succeed")
+            .expect("both refs exist");
+
+        assert_eq!(
+            counts,
+            AheadBehind {
+                ahead: 0,
+                behind: 1
+            }
         );
     }
 }

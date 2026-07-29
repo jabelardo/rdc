@@ -18,6 +18,7 @@
 
 import { Channel, invoke } from '@tauri-apps/api/core'
 import type { IHookProgress } from './hook-ipc'
+import { GitResetMode } from '../models/git-reset-mode'
 import type { AppFileStatus, GitStatusEntry } from '../models/status'
 import type { ManualConflictResolution } from '../models/manual-conflict-resolution'
 import { GitErrorKind } from '../models/git-error-kind'
@@ -410,4 +411,95 @@ export async function getRebaseSnapshot(
   return invoke<IRebaseSnapshot | null>('get_rebase_snapshot', {
     repositoryPath,
   })
+}
+
+/**
+ * Resets `refName`, moving `HEAD` and — depending on the mode — the index and working tree.
+ *
+ * **{@linkcode GitResetMode.Hard} discards work.** Everything in the working tree that differs from `refName`
+ * is gone, with no reflog of the file contents, so ask the user first.
+ */
+export async function reset(
+  repositoryPath: string,
+  mode: GitResetMode,
+  refName: string
+): Promise<void> {
+  await invoke('reset', { repositoryPath, mode, refName })
+}
+
+/**
+ * Updates the index for `paths` from the tree at `refName`.
+ *
+ * An empty `paths` is a **no-op**, not "reset everything" — which is what those arguments would mean to git
+ * with no pathspec, and the opposite of what an empty selection means.
+ */
+export async function resetPaths(
+  repositoryPath: string,
+  mode: GitResetMode,
+  refName: string,
+  paths: ReadonlyArray<string>
+): Promise<void> {
+  await invoke('reset_paths', { repositoryPath, mode, refName, paths })
+}
+
+/**
+ * Clears the staging area.
+ *
+ * Distinct from {@linkcode unstageAllFiles}: this restores the index to `HEAD`, and works even in a
+ * repository with no commits.
+ */
+export async function unstageAll(repositoryPath: string): Promise<void> {
+  await invoke('unstage_all', { repositoryPath })
+}
+
+/**
+ * Removes every path from the index, leaving the working tree alone.
+ *
+ * Distinct from {@linkcode unstageAll} despite the name — upstream keeps them in different files for the same
+ * reason. This is `rm --cached`, which empties the index including paths that exist only there.
+ */
+export async function unstageAllFiles(repositoryPath: string): Promise<void> {
+  await invoke('unstage_all_files', { repositoryPath })
+}
+
+/**
+ * A conflict the user has finished with.
+ *
+ * The Rust side takes git facts rather than a `WorkingDirectoryFileChange`, because that is view state — the
+ * same split `getStatus` makes. Supply what the status already told you.
+ */
+export interface IResolvedConflict {
+  readonly path: string
+
+  /**
+   * The conflict's index entries, `[us, them]`. Supplying them lets a deletion be staged as a deletion,
+   * which content alone cannot express.
+   */
+  readonly entries?: readonly [GitStatusEntry, GitStatusEntry]
+
+  /**
+   * How many conflict markers git still found.
+   *
+   * `0` is the interesting value: a text conflict the user resolved in their own editor.
+   */
+  readonly conflictMarkerCount?: number
+
+  /** The side the user picked in the app, when they picked one. */
+  readonly resolution?: ManualConflictResolution
+}
+
+/**
+ * Stages the conflicts the user has finished with.
+ *
+ * A checkout refuses to run while the index holds unresolved conflicts, so anything that checks out after one
+ * has to stage the resolutions first.
+ *
+ * Two kinds count as resolved: a side picked in the app, or a marker count of **zero**. Anything else is left
+ * alone — staging a file that still has markers would commit them.
+ */
+export async function stageResolvedConflictFiles(
+  repositoryPath: string,
+  files: ReadonlyArray<IResolvedConflict>
+): Promise<void> {
+  await invoke('stage_resolved_conflict_files', { repositoryPath, files })
 }

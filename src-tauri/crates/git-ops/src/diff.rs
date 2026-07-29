@@ -40,6 +40,8 @@ use crate::error::GitError;
 use crate::exec::{git, GitOptions};
 use crate::git_delimiter_parser::LogParser;
 use crate::git_error_kind::GitErrorKind;
+use crate::log::{parse_raw_log_with_numstat, ChangesetData};
+use crate::merge::get_merge_base;
 use crate::show::get_blob_contents;
 use crate::status::AppFileStatus;
 use crate::status_parser::SubmoduleStatus;
@@ -1409,6 +1411,169 @@ pub async fn get_commit_diff(
     .await
 }
 
+/// Diffs a file between two branches, from where they diverged.
+///
+/// `--merge-base` is what makes this a comparison rather than a difference: it diffs the comparison branch
+/// against the point the two branches last shared, so commits the base branch has gained since don't appear as
+/// though the comparison branch removed them.
+///
+/// `latest_commit` is the revision the resulting diff is *labelled* with — it names the version of the file the
+/// user is looking at, which the diff itself doesn't carry.
+#[allow(clippy::too_many_arguments)]
+pub async fn get_branch_merge_base_diff(
+    repository: impl AsRef<Path>,
+    path: &str,
+    status: &AppFileStatus,
+    base_branch: &str,
+    comparison_branch: &str,
+    hide_whitespace: bool,
+    latest_commit: &str,
+    blobs: Option<&dyn BlobUrls>,
+) -> Result<Diff, GitError> {
+    let repository = repository.as_ref();
+
+    let mut args = vec![
+        "diff".to_owned(),
+        "--merge-base".to_owned(),
+        base_branch.to_owned(),
+        comparison_branch.to_owned(),
+    ];
+    if hide_whitespace {
+        args.push("-w".to_owned());
+    }
+    args.extend([
+        "--patch-with-raw".to_owned(),
+        "-z".to_owned(),
+        "--no-color".to_owned(),
+        "--".to_owned(),
+    ]);
+    push_pathspecs(&mut args, path, status);
+
+    let output = git(
+        &args,
+        repository,
+        "getBranchMergeBaseDiff",
+        GitOptions::default(),
+    )
+    .await?;
+
+    build_diff(
+        &output.stdout,
+        repository,
+        path,
+        status,
+        latest_commit,
+        latest_commit,
+        None,
+        DiffSide::Commits,
+        blobs,
+    )
+    .await
+}
+
+/// What changed between two branches, from where they diverged.
+///
+/// `None` means the branches have **no common ancestor**, so there is no point to compare from — unrelated
+/// histories, which is a real state rather than a failure.
+pub async fn get_branch_merge_base_changed_files(
+    repository: impl AsRef<Path>,
+    base_branch: &str,
+    comparison_branch: &str,
+    latest_comparison_commit: &str,
+) -> Result<Option<ChangesetData>, GitError> {
+    let repository = repository.as_ref();
+
+    // Asked first, because its answer decides whether the diff is meaningful at all — and it is also what the
+    // changed files are attributed *from*.
+    let Some(merge_base) = get_merge_base(repository, base_branch, comparison_branch).await? else {
+        return Ok(None);
+    };
+
+    let output = git(
+        &[
+            "diff",
+            "--merge-base",
+            base_branch,
+            comparison_branch,
+            // `-C` before `-M`: reversing them means copies are never detected, as `get_changed_files` also
+            // notes.
+            "-C",
+            "-M",
+            "-z",
+            "--raw",
+            "--numstat",
+            "--",
+        ],
+        repository,
+        "getBranchMergeBaseChangedFiles",
+        GitOptions::default(),
+    )
+    .await?;
+
+    parse_raw_log_with_numstat(
+        &output.stdout_lossy(),
+        latest_comparison_commit,
+        &merge_base,
+    )
+    .map(Some)
+}
+
+/// What changed across a range of commits, oldest first.
+///
+/// The oldest commit's **parent** is the starting point, since a range's first commit is part of what changed.
+/// When that parent doesn't exist — the first commit of a repository — the diff is retried against git's empty
+/// tree, which is what makes the range readable at all.
+///
+/// Written as a two-iteration loop rather than the original's recursive retry, so it is evident the retry
+/// happens at most once. [`get_commit_range_diff`] made the same choice about the same pattern.
+pub async fn get_commit_range_changed_files(
+    repository: impl AsRef<Path>,
+    shas: &[String],
+) -> Result<ChangesetData, GitError> {
+    let repository = repository.as_ref();
+
+    let (Some(oldest), Some(latest)) = (shas.first(), shas.last()) else {
+        return Err(GitError::Parse {
+            context: "getCommitRangeChangedFiles".to_owned(),
+            message: "a commit range needs at least one commit".to_owned(),
+        });
+    };
+
+    for use_null_tree in [false, true] {
+        let oldest_ref = if use_null_tree {
+            NULL_TREE_SHA.to_owned()
+        } else {
+            format!("{oldest}^")
+        };
+
+        let output = git(
+            &[
+                "diff",
+                &oldest_ref,
+                latest,
+                "-C",
+                "-M",
+                "-z",
+                "--raw",
+                "--numstat",
+                "--",
+            ],
+            repository,
+            "getCommitRangeChangedFiles",
+            GitOptions::default().with_expected_errors([GitErrorKind::BadRevision]),
+        )
+        .await?;
+
+        if output.git_error == Some(GitErrorKind::BadRevision) && !use_null_tree {
+            continue;
+        }
+
+        return parse_raw_log_with_numstat(&output.stdout_lossy(), latest, &oldest_ref);
+    }
+
+    unreachable!("the loop returns on its second iteration")
+}
+
 /// Diffs a file across a range of commits.
 ///
 /// Compares `commits[0]^` with the last commit. When the oldest commit has no parent — the first
@@ -2486,5 +2651,166 @@ mod text_diff_tests {
         )
         .await
         .expect("commit should succeed");
+    }
+    // --- comparing branches and ranges ---
+
+    /// Two branches that diverged: `main` gained a commit after `topic` branched off it.
+    async fn diverged_repository() -> crate::test_support::TempRepository {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "shared.txt", "base\n", "base");
+        git(
+            &["checkout", "-q", "-b", "topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("checkout should succeed");
+        commit_file(&repo.path(), "on-topic.txt", "topic\n", "topic work");
+        git(
+            &["checkout", "-q", "main"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("checkout should succeed");
+        commit_file(&repo.path(), "on-main.txt", "main\n", "main work");
+        repo
+    }
+
+    #[tokio::test]
+    async fn compares_a_branch_from_where_it_diverged() {
+        // What `--merge-base` buys: the commit `main` gained afterwards must not read as though `topic` deleted
+        // it. Diffing the two tips directly would show exactly that.
+        let repo = diverged_repository().await;
+
+        let files = get_branch_merge_base_changed_files(repo.path(), "main", "topic", "topic")
+            .await
+            .expect("the query should succeed")
+            .expect("the branches share an ancestor");
+
+        let paths: Vec<&str> = files.files.iter().map(|file| file.path.as_str()).collect();
+        assert_eq!(paths, vec!["on-topic.txt"], "only the topic branch's work");
+        assert_eq!(files.lines_added, 1);
+        assert_eq!(files.lines_deleted, 0);
+    }
+
+    #[tokio::test]
+    async fn reports_none_for_branches_with_no_common_ancestor() {
+        // Unrelated histories are a real state, not a failure: there is no point to compare from.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+        git(
+            &["checkout", "-q", "--orphan", "unrelated"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("checkout should succeed");
+        commit_file(&repo.path(), "b.txt", "two\n", "unrelated first");
+
+        let files =
+            get_branch_merge_base_changed_files(repo.path(), "main", "unrelated", "unrelated")
+                .await
+                .expect("no common ancestor is an answer");
+
+        assert!(files.is_none());
+    }
+
+    #[tokio::test]
+    async fn diffs_one_file_from_where_two_branches_diverged() {
+        let repo = diverged_repository().await;
+        // Change a file that exists on both sides, so the diff has content either way.
+        git(
+            &["checkout", "-q", "topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("checkout should succeed");
+        commit_file(
+            &repo.path(),
+            "shared.txt",
+            "changed on topic\n",
+            "edit shared",
+        );
+
+        let diff = get_branch_merge_base_diff(
+            repo.path(),
+            "shared.txt",
+            &modified(),
+            "main",
+            "topic",
+            false,
+            "topic",
+            None,
+        )
+        .await
+        .expect("diffing should succeed");
+
+        let text = diff.text_data().expect("a text diff");
+        assert!(text.text.contains("changed on topic"), "{}", text.text);
+    }
+
+    #[tokio::test]
+    async fn reports_what_changed_across_a_range() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+        let first = head_sha(&repo.path()).await;
+        commit_file(&repo.path(), "a.txt", "two\n", "second");
+        commit_file(&repo.path(), "b.txt", "new\n", "third");
+        let last = head_sha(&repo.path()).await;
+
+        let files = get_commit_range_changed_files(repo.path(), &[first, last])
+            .await
+            .expect("the query should succeed");
+
+        let mut paths: Vec<&str> = files.files.iter().map(|file| file.path.as_str()).collect();
+        paths.sort_unstable();
+        assert_eq!(
+            paths,
+            vec!["a.txt", "b.txt"],
+            "the range starts at the oldest commit's parent, so its own change is included"
+        );
+    }
+
+    #[tokio::test]
+    async fn reads_a_range_starting_at_a_repositorys_first_commit() {
+        // `<sha>^` doesn't resolve for a root commit, which is what the retry against the empty tree is for.
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+        let root = head_sha(&repo.path()).await;
+
+        let files = get_commit_range_changed_files(repo.path(), &[root.clone(), root])
+            .await
+            .expect("a root commit's range must still be readable");
+
+        assert_eq!(
+            files.files.len(),
+            1,
+            "everything in the first commit reads as added"
+        );
+        assert_eq!(files.lines_added, 1);
+    }
+
+    #[tokio::test]
+    async fn refuses_an_empty_range() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+
+        assert!(get_commit_range_changed_files(repo.path(), &[])
+            .await
+            .is_err());
+    }
+
+    /// The SHA at `HEAD`.
+    async fn head_sha(repo: &Path) -> String {
+        git(&["rev-parse", "HEAD"], repo, "test", GitOptions::default())
+            .await
+            .expect("rev-parse should succeed")
+            .stdout_trimmed()
     }
 }

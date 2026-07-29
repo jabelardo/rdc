@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { GitResetMode } from '../models/git-reset-mode'
 import { AppFileStatusKind, GitStatusEntry } from '../models/status'
 import { ManualConflictResolution } from '../models/manual-conflict-resolution'
 
@@ -43,6 +44,11 @@ const {
   continueRebase,
   abortRebase,
   getRebaseSnapshot,
+  reset,
+  resetPaths,
+  unstageAll,
+  unstageAllFiles,
+  stageResolvedConflictFiles,
 } = await import('./git-ipc')
 
 const REPO = '/tmp/repo'
@@ -344,6 +350,85 @@ describe('the git commands', () => {
     await getRebaseSnapshot(REPO)
     expect(invoke).toHaveBeenCalledWith('get_rebase_snapshot', {
       repositoryPath: REPO,
+    })
+  })
+})
+
+describe('resetting and staging resolutions', () => {
+  beforeEach(() => {
+    invoke.mockReset()
+    invoke.mockResolvedValue(undefined)
+  })
+
+  it('reset sends the mode as its number', async () => {
+    // A numeric enum: sending a name would leave every comparison on the Rust side false.
+    await reset(REPO, GitResetMode.Mixed, 'HEAD~1')
+
+    expect(invoke).toHaveBeenCalledWith('reset', {
+      repositoryPath: REPO,
+      mode: 2,
+      refName: 'HEAD~1',
+    })
+  })
+
+  it('keeps Hard at zero, which is the destructive mode', async () => {
+    // Worth pinning: a missing or zeroed field selects the mode that discards the working tree.
+    expect(GitResetMode.Hard).toBe(0)
+
+    await reset(REPO, GitResetMode.Hard, 'HEAD')
+    expect(invoke).toHaveBeenLastCalledWith(
+      'reset',
+      expect.objectContaining({ mode: 0 })
+    )
+  })
+
+  it('resetPaths passes the paths through', async () => {
+    await resetPaths(REPO, GitResetMode.Mixed, 'HEAD', ['a.txt', 'b.txt'])
+
+    expect(invoke).toHaveBeenCalledWith('reset_paths', {
+      repositoryPath: REPO,
+      mode: 2,
+      refName: 'HEAD',
+      paths: ['a.txt', 'b.txt'],
+    })
+  })
+
+  it('resetPaths still calls with an empty list, which the backend treats as a no-op', async () => {
+    // Not short-circuited here: the guard belongs on one side, and Rust's is the one with a test proving an
+    // empty pathspec would otherwise reset everything.
+    await resetPaths(REPO, GitResetMode.Mixed, 'HEAD', [])
+
+    expect(invoke).toHaveBeenCalledWith(
+      'reset_paths',
+      expect.objectContaining({ paths: [] })
+    )
+  })
+
+  it('unstageAll and unstageAllFiles are different commands', async () => {
+    // Similar names, different operations: one restores the index to HEAD, the other empties it.
+    await unstageAll(REPO)
+    expect(invoke).toHaveBeenLastCalledWith('unstage_all', {
+      repositoryPath: REPO,
+    })
+
+    await unstageAllFiles(REPO)
+    expect(invoke).toHaveBeenLastCalledWith('unstage_all_files', {
+      repositoryPath: REPO,
+    })
+  })
+
+  it('stageResolvedConflictFiles sends only the git facts', async () => {
+    await stageResolvedConflictFiles(REPO, [
+      { path: 'edited.txt', conflictMarkerCount: 0 },
+      { path: 'picked.txt', resolution: ManualConflictResolution.theirs },
+    ])
+
+    expect(invoke).toHaveBeenCalledWith('stage_resolved_conflict_files', {
+      repositoryPath: REPO,
+      files: [
+        { path: 'edited.txt', conflictMarkerCount: 0 },
+        { path: 'picked.txt', resolution: 'theirs' },
+      ],
     })
   })
 })

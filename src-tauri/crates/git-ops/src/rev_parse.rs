@@ -12,7 +12,15 @@ use crate::error::GitError;
 use crate::exec::{git, GitOptions};
 
 /// What, if anything, lives at a given path.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// Mirrors the `RepositoryType` union in `src/models/repository-type.ts`: internally tagged on a **lowercase**
+/// `kind`, with camelCase fields, which is how the original spelled it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "lowercase",
+    rename_all_fields = "camelCase"
+)]
 pub enum RepositoryType {
     /// A bare repository.
     Bare,

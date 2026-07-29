@@ -6,7 +6,11 @@
 use tauri::ipc::Channel;
 use tauri::State;
 
+use git_ops::interpret_trailers::Trailer;
 use git_ops::log::CommitIdentity;
+use git_ops::merge_tree::MergeTreeResult;
+use git_ops::operation_state::RebaseInternalState;
+use git_ops::rev_parse::RepositoryType;
 use git_ops::revert::RevertProgress;
 
 use super::CommandError;
@@ -184,4 +188,254 @@ pub async fn add_safe_directory(path: String) -> Result<(), CommandError> {
         .add_safe_directory(&path)
         .await
         .map_err(CommandError::from)
+}
+
+// --- configuration ---
+
+/// Reads a config value, or `null` when the key isn't set.
+///
+/// ```js
+/// await invoke('get_config_value', { repositoryPath, name: 'core.autocrlf', onlyLocal: false })
+/// ```
+///
+/// `onlyLocal` restricts the lookup to the repository's own config, ignoring the global and system files.
+/// Absent means the full cascade, which is what git itself answers with.
+///
+/// `null` for an unset key is not an error: git exits 1 for that, and "not configured" is an answer.
+#[tauri::command]
+pub async fn get_config_value(
+    repository_path: String,
+    name: String,
+    only_local: Option<bool>,
+) -> Result<Option<String>, CommandError> {
+    git_ops::config::get_config_value(&repository_path, &name, only_local.unwrap_or(false))
+        .await
+        .map_err(CommandError::from)
+}
+
+// --- .gitignore ---
+
+/// Reads the repository's root `.gitignore`, or `null` if there isn't one.
+#[tauri::command]
+pub async fn read_gitignore_at_root(
+    repository_path: String,
+) -> Result<Option<String>, CommandError> {
+    git_ops::gitignore::read_gitignore_at_root(&repository_path)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Writes the repository's root `.gitignore`.
+///
+/// Empty text **removes the file** rather than leaving an empty one, which is what the original did — an
+/// empty `.gitignore` and no `.gitignore` mean the same thing to git, and leaving one behind shows up as a
+/// change the user didn't make.
+///
+/// The line endings written follow `core.autocrlf` and `core.safecrlf`, so the file matches what the rest of
+/// the repository uses.
+#[tauri::command]
+pub async fn save_gitignore(repository_path: String, text: String) -> Result<(), CommandError> {
+    git_ops::gitignore::save_gitignore(&repository_path, &text)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Appends ignore patterns to the root `.gitignore`, as written.
+///
+/// ```js
+/// await invoke('append_ignore_rules', { repositoryPath, patterns: ['*.log', 'build/'] })
+/// ```
+///
+/// For patterns the user typed, so nothing is escaped: `*` and `?` are what make a pattern a pattern.
+#[tauri::command]
+pub async fn append_ignore_rules(
+    repository_path: String,
+    patterns: Vec<String>,
+) -> Result<(), CommandError> {
+    git_ops::gitignore::append_ignore_rules(&repository_path, &patterns)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Appends *file names* to the root `.gitignore`, escaping them.
+///
+/// ```js
+/// await invoke('append_ignore_files', { repositoryPath, paths: ['weird[1].txt'] })
+/// ```
+///
+/// The counterpart to `append_ignore_rules`: these are names, not patterns, so glob characters in them are
+/// escaped — otherwise ignoring `weird[1].txt` would quietly ignore something else.
+#[tauri::command]
+pub async fn append_ignore_files(
+    repository_path: String,
+    paths: Vec<String>,
+) -> Result<(), CommandError> {
+    git_ops::gitignore::append_ignore_files(&repository_path, &paths)
+        .await
+        .map_err(CommandError::from)
+}
+
+// --- Git LFS ---
+
+/// Installs LFS's global filters, so `git lfs` works for every repository.
+///
+/// `force` overwrites filters someone else configured. Without it, git refuses rather than silently taking
+/// them over.
+///
+/// Takes no repository, because the operation isn't about one — but git still needs *a* working directory that
+/// exists, so it runs in the temp directory. Same reasoning as `GlobalConfig` in `git_ops::config`, which the
+/// original solved by using its own install directory.
+#[tauri::command]
+pub async fn install_global_lfs_filters(force: Option<bool>) -> Result<(), CommandError> {
+    git_ops::lfs::install_global_lfs_filters(std::env::temp_dir(), force.unwrap_or(false))
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Installs LFS's hooks in one repository.
+#[tauri::command]
+pub async fn install_lfs_hooks(
+    repository_path: String,
+    force: Option<bool>,
+) -> Result<(), CommandError> {
+    git_ops::lfs::install_lfs_hooks(&repository_path, force.unwrap_or(false))
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Whether the repository has any LFS-tracked patterns configured.
+#[tauri::command]
+pub async fn is_using_lfs(repository_path: String) -> Result<bool, CommandError> {
+    git_ops::lfs::is_using_lfs(&repository_path)
+        .await
+        .map_err(CommandError::from)
+}
+
+// --- mergeability and operation state ---
+
+/// Whether two revisions would merge cleanly, without touching the index or the working tree.
+///
+/// ```js
+/// await invoke('determine_mergeability', { repositoryPath, ours: 'main', theirs: 'topic' })
+/// // -> { kind: 'clean' } | { kind: 'conflicts', conflictedFiles: 3 } | { kind: 'invalid' }
+/// ```
+///
+/// `merge-tree --write-tree` answers this in the object database, so asking is free of side effects — the
+/// user's checkout is untouched. `invalid` covers unrelated histories, which have no merge to describe.
+#[tauri::command]
+pub async fn determine_mergeability(
+    repository_path: String,
+    ours: String,
+    theirs: String,
+) -> Result<MergeTreeResult, CommandError> {
+    git_ops::merge_tree::determine_mergeability(&repository_path, &ours, &theirs)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// What kind of repository — if any — is at `path`.
+///
+/// ```js
+/// await invoke('get_repository_type', { path })
+/// // -> { kind: 'regular', topLevelWorkingDirectory } | { kind: 'bare' } | { kind: 'missing' }
+/// //  | { kind: 'unsafe', path }
+/// ```
+///
+/// A path that isn't a repository is an **answer**, not an error — the caller is usually asking exactly that.
+/// `unsafe` means git refused it for dubious ownership; `add_safe_directory` is the way out.
+#[tauri::command]
+pub async fn get_repository_type(path: String) -> Result<RepositoryType, CommandError> {
+    git_ops::rev_parse::get_repository_type(&path)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Whether a cherry-pick is in progress.
+///
+/// Takes the repository path and resolves the git directory itself, because a linked worktree's `.git` is a
+/// file rather than a directory — the naive join is wrong exactly where it matters.
+#[tauri::command]
+pub async fn is_cherry_pick_head_found(repository_path: String) -> Result<bool, CommandError> {
+    let git_dir = git_ops::rev_parse::resolve_git_dir(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
+
+    Ok(git_ops::operation_state::is_cherry_pick_head_found(git_dir).await)
+}
+
+/// The branch and tip a rebase is replaying, or `null` when none is in progress.
+#[tauri::command]
+pub async fn get_rebase_internal_state(
+    repository_path: String,
+) -> Result<Option<RebaseInternalState>, CommandError> {
+    let git_dir = git_ops::rev_parse::resolve_git_dir(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
+
+    Ok(git_ops::operation_state::get_rebase_internal_state(git_dir).await)
+}
+
+/// Copies the given paths out of the index into the working tree.
+///
+/// An empty `paths` is a no-op rather than "check out everything", which is what the bare command would do.
+#[tauri::command]
+pub async fn checkout_index(
+    repository_path: String,
+    paths: Vec<String>,
+) -> Result<(), CommandError> {
+    git_ops::checkout_index::checkout_index(&repository_path, &paths)
+        .await
+        .map_err(CommandError::from)
+}
+
+// --- commit message trailers ---
+
+/// The characters this repository accepts between a trailer's token and its value.
+///
+/// `trailer.separators` config, defaulting to `:`. Needed before a message can be parsed, since the separator
+/// decides what counts as a trailer at all.
+#[tauri::command]
+pub async fn get_trailer_separator_characters(
+    repository_path: String,
+) -> Result<String, CommandError> {
+    git_ops::interpret_trailers::get_trailer_separator_characters(&repository_path)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// The trailers in a commit message.
+///
+/// ```js
+/// await invoke('parse_trailers', { repositoryPath, commitMessage })
+/// // -> [{ token: 'Co-Authored-By', value: 'Someone <someone@example.com>' }]
+/// ```
+#[tauri::command]
+pub async fn parse_trailers(
+    repository_path: String,
+    commit_message: String,
+) -> Result<Vec<Trailer>, CommandError> {
+    git_ops::interpret_trailers::parse_trailers(&repository_path, &commit_message)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// A commit message with `trailers` merged into it, as git would write them.
+///
+/// Asking git rather than concatenating is what gets the blank line, the ordering and the existing trailers
+/// right — `interpret-trailers` owns those rules.
+#[tauri::command]
+pub async fn merge_trailers(
+    repository_path: String,
+    commit_message: String,
+    trailers: Vec<Trailer>,
+    unfold: Option<bool>,
+) -> Result<String, CommandError> {
+    git_ops::interpret_trailers::merge_trailers(
+        &repository_path,
+        &commit_message,
+        &trailers,
+        unfold.unwrap_or(false),
+    )
+    .await
+    .map_err(CommandError::from)
 }

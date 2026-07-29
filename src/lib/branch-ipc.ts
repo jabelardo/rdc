@@ -102,3 +102,111 @@ export async function getBranchesDifferingFromUpstream(
     { repositoryPath }
   )
 }
+
+/**
+ * Creates a branch, without checking it out.
+ *
+ * `startPoint` defaults to `HEAD`. `noTrack` matters when branching from a *remote* branch: without it git
+ * sets that remote branch as the upstream, which makes the rest of the app treat it as the push target —
+ * likely a fork's upstream rather than the user's own.
+ */
+export async function createBranch(
+  repositoryPath: string,
+  name: string,
+  startPoint?: string,
+  noTrack = false
+): Promise<void> {
+  await invoke('create_branch', { repositoryPath, name, startPoint, noTrack })
+}
+
+/**
+ * Renames a branch.
+ *
+ * **Omitting `force` is not the same as `false`.** Omitted lets a *case-only* rename through — `Topic` to
+ * `topic` on a case-insensitive filesystem — by retrying once with `-M` after confirming no different branch
+ * holds the name. `false` refuses any collision; `true` forces every one.
+ */
+export async function renameBranch(
+  repositoryPath: string,
+  currentName: string,
+  newName: string,
+  force?: boolean
+): Promise<void> {
+  await invoke('rename_branch', {
+    repositoryPath,
+    currentName,
+    newName,
+    force,
+  })
+}
+
+/**
+ * Deletes a local branch, merged or not.
+ *
+ * Uses `-D`: the app asks the user before calling this, so git's own refusal would arrive as a failure the UI
+ * has already ruled out.
+ */
+export async function deleteLocalBranch(
+  repositoryPath: string,
+  branchName: string
+): Promise<void> {
+  await invoke('delete_local_branch', { repositoryPath, branchName })
+}
+
+/**
+ * Branch names whose tip is `committish`.
+ *
+ * `null` means the committish didn't resolve, which differs from an empty array: no branch pointing at a
+ * commit that exists is an answer, and asking about one that doesn't is a mistake.
+ */
+export async function getBranchesPointedAt(
+  repositoryPath: string,
+  committish: string
+): Promise<ReadonlyArray<string> | null> {
+  return invoke<ReadonlyArray<string> | null>('get_branches_pointed_at', {
+    repositoryPath,
+    committish,
+  })
+}
+
+/**
+ * Branches merged into `branchName`, as a `Map` from canonical ref to tip SHA.
+ *
+ * Pairs on the wire, because a ref name is an arbitrary string and so isn't a safe object key — a `Map`
+ * accepts any string, unlike a plain object. `branchName` itself is excluded: it is trivially merged into
+ * itself.
+ */
+export async function getMergedBranches(
+  repositoryPath: string,
+  branchName: string
+): Promise<Map<string, string>> {
+  const pairs = await invoke<ReadonlyArray<[string, string]>>(
+    'get_merged_branches',
+    { repositoryPath, branchName }
+  )
+
+  return new Map(pairs)
+}
+
+/**
+ * Deletes a ref.
+ *
+ * Deleting one that doesn't exist **succeeds** — git treats it as idempotent, so no need to check first.
+ * `reason` goes into the reflog of the ref being deleted, which is removed with it, so it has no observable
+ * effect; it exists because the original passed one.
+ */
+export async function deleteRef(
+  repositoryPath: string,
+  refName: string,
+  reason?: string
+): Promise<void> {
+  await invoke('delete_ref', { repositoryPath, refName, reason })
+}
+
+/** What a symbolic ref points at, or `null` if it isn't one. */
+export async function getSymbolicRef(
+  repositoryPath: string,
+  refName: string
+): Promise<string | null> {
+  return invoke<string | null>('get_symbolic_ref', { repositoryPath, refName })
+}

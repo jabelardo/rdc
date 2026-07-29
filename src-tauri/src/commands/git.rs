@@ -9,12 +9,15 @@ use git_ops::commit::CommitOptions;
 use git_ops::diff::{Diff, TextDiffData};
 use git_ops::diff_index::IndexStatus;
 use git_ops::for_each_ref::{Branch, TrackingBranch};
+use git_ops::log::ChangesetData;
 use git_ops::merge::{MergeOptions, MergeResult};
 use git_ops::patch_formatter::LineSelection;
 use git_ops::rebase::{
     MultiCommitOperationProgress, RebaseConflictResolution, RebaseResult, RebaseSnapshot,
 };
-use git_ops::stage::ManualConflictResolution;
+use git_ops::reset::ResetMode;
+use git_ops::stage::{ManualConflictResolution, ResolvedConflict};
+use git_ops::status::AheadBehind;
 use git_ops::status::{AppFileStatus, StatusResult};
 use git_ops::status_parser::GitStatusEntry;
 use git_ops::update_index::FileToStage;
@@ -411,6 +414,213 @@ pub async fn get_branches_differing_from_upstream(
     repository_path: String,
 ) -> Result<Vec<TrackingBranch>, CommandError> {
     git_ops::for_each_ref::get_branches_differing_from_upstream(&repository_path)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Resets `refName`, moving `HEAD` and optionally the index and working tree.
+///
+/// ```js
+/// await invoke('reset', { repositoryPath, mode: GitResetMode.Mixed, refName: 'HEAD~1' })
+/// ```
+///
+/// `mode` is a **number** — `GitResetMode` is a numeric enum, and note `Hard` is **0**, so a missing or
+/// zeroed field selects the destructive mode. **`Hard` discards work**: everything different from `refName`
+/// in the working tree is gone, with no reflog of the file contents, so the caller is expected to have asked
+/// the user first.
+#[tauri::command]
+pub async fn reset(
+    repository_path: String,
+    mode: ResetMode,
+    ref_name: String,
+) -> Result<(), CommandError> {
+    git_ops::reset::reset(&repository_path, mode, &ref_name)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Updates the index for `paths` from the tree at `refName`.
+///
+/// ```js
+/// await invoke('reset_paths', {
+///   repositoryPath, mode: GitResetMode.Mixed, refName: 'HEAD', paths: ['src/thing.ts'],
+/// })
+/// ```
+///
+/// An empty `paths` is a **no-op**, not "reset everything" — which is what the same arguments would mean to
+/// git without a pathspec, and the opposite of what an empty selection means.
+#[tauri::command]
+pub async fn reset_paths(
+    repository_path: String,
+    mode: ResetMode,
+    ref_name: String,
+    paths: Vec<String>,
+) -> Result<(), CommandError> {
+    git_ops::reset::reset_paths(&repository_path, mode, &ref_name, &paths)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Clears the staging area.
+///
+/// ```js
+/// await invoke('unstage_all', { repositoryPath })
+/// ```
+///
+/// `reset -- .` rather than a bare `reset`, which also makes it work in a repository with no commits, where
+/// `HEAD` doesn't resolve.
+#[tauri::command]
+pub async fn unstage_all(repository_path: String) -> Result<(), CommandError> {
+    git_ops::reset::unstage_all(&repository_path)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Removes every path from the index, leaving the working tree alone.
+///
+/// ```js
+/// await invoke('unstage_all_files', { repositoryPath })
+/// ```
+///
+/// Different from `unstage_all` despite the name: this is `rm --cached`, which empties the index — including
+/// paths that exist only there — while a reset restores it to a commit.
+#[tauri::command]
+pub async fn unstage_all_files(repository_path: String) -> Result<(), CommandError> {
+    git_ops::rm::unstage_all_files(&repository_path)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Stages the conflicts the user has finished with.
+///
+/// ```js
+/// await invoke('stage_resolved_conflict_files', {
+///   repositoryPath,
+///   files: [{ path: 'a.txt', conflictMarkerCount: 0 }],
+/// })
+/// ```
+///
+/// A checkout refuses to run while the index holds unresolved conflicts, so anything that checks out after one
+/// has to stage the resolutions first.
+///
+/// Two kinds count as resolved: the user picked a side in the app (`resolution`), or edited until git counted
+/// **zero** conflict markers. Anything else is left alone — staging a file that still has markers in it would
+/// commit them.
+#[tauri::command]
+pub async fn stage_resolved_conflict_files(
+    repository_path: String,
+    files: Vec<ResolvedConflict>,
+) -> Result<(), CommandError> {
+    git_ops::stage::stage_resolved_conflict_files(&repository_path, &files)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// How many commits each side of `range` has that the other does not.
+///
+/// ```js
+/// await invoke('get_ahead_behind', { repositoryPath, range: 'main...origin/main' })
+/// // -> { ahead: 1, behind: 2 }
+/// ```
+///
+/// The range is built by the caller — `revRange`, `revSymmetricDifference` in `src/lib/rev-range.ts` — because
+/// it is string concatenation and needs no round trip.
+///
+/// `null` means the question cannot be asked: a ref in the range no longer exists, most often a deleted
+/// upstream. That is an answer rather than a failure, since a caller with nothing to put in a label should not
+/// be handling an error.
+#[tauri::command]
+pub async fn get_ahead_behind(
+    repository_path: String,
+    range: String,
+) -> Result<Option<AheadBehind>, CommandError> {
+    git_ops::rev_list::get_ahead_behind(&repository_path, &range)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Diffs a file between two branches, from where they diverged.
+///
+/// ```js
+/// await invoke('get_branch_merge_base_diff', {
+///   repositoryPath, path, status, baseBranch: 'main', comparisonBranch: 'topic',
+///   latestCommit: sha, hideWhitespace: false,
+/// })
+/// ```
+///
+/// `--merge-base` is what makes this a comparison rather than a difference: commits the base branch gained
+/// after the two diverged would otherwise read as though the comparison branch removed them.
+///
+/// `latestCommit` labels the result — it names the version of the file being shown, which the diff itself does
+/// not carry.
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn get_branch_merge_base_diff(
+    blobs: State<'_, BlobRegistry>,
+    repository_path: String,
+    path: String,
+    status: AppFileStatus,
+    base_branch: String,
+    comparison_branch: String,
+    latest_commit: String,
+    hide_whitespace: Option<bool>,
+) -> Result<Diff, CommandError> {
+    git_ops::diff::get_branch_merge_base_diff(
+        &repository_path,
+        &path,
+        &status,
+        &base_branch,
+        &comparison_branch,
+        hide_whitespace.unwrap_or(false),
+        &latest_commit,
+        Some(&*blobs),
+    )
+    .await
+    .map_err(CommandError::from)
+}
+
+/// What changed between two branches, from where they diverged.
+///
+/// ```js
+/// await invoke('get_branch_merge_base_changed_files', {
+///   repositoryPath, baseBranch: 'main', comparisonBranch: 'topic', latestComparisonCommit: sha,
+/// })
+/// ```
+///
+/// `null` means the branches have **no common ancestor** — unrelated histories, which is a real state rather
+/// than a failure, and there is no point to compare from.
+#[tauri::command]
+pub async fn get_branch_merge_base_changed_files(
+    repository_path: String,
+    base_branch: String,
+    comparison_branch: String,
+    latest_comparison_commit: String,
+) -> Result<Option<ChangesetData>, CommandError> {
+    git_ops::diff::get_branch_merge_base_changed_files(
+        &repository_path,
+        &base_branch,
+        &comparison_branch,
+        &latest_comparison_commit,
+    )
+    .await
+    .map_err(CommandError::from)
+}
+
+/// What changed across a range of commits, oldest first.
+///
+/// ```js
+/// await invoke('get_commit_range_changed_files', { repositoryPath, shas: [oldest, newest] })
+/// ```
+///
+/// The oldest commit's **parent** is the starting point, so the range includes its own change. A branch's first
+/// commit works without the caller doing anything: `<sha>^` doesn't resolve there, and the Rust side retries
+/// against git's empty tree.
+#[tauri::command]
+pub async fn get_commit_range_changed_files(
+    repository_path: String,
+    shas: Vec<String>,
+) -> Result<ChangesetData, CommandError> {
+    git_ops::diff::get_commit_range_changed_files(&repository_path, &shas)
         .await
         .map_err(CommandError::from)
 }

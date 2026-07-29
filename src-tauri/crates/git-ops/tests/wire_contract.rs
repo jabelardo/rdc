@@ -48,6 +48,7 @@ use git_ops::hooks::runner::{HookProgressUpdate, HookStatus};
 use git_ops::interpret_trailers::Trailer;
 use git_ops::log::{ChangesetData, Commit, CommitIdentity, CommittedFileChange};
 use git_ops::merge::{MergeOptions, MergeResult};
+use git_ops::merge_tree::MergeTreeResult;
 use git_ops::pull::{PullProgress, PullProgressKind};
 use git_ops::push::{PushProgress, PushProgressKind};
 use git_ops::rebase::{
@@ -55,9 +56,12 @@ use git_ops::rebase::{
     RebaseResult, RebaseSnapshot,
 };
 use git_ops::remote::Remote;
+use git_ops::reset::ResetMode;
 use git_ops::rev_list::CommitOneLine;
+use git_ops::rev_parse::RepositoryType;
 use git_ops::revert::{RevertProgress, RevertProgressKind};
 use git_ops::stage::ManualConflictResolution;
+use git_ops::stage::ResolvedConflict;
 use git_ops::stash::{StashEntry, StashResult};
 use git_ops::status::{
     AheadBehind, AppFileStatus, ConflictedFileStatus, StatusFileChange, StatusResult, UnmergedEntry,
@@ -65,6 +69,7 @@ use git_ops::status::{
 use git_ops::status_parser::{GitStatusEntry, SubmoduleStatus, UnmergedEntrySummary};
 use git_ops::submodule::SubmoduleEntry;
 use git_ops::update_index::FileToStage;
+use git_ops::worktree::{WorktreeEntry, WorktreeType};
 use serde_json::json;
 
 #[test]
@@ -819,6 +824,48 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
         })),
     );
 
+    // The shapes the Phase 3 expose-only batches put on the wire for the first time.
+    cases.insert(
+        "repositoryTypeRegular",
+        to_value(RepositoryType::Regular {
+            top_level_working_directory: std::path::PathBuf::from("/repos/thing"),
+            git_dir: std::path::PathBuf::from("/repos/thing/.git"),
+        }),
+    );
+    cases.insert(
+        "repositoryTypeUnsafe",
+        to_value(RepositoryType::Unsafe {
+            path: std::path::PathBuf::from("/repos/borrowed"),
+        }),
+    );
+    cases.insert("repositoryTypeMissing", to_value(RepositoryType::Missing));
+    cases.insert(
+        "mergeTreeConflicts",
+        to_value(MergeTreeResult::Conflicts {
+            conflicted_files: 3,
+        }),
+    );
+    cases.insert("mergeTreeClean", to_value(MergeTreeResult::Clean));
+    cases.insert(
+        "worktreeEntry",
+        to_value(WorktreeEntry {
+            path: std::path::PathBuf::from("/repos/thing"),
+            head: "a".repeat(40),
+            branch: Some("refs/heads/main".to_owned()),
+            is_detached: false,
+            kind: WorktreeType::Main,
+            is_locked: false,
+            is_prunable: false,
+        }),
+    );
+    cases.insert(
+        "trailer",
+        to_value(Trailer {
+            token: "Co-Authored-By".to_owned(),
+            value: "Someone <someone@example.invalid>".to_owned(),
+        }),
+    );
+
     // Hook progress. The status strings are the original's (`'started' | 'finished' | 'failed'`), and the
     // `id` exists because a `HookAbort` is a live handle rather than data — see `src/hook_state.rs`.
     cases.insert(
@@ -1070,6 +1117,57 @@ fn a_text_diff_can_be_sent_back_as_a_command_argument() {
         serde_json::from_value(sent.clone()).expect("a serialized text diff deserializes");
 
     assert_eq!(to_value(Diff::Text(parsed)), sent, "round trips unchanged");
+}
+
+#[test]
+fn reset_modes_are_the_numbers_the_typescript_enum_declares() {
+    // `GitResetMode` is a numeric enum, so the discriminant is the wire value — and `Hard` being 0 matters:
+    // a missing or zeroed field selects the destructive mode, which is why nothing gives it a default.
+    for (mode, discriminant) in [
+        (ResetMode::Hard, 0),
+        (ResetMode::Soft, 1),
+        (ResetMode::Mixed, 2),
+    ] {
+        assert_eq!(to_value(mode), json!(discriminant));
+        assert_eq!(
+            serde_json::from_value::<ResetMode>(json!(discriminant)).expect("deserializes"),
+            mode
+        );
+    }
+}
+
+#[test]
+fn a_resolved_conflict_accepts_the_minimal_object() {
+    // Every field but the path has a serde default, so the frontend sends only what it knows.
+    let parsed: ResolvedConflict =
+        serde_json::from_value(json!({ "path": "a.txt" })).expect("deserializes");
+
+    assert_eq!(parsed.path, "a.txt");
+    assert_eq!(parsed.entries, None);
+    assert_eq!(parsed.conflict_marker_count, None);
+    assert_eq!(parsed.resolution, None);
+}
+
+#[test]
+fn a_resolved_conflict_carries_a_marker_count_or_a_chosen_side() {
+    let edited: ResolvedConflict =
+        serde_json::from_value(json!({ "path": "a.txt", "conflictMarkerCount": 0 }))
+            .expect("deserializes");
+    assert_eq!(edited.conflict_marker_count, Some(0));
+
+    // The entries cross as the **single characters** git's porcelain uses, which is what the ported
+    // `GitStatusEntry` in `src/models/status.ts` declares — not the Rust variant names.
+    let picked: ResolvedConflict = serde_json::from_value(json!({
+        "path": "a.txt",
+        "resolution": "theirs",
+        "entries": ["U", "D"],
+    }))
+    .expect("deserializes");
+    assert_eq!(picked.resolution, Some(ManualConflictResolution::Theirs));
+    assert_eq!(
+        picked.entries,
+        Some((GitStatusEntry::UpdatedButUnmerged, GitStatusEntry::Deleted))
+    );
 }
 
 #[test]

@@ -20,8 +20,15 @@ import {
   hydrateRawDiff,
   type IDiffWire,
   type IRawDiffData,
+  getBranchMergeBaseDiff,
+  getBranchMergeBaseChangedFiles,
+  getCommitRangeChangedFiles,
 } from './diff-ipc'
+import { AppFileStatusKind, CommittedFileChange } from '../models/status'
+import type { IChangesetDataWire } from './log-ipc'
 import snapshot from './__generated__/wire-snapshot.json'
+
+const REPO = '/tmp/repo'
 
 const invoke = vi.hoisted(() => vi.fn())
 vi.mock('@tauri-apps/api/core', () => ({ invoke }))
@@ -419,5 +426,70 @@ describe('image diffs', () => {
   it('uses the numeric DiffType the ported enum declares', () => {
     expect(snapshot.imageDiff.kind).toBe(DiffType.Image)
     expect(DiffType.Image).toBe(1)
+  })
+})
+
+describe('comparing branches and ranges', () => {
+  const changeset = snapshot.changesetData as IChangesetDataWire
+
+  beforeEach(() => {
+    invoke.mockReset()
+    invoke.mockResolvedValue(changeset)
+  })
+
+  it('getBranchMergeBaseDiff names both branches and the commit it labels the result with', async () => {
+    invoke.mockResolvedValue(snapshot.textDiff)
+
+    await getBranchMergeBaseDiff(
+      REPO,
+      'a.txt',
+      // The enum member, not the string: TypeScript string enums are nominal, which is the property that
+      // makes these fixtures a real check rather than a restatement.
+      { kind: AppFileStatusKind.Modified },
+      'main',
+      'topic',
+      'abc123'
+    )
+
+    expect(invoke).toHaveBeenCalledWith('get_branch_merge_base_diff', {
+      repositoryPath: REPO,
+      path: 'a.txt',
+      status: { kind: AppFileStatusKind.Modified },
+      baseBranch: 'main',
+      comparisonBranch: 'topic',
+      latestCommit: 'abc123',
+      hideWhitespace: false,
+    })
+  })
+
+  it('getBranchMergeBaseChangedFiles hydrates the changeset', async () => {
+    const files = await getBranchMergeBaseChangedFiles(
+      REPO,
+      'main',
+      'topic',
+      'abc123'
+    )
+
+    expect(files?.files[0]).toBeInstanceOf(CommittedFileChange)
+    expect(files?.linesAdded).toBe(changeset.linesAdded)
+  })
+
+  it('getBranchMergeBaseChangedFiles passes null through for unrelated histories', async () => {
+    // No common ancestor is a real state — there is no point to compare from — so it must not look like a
+    // failure or like an empty changeset.
+    invoke.mockResolvedValue(null)
+
+    await expect(
+      getBranchMergeBaseChangedFiles(REPO, 'main', 'unrelated', 'abc123')
+    ).resolves.toBeNull()
+  })
+
+  it('getCommitRangeChangedFiles sends the shas oldest first', async () => {
+    await getCommitRangeChangedFiles(REPO, ['oldest', 'newest'])
+
+    expect(invoke).toHaveBeenCalledWith('get_commit_range_changed_files', {
+      repositoryPath: REPO,
+      shas: ['oldest', 'newest'],
+    })
   })
 })

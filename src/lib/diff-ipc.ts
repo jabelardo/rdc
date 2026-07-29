@@ -24,6 +24,11 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
+import {
+  hydrateChangesetData,
+  type IChangesetData,
+  type IChangesetDataWire,
+} from './log-ipc'
 import type { NoRenameIndexStatus } from '../models/index-status'
 import type { AppFileStatus, SubmoduleStatus } from '../models/status'
 import { assertNever } from './fatal-error'
@@ -389,4 +394,74 @@ export async function discardChangesFromSelection(
     diff: dehydrateTextDiff(diff),
     selectedLines,
   })
+}
+
+/**
+ * Diffs a file between two branches, from where they diverged.
+ *
+ * `--merge-base` on the Rust side is what makes this a *comparison*: commits the base branch gained after the
+ * two diverged would otherwise read as though the comparison branch removed them.
+ *
+ * `latestCommit` labels the result — it names the version of the file being shown, which the diff itself does
+ * not carry.
+ */
+export async function getBranchMergeBaseDiff(
+  repositoryPath: string,
+  path: string,
+  status: AppFileStatus,
+  baseBranch: string,
+  comparisonBranch: string,
+  latestCommit: string,
+  hideWhitespace = false
+): Promise<IDiff> {
+  const diff = await invoke<IDiffWire>('get_branch_merge_base_diff', {
+    repositoryPath,
+    path,
+    status,
+    baseBranch,
+    comparisonBranch,
+    latestCommit,
+    hideWhitespace,
+  })
+
+  return hydrateDiff(diff)
+}
+
+/**
+ * What changed between two branches, from where they diverged.
+ *
+ * `null` means the branches have **no common ancestor** — unrelated histories, a real state rather than a
+ * failure, since there is no point to compare from.
+ */
+export async function getBranchMergeBaseChangedFiles(
+  repositoryPath: string,
+  baseBranch: string,
+  comparisonBranch: string,
+  latestComparisonCommit: string
+): Promise<IChangesetData | null> {
+  const changeset = await invoke<IChangesetDataWire | null>(
+    'get_branch_merge_base_changed_files',
+    { repositoryPath, baseBranch, comparisonBranch, latestComparisonCommit }
+  )
+
+  return changeset === null ? null : hydrateChangesetData(changeset)
+}
+
+/**
+ * What changed across a range of commits, oldest first.
+ *
+ * The oldest commit's **parent** is the starting point, so the range includes its own change. A branch's first
+ * commit works without the caller doing anything: `<sha>^` doesn't resolve there, and the Rust side retries
+ * against git's empty tree.
+ */
+export async function getCommitRangeChangedFiles(
+  repositoryPath: string,
+  shas: ReadonlyArray<string>
+): Promise<IChangesetData> {
+  const changeset = await invoke<IChangesetDataWire>(
+    'get_commit_range_changed_files',
+    { repositoryPath, shas }
+  )
+
+  return hydrateChangesetData(changeset)
 }

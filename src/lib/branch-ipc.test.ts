@@ -13,8 +13,18 @@ import snapshot from './__generated__/wire-snapshot.json'
 const invoke = vi.hoisted(() => vi.fn())
 vi.mock('@tauri-apps/api/core', () => ({ invoke }))
 
-const { getBranches, getBranchesDifferingFromUpstream, hydrateBranch } =
-  await import('./branch-ipc')
+const {
+  getBranches,
+  getBranchesDifferingFromUpstream,
+  hydrateBranch,
+  createBranch,
+  renameBranch,
+  deleteLocalBranch,
+  getBranchesPointedAt,
+  getMergedBranches,
+  deleteRef,
+  getSymbolicRef,
+} = await import('./branch-ipc')
 
 // Annotated, not cast: assignability to the ported wire type is the check. `type` is the exception —
 // a JSON import widens the numeric enum to `number`.
@@ -151,5 +161,109 @@ describe('the branch commands', () => {
     })
     // Four strings, so what Rust sent is what the caller gets.
     expect(branches).toEqual([trackingBranch])
+  })
+})
+
+describe('the branch operations', () => {
+  beforeEach(() => {
+    invoke.mockReset()
+    invoke.mockResolvedValue(undefined)
+  })
+
+  it('createBranch sends the start point and noTrack', async () => {
+    await createBranch(REPO, 'topic', 'main', true)
+
+    expect(invoke).toHaveBeenCalledWith('create_branch', {
+      repositoryPath: REPO,
+      name: 'topic',
+      startPoint: 'main',
+      noTrack: true,
+    })
+  })
+
+  it('createBranch defaults noTrack to false and omits the start point', async () => {
+    await createBranch(REPO, 'topic')
+
+    expect(invoke).toHaveBeenCalledWith('create_branch', {
+      repositoryPath: REPO,
+      name: 'topic',
+      startPoint: undefined,
+      noTrack: false,
+    })
+  })
+
+  it('renameBranch distinguishes an omitted force from false', async () => {
+    // Omitted allows a case-only rename by retrying with -M; false refuses every collision. Sending `false`
+    // for an absent argument would quietly break renaming `Topic` to `topic`.
+    await renameBranch(REPO, 'Topic', 'topic')
+    expect(invoke).toHaveBeenLastCalledWith('rename_branch', {
+      repositoryPath: REPO,
+      currentName: 'Topic',
+      newName: 'topic',
+      force: undefined,
+    })
+
+    await renameBranch(REPO, 'a', 'b', false)
+    expect(invoke).toHaveBeenLastCalledWith(
+      'rename_branch',
+      expect.objectContaining({ force: false })
+    )
+  })
+
+  it('deleteLocalBranch sends the branch name', async () => {
+    await deleteLocalBranch(REPO, 'topic')
+
+    expect(invoke).toHaveBeenCalledWith('delete_local_branch', {
+      repositoryPath: REPO,
+      branchName: 'topic',
+    })
+  })
+
+  it('getBranchesPointedAt distinguishes no branches from an unresolvable committish', async () => {
+    invoke.mockResolvedValue([])
+    await expect(getBranchesPointedAt(REPO, 'HEAD')).resolves.toEqual([])
+
+    invoke.mockResolvedValue(null)
+    await expect(getBranchesPointedAt(REPO, 'nope')).resolves.toBeNull()
+  })
+
+  it('getMergedBranches turns pairs into a Map', async () => {
+    // Pairs on the wire because a ref name is an arbitrary string; a Map accepts any string as a key.
+    invoke.mockResolvedValue([
+      ['refs/heads/topic', 'a'.repeat(40)],
+      ['refs/heads/constructor', 'b'.repeat(40)],
+    ])
+
+    const merged = await getMergedBranches(REPO, 'main')
+
+    expect(merged).toBeInstanceOf(Map)
+    expect(merged.get('refs/heads/topic')).toHaveLength(40)
+    expect(merged.get('refs/heads/constructor')).toHaveLength(40)
+    expect(merged.size).toBe(2)
+  })
+
+  it('deleteRef sends an optional reason', async () => {
+    await deleteRef(REPO, 'refs/remotes/origin/topic')
+    expect(invoke).toHaveBeenLastCalledWith('delete_ref', {
+      repositoryPath: REPO,
+      refName: 'refs/remotes/origin/topic',
+      reason: undefined,
+    })
+
+    await deleteRef(REPO, 'refs/heads/topic', 'branch deleted')
+    expect(invoke).toHaveBeenLastCalledWith(
+      'delete_ref',
+      expect.objectContaining({ reason: 'branch deleted' })
+    )
+  })
+
+  it('getSymbolicRef resolves to null for a ref that is not symbolic', async () => {
+    invoke.mockResolvedValue(null)
+
+    await expect(getSymbolicRef(REPO, 'refs/heads/main')).resolves.toBeNull()
+    expect(invoke).toHaveBeenCalledWith('get_symbolic_ref', {
+      repositoryPath: REPO,
+      refName: 'refs/heads/main',
+    })
   })
 })

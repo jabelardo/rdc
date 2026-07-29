@@ -13,11 +13,13 @@
 //!   a panic must never cross the boundary.
 //! - Commands doing IO are `async`, so they run off the main thread and can't freeze the UI.
 
+pub mod branch;
 pub mod error;
 pub mod git;
 pub mod log;
 pub mod misc;
 pub mod remote;
 pub mod stash;
+pub mod worktree;
 
 pub use error::CommandError;

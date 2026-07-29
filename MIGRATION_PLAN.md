@@ -1400,7 +1400,7 @@ work rather than being guessed at now.
 
 </details>
 
-### Phase 3 — IPC surface → Tauri commands — **IN PROGRESS — 68 COMMANDS**
+### Phase 3 — IPC surface → Tauri commands — **IN PROGRESS — 106 COMMANDS**
 
 The phase started with `get_status` wired end to end from Rust to React. The same command pattern now
 covers 67 registered commands.
@@ -1705,6 +1705,122 @@ Also worth recording, because it invalidated part of the plan: **the two blob re
 That bullet assumed bytes would cross as results. Images go over the protocol, and the one remaining consumer
 — syntax highlighting — wants a bounded *text* prefix, which JSON carries perfectly well. When it lands it
 will be an ordinary command returning a string.
+
+**Slice 3 begins with branch operations**, the largest group the store layer needs and none of which had a
+command: `createBranch`, `renameBranch`, `deleteLocalBranch`, `getBranchesPointedAt`, `getMergedBranches`,
+`deleteRef`, `getSymbolicRef`. 75 commands. They live in a new `commands/branch.rs`, since branches are their
+own domain in the store layer and `git.rs` was already long.
+
+`formatAsLocalRef` went the other way — into `src/lib/refs.ts` as TypeScript, because it computes a string
+from a string and a round trip to Rust would buy latency and a wire contract in exchange for nothing. That
+leaves the rule implemented in both languages, which is accepted here and not in the diff-expansion case for a
+reason: it is four lines, and the same cases are asserted on both sides.
+
+**Wiring it up found a real defect.** `rename_branch` recursed through `Box::pin(rename_branch(…))` for its
+case-only-rename retry, which makes the future's type refer to itself — so proving `Send` never terminated and
+the function **could not be called from a Tauri command at all**. It compiled fine until something asked it to
+cross a thread boundary. The recursion was never more than one level deep, since the retry passes
+`force: Some(true)` and an early guard returns immediately on that, so the fix was to spell the second attempt
+out. That also makes "at most once" evident, which is what `get_commit_range_diff` concluded about the same
+pattern.
+
+Two API details worth keeping, both of which a test pins:
+
+- **An omitted `force` is not `false`.** Omitted allows a case-only rename by retrying with `-M`; `false`
+  refuses every collision. A wrapper that sent `false` for an absent argument would quietly break renaming
+  `Topic` to `topic` on a case-insensitive filesystem.
+- **`getBranchesPointedAt` returns `null`, not `[]`, for a committish that doesn't resolve.** No branch
+  pointing at a commit that exists is an answer; asking about a commit that doesn't is a mistake, and the two
+  should not look alike.
+
+**The reset/stage batch closed three of the eight function-level gaps**: `reset`, `resetPaths` and
+`stageResolvedConflictFiles`, plus `unstageAllFiles` — which turned out to live in `rm.ts`, not `reset.ts`, and
+is a genuinely different operation from `unstageAll` (`rm --cached` empties the index; a reset restores it to a
+commit). 80 commands.
+
+`GitResetMode` went to **`src/models/git-reset-mode.ts`**, for the reason `IndexStatus` did: an enum that
+crosses IPC is a domain type. It is numeric, and `Hard` is **0** — so a missing or zeroed field selects the
+mode that discards the working tree, which is why nothing gives it a default and why a test pins the number.
+
+**An upstream comment I misread cost a wrong first attempt**, and the correction is the useful part.
+`resetPaths` passes paths on stdin, which upstream did only on Windows via `git reset --stdin`, noting that the
+flag "hasn't made it to Git core". I read that as "it has since", used it everywhere, and git answered
+`unknown option` — it is still a Git for Windows extension. git core's portable equivalent is
+`--pathspec-from-file=- --pathspec-file-nul`, which does the same job on every platform, so paths now go that
+way always. That removes both problems an argument list has: the platform's length limit, and the
+impossibility of passing a path containing a newline. A test resets exactly such a path.
+
+`stageResolvedConflictFiles` takes git facts rather than upstream's `WorkingDirectoryFileChange` plus a `Map`,
+the same split `getStatus` made — a `ResolvedConflict` carries the path, the index entries, the marker count
+and the chosen side. Two kinds count as resolved and they stage differently: a side picked in the app, or a
+marker count of **zero**, meaning the user edited until nothing was left. Anything else is left alone, because
+staging a file that still has markers would commit them — and a test asserts exactly that.
+
+**The rev-list batch closed two more gaps and added only one command**, which is the interesting part. Of
+`rev-list.ts`'s six unported exports, exactly one needed git:
+
+- **`getAheadBehind`** is the command. `--left-right --count` does the work, and `null` is an answer rather than
+  a failure: a ref in the range no longer exists — usually a deleted upstream — so there is nothing to be ahead
+  *of*, and a caller with a blank label to fill should not be handling a rejection.
+- **The three range builders** are string concatenation, so they are `src/lib/rev-range.ts`.
+- **`getBranchAheadBehind`** is TypeScript too, and that is the call worth explaining: every branch-specific
+  decision in it — a remote branch has no upstream of its own, a local one without an upstream has nothing to
+  compare against, and the range is two names and three dots — is one the frontend can make from data it
+  already holds. Only the counting needs git. So it answers `null` in both those cases **without asking**, and
+  a test asserts `invoke` was never called.
+- **`doMergeCommitsExistAfterCommit`** has no consumer outside `ui/history/**`, so it lands with those
+  components rather than now.
+
+Two details the tests pinned that I would otherwise have got wrong. The **direction** of `--left-right` in a
+symmetric difference: for `main...topic`, `ahead` counts what *main* has. And `AheadBehind` already existed in
+`status` — the compiler caught the duplicate — because `git status --branch` answers the same question about a
+different range, so there is one type rather than two to keep in step with `IAheadBehind`.
+
+**The diff readers closed the last three function-level gaps**, so all eight are now done:
+`getBranchMergeBaseDiff`, `getBranchMergeBaseChangedFiles` and `getCommitRangeChangedFiles`. 84 commands, and
+`diff.ts` is complete but for `getFilesDiffText`, which stays with its store consumer.
+
+What the two merge-base readers exist for is worth stating, because the name doesn't say it: `--merge-base`
+compares a branch against **the point the two branches last shared**, not against the other branch's tip. Diff
+the tips directly and every commit the base branch has gained since appears as though the comparison branch
+deleted it. A test builds exactly that situation — `main` gains a commit after `topic` branches off — and
+asserts only the topic branch's own work is reported.
+
+Two behaviours preserved rather than smoothed over:
+
+- **No common ancestor is `null`, not an error.** Unrelated histories are a real state — there is no point to
+  compare from — and a caller rendering a comparison view has nothing to show either way. A test builds an
+  orphan branch to reach it.
+- **A range starts at the oldest commit's *parent***, so the range includes its own change. For a repository's
+  first commit `<sha>^` doesn't resolve, and the retry against git's empty tree is what keeps that range
+  readable. Written as a two-iteration loop rather than the original's recursion, the same choice
+  `get_commit_range_diff` and `rename_branch` made.
+
+`tsc` also earned its keep on this batch: a test fixture written as `{ kind: 'Modified' }` failed to compile,
+because TypeScript string enums are **nominal** — which is precisely the property that makes these fixtures a
+check on the wire shape rather than a restatement of it, and precisely why ts-rs was rejected.
+
+**The expose-only batches landed together**: config, `.gitignore`, LFS, worktrees, mergeability, repository
+state, operation state, `checkout-index` and trailers. **106 commands**, and the Rust side needed no new logic —
+every one of them wraps a function that already had tests, which is what "expose-only" was supposed to mean.
+
+Three things still needed deciding rather than typing:
+
+- **`RepositoryType` went to `src/models/repository-type.ts`**, the third type to make that move after
+  `IndexStatus` and `GitResetMode`, for the same reason each time: a type that crosses IPC is a domain type. It
+  is internally tagged on a **lowercase** `kind` with camelCase fields, which is the spelling the original used
+  — so ported code comparing against `'unsafe'` keeps working.
+- **`installGlobalLFSFilters` takes no repository**, because the operation isn't about one. It still needs *a*
+  working directory that exists, so it runs in the temp directory — the same answer `GlobalConfig` reached,
+  where the original used its own install directory.
+- **Two state queries resolve the git directory themselves.** `operation_state` takes a git directory rather
+  than a repository, deliberately, so `get_status` can resolve it once; a command has no such luxury, so
+  `is_cherry_pick_head_found` and `get_rebase_internal_state` call `resolve_git_dir` first. Joining `.git`
+  would be wrong exactly where it matters — a linked worktree, where `.git` is a file.
+
+`.gitignore` gets **two** append commands rather than one, which is worth keeping straight: patterns go in as
+written, because `*` and `?` are what make a pattern a pattern, while file *names* have their glob characters
+escaped — otherwise ignoring `weird[1].txt` would quietly ignore something else.
 
 ### Phase 3.5 — Wayland/X11 reality on the primary target (decided ahead of schedule, in Phase 0)
 

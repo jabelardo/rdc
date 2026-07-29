@@ -205,6 +205,13 @@
     "kind": "Conflicted"
   },
   "mergeResult": "AlreadyUpToDate",
+  "mergeTreeClean": {
+    "kind": "clean"
+  },
+  "mergeTreeConflicts": {
+    "conflictedFiles": 3,
+    "kind": "conflicts"
+  },
   "modified": {
     "kind": "Modified"
   },
@@ -377,6 +384,18 @@
     "kind": "Renamed",
     "oldPath": "before",
     "renameIncludesModifications": true
+  },
+  "repositoryTypeMissing": {
+    "kind": "missing"
+  },
+  "repositoryTypeRegular": {
+    "gitDir": "/repos/thing/.git",
+    "kind": "regular",
+    "topLevelWorkingDirectory": "/repos/thing"
+  },
+  "repositoryTypeUnsafe": {
+    "kind": "unsafe",
+    "path": "/repos/borrowed"
   },
   "resolvedTextConflict": {
     "conflictMarkerCount": 0,
@@ -583,11 +602,24 @@
     "upstreamRef": "refs/remotes/origin/behind",
     "upstreamSha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
   },
+  "trailer": {
+    "token": "Co-Authored-By",
+    "value": "Someone <someone@example.invalid>"
+  },
   "uninitializedSubmoduleEntry": {
     "path": "other",
     "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
   },
   "unrenderableDiff": {
     "kind": 5
+  },
+  "worktreeEntry": {
+    "branch": "refs/heads/main",
+    "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "isDetached": false,
+    "isLocked": false,
+    "isPrunable": false,
+    "path": "/repos/thing",
+    "type": "main"
   }
 }

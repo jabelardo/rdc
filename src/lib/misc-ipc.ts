@@ -7,6 +7,10 @@
 import { Channel, invoke } from '@tauri-apps/api/core'
 import type { IRevertProgress } from '../models/progress'
 import { CommitIdentity } from '../models/commit-identity'
+import type { MergeTreeResult } from '../models/merge'
+import type { RepositoryType } from '../models/repository-type'
+import type { ITrailer } from '../models/trailer'
+import type { IRebaseInternalState } from './git-ipc'
 import { hydrateCommitIdentity, type ICommitIdentityData } from './log-ipc'
 
 /** Creates an annotated tag on a commit. */
@@ -187,4 +191,206 @@ export async function cleanUntrackedFiles(
  */
 export async function addSafeDirectory(path: string): Promise<void> {
   await invoke('add_safe_directory', { path })
+}
+
+// --- configuration ---
+
+/**
+ * Reads a config value, or `null` when the key isn't set.
+ *
+ * `onlyLocal` restricts the lookup to the repository's own config, ignoring the global and system files;
+ * omitted means the full cascade, which is what git itself answers with.
+ *
+ * `null` is not an error — git exits 1 for an unset key, and "not configured" is an answer.
+ */
+export async function getConfigValue(
+  repositoryPath: string,
+  name: string,
+  onlyLocal = false
+): Promise<string | null> {
+  return invoke<string | null>('get_config_value', {
+    repositoryPath,
+    name,
+    onlyLocal,
+  })
+}
+
+// --- .gitignore ---
+
+/** The repository's root `.gitignore`, or `null` if there isn't one. */
+export async function readGitignoreAtRoot(
+  repositoryPath: string
+): Promise<string | null> {
+  return invoke<string | null>('read_gitignore_at_root', { repositoryPath })
+}
+
+/**
+ * Writes the repository's root `.gitignore`.
+ *
+ * Empty text **removes the file** rather than leaving an empty one: the two mean the same thing to git, and an
+ * empty file shows up as a change the user didn't make. Line endings follow `core.autocrlf`/`core.safecrlf`, so
+ * the file matches the rest of the repository.
+ */
+export async function saveGitIgnore(
+  repositoryPath: string,
+  text: string
+): Promise<void> {
+  await invoke('save_gitignore', { repositoryPath, text })
+}
+
+/**
+ * Appends ignore *patterns*, as written.
+ *
+ * Nothing is escaped, because `*` and `?` are what make a pattern a pattern. For file names, use
+ * {@linkcode appendIgnoreFiles}.
+ */
+export async function appendIgnoreRules(
+  repositoryPath: string,
+  patterns: ReadonlyArray<string>
+): Promise<void> {
+  await invoke('append_ignore_rules', { repositoryPath, patterns })
+}
+
+/**
+ * Appends *file names*, escaping them.
+ *
+ * The counterpart to {@linkcode appendIgnoreRules}: these are names rather than patterns, so glob characters in
+ * them are escaped — otherwise ignoring `weird[1].txt` would quietly ignore something else.
+ */
+export async function appendIgnoreFiles(
+  repositoryPath: string,
+  paths: ReadonlyArray<string>
+): Promise<void> {
+  await invoke('append_ignore_files', { repositoryPath, paths })
+}
+
+// --- Git LFS ---
+
+/**
+ * Installs LFS's global filters, so `git lfs` works for every repository.
+ *
+ * Takes no repository, because the operation isn't about one. `force` overwrites filters someone else
+ * configured; without it git refuses rather than silently taking them over.
+ */
+export async function installGlobalLFSFilters(force = false): Promise<void> {
+  await invoke('install_global_lfs_filters', { force })
+}
+
+/** Installs LFS's hooks in one repository. */
+export async function installLFSHooks(
+  repositoryPath: string,
+  force = false
+): Promise<void> {
+  await invoke('install_lfs_hooks', { repositoryPath, force })
+}
+
+/** Whether the repository has any LFS-tracked patterns configured. */
+export async function isUsingLFS(repositoryPath: string): Promise<boolean> {
+  return invoke<boolean>('is_using_lfs', { repositoryPath })
+}
+
+// --- mergeability and operation state ---
+
+/**
+ * Whether two revisions would merge cleanly.
+ *
+ * Answered in the object database with `merge-tree --write-tree`, so asking has **no side effects** — the
+ * user's index and working tree are untouched. `invalid` covers unrelated histories, which have no merge to
+ * describe.
+ */
+export async function determineMergeability(
+  repositoryPath: string,
+  ours: string,
+  theirs: string
+): Promise<MergeTreeResult> {
+  return invoke<MergeTreeResult>('determine_mergeability', {
+    repositoryPath,
+    ours,
+    theirs,
+  })
+}
+
+/**
+ * What kind of repository — if any — is at `path`.
+ *
+ * A path that isn't a repository is an **answer**, not a rejection: the caller is usually asking exactly that.
+ * `unsafe` means git refused it for dubious ownership, and {@linkcode addSafeDirectory} is the way out.
+ */
+export async function getRepositoryType(
+  path: string
+): Promise<RepositoryType> {
+  return invoke<RepositoryType>('get_repository_type', { path })
+}
+
+/** Whether a cherry-pick is in progress. */
+export async function isCherryPickHeadFound(
+  repositoryPath: string
+): Promise<boolean> {
+  return invoke<boolean>('is_cherry_pick_head_found', { repositoryPath })
+}
+
+/** The branch and tips a rebase is replaying, or `null` when none is in progress. */
+export async function getRebaseInternalState(
+  repositoryPath: string
+): Promise<IRebaseInternalState | null> {
+  return invoke<IRebaseInternalState | null>('get_rebase_internal_state', {
+    repositoryPath,
+  })
+}
+
+/**
+ * Copies the given paths out of the index into the working tree.
+ *
+ * An empty `paths` is a no-op rather than "check out everything", which is what the bare command would do.
+ */
+export async function checkoutIndex(
+  repositoryPath: string,
+  paths: ReadonlyArray<string>
+): Promise<void> {
+  await invoke('checkout_index', { repositoryPath, paths })
+}
+
+// --- commit message trailers ---
+
+/**
+ * The characters this repository accepts between a trailer's token and its value.
+ *
+ * `trailer.separators`, defaulting to `:`. Needed before a message can be parsed, since the separator decides
+ * what counts as a trailer at all.
+ */
+export async function getTrailerSeparatorCharacters(
+  repositoryPath: string
+): Promise<string> {
+  return invoke<string>('get_trailer_separator_characters', { repositoryPath })
+}
+
+/** The trailers in a commit message. */
+export async function parseTrailers(
+  repositoryPath: string,
+  commitMessage: string
+): Promise<ReadonlyArray<ITrailer>> {
+  return invoke<ReadonlyArray<ITrailer>>('parse_trailers', {
+    repositoryPath,
+    commitMessage,
+  })
+}
+
+/**
+ * A commit message with `trailers` merged in, as git would write them.
+ *
+ * Asking git rather than concatenating is what gets the blank line, the ordering and any existing trailers
+ * right — `interpret-trailers` owns those rules.
+ */
+export async function mergeTrailers(
+  repositoryPath: string,
+  commitMessage: string,
+  trailers: ReadonlyArray<ITrailer>,
+  unfold = false
+): Promise<string> {
+  return invoke<string>('merge_trailers', {
+    repositoryPath,
+    commitMessage,
+    trailers,
+    unfold,
+  })
 }

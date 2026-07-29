@@ -101,7 +101,8 @@ pub use config::{
 };
 pub use description::{get_description, write_description, DEFAULT_DESCRIPTION};
 pub use diff::{
-    get_binary_paths, get_commit_diff, get_commit_range_diff, get_resolution_diff,
+    get_binary_paths, get_branch_merge_base_changed_files, get_branch_merge_base_diff,
+    get_commit_diff, get_commit_range_changed_files, get_commit_range_diff, get_resolution_diff,
     get_working_directory_diff, Diff, DiffType, LineEnding, LineEndingsChange, ResolutionDiff,
     ResolutionDiffTarget, SubmoduleDiffData, TextDiffData,
 };
@@ -166,17 +167,22 @@ pub use remote::{
     update_remote_head, Remote,
 };
 pub use reorder::{build_reorder_todo, reorder, ReorderError};
-pub use reset::unstage_all;
-pub use rev_list::{get_commits_between_commits, get_commits_in_range, CommitOneLine};
+pub use reset::{reset, reset_paths, unstage_all, ResetMode};
+pub use rev_list::{
+    get_ahead_behind, get_commits_between_commits, get_commits_in_range, CommitOneLine,
+};
 pub use rev_parse::{
     get_current_upstream_ref, get_current_upstream_remote_name, get_repository_type,
     get_upstream_ref_for_ref, get_upstream_remote_name_for_ref, resolve_git_dir, RepositoryType,
 };
 pub use revert::{revert_commit, RevertProgress, RevertProgressKind};
-pub use rm::remove_conflicted_file;
+pub use rm::{remove_conflicted_file, unstage_all_files};
 pub use show::get_blob_contents;
 pub use squash::{build_squash_todo, squash, SquashError};
-pub use stage::{stage_manual_conflict_resolution, stage_manual_conflict_resolution_with_entries};
+pub use stage::{
+    stage_manual_conflict_resolution, stage_manual_conflict_resolution_with_entries,
+    stage_resolved_conflict_files, ResolvedConflict,
+};
 pub use stash::{
     create_stash_entry, create_stash_message, drop_stash_entry, get_last_stash_entry_for_branch,
     get_stashed_files, get_stashes, move_stash_entry, pop_stash_entry, rename_stash_entry,

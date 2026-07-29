@@ -6,6 +6,8 @@ use std::path::Path;
 
 use crate::add::add_conflicted_file;
 use crate::checkout::checkout_conflicted_file;
+use serde::{Deserialize, Serialize};
+
 use crate::error::GitError;
 use crate::rm::remove_conflicted_file;
 use crate::status_parser::GitStatusEntry;
@@ -26,6 +28,76 @@ pub use crate::checkout::ManualConflictResolution;
 ///
 /// The original took the app's `WorkingDirectoryFileChange` and inspected `status.entry`; this takes
 /// the two status entries directly, since the surrounding model is a frontend concern.
+/// A conflict the user has finished with, as the git facts needed to stage it.
+///
+/// The original took a `WorkingDirectoryFileChange` and a `Map` of resolutions. That is view state — see
+/// [`crate::status`] — so this carries what the index needs instead, and the frontend supplies it from the
+/// status it already has. Only conflicted files belong here; upstream skipped anything else, and a type that
+/// cannot represent a non-conflict says so more clearly.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResolvedConflict {
+    /// Path relative to the repository root.
+    pub path: String,
+
+    /// The conflict's index entries, `(us, them)`, when the caller knows them.
+    ///
+    /// Supplying them lets a deletion be staged as a deletion, which content alone cannot express.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub entries: Option<(GitStatusEntry, GitStatusEntry)>,
+
+    /// How many conflict markers git still found in the file.
+    ///
+    /// `Some(0)` is the interesting value: a text conflict the user resolved in their own editor. Absent for a
+    /// conflict git could not count markers in — a binary one, or a modify/delete.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub conflict_marker_count: Option<u32>,
+
+    /// The side the user picked in the app, when they picked one.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub resolution: Option<ManualConflictResolution>,
+}
+
+/// Stages the conflicts the user has finished with.
+///
+/// # Why this exists at all
+///
+/// A checkout refuses to run while the index holds unresolved conflicts — `error: you need to resolve your
+/// current index first` — so anything that checks out after a conflict has to stage the resolutions first.
+///
+/// Two kinds count as resolved, and they are staged differently:
+///
+/// - **The user picked a side in the app**, so the choice is staged through
+///   [`stage_manual_conflict_resolution_with_entries`], which can turn "theirs, which deleted it" into a
+///   staged deletion.
+/// - **The user edited the file until no markers remained**, which git reports as a marker count of zero. The
+///   file on disk is the resolution, so adding it is enough.
+///
+/// Anything else is left alone: a conflict with markers still in it is not resolved, and staging it would
+/// commit the markers.
+pub async fn stage_resolved_conflict_files(
+    repository: impl AsRef<Path>,
+    files: &[ResolvedConflict],
+) -> Result<(), GitError> {
+    let repository = repository.as_ref();
+
+    for file in files {
+        if let Some(resolution) = file.resolution {
+            stage_manual_conflict_resolution_with_entries(
+                repository,
+                &file.path,
+                resolution,
+                file.entries,
+            )
+            .await?;
+        } else if file.conflict_marker_count == Some(0) {
+            add_conflicted_file(repository, &file.path).await?;
+        }
+    }
+
+    Ok(())
+}
+
 pub async fn stage_manual_conflict_resolution(
     repository: impl AsRef<Path>,
     path: impl AsRef<Path>,
@@ -189,5 +261,129 @@ mod tests {
             !repo.path().join("foo").exists(),
             "resolving in favour of a delete should remove the file"
         );
+    }
+    // --- staging the conflicts a user has finished with ---
+
+    #[tokio::test]
+    async fn stages_a_text_conflict_the_user_resolved_in_an_editor() {
+        // Marker count zero is how git reports "they edited until nothing was left to resolve", and the file
+        // on disk *is* the resolution — so adding it is enough.
+        let repo = conflicted_repository().await;
+        let path = unmerged_paths(&repo.path())
+            .await
+            .first()
+            .expect("the fixture conflicts")
+            .clone();
+        std::fs::write(repo.path().join(&path), "resolved by hand\n").expect("failed to write");
+
+        stage_resolved_conflict_files(
+            repo.path(),
+            &[ResolvedConflict {
+                path: path.clone(),
+                entries: None,
+                conflict_marker_count: Some(0),
+                resolution: None,
+            }],
+        )
+        .await
+        .expect("staging should succeed");
+
+        assert!(
+            !unmerged_paths(&repo.path()).await.contains(&path),
+            "the path is no longer unmerged"
+        );
+    }
+
+    #[tokio::test]
+    async fn leaves_a_conflict_that_still_has_markers_alone() {
+        // Staging it would commit the markers. The count being non-zero is the whole signal.
+        let repo = conflicted_repository().await;
+        let path = unmerged_paths(&repo.path())
+            .await
+            .first()
+            .expect("the fixture conflicts")
+            .clone();
+
+        stage_resolved_conflict_files(
+            repo.path(),
+            &[ResolvedConflict {
+                path: path.clone(),
+                entries: None,
+                conflict_marker_count: Some(3),
+                resolution: None,
+            }],
+        )
+        .await
+        .expect("it should succeed");
+
+        assert!(
+            unmerged_paths(&repo.path()).await.contains(&path),
+            "still unmerged, because it is still unresolved"
+        );
+    }
+
+    #[tokio::test]
+    async fn stages_the_side_the_user_picked() {
+        let repo = conflicted_repository().await;
+        let path = unmerged_paths(&repo.path())
+            .await
+            .first()
+            .expect("the fixture conflicts")
+            .clone();
+
+        stage_resolved_conflict_files(
+            repo.path(),
+            &[ResolvedConflict {
+                path: path.clone(),
+                entries: None,
+                conflict_marker_count: None,
+                resolution: Some(ManualConflictResolution::Theirs),
+            }],
+        )
+        .await
+        .expect("staging should succeed");
+
+        assert!(!unmerged_paths(&repo.path()).await.contains(&path));
+    }
+
+    #[tokio::test]
+    async fn a_chosen_side_wins_over_the_marker_count() {
+        // Upstream's order: a resolution the user picked in the app is checked first, so a file they *also*
+        // edited by hand still gets the side they asked for.
+        let repo = conflicted_repository().await;
+        let path = unmerged_paths(&repo.path())
+            .await
+            .first()
+            .expect("the fixture conflicts")
+            .clone();
+
+        stage_resolved_conflict_files(
+            repo.path(),
+            &[ResolvedConflict {
+                path: path.clone(),
+                entries: None,
+                conflict_marker_count: Some(3),
+                resolution: Some(ManualConflictResolution::Ours),
+            }],
+        )
+        .await
+        .expect("staging should succeed");
+
+        assert!(
+            !unmerged_paths(&repo.path()).await.contains(&path),
+            "the picked side was staged despite the markers"
+        );
+    }
+
+    #[tokio::test]
+    async fn stages_nothing_when_given_nothing() {
+        let repo = conflicted_repository().await;
+        let before = unmerged_paths(&repo.path()).await;
+
+        stage_resolved_conflict_files(repo.path(), &[])
+            .await
+            .expect("it should succeed");
+
+        assert_eq!(unmerged_paths(&repo.path()).await, before);
     }
 }

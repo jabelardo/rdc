@@ -122,13 +122,20 @@ pub async fn rename_branch(
         return Err(error);
     }
 
-    Box::pin(rename_branch(
+    // A second attempt rather than a recursive call. Recursion was only ever one level deep — the retry
+    // passes `force: Some(true)`, which the guard above turns into an immediate return — and it made the
+    // future's type refer to itself, so proving `Send` for it never terminated: the function could not be
+    // used from a Tauri command at all. Spelling the retry out makes "at most once" evident, the same choice
+    // `get_commit_range_diff` made about the original's recursion.
+    git(
+        &["branch", "-M", current_name, new_name],
         repository,
-        current_name,
-        new_name,
-        Some(true),
-    ))
-    .await
+        "renameBranch",
+        GitOptions::default(),
+    )
+    .await?;
+
+    Ok(())
 }
 
 /// Whether git's rejection names a branch that differs from `new_name` only by case.
