@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     libayatana-appindicator3-dev \
     webkitgtk-webdriver \
+    xdotool \
     xvfb \
     && rm -rf /var/lib/apt/lists/*
 

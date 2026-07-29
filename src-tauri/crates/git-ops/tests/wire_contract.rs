@@ -72,6 +72,27 @@ use git_ops::update_index::FileToStage;
 use git_ops::worktree::{WorktreeEntry, WorktreeType};
 use serde_json::json;
 
+// Platform commands live in the Tauri app rather than git-ops. Include the shared wire model from
+// its source so this remains the one generated snapshot consumed by TypeScript.
+#[path = "../../../src/platform/editor_model.rs"]
+mod editor_model;
+use editor_model::FoundEditor;
+#[path = "../../../src/platform/custom_integration_model.rs"]
+mod custom_integration_model;
+use custom_integration_model::{CustomIntegration, CustomIntegrationPathValidation};
+#[path = "../../../src/platform/context_menu_model.rs"]
+mod context_menu_model;
+use context_menu_model::{ContextMenuItemModel, ContextMenuItemType};
+#[path = "../../../src/platform/keybinding_model.rs"]
+mod keybinding_model;
+use keybinding_model::{Keybinding, KeybindingModifier};
+#[path = "../../../src/platform/menu_model.rs"]
+mod menu_model;
+use menu_model::{MenuAction, MenuItemModel, MenuKind, MenuModel};
+#[path = "../../../src/platform/shell_model.rs"]
+mod shell_model;
+use shell_model::FoundShell;
+
 #[test]
 fn git_status_entry_serializes_to_its_single_character() {
     for (value, expected) in [
@@ -937,6 +958,85 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
             upstream_sha: "e".repeat(40),
         }),
     );
+    cases.insert(
+        "foundEditor",
+        to_value(FoundEditor {
+            editor: "Visual Studio Code".to_owned(),
+            path: PathBuf::from("/usr/bin/code"),
+        }),
+    );
+    cases.insert(
+        "foundShell",
+        to_value(FoundShell {
+            shell: "GNOME Terminal".to_owned(),
+            path: PathBuf::from("/usr/bin/gnome-terminal"),
+            bundle_id: None,
+            extra_args: None,
+        }),
+    );
+    cases.insert(
+        "keybindings",
+        to_value(BTreeMap::from([(
+            "pull".to_owned(),
+            Keybinding {
+                modifiers: vec![KeybindingModifier::Control, KeybindingModifier::Shift],
+                key: "KeyP".to_owned(),
+            },
+        )])),
+    );
+    cases.insert(
+        "appMenu",
+        to_value(MenuModel {
+            kind: MenuKind::Menu,
+            id: None,
+            items: vec![MenuItemModel::MenuItem {
+                id: "pull".to_owned(),
+                enabled: true,
+                visible: true,
+                label: "Pull".to_owned(),
+                access_key: None,
+                action: Some(MenuAction::MenuEvent {
+                    event: "pull".to_owned(),
+                }),
+                role: None,
+            }],
+        }),
+    );
+    cases.insert(
+        "contextMenu",
+        to_value(vec![
+            ContextMenuItemModel {
+                label: Some("Parent".to_owned()),
+                kind: None,
+                checked: None,
+                enabled: None,
+                role: None,
+                submenu: Some(vec![ContextMenuItemModel {
+                    label: Some("Chosen".to_owned()),
+                    kind: Some(ContextMenuItemType::Checkbox),
+                    checked: Some(true),
+                    enabled: Some(false),
+                    role: None,
+                    submenu: None,
+                }]),
+            },
+            ContextMenuItemModel {
+                label: None,
+                kind: Some(ContextMenuItemType::Separator),
+                checked: None,
+                enabled: None,
+                role: None,
+                submenu: None,
+            },
+        ]),
+    );
+    cases.insert(
+        "customIntegrationPathValidation",
+        to_value(CustomIntegrationPathValidation {
+            is_valid: true,
+            bundle_id: Some("com.example.Editor".to_owned()),
+        }),
+    );
 
     // Both submodule shapes: git omits the describe value for an uninitialized or conflicted
     // submodule, and those entries must still be listed.
@@ -1030,6 +1130,69 @@ fn a_file_to_stage_accepts_the_minimal_object() {
     assert_eq!(parsed.old_path, None);
     assert!(!parsed.deleted);
     assert_eq!(parsed.partial, None);
+}
+
+#[test]
+fn platform_command_arguments_accept_the_typescript_domain_shapes() {
+    let editor: FoundEditor = serde_json::from_value(json!({
+        "editor": "Visual Studio Code",
+        "path": "/usr/bin/code",
+    }))
+    .expect("found editor deserializes");
+    assert_eq!(editor.editor, "Visual Studio Code");
+    assert_eq!(editor.path, PathBuf::from("/usr/bin/code"));
+
+    let custom: CustomIntegration = serde_json::from_value(json!({
+        "path": "/Applications/Custom.app",
+        "arguments": "--wait \"%TARGET_PATH%\"",
+        "bundleID": "example.Custom",
+    }))
+    .expect("custom integration deserializes");
+    assert_eq!(custom.path, PathBuf::from("/Applications/Custom.app"));
+    assert_eq!(custom.arguments, "--wait \"%TARGET_PATH%\"");
+    assert_eq!(custom.bundle_id.as_deref(), Some("example.Custom"));
+
+    let shell: FoundShell = serde_json::from_value(json!({
+        "shell": "Command Prompt",
+        "path": "C:\\Windows\\System32\\cmd.exe",
+        "extraArgs": ["/K", "doskey git=git.exe $*"],
+    }))
+    .expect("found shell deserializes");
+    assert_eq!(shell.shell, "Command Prompt");
+    assert_eq!(
+        shell.extra_args.as_deref(),
+        Some(["/K".to_owned(), "doskey git=git.exe $*".to_owned()].as_slice())
+    );
+
+    let menu: MenuModel = serde_json::from_value(json!({
+        "type": "menu",
+        "items": [{
+            "id": "pull",
+            "type": "menuItem",
+            "label": "Pull",
+            "enabled": true,
+            "visible": true,
+            "accessKey": null,
+            "action": { "type": "menu-event", "event": "pull" },
+        }],
+    }))
+    .expect("application menu deserializes");
+    assert_eq!(menu.items.len(), 1);
+
+    let context_menu: Vec<ContextMenuItemModel> = serde_json::from_value(json!([
+        {
+            "label": "Parent",
+            "submenu": [{
+                "label": "Chosen",
+                "type": "checkbox",
+                "checked": true,
+                "enabled": false,
+            }],
+        },
+        { "type": "separator" },
+    ]))
+    .expect("context menu deserializes");
+    assert_eq!(context_menu.len(), 2);
 }
 
 #[test]

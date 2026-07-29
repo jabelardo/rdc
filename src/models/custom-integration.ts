@@ -18,3 +18,10 @@ export interface ICustomIntegration {
   /** The bundle ID of the custom integration (macOS only) */
   readonly bundleID?: string
 }
+
+/** Result of checking whether a custom tool path can be launched. */
+export interface ICustomIntegrationPathValidation {
+  readonly isValid: boolean
+  /** Present only for a valid macOS application bundle. */
+  readonly bundleID?: string
+}

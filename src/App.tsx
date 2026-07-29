@@ -1,11 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   getStatus,
   isCommandError,
   type IStatusResult,
 } from './lib/git-ipc'
 import { AppFileStatusKind } from './models/status'
+import { installMacOSDefaultMenu } from './lib/menu/startup'
+import { showContextualMenu } from './lib/menu/context-menu'
+import { showOpenDialog } from './lib/platform/dialogs'
+import { sendReady } from './lib/platform/window'
 import './App.css'
+
+const rendererStartTime = performance.now()
 
 /**
  * A deliberately plain harness for the first end-to-end IPC slice.
@@ -20,6 +26,41 @@ function App() {
   const [notARepository, setNotARepository] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [contextMenuResult, setContextMenuResult] = useState(
+    'No contextual-menu selection'
+  )
+  const [dialogResult, setDialogResult] = useState('No directory selected')
+
+  useEffect(() => {
+    if (!__DARWIN__) {
+      return
+    }
+
+    let disposed = false
+    let unlisten: (() => void) | undefined
+    void installMacOSDefaultMenu()
+      .then(cleanup => {
+        if (disposed) {
+          cleanup()
+        } else {
+          unlisten = cleanup
+        }
+      })
+      .catch(error => {
+        log.error('Failed to install the macOS default menu', error)
+      })
+
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [])
+
+  useEffect(() => {
+    void sendReady(performance.now() - rendererStartTime).catch(error => {
+      log.error('Failed to complete the renderer-ready handshake', error)
+    })
+  }, [])
 
   async function load(event: React.FormEvent) {
     event.preventDefault()
@@ -45,6 +86,43 @@ function App() {
     }
   }
 
+  async function openContextMenu() {
+    setContextMenuResult('No contextual-menu selection')
+    let selected = false
+    await showContextualMenu([
+      {
+        label: 'Select first item',
+        action: () => {
+          selected = true
+          setContextMenuResult('Selected first item')
+        },
+      },
+      {
+        label: 'More',
+        submenu: [
+          {
+            label: 'Select nested item',
+            action: () => {
+              selected = true
+              setContextMenuResult('Selected nested item')
+            },
+          },
+        ],
+      },
+    ])
+    if (!selected) {
+      setContextMenuResult('Contextual menu dismissed')
+    }
+  }
+
+  async function openDirectoryDialog() {
+    const selected = await showOpenDialog({
+      title: 'Choose a repository directory',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    setDialogResult(selected ?? 'Directory dialog dismissed')
+  }
+
   return (
     <main className="container">
       <h1>rdc</h1>
@@ -61,6 +139,20 @@ function App() {
           {loading ? 'Reading…' : 'Read status'}
         </button>
       </form>
+
+      <section aria-label="Native integration harness">
+        <button type="button" onClick={() => void openContextMenu()}>
+          Open contextual menu
+        </button>
+        <output aria-live="polite">{contextMenuResult}</output>
+      </section>
+
+      <section aria-label="Native dialog harness">
+        <button type="button" onClick={() => void openDirectoryDialog()}>
+          Open directory dialog
+        </button>
+        <output aria-live="polite">{dialogResult}</output>
+      </section>
 
       {error !== null && <p style={{ color: 'crimson' }}>{error}</p>}
       {notARepository && <p>That path is not a git repository.</p>}

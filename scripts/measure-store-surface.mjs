@@ -72,7 +72,7 @@ const IN_TYPESCRIPT = new Map([
 
 /** Functions a later phase owns, with that phase. */
 const LATER_PHASES = new Map([
-  ['envForRemoteOperation', 'Phase 4 — proxy support and account state'],
+  ['envForRemoteOperation', 'Phase 5 — proxy support; Phase 7 — account state'],
   ['getGlobalConfigPath', 'Phase 4'],
   ['getConfigValueWithOrigin', 'Phase 7'],
   ['getFilesDiffText', 'Phase 7'],
@@ -109,6 +109,46 @@ const CONSUMER_OUTSIDE_STORES = new Map([
   ['add_safe_directory', 'ui/missing-repository.tsx, ui/add-repository/add-existing-repository.tsx'],
   ['add_worktree', 'ui/worktrees/add-worktree-dialog.tsx'],
   ['get_description', 'ui/publish-repository/publish.tsx (upstream getGitDescription)'],
+  [
+    'get_available_editors',
+    'Phase 4 platform integration — lib/editors/lookup.ts and preferences/store consumers',
+  ],
+  [
+    'get_available_shells',
+    'Phase 4 platform integration — ui/preferences/preferences.tsx and lib/stores/app-store.ts',
+  ],
+  [
+    'get_keybindings',
+    'Phase 4 platform adapter — lib/platform/keybindings.ts; renderer integration lands in Phase 7',
+  ],
+  [
+    'set_keybinding',
+    'Phase 4 platform adapter — lib/platform/keybindings.ts; preferences UI lands in Phase 7',
+  ],
+  [
+    'reset_keybindings',
+    'Phase 4 platform adapter — lib/platform/keybindings.ts; preferences UI lands in Phase 7',
+  ],
+  [
+    'set_native_menu',
+    'Phase 4 macOS startup — lib/menu/startup.ts replaces the Rust bootstrap after renderer load',
+  ],
+  [
+    'show_contextual_menu',
+    'Phase 4 platform adapter — lib/menu/context-menu.ts and 33 upstream UI consumers',
+  ],
+  [
+    'validate_custom_integration_path',
+    'Phase 4 platform integration — ui/preferences/custom-integration-form.tsx',
+  ],
+  [
+    'is_valid_custom_integration',
+    'Phase 4 platform integration — ui/preferences/preferences.tsx',
+  ],
+  ['launch_external_editor', 'Phase 4 platform integration — lib/stores/app-store.ts'],
+  ['launch_custom_external_editor', 'Phase 4 platform integration — lib/stores/app-store.ts'],
+  ['launch_shell', 'Phase 4 platform integration — lib/stores/app-store.ts'],
+  ['launch_custom_shell', 'Phase 4 platform integration — lib/stores/app-store.ts'],
   ['write_description', 'ui/add-repository/create-repository.tsx'],
   ['read_gitignore_at_root', 'ui/repository-settings/repository-settings.tsx'],
   ['checkout_remote_branch', 'ours — the half of upstream checkoutBranch that creates a local ref'],

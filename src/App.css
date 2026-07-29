@@ -46,6 +46,15 @@
   justify-content: center;
 }
 
+[aria-label='Native integration harness'],
+[aria-label='Native dialog harness'] {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
 a {
   font-weight: 500;
   color: #646cff;

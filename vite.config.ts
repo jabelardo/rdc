@@ -72,7 +72,7 @@ export default defineConfig(() => ({
     // Tauri uses Chromium on Windows and WebKit on macOS and Linux
     target: process.platform === "win32" ? "chrome105" : "safari13",
     // don't minify for debug builds
-    minify: process.env.TAURI_ENV_DEBUG ? false : ("esbuild" as const),
+    minify: process.env.TAURI_ENV_DEBUG ? false : ("oxc" as const),
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
   },
@@ -81,6 +81,8 @@ export default defineConfig(() => ({
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
     css: false,
-    exclude: ["**/node_modules/**", "**/src-tauri/**"],
+    // Native WebDriver specs are deliberately container-only; plain Vitest
+    // must never discover and run them on the host.
+    exclude: ["**/node_modules/**", "**/src-tauri/**", "**/e2e/**"],
   },
 }));

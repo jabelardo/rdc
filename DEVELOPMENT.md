@@ -59,13 +59,15 @@ developer's local run on the identical environment.
 ```sh
 pnpm test:e2e
 # equivalent to:
-docker compose -f docker-compose.e2e.yml run --rm e2e
+docker compose -f docker-compose.e2e.yml run --rm --build e2e
 ```
 
 This builds `Dockerfile.e2e` (Ubuntu 26.04 + Rust + `tauri-driver` + WebKitWebDriver + a
-headless Xvfb display) and runs [`e2e/run.sh`](./e2e/run.sh) inside it. As of this writing
-there's no application-level E2E spec suite yet (see `MIGRATION_PLAN.md` Phase 8) — the script
-currently just verifies the harness itself (Xvfb + `tauri-driver`) starts correctly.
+headless Xvfb display), builds the real debug Tauri binary, and runs the Node WebDriver specs
+under `e2e/*.test.mjs`. Phase 4 supplies the first four: application launch, nested native
+contextual-menu selection, native contextual-menu dismissal, and native directory-dialog
+dismissal. `--build` is intentional; without it, Compose silently reuses an image containing
+an older source tree.
 
 **Known limitation**: this harness runs entirely over X11 (Xvfb). It does not exercise
 native-Wayland WebKitGTK rendering, which is the only rendering path real users hit by

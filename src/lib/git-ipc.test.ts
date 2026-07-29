@@ -185,8 +185,10 @@ describe('the git IPC wire shape', () => {
     // Guards against a new Rust case being added to the snapshot without a typed fixture here,
     // which would otherwise silently skip the type check for it.
     expect(Object.keys(snapshot).sort()).toEqual([
-      // The image diffs — covered by diff-ipc.test.ts (hydrated into the Image class).
       'addedImageDiff',
+      // The frontend-owned application menu — covered by menu/menu-wire.test.ts.
+      'appMenu',
+      // The image diffs — covered by diff-ipc.test.ts (hydrated into the Image class).
       'binaryDiff',
       // The branch shapes — covered by branch-ipc.test.ts (hydrated into Branch).
       'branch',
@@ -199,14 +201,24 @@ describe('the git IPC wire shape', () => {
       'cloneProgress',
       // Covered by log-ipc.test.ts (hydrated into Commit).
       'commit',
+      // The renderer-owned contextual menu — covered by menu/menu-wire.test.ts.
+      'contextMenu',
+      // The custom integration validation shape — covered by platform/editors.test.ts.
+      'customIntegrationPathValidation',
       'emptyStatusResult',
       'fetchProgress',
+      // The platform editor shape — covered by platform/editors.test.ts.
+      'foundEditor',
+      // The platform shell shape — covered by platform/shells.test.ts.
+      'foundShell',
       'goneBranch',
       // Covered by hook-ipc.test.ts.
       'hookProgress',
       'imageDiff',
       // Covered by diff-ipc.test.ts.
       'indexChanges',
+      // The structured menu binding map — covered by platform/keybindings.test.ts.
+      'keybindings',
       'largeTextDiff',
       'manualConflict',
       'mergeResult',

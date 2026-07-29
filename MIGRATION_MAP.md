@@ -30,7 +30,7 @@ When that dialog is ported in Phase 7 it must import from here, and `ISecretScan
 | the 17 files listed above | 17 | `rdc/src/models/**` (1:1 filename) | **done** |
 | **Step 1 batch** (30 models): `accessible-message`, `author`, `branch-preset`, `branch-sort-order`, `branches-tab`, `clone-options`, `clone-repository-tab`, `commit-message`, `computed-action`, `copy-path-normalization`, `diff-font`, `dot-com-bots`, `fetch`, `git-account`, `git-author`, `last-thank-you`, `menu-ids`, `merge`, `preferences`, `progress`, `publish-settings`, `pull-request`, `release-notes`, `repo-rules`, `show-branch-name-in-repo-list`, `stash-entry`, `submodule`, `tutorial-step`, `uncommitted-changes-strategy`, `workflow-preferences` | 30 | `rdc/src/models/**` (1:1) | **done** |
 | supporting `lib/` files pulled in by the Step 1 closure: `lib/fonts/installed-fonts.ts`, `lib/fonts/monospace-font-filter.ts`, `lib/update-branch-strategy.ts` | 3 | `rdc/src/lib/**` (1:1) | **done** |
-| `app/src/models/app-menu.ts` | 1 | `src-tauri/src/platform/menu/**` adapter (Tauri `Menu`), **not** `src/models/` | **deferred → Phase 4** — it's an Electron adapter (`menuFromElectronMenu`, `Electron.MenuItem`), not a domain model |
+| `app/src/models/app-menu.ts` | 1 | `rdc/src/models/app-menu.ts` after all — see the revision below | **done in Phase 4a** — the Electron adapter is gone; the immutable menu interaction model now consumes the frontend-owned tree directly |
 | `app/src/models/commit.ts`, `models/branch.ts`, `models/tip.ts` + `lib/create-branch.ts` | 4 | `rdc/src/**` (1:1) | **done** — unblocked by the trailer extraction |
 | `app/src/lib/pull-request-refs.ts` | 1 | `rdc/src/lib/pull-request-refs.ts` | **done** — unblocked by the issue-reference extraction |
 | **New file:** `rdc/src/lib/markdown-filters/issue-reference.ts` | 1 | holds the issue-reference regex constants, extracted out of `lib/markdown-filters/issue-mention-filter.ts` | **done** |
@@ -44,6 +44,17 @@ When that dialog is ported in Phase 7 it must import from here, and `ISecretScan
 | remaining `app/src/models/**` | ~43 | `rdc/src/models/**` | not-started (not yet required by any ported test) |
 
 Phase: 1.
+
+### Revision: `models/app-menu.ts` goes to `src/models/` after all
+
+Phase 1 deferred it as an Electron adapter, which it is: `menuFromElectronMenu` converts an
+`Electron.MenuItem` tree into the renderable `MenuItem` union that `ui/app-menu/**` draws. Phase 4a's
+menu decision (see `MIGRATION_PLAN.md`) removes the Electron menu it was adapting *from* — the menu
+definition becomes a TypeScript module and the frontend renders it directly, while Rust builds only
+macOS's native menu from the same shape. What is left after `menuFromElectronMenu` is deleted is the
+menu model proper, so the file lands at `rdc/src/models/app-menu.ts` and `src-tauri/src/platform/menu.rs`
+consumes the shape rather than producing it. `src/models/menu-ids.ts` (Phase 1, done) is the key both
+sides share.
 
 ### Hub #2 — the blocking dependency knot
 
@@ -148,7 +159,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/git-delimiter-parser.ts` (`createLogParser`) | `crates/git-ops/src/git_delimiter_parser.rs::LogParser` — **done** (needed by `getBinaryPaths`'s `check-attr` parsing). | 2 |
 | `lib/git/branch.ts` | `crates/git-ops/src/branch.rs` — **done**: `create_branch`, `get_branch_names`, `rename_branch` (incl. the case-only-rename retry), `delete_local_branch`, `delete_remote_branch`, `get_branches_pointed_at`, `get_merged_branches`. Remote deletion propagates authentication failures rather than classifying them, which is the original's explicit choice, and cleans up a stale tracking ref when the remote branch is already gone. Proxy support is absent here as everywhere — see `environment.ts`. | 2 |
 | `lib/git/for-each-ref.ts` | `crates/git-ops/src/for_each_ref.rs` — **done**: `get_branches` and `get_branches_differing_from_upstream`. This is the branch *list*; `branch.rs` is the branch *operations*. Hydrated into the `Branch` class by `src/lib/branch-ipc.ts`. Two deliberate improvements — epoch seconds instead of a `new Date()` parse of git's `iso8601`, and a canonicalized worktree-path comparison — see §8. | 2 |
-| `lib/git/environment.ts` | **partially ported, and the one `lib/git` file without a full counterpart.** `envForAuthentication` is `crates/git-ops/src/authentication.rs`; `getFallbackUrlForProxyResolve` and `envForProxy` are **not** ported, because `envForProxy` resolves through Electron's `session.resolveProxy`. There is no Tauri equivalent — it needs reading the OS proxy configuration natively, so it belongs with the Phase 4 platform integrations. Consequence: **no remote operation has proxy support today.** | 4 |
+| `lib/git/environment.ts` | **partially ported, and the one `lib/git` file without a full counterpart.** `envForAuthentication` is `crates/git-ops/src/authentication.rs`; `getFallbackUrlForProxyResolve` and `envForProxy` are **not** ported, because `envForProxy` resolves through Electron's `session.resolveProxy`. There is no Tauri equivalent — it needs reading the OS proxy configuration natively. **Owned by Phase 5**, with `resolve-proxy`, `getFallbackUrlForProxyResolve` and `lib/parse-pac-string.ts`: `session.resolveProxy` is the same Electron `session` object as `webRequest`, so this is session-level redesign work rather than the platform swap it was first filed as. Consequence, unchanged and now with a named owner: **no remote operation has proxy support today.** | 5 |
 | `lib/git/git-delimiter-parser.ts` | `crates/git-ops/src/git_delimiter_parser.rs` — **done**, including the `%x00` log parser. | 2 |
 | `lib/git/refs.ts` | `crates/git-ops/src/refs.rs` — **done** (`format_as_local_ref`, `get_symbolic_ref`). | 2 |
 | `lib/git/update-ref.ts` (`deleteRef`) | `crates/git-ops/src/update_ref.rs` — **done**. `updateRef` has no consumer anywhere in upstream and is deliberately dropped rather than carried as dead API. | 2 |
@@ -161,15 +172,16 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/hooks/config.ts` | **Frontend, not Rust.** Every export reads or writes `localStorage` (`git-hooks-env-enabled`, `git-cache-hooks-env`, `git-hook-env-shell`) behind two feature flags. It is preferences state, so it lands with the Phase 7 settings UI — and note `SupportedHooksEnvShell` names four *Windows* shells, so most of it has no meaning on the primary target. | 7 |
 | `lib/trampoline/trampoline-server.ts` | `crates/trampoline/src/server.rs` | 2 |
 | `lib/ssh/*` (4 files, at `app/src/lib/ssh/`) | **No `ssh/` module was created.** Host-key prompt classification and parsing live in `crates/trampoline/src/handlers.rs` instead, where the askpass handler needs them (`ssh-host-prompt.ts` and its test were deleted). The remaining SSH env work needs an ssh-wrapper binary. | 2 / 7 |
-| `lib/shells/darwin.ts`, `linux.ts`, `shared.ts`, `win32.ts` | `src-tauri/src/platform/shells/*.rs` | 4 |
-| `lib/editors/launch.ts` | `src-tauri/src/platform/editors.rs` | 4 |
+| `lib/shells/darwin.ts`, `linux.ts`, `shared.ts` | `src-tauri/src/platform/shells.rs` + `shell_model.rs`; typed wrapper at `src/lib/platform/shells.ts` | **Phase 4 complete on Linux/macOS** — discovery, exact terminal launch arguments/cwd behavior, custom launch and selected-shell fallback are done |
+| `lib/shells/win32.ts` | `src-tauri/src/platform/shells_windows.rs` (planned); shared labels/order already pinned in `shells.rs` + `src/models/shell.ts` | **Phase 10** — registry/PATH discovery, WSL detection, Windows parsing and `cmd.exe / START` launch; requires Windows CI |
+| `lib/editors/**` | `src-tauri/src/platform/editors.rs` + `commands/editor.rs`; typed wrapper at `src/lib/platform/editors.ts` | **Phase 4 complete on Linux/macOS** — discovery, path validation, and normal/custom launch landed test-first; Windows is Phase 10 |
 | `lib/helpers/linux.ts` | `src-tauri/src/platform/linux_helpers.rs` (xdg-open etc.) | 4 |
 | `lib/shell.ts` | `src-tauri/src/commands/shell.rs` (reveal-in-file-manager, open-external) | 4 |
 | `lib/exec-file.ts` | `src-tauri/src/platform/exec.rs` (generic subprocess helper other modules call) | 2 |
 | `lib/file-system.ts`, `path-exists.ts`, `directory-exists.ts`, `large-files.ts`, `get-file-hash.ts`, `compute-bundle-hash.ts` | `src-tauri/src/platform/fs_utils.rs` | 1/2 |
 | `lib/path.ts` **(tentative — verify)** | likely `src-tauri/src/platform/fs_utils.rs`, but confirm it's not pure string manipulation that could stay TS | 1 |
 | `lib/process/win32.ts` | `src-tauri/src/platform/win32/process.rs` | 4 |
-| `lib/custom-integration.ts` | `src-tauri/src/platform/custom_integration.rs` (pairs with shells/editors config) | 4 |
+| `lib/custom-integration.ts` | model → `src/models/custom-integration.ts`; stored-format migration and the frontend-facing validation facade → `src/lib/custom-integration.ts`; parsing, validation, placeholder expansion and process launch → `src-tauri/src/platform/custom_integration.rs` + `editors.rs` | **Phase 4 complete on Linux/macOS** — the pure migration preserves the upstream no-update `null` contract, while POSIX parsing, executable/symlink validation, macOS bundle validation, and launch are native; Windows parsing is Phase 10 |
 | `lib/copilot/byok.ts` | `src-tauri/src/commands/copilot_byok.rs` (uses the same `keyring` crate as token storage) | 4 |
 | `lib/copilot-conflict-context.ts` **(tentative)** | `src-tauri/src/commands/copilot_conflict_context.rs` | 2 |
 | `lib/get-architecture.ts`, `get-os.ts` | `src-tauri/src/platform/system_info.rs` | 4 |
@@ -267,7 +279,7 @@ operation that consumes them rather than counted as separate backend behavior.
 | `diff-check.ts` | conflict-marker detection → `diff_check.rs` | **complete** |
 | `diff-index.ts` | index status, null tree and index changes → `diff_index.rs` + `models/index-status.ts` | **complete** |
 | `diff.ts` | working-directory, commit, range, resolution, and image diff production → `diff.rs`; images use Phase 3's scoped `rdc-blob` capability URLs; `getFilesDiffText` and rendering wait for store/UI consumers | backend and byte transport **complete**; remaining consumers **Phase 7** |
-| `environment.ts` | authentication half → `authentication.rs`; proxy fallback/resolution has no Electron-free equivalent yet | **deferred Phase 4** |
+| `environment.ts` | authentication half → `authentication.rs`; proxy fallback/resolution has no Electron-free equivalent yet | **deferred Phase 5** |
 | `fetch.ts` | fetch, refspec fetch and fast-forward → `fetch.rs` | **complete** |
 | `for-each-ref.ts` | branches and upstream-difference queries → `for_each_ref.rs` | **complete** |
 | `format-patch.ts` | mailbox patch generation → `format_patch.rs` | **complete** |
@@ -341,16 +353,17 @@ Everything else in `lib/**` not listed above → §2 (portable, stays TS as-is).
 | Old path | Target | Phase |
 |---|---|---|
 | `main.ts` | `src-tauri/src/lib.rs` (app entry/lifecycle, single-instance, protocol registration) | 4 |
-| `app-window.ts` | `src-tauri/src/lib.rs` + `tauri-plugin-window-state` (replaces `electron-window-state`) | 4 |
+| `app-window.ts` | `src-tauri/src/lib.rs` + `src-tauri/src/platform/window.rs` + `tauri-plugin-window-state` (replaces `electron-window-state`) | **Phase 4a in progress** — direct state/zoom wrappers and the `renderer-ready` restore/show gate are done; persisted geometry/maximization restore before the first visible frame, while visibility, decorations and fullscreen remain separately owned |
 | `ipc-main.ts` | *(deleted)* — superseded by `#[tauri::command]` registration | 3 |
 | `ipc-webcontents.ts` | *(deleted)* — superseded by `app.emit()` | 3 |
 | `trusted-ipc-sender.ts` | *(deleted)* — Tauri's IPC has no equivalent "trusted sender" gap to guard against in the same way; confirm no replacement needed | 3 |
 | `crash-window.ts`, `show-uncaught-exception.ts`, `exception-reporting.ts` | Rust panic hook + unified Sentry integration (see Phase 6) | 6 |
-| `menu/build-context-menu.ts`, `build-default-menu.ts`, `build-spell-check-menu.ts`, `build-test-menu.ts`, `crash-menu.ts`, `ensure-item-ids.ts`, `get-all-menu-items.ts`, `index.ts`, `menu-event.ts` | `src-tauri/src/platform/menu/*.rs` (Tauri `Menu`/`MenuBuilder`) | 4 |
+| `menu/build-context-menu.ts`, `build-default-menu.ts`, `build-test-menu.ts`, `crash-menu.ts`, `ensure-item-ids.ts`, `get-all-menu-items.ts`, `index.ts`, `menu-event.ts` | structure/model → `src/lib/menu/**` + `src/models/app-menu.ts` (**default/test tree and Linux/Windows dispatcher done**); bindings/persistence → `src-tauri/src/platform/keybindings.rs` (**done**); native macOS → `src-tauri/src/platform/menu.rs` (**mechanism done and manually validated; automation is Linux-only**); general/nested contextual menus → `src-tauri/src/platform/context_menu.rs` + `src/lib/menu/context-menu.ts` (**done; edit placeholder deferred below**). **Phase 9 owns the inherited Help destinations and `About Desktop Plus` label as product identity, after rdc's URLs are final.** | 4 / 9 |
+| `menu/build-spell-check-menu.ts` + contextual `editMenu` expansion | WebKitGTK suggestions and Wayland-safe edit actions, ported with their text-input consumers | 7 |
 | `notifications.ts` | `tauri-plugin-notification` (cross-platform, replaces vendored `desktop-notifications`) | 4 |
 | `squirrel-updater.ts` | *(deleted)* — replaced by `tauri-plugin-updater` | 4 |
 | `shell.ts` | `src-tauri/src/commands/shell.rs` (merge with `lib/shell.ts`, §3) | 4 |
-| `migrate-config-dir.ts` | `src-tauri/src/platform/migrate_config_dir.rs` — only needed if rdc inherits an old config dir at all; confirm relevance before porting | 4 |
+| `migrate-config-dir.ts` | *(dropped, not ported)* — the "confirm relevance" question has an answer: rdc owes `desktop-plus` no configuration compatibility, per `MIGRATION_PLAN.md` guiding principle 6. Settings formats are rdc's own | 4 |
 | `desktop-console-transport.ts`, `desktop-file-transport.ts`, `log.ts` | Rust `tracing` + file appender, replacing Winston | 6 |
 | `alive-origin-filter.ts`, `same-origin-filter.ts`, `ordered-webrequest.ts`, `authenticated-image-filter.ts` | **Phase 5 redesign, not a port** — see `MIGRATION_PLAN.md` Phase 5 | 5 |
 | `now.ts`, `get-os.ts` | trivial — inline or drop, don't create a module for a one-liner | — |
@@ -388,7 +401,8 @@ Phase: 7 (all rows).
 |---|---|---|
 | `test/unit/git/**` (51 files recursively: 45 top-level + 6 nested) | `crates/git-ops/src/**` (`#[cfg(test)]`, inline per Rust convention) | acceptance spec for Phase 2 |
 | `test/unit/stores/**` (5 + `updates/`) | `rdc/src/lib/stores/**/*.test.ts` (Vitest, colocated) | Phase 7 |
-| `test/unit/main-process/**` (2: menu, spell-checker-menu) | `src-tauri/src/platform/menu/**` (`#[cfg(test)]`) | Phase 4 |
+| `test/unit/main-process/menu-test.ts` | `src/lib/menu/**` + `src-tauri/src/platform/{menu,context_menu}.rs` | Phase 4 |
+| `test/unit/main-process/spell-checker-menu-test.ts` | colocated with the WebKitGTK text-input integration | Phase 7 |
 | `test/unit/ui/**` (~30 `.tsx`) | `rdc/src/ui/**/*.test.tsx` (Vitest + Testing Library, colocated) | Phase 7 |
 | remaining ~25 top-level `*-test.ts` (lib utils / models) | colocated `*.test.ts` next to the ported file in `rdc/src/lib/**` or `rdc/src/models/**` | Phase 1 |
 
@@ -467,15 +481,30 @@ cross is a platform integration.
 
 | | Count |
 |---|---|
-| Phase 4 — native platform integrations | 71 |
+| Phase 4 — native platform integrations | 70 |
 | Phase 6 — crash and exception reporting | 5 |
-| Phase 5 — network interception | 3 |
+| Phase 5 — session-level network behaviour | 4 |
 | Phase 9 — packaging and the CLI | 3 |
+
+Phase 4 was 71 and Phase 5 was 3 until `resolve-proxy` moved between them; see its row.
+
+Phase 4's frontend-facing audit is `scripts/measure-platform-surface.mjs`. Its kickoff baseline parses
+67 callable exports from `ui/main-process-proxy.ts` and **19** distinct `ipcRenderer.on(...)` channels
+across upstream `ui/` and `lib/` (the plan originally said 18 because it omitted `app-menu` from that
+count). All 86 names are classified; Phase 4 owns 58 exports and 16 subscriptions, while the rest name
+their later phase or deliberate deletion.
 
 **37 of the 82 need no IPC at all.** A Tauri plugin API is callable straight from the frontend, so
 `minimize-window` becomes `getCurrentWindow().minimize()` and the channel simply disappears — which is
-what makes this table worth having before Phase 4 starts rather than after. Three more have **no known
-equivalent** and are flagged as design work rather than given a mechanism.
+what makes this table worth having before Phase 4 starts rather than after. **Four** have **no known
+equivalent** and are flagged as design work rather than given a mechanism, and all four are now Phase 5:
+`update-accounts`, `certificate-error`, `show-certificate-trust-dialog`, and `resolve-proxy`, which was
+routed as a Phase 4 command until it was rehomed — see its row.
+
+**Two more are deleted rather than routed**, by `MIGRATION_PLAN.md` guiding principle 6 (rdc owes
+`desktop-plus` no configuration compatibility): `get-config-migration-result` and the
+`main-process/migrate-config-dir.ts` it reports on. Their rows stay in the table so the inventory still
+matches upstream's 82 exactly; "deleted" is a routing outcome, not a gap.
 
 Two shapes changed rather than moved, and both are cheaper than a port:
 
@@ -496,58 +525,90 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 | `execute-menu-item-by-id` | renderer→main | command → `MenuEvent` | 4 |
 | `menu-event` | main→renderer | `on_menu_event` → `emit` | 4 |
 | `show-contextual-menu` | request/response | command building a `Menu` and popping it up | 4 |
-| `select-all-window-contents` | renderer→main | **no IPC** — `document.execCommand` in the frontend | 4 |
+| `select-all-window-contents` | renderer→main | **implemented with no IPC** — `document.execCommand('selectAll')` in the frontend | 4 |
 | `dialog-did-open` | renderer→main | command → `request_user_attention` — beeps on macOS and bounces the dock; nothing to route if that is dropped | 4 |
 | `get-apple-action-on-double-click` | request/response | command reading the macOS preference — macOS only; no plugin, so a `plist` read | 4 |
+
+> **Phase 4a revises these rows: the menu splits in two, and the split is not down platform lines.**
+> The mechanisms above assume Rust owns the menu the way Electron's main process did. It won't.
+>
+> **Structure, labels and enablement → TypeScript**, because the menu is a continuous function of frontend
+> state, not a static definition: `buildDefaultMenuTemplate` takes **11 app-state fields**
+> (`models/menu-labels.ts`) and `lib/menu-update.ts` computes a 531-line enablement policy on top. Rust
+> owning it would mean the frontend pushing all of that in so Rust could re-template.
+>
+> **Key bindings → Rust** (`platform/keybindings.rs`), because macOS *requires* a native menu bar and Rust
+> builds it before the webview loads — so the bindings cannot live in webview storage, the same reasoning
+> that makes `titleBarStyle` a Rust-side config read. The 52 accelerator declarations currently inline
+> in `build-default-menu.ts` are extracted into 50 logical `MenuId → { modifiers, key }` defaults
+> (`preferences` and `repository-preferences` each occur in two platform branches);
+> a binding crosses as **structured data, never as an accelerator string**, so its grammar is parsed once
+> in Rust rather than reimplemented in both languages. `key` uses physical `KeyboardEvent.code` names,
+> matching the physical accelerator parser behind Tauri 2.11/muda. macOS first installs a minimal Rust
+> bootstrap menu; after `renderer-ready`, TypeScript pushes the canonical state-derived structure,
+> labels and enablement rather than Rust duplicating that policy.
+>
+> Channel outcome, precisely: `get-app-menu`, `app-menu` and `execute-menu-item-by-id` become **in-process
+> frontend state on every platform**; `update-menu-state` and `update-preferred-app-menu-item-labels` do
+> the same **on Linux and Windows only** and survive on macOS with their **direction reversed**
+> (renderer→main), since Rust needs labels and enablement to build the native menu; `menu-event` narrows
+> to the macOS native menu. Rows are left as routed until 4a lands so this column and the measured
+> partition in `MIGRATION_PLAN.md` describe the same table; flipping them is part of 4a's exit criteria.
+>
+> **The cost:** Electron registers accelerators natively and they fire on Linux with the menu bar hidden.
+> `models/app-menu.ts` carries `accelerator` and `ui/app-menu/menu-list-item.tsx` only renders it —
+> verified, nothing upstream dispatches it — so accelerator matching becomes new frontend `keydown` code.
+> The rebinding *UI* that the Rust map makes possible is **Phase 7**, and is the one place rdc adds a
+> capability upstream never had: there is no keybinding customization in `desktop-plus` at all (checked).
 
 **Window state, position and zoom** (20)
 
 | Channel | Direction | Tauri mechanism | Phase |
 |---|---|---|---|
-| `minimize-window` | renderer→main | **no IPC** — `getCurrentWindow().minimize()` | 4 |
-| `maximize-window` | renderer→main | **no IPC** — `.maximize()` | 4 |
-| `unmaximize-window` | renderer→main | **no IPC** — `.unmaximize()` | 4 |
-| `close-window` | renderer→main | **no IPC** — `.close()` | 4 |
-| `focus-window` | renderer→main | **no IPC** — `.setFocus()` | 4 |
-| `is-window-maximized` | request/response | **no IPC** — `.isMaximized()` | 4 |
-| `is-window-focused` | request/response | **no IPC** — `.isFocused()` | 4 |
-| `get-current-window-state` | request/response | **no IPC** — window API + `tauri-plugin-window-state` | 4 |
-| `window-state-changed` | main→renderer | **no IPC** — window events in the frontend | 4 |
-| `focus` | main→renderer | **no IPC** — `onFocusChanged` | 4 |
-| `blur` | main→renderer | **no IPC** — `onFocusChanged` | 4 |
-| `set-window-title` | renderer→main | **no IPC** — `.setTitle()` | 4 |
-| `set-window-zoom-factor` | renderer→main | **no IPC** — `.setZoom()` | 4 |
-| `get-current-window-zoom-factor` | request/response | command — Tauri sets zoom but does not report it; Rust has to remember what it set | 4 |
-| `zoom-factor-changed` | main→renderer | `emit` from Rust — same reason — there is no webview zoom event to subscribe to | 4 |
-| `update-window-background-color` | renderer→main | **no IPC** — `.setBackgroundColor()` | 4 |
+| `minimize-window` | renderer→main | **implemented, no IPC** — `getCurrentWindow().minimize()` | 4 |
+| `maximize-window` | renderer→main | **implemented, no IPC** — `.maximize()` | 4 |
+| `unmaximize-window` | renderer→main | **implemented, no IPC** — `.unmaximize()` | 4 |
+| `close-window` | renderer→main | **implemented, no IPC** — `.close()` | 4 |
+| `focus-window` | renderer→main | **implemented, no IPC** — `.setFocus()` | 4 |
+| `is-window-maximized` | request/response | **implemented, no IPC** — `.isMaximized()` | 4 |
+| `is-window-focused` | request/response | **implemented, no IPC** — `.isFocused()` | 4 |
+| `get-current-window-state` | request/response | **implemented, no IPC** — window API with the upstream state precedence; `tauri-plugin-window-state` separately persists geometry | 4 |
+| `window-state-changed` | main→renderer | **implemented, no IPC** — frontend `onResized` plus direct notification after wrapper-initiated transitions | 4 |
+| `focus` | main→renderer | **implemented, no IPC** — one typed `onWindowFocusChanged` adapter over `onFocusChanged` | 4 |
+| `blur` | main→renderer | **implemented, no IPC** — the same boolean adapter | 4 |
+| `set-window-title` | renderer→main | **implemented, no IPC** — `.setTitle()` | 4 |
+| `set-window-zoom-factor` | renderer→main | **implemented command** — `.set_zoom()` and the per-webview remembered value change atomically from the frontend's perspective | 4 |
+| `get-current-window-zoom-factor` | request/response | **implemented command** — Tauri sets zoom but does not report it, so Rust remembers the last successful value per webview | 4 |
+| `zoom-factor-changed` | main→renderer | **implemented** — the setter emits from the originating window; there is no native webview zoom event | 4 |
+| `update-window-background-color` | renderer→main | **implemented, no IPC** — current window `.setBackgroundColor()` accepts the same CSS color string | 4 |
 | `set-window-selected-repository` | renderer→main | command — the main process keeps it for the window title and the jump list | 4 |
 | `open-repository-in-new-window` | renderer→main | command creating a `WebviewWindow` | 4 |
-| `renderer-ready` | renderer→main | command — gates showing the window, so it stays a round trip rather than an event | 4 |
-| `launch-timing-stats` | main→renderer | `emit` from Rust | 4 |
+| `renderer-ready` | renderer→main | **implemented command** — the window starts hidden; the one-shot handshake restores persisted size/position/maximization, then shows and focuses it | 4 |
+| `launch-timing-stats` | main→renderer | **implemented** — Rust combines native ready/load durations with the renderer duration and emits the upstream three-field payload | 4 |
 
 **Theme** (3)
 
 | Channel | Direction | Tauri mechanism | Phase |
 |---|---|---|---|
-| `should-use-dark-colors` | request/response | **no IPC** — `getCurrentWindow().theme()` | 4 |
-| `set-native-theme-source` | renderer→main | command → `set_theme` | 4 |
-| `native-theme-updated` | main→renderer | **no IPC** — `onThemeChanged` | 4 |
+| `should-use-dark-colors` | request/response | **implemented, no IPC** — resolved current-window `.theme()` is compared with `dark` | 4 |
+| `set-native-theme-source` | renderer→main | **implemented, no custom IPC** — application-wide `setTheme`; upstream `system` maps to Tauri `null` | 4 |
+| `native-theme-updated` | main→renderer | **implemented, no IPC** — `onThemeChanged` adapted back to upstream's payload-free notification | 4 |
 
 **Paths, files and the shell** (13)
 
 | Channel | Direction | Tauri mechanism | Phase |
 |---|---|---|---|
-| `get-path` | request/response | **no IPC** — `@tauri-apps/api/path` | 4 |
-| `get-app-path` | request/response | **no IPC** — `path.resourceDir()` | 4 |
-| `get-exec-path` | request/response | command | 4 |
-| `get-app-architecture` | request/response | **no IPC** — `tauri-plugin-os` | 4 |
-| `is-running-under-arm64-translation` | request/response | command — Rosetta and WOW64 detection; no plugin covers it | 4 |
-| `move-to-trash` | request/response | command using the `trash` crate — Tauri has no trash API, and deleting instead would be a data-loss bug | 4 |
-| `show-item-in-folder` | request/response | **no IPC** — `tauri-plugin-opener` `revealItemInDir` | 4 |
-| `open-external` | request/response | **no IPC** — `tauri-plugin-opener` | 4 |
-| `unsafe-open-directory` | renderer→main | **no IPC** — `tauri-plugin-opener` | 4 |
-| `show-save-dialog` | request/response | **no IPC** — `tauri-plugin-dialog` | 4 |
-| `show-open-dialog` | request/response | **no IPC** — `tauri-plugin-dialog` | 4 |
+| `get-path` | request/response | **implemented, no IPC** — typed mapping from every renderer-consumed Electron name to `@tauri-apps/api/path` | 4 |
+| `get-app-path` | request/response | **implemented, no IPC** — `resourceDir()` is the packaged-resource equivalent | 4 |
+| `get-exec-path` | request/response | **implemented command** — `current_exe()`, including a non-Unicode error rather than a lossy path | 4 |
+| `get-app-architecture` | request/response | **implemented, no custom IPC** — `tauri-plugin-os` plus the translation query preserves `x64` / `arm64` / `x64-emulated` | 4 |
+| `is-running-under-arm64-translation` | request/response | **implemented command on macOS/Linux** — `sysctl.proc_translated` on macOS and false elsewhere; WOW64 remains Phase 10 | 4 / 10 |
+| `move-to-trash` | request/response | **implemented command** using the `trash` crate in a blocking task — deletion is never substituted | 4 |
+| `show-item-in-folder` | request/response | **implemented, no IPC** — `tauri-plugin-opener` `revealItemInDir`, preserving upstream's absorbed/logged failure | 4 |
+| `open-external` | request/response | **implemented, no IPC** — URL/path split over `tauri-plugin-opener`, preserving the boolean result | 4 |
+| `unsafe-open-directory` | renderer→main | **implemented, no IPC** — direct `openPath`, kept private behind the safe classifier in normal use | 4 |
+| `show-save-dialog` | request/response | **implemented, no IPC** — `tauri-plugin-dialog`; returns one path or `null` | 4 |
+| `show-open-dialog` | request/response | **implemented, no IPC** — Electron property flags translate to Tauri options and multiple results collapse to the first | 4 |
 | `is-in-application-folder` | request/response | command — macOS only | 4 |
 | `move-to-applications-folder` | request/response | command — macOS only | 4 |
 
@@ -593,7 +654,7 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 |---|---|---|---|
 | `get-main-process-config` | request/response | command | 4 |
 | `update-main-process-config` | request/response | command | 4 |
-| `get-config-migration-result` | request/response | command | 4 |
+| `get-config-migration-result` | request/response | **deleted, not ported** — guiding principle 6; there is no config migration to report | 4 |
 | `save-guid` | request/response | command | 4 |
 | `get-guid` | request/response | command | 4 |
 
@@ -613,7 +674,7 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 | Channel | Direction | Tauri mechanism | Phase |
 |---|---|---|---|
 | `update-accounts` | renderer→main | — (design work) — its only upstream purpose is feeding `installAuthenticatedImageFilter`, which Phase 5 replaces with fetching in Rust | 5 |
-| `resolve-proxy` | request/response | command — the same proxy resolution `envForProxy` needs, which is why both are Phase 4 | 4 |
+| `resolve-proxy` | request/response | — (design work) — **rehomed from Phase 4 to Phase 5.** `session.resolveProxy` is the same Electron `session` object as `webRequest`, so it belongs with the other session-level behaviours that need a redesign rather than a port. Phase 5 inherits `envForProxy`, `getFallbackUrlForProxyResolve` and `lib/parse-pac-string.ts` with it. **Consequence until then: no remote operation has proxy support.** | 5 |
 | `certificate-error` | main→renderer | — (may have no equivalent) — wry exposes no certificate-error hook; verify on WebKitGTK before promising parity | 5 |
 | `show-certificate-trust-dialog` | renderer→main | — (may have no equivalent) — macOS and Windows only upstream, and it is the recovery path for the above | 5 |
 
@@ -718,6 +779,74 @@ shape of everything it carries is pinned by a wire-contract test on the Rust sid
 ---
 
 ## 8. Deliberate deviations from a verbatim port
+
+### The application menu is serializable frontend data, not Electron click closures
+
+Upstream constructs `Electron.MenuItemConstructorOptions` in the main process, attaches click closures,
+then serializes the resulting `Electron.Menu` back to the renderer for the custom Windows/Linux menu.
+rdc builds `src/lib/menu/default-menu.ts` directly as the `src/models/app-menu.ts` tree. Executable
+items carry a discriminated `MenuAction` value, while keybindings remain a separate Rust-owned map keyed
+by item ID. This is what lets the same state-derived tree drive React and, after `renderer-ready`, the
+native macOS menu without duplicating frontend policy in Rust.
+
+Three implementation details are intentional consequences:
+
+- role-derived accelerated items (`quit`, `select-all`, and zoom) receive explicit stable IDs so the
+  50-entry binding map can address them;
+- the Linux/Windows listener runs in the capture phase because Chromium otherwise consumes shortcuts
+  such as Ctrl+A before the application menu sees them;
+- matching uses physical `KeyboardEvent.code`, while display text is derived from the same structured
+  binding. Keyboard layout therefore cannot make native and webview consumers interpret different keys.
+
+`scripts/measure-menu-accelerators.mjs` now checks the chain end-to-end: 52 ordered upstream
+declarations, 50 logical binding IDs, and all 50 IDs present in the TypeScript menu source.
+
+The surviving macOS `menu-event` changes payload from an upstream `MenuEvent` string to the complete
+structured `MenuAction`. That is necessary for actions such as opening documentation, zoom and quit,
+which Electron previously implemented as main-process closures. Rust stores the action attached to each
+native item ID and emits it unchanged. `src/lib/menu/startup.ts` now replaces the bootstrap from the
+current React harness, after registering the action listener. It enables only behavior available today:
+native roles, external links, Select All, zoom, reload and one-window quit. Stateful repository/UI
+actions stay visibly disabled until Phase 7 connects the same action type to its dispatcher. Before
+`set_native_menu` marks the renderer ready, the bootstrap quit action exits in Rust so the app cannot
+become unquittable during startup.
+
+General contextual menus keep upstream's request/response contract. The renderer removes callback
+functions before invoking `show_contextual_menu`; Rust assigns collision-free native IDs, recursively
+builds ordinary, separator, checkbox and submenu items, and returns the selected item's nested index
+path so the renderer invokes the original callback. muda's popup is synchronous while Tauri forwards
+its selection through the event-loop proxy, so Rust queues a main-thread dismissal marker after the
+popup returns: an earlier selection event resolves the request first, while dismissal resolves `null`.
+The Linux-container WebDriver suite now exercises that complete boundary with a nested selection and
+an Escape dismissal against the real debug application. It uses `xdotool` only inside the accepted
+Xvfb harness to operate GTK's native popup; this is IPC/native-menu plumbing evidence, not Wayland
+rendering evidence. The macOS default menu was separately verified by launching `pnpm tauri dev`.
+
+Two text-input additions are deliberately Phase 7 rather than incomplete Phase 4 menu work.
+`addSpellCheckMenu` currently fails explicitly, and the `editMenu` placeholder does too. The former
+needs a WebKitGTK suggestions investigation; the latter cannot use muda's Linux predefined edit
+actions on the Wayland-only primary target because their implementation uses X11 key injection and
+contains an explicit Wayland TODO. Phase 7 owns both alongside the inputs that consume them.
+
+### Native file operations split on policy, not on API availability
+
+Paths, dialogs and ordinary opener calls stay in TypeScript because Tauri already exposes them with
+window-scoped capabilities. Two operations remain Rust-owned: trash must be recoverable, so the
+`trash` crate runs off the main thread; and opening folder contents needs filesystem/application
+metadata because a macOS directory may be an executable `.app`. A failed `mdls` query therefore
+reveals the item instead of opening it, preserving upstream's conservative failure mode.
+
+The opener path permission intentionally covers arbitrary filesystem paths. Repositories and
+user-selected executables are not confined to `$HOME`, and narrowing the capability to a guessed set
+of roots would make valid repositories silently unopenable. This is still narrower than filesystem
+read/write permission: it authorizes only handing a path to its registered OS application.
+
+Tauri's dialog plugin does not expose Electron's `buttonLabel`, `nameFieldLabel`, `message`,
+`showsTagField`, or hidden-file presentation flags. The adapters accept those fields so Phase 7
+callers retain their source shape, but pass only title, initial path, filters, directory/multiple and
+directory-creation behavior. **Consequence:** the macOS clone chooser uses the native default save
+button/name-field presentation rather than `Select` / `Clone As:`; the selected path and cancellation
+contract are unchanged.
 
 ### Three ported functions have no command, on purpose
 
@@ -1055,6 +1184,7 @@ tree, Electron, and `lib/stores`:
 | `src/lib/fatal-error.ts` | `assertNever(x: never, …)` → `assertNever(_x: never, …)` | `x` is an unused type-system device. rdc enables `noUnusedParameters` (desktop-plus did not); underscore-prefixing keeps that lint on rather than weakening the config. |
 | `src/lib/api.ts` | GitLab `fetchRefCheckRuns` override: `reloadCache` → `_reloadCache` | Same reason. Note this override genuinely ignores the caller's cache-reload request — latent smell, flagged rather than changed. The two *other* `reloadCache` params are used and untouched. |
 | `tsconfig.json` | `esModuleInterop: true`, `useUnknownInCatchVariables: false`, target ES2022 / lib ES2023, `types: ["node"]` | Required for ported code + `import assert from 'node:assert'`; matches desktop-plus's own compiler settings. |
+| `vite.config.ts` | production minification uses Vite 8's Oxc default rather than the scaffold's explicit esbuild override | Vite 8 made esbuild optional and deprecated `build.minify: "esbuild"`. Installing it did not restore the build: esbuild cannot perform the configured Safari 13 destructuring transform. Oxc supports the target, needs no extra install script, and makes `pnpm build` green; debug Tauri builds remain unminified. |
 | `src/lib/fonts/installed-fonts.ts` | `import { uniq } from 'lodash'` → `[...new Set(families)]` | Utility policy is native → Radash → Lodash (see `DEVELOPMENT.md`). A single `uniq()` on a `string[]` doesn't justify the dependency; lodash v4 is a 2016 release with v5 unreleased, so its vulnerability-response time is the real risk. If lodash ever *is* required, pin >= 4.18.1. |
 | `src/models/accessible-message.ts` | added `import type { JSX } from 'react'` | React 19 removed the global `JSX` namespace the file relied on under React 16. `models/banner.ts` has the same issue and will need the same fix whenever it's unblocked. |
 | `crates/git-ops/src/init.rs` (Phase 2) | `init_repository` takes `default_branch` as a parameter; the original `initGitRepository(path)` called `getDefaultBranch()` internally | That helper reads the user's **global** `init.defaultBranch` and falls back to `"main"` — ambient machine configuration plus app policy, reached from inside a low-level git call. It made the function's result depend on the developer's machine, and made the original test tautological: it asserted the branch equalled `getDefaultBranch()`, the very function the code called, so it could not have caught the argument being ignored. Resolution now belongs to the caller; the config lookup + fallback lands with `config.rs`. |

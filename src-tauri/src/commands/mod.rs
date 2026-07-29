@@ -14,12 +14,18 @@
 //! - Commands doing IO are `async`, so they run off the main thread and can't freeze the UI.
 
 pub mod branch;
+pub mod editor;
 pub mod error;
+pub mod files;
 pub mod git;
+pub mod keybindings;
 pub mod log;
+pub mod menu;
 pub mod misc;
 pub mod remote;
+pub mod shell;
 pub mod stash;
+pub mod window;
 pub mod worktree;
 
 pub use error::CommandError;

@@ -1,5 +1,15 @@
 /** A list of menu ids associated with the main menu in GitHub Desktop */
 export type MenuIDs =
+  | 'quit'
+  | 'select-all'
+  | 'reset-zoom'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'new-window'
+  | 'repository-preferences'
+  | 'find'
+  | 'reload-window'
+  | 'show-devtools'
   | 'rename-branch'
   | 'delete-branch'
   | 'discard-all-changes'

@@ -1,9 +1,10 @@
 // The IPC surface lives in `commands`; see that module for the conventions.
 mod commands;
-use tauri::Manager;
+use tauri::{webview::PageLoadEvent, Manager};
 
 mod blob_protocol;
 mod hook_state;
+mod platform;
 
 mod trampoline_state;
 
@@ -29,14 +30,63 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_os::init())
+        // Persist geometry now, but do not let the plugin's automatic restore
+        // show the main window before Phase 4a's renderer-ready handshake.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .skip_initial_state("main")
+                .build(),
+        )
         // Owns the credential server. Created eagerly, but it only binds a socket on the first
         // remote operation — see `trampoline_state`.
         .manage(trampoline_state::TrampolineState::new())
         // Holds the abort handles of hooks currently running, so `abort_hook` can reach one.
         .manage(hook_state::HookRegistry::new())
+        // Serializes keybinding config updates so two renderer windows cannot lose each other's
+        // edits while performing the read/merge/write sequence.
+        .manage(commands::keybindings::KeybindingState::new())
+        .manage(platform::menu::NativeMenuState::new())
+        .manage(platform::context_menu::ContextMenuState::new())
+        .manage(platform::window::WindowZoomState::default())
+        .manage(platform::window::LaunchTimingState::new())
         // Blobs the app has decided the webview may read. A URL is a capability: the frontend can fetch
         // what it was handed and cannot name anything else — see src/blob_protocol.rs.
         .manage(blob_protocol::BlobRegistry::new())
+        .setup(|app| {
+            app.state::<platform::window::LaunchTimingState>()
+                .mark_main_ready();
+            #[cfg(not(target_os = "macos"))]
+            let _ = app;
+            #[cfg(target_os = "macos")]
+            {
+                let directory = app.path().app_config_dir()?;
+                let bindings =
+                    tauri::async_runtime::block_on(platform::keybindings::get_keybindings(
+                        &directory,
+                        platform::keybindings::BindingPlatform::MacOs,
+                    ))
+                    .map_err(std::io::Error::other)?;
+                platform::menu::install_bootstrap(app, &bindings).map_err(std::io::Error::other)?;
+            }
+            Ok(())
+        })
+        .on_page_load(|webview, payload| {
+            let state = webview
+                .app_handle()
+                .state::<platform::window::LaunchTimingState>();
+            match payload.event() {
+                PageLoadEvent::Started => state.mark_load_started(webview.label()),
+                PageLoadEvent::Finished => state.mark_load_finished(webview.label()),
+            }
+        })
+        .on_menu_event(|app, event| {
+            if platform::context_menu::handle_menu_event(app, event.id().as_ref()) {
+                return;
+            }
+            platform::menu::handle_menu_event(app, event.id().as_ref());
+        })
         .register_asynchronous_uri_scheme_protocol(
             blob_protocol::SCHEME,
             |context, request, responder| {
@@ -54,6 +104,26 @@ pub fn run() {
             },
         )
         .invoke_handler(tauri::generate_handler![
+            commands::editor::get_available_editors,
+            commands::editor::validate_custom_integration_path,
+            commands::editor::is_valid_custom_integration,
+            commands::editor::launch_external_editor,
+            commands::editor::launch_custom_external_editor,
+            commands::shell::get_available_shells,
+            commands::shell::launch_shell,
+            commands::shell::launch_custom_shell,
+            commands::keybindings::get_keybindings,
+            commands::keybindings::set_keybinding,
+            commands::keybindings::reset_keybindings,
+            commands::menu::set_native_menu,
+            commands::menu::show_contextual_menu,
+            commands::window::get_current_window_zoom_factor,
+            commands::window::set_window_zoom_factor,
+            commands::window::renderer_ready,
+            commands::files::classify_folder_open,
+            commands::files::move_item_to_trash,
+            commands::files::get_exec_path,
+            commands::files::is_running_under_arm64_translation,
             commands::branch::create_branch,
             commands::branch::rename_branch,
             commands::branch::delete_local_branch,

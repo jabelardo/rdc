@@ -16,6 +16,21 @@ Target: `rdc` (Tauri 2.0 + React 19 + Vite, currently the untouched default scaf
    Node-bound**, and those 67 are what block the other 307 pure-TypeScript files from being ported
    at all. Porting a Node-bound module to TypeScript doesn't just fail to help — it can't work,
    because the Node API isn't there in a webview.
+6. **rdc is not a drop-in replacement for `desktop-plus`, and owes it no configuration
+   compatibility.** `desktop-plus` is the *starting point*, not a compatibility target: rdc is planned
+   to diverge, particularly in UI and UX, before its first real release. So **settings, preferences and
+   config-directory formats are rdc's own** — nothing needs to be readable by, or inherited from, a
+   `desktop-plus` install. The first consequence is that `main-process/migrate-config-dir.ts` (which
+   migrates `GitHub Desktop Plus` and `GitHub Desktop` config directories) is **dropped rather than
+   ported**, along with the `get-config-migration-result` channel that only exists to report it.
+
+   **This does not extend to repository data.** A user's git repositories are read by both applications,
+   so anything written *into* a repository still has to interoperate — which is why Phase 2 kept the
+   stash marker string `!!GitHub_Desktop<branch>` verbatim rather than renaming it. Config formats are
+   rdc's to choose; bytes in someone's `.git` directory are not. Keep the two questions apart.
+
+   Note this narrows principle 3 rather than contradicting it: *behaviour* parity remains the default
+   for anything ported, and it is the storage format and the UI that are free to move.
 
 ## Module mapping strategy
 
@@ -287,7 +302,8 @@ recorded against the phase that owns its blocker. File counterparts alone are in
 | Commit terminal transport | Phase 3 | **Done:** combined stdout/stderr crosses a command-scoped Channel. The only production consumer upstream is commit progress. |
 | Commit terminal history/dialog and the hook-failure decision | Phase 7 | These require repository state, a late-subscriber buffer, popup lifecycle, and an answer from the user. They are consumers of the Phase 3 seams, not transport work. |
 | Image diff production and blob transport | Phase 3 / Phase 7 | **Phase 3 done:** image diffs use scoped `rdc-blob` capability URLs, with no raw-byte command. Phase 7 owns rendering and the bounded text-prefix consumer. |
-| `envForProxy`, `getGlobalConfigPath` | Phase 4 | Electron's `session.resolveProxy` and the `git config --edit` editor trick are platform integrations. **No remote operation has proxy support today**; that is a known gap, not an oversight. |
+| `envForProxy` | Phase 5 | Electron's `session.resolveProxy` is a `session`-level capability, not a platform swap — rehomed from Phase 4 when Phase 4 was planned. **No remote operation has proxy support today**; that is a known gap, not an oversight. |
+| `getGlobalConfigPath` | Phase 4 | The `git config --edit` + `GIT_EDITOR` trick is an editor integration. |
 | `getFilesDiffText`, the remaining rev-list queries, `getConfigValueWithOrigin` and its formatters, accounts/keychain, SSH env | Phase 7 | Each lands with its consumer, and the config formatters emit UI strings. |
 
 What Phase 2 does **not** own, and never did: deciding *whether* to intercept hooks, how bytes reach the
@@ -299,7 +315,7 @@ implementing those later-phase features.
 
 | | |
 |---|---|
-| `lib/git` files covered by a Rust concern | **60 of 60**. There are 59 filename-level counterparts; `environment.ts` is intentionally split between `authentication.rs` and Phase 4 proxy integration — see below |
+| `lib/git` files covered by a Rust concern | **60 of 60**. There are 59 filename-level counterparts; `environment.ts` is intentionally split between `authentication.rs` and Phase 5 proxy integration — see below |
 | `lib/diff-parser.ts` | ported to Rust, TypeScript version deleted |
 | `lib/git/log.ts` | ported to Rust |
 | `lib/git/show.ts`, `lib/git/diff-index.ts` | ported to Rust |
@@ -997,7 +1013,8 @@ callbacks have no production consumer and are recorded for Phase 7 rather than e
   `environment.ts` is the split exception: `envForAuthentication` is `authentication.rs`, but
   `envForProxy` resolves a proxy through Electron's
   `session.resolveProxy`, which has no Tauri counterpart — it needs reading the OS proxy configuration
-  natively, so it belongs with Phase 4's platform integrations. **No remote operation has proxy
+  natively. **Rehomed to Phase 5** when Phase 4 was planned: this is a `session`-level capability, not a
+  platform swap. **No remote operation has proxy
   support today**, not just the deferred ones; that gap is wider than the branch-deletion note below
   implied and is recorded here rather than inside one module.
 - **Not a `lib/git` file, but adjacent:** `app/src/lib/hooks/**` (7 files, 863 lines). Discovery, shell
@@ -1415,8 +1432,9 @@ covers **104 registered commands**, each with a typed wrapper in `src/lib/*-ipc.
 
 **The 82 channels in `ipc-shared.ts` are entirely not git** — the routing pass confirmed it, with **not one
 channel owned by this phase**. They are menus, window state, crash reporting, the auto-updater,
-notifications, dialogs, theme, URL and CLI actions, accounts and `resolve-proxy`: 71 to Phase 4, 5 to
-Phase 6, 3 each to Phases 5 and 9. Git never crossed IPC in Electron at all — the renderer called dugite
+notifications, dialogs, theme, URL and CLI actions, accounts and `resolve-proxy`: 70 to Phase 4, 5 to
+Phase 6, 4 to Phase 5, 3 to Phase 9. (Phase 4 was 71 and Phase 5 was 3 until planning Phase 4 rehomed
+`resolve-proxy`.) Git never crossed IPC in Electron at all — the renderer called dugite
 in-process — which is why every git row in `MIGRATION_MAP.md` §7.2 reads "no direct equivalent — new",
 and why the channel inventory was a *routing* exercise rather than a work list. (82, not the 77 this
 document claimed for two phases; the number had never been derived from the file.)
@@ -1437,7 +1455,7 @@ job. A number in a plan that nobody can re-derive is a claim, not a measurement.
 |---|---|---|
 | Has a command | 97 | of 104 registered |
 | Lives in TypeScript by design | 8 | the script verifies the named file exports it |
-| Owned by a later phase | 4 | `envForRemoteOperation`, `getGlobalConfigPath` (Phase 4); `getConfigValueWithOrigin`, `getFilesDiffText` (Phase 7) |
+| Owned by a later phase | 4 | `envForRemoteOperation` (Phase 5 for proxy, Phase 7 for accounts), `getGlobalConfigPath` (Phase 4); `getConfigValueWithOrigin`, `getFilesDiffText` (Phase 7) |
 | **Not covered** | 0 | the classification is exhaustive |
 
 **The 8 in TypeScript**, each because a round trip would buy nothing: `formatAsLocalRef`, `revRange` and
@@ -1455,8 +1473,9 @@ that computes a string from a string is a command that shouldn't exist.
 - **`fetchRefspec`** now has a command and typed wrapper, using
   `TrampolineState::session_for` exactly as `fetch` and `delete_remote_branch` do.
   Note this **corrects an earlier claim**: the credential env was filed under Phase 4 via
-  `envForRemoteOperation`, but the trampoline landed in Phase 2, so what Phase 4 still owns is proxy
-  support and account state, not this.
+  `envForRemoteOperation`, but the trampoline landed in Phase 2, so what remained was proxy support and
+  account state, not this — and planning Phase 4 then moved the proxy half to Phase 5 and the accounts
+  half to Phase 7, leaving Phase 4 nothing here at all.
 - **`parseSingleUnfoldedTrailer`** now lives in `src/models/trailer.ts` next to
   `isCoAuthoredByTrailer`; it deliberately has no command.
 
@@ -1545,7 +1564,7 @@ Measured by `scripts/measure-store-surface.mjs`; all implementation criteria are
 
 **Closed 2026-07-29:** Phase 3's implementation and measurement criteria are complete. The closure
 revision passed the required local gates and is held to the same standard in CI. Remaining work is
-explicitly owned elsewhere: platform commands and proxy integration by Phase 4, the capability URL's
+explicitly owned elsewhere: platform commands by Phase 4, proxy integration by Phase 5, the capability URL's
 production CSP by Phase 5, and UI/store consumers—including terminal history and the unused upstream
 merge/rebase/push/pull terminal callbacks—by Phase 7.
 
@@ -1939,22 +1958,428 @@ resize/repaint artifacts — the two failure modes found in current upstream bug
 investing in real headless-Wayland CI as a later, explicitly-scoped effort, not bundled into
 Phase 0/8's mechanical harness work.
 
-### Phase 4 — Native platform integrations
-Each of these is a self-contained swap; port with its own small test where the original had one (most don't — these were thin native wrappers in the old app, so add tests now):
-- `electron-window-state` → official `tauri-plugin-window-state`. Direct replacement.
-- `keytar` (OS keychain, used by `token-store.ts`) → Rust `keyring` crate wrapped in a command. **Improvement**: keytar is unmaintained (archived); this swap is forced either way, so no extra cost to doing it right.
-- Native menu (`main-process/menu/**`, 8 files) → Tauri 2's `Menu`/`MenuBuilder` API. Direct replacement, including context menus and the spell-check-suggestions menu (spell-check suggestions come from the OS spellchecker via the webview — check what Tauri's webview exposes per-platform before assuming parity).
-- Windows toast notifications (`notifications.ts` + vendored `desktop-notifications`) → `tauri-plugin-notification` (cross-platform, also gets you macOS/Linux notifications for free — currently Windows-only).
-- `registry-js` (Windows registry reads) → Rust `winreg` crate.
-- Squirrel.Windows updater (`squirrel-updater.ts`, `squirrel-error-parser.ts`) → **replace entirely** with `tauri-plugin-updater`. This is a genuine architectural improvement: Squirrel is Windows-only and unmaintained; Tauri's updater is cross-platform (Windows NSIS/MSI + macOS), so this also closes a long-standing gap if desktop-plus never had a real macOS auto-update path.
-- `fs-admin` (elevated filesystem ops) → **decided: keep macOS-only, same behavior as today.** Usage audit: the only consumer is `app/src/ui/lib/install-cli.ts`, called from the single macOS-gated menu action `Dispatcher.installDarwinCLI()` (`app/src/ui/app.tsx:568`) — a user-initiated, low-frequency action that unlinks/mkdir-p/symlinks `/usr/local/bin/desktop-plus-cli`, retrying with elevation only if the unprivileged attempt fails. No Windows or Linux runtime equivalent exists today (Windows gets its CLI shim from the Squirrel installer at install time; Linux packaging is expected to place it on PATH at package-install time), so there's no gap to fill on the primary target. No native addon/crate is needed for the port: shell out to `osascript -e 'do shell script "..." with administrator privileges'` for the three trivial `std::fs`-equivalent ops (unlink, mkdir -p, symlink), mirroring the old callback API 1:1 with a single Rust command.
-- Custom protocol handler (`x-github-client://`) → Tauri's deep-link plugin (`tauri-plugin-deep-link`).
+### Phase 4 — Native platform integrations — **IN PROGRESS, SPLIT 4a / 4b**
 
-### Phase 5 — webRequest-based behaviors (needs a redesign, not a port)
+Phase 4 owns the **70** channels §7.1 routes to it, plus the `main-process/**` and backend-bound `lib/**`
+files §3 and §4 assign to it. (It was 71 until `resolve-proxy` moved to Phase 5 — decision 2 below.) It is
+the largest phase in the plan by channel count and the only one where most of the work does **not** land
+in Rust.
+
+**Current implementation status:** Linux/macOS editor discovery, validation and launch are complete;
+Linux/macOS shell discovery and launch are complete; Windows runtime integration is explicitly Phase 10.
+The menu slice has its audited keybinding foundation: all 52 upstream accelerator declarations are
+pinned item-for-item, their 50 logical bindings cross as a typed Rust/TypeScript wire shape, and
+Rust-owned override persistence plus conflict-checked `get`/`set`/`reset` commands and change events are
+implemented. The Electron-free `AppMenu` model, state-derived default/test menu tree and capture-phase
+Linux/Windows dispatcher are also implemented; the audit proves every binding ID exists in that tree.
+The native macOS mechanism is implemented too: a minimal pre-webview menu reads persisted bindings,
+`set_native_menu` replaces it with the canonical renderer tree, native roles stay native/localized, and
+selection re-enters the frontend as a structured action. The current React harness now performs that
+replacement during macOS startup: it installs the complete default structure with neutral labels,
+leaves native roles plus external links, Select All, zoom, reload and one-window quit operational, and
+visibly disables actions that still require Phase 7's dispatcher. General and nested contextual menus
+are implemented with the upstream index-path return contract. The WebKit spell-check investigation and
+Wayland-safe synthetic edit menu now move with their text-input consumers to Phase 7. The old
+`select-all-window-contents` round trip is also gone:
+`selectAllWindowContents` now executes `document.execCommand('selectAll')` in the renderer.
+The macOS default menu has been manually validated in a real `pnpm tauri dev` launch. The Phase 0
+container now runs its first real WebDriver specs: application launch plus nested contextual-menu
+selection and dismissal across React, Tauri IPC, muda/GTK, Rust and back. macOS native-menu automation
+remains outside that Linux-only harness by construction; its structure/action boundary is covered by
+unit tests and the real menu bar was manually verified. The first general platform-wrapper group is
+also complete: focus, minimize, maximize, restore, close, maximized/focused queries and title updates
+call the current Tauri window directly under explicit capabilities. Tauri's single boolean focus event
+replaces Electron's separate `focus`/`blur` channels. The surface audit now measures typed subscription
+adapters explicitly (and therefore correctly credits the already-landed `menu-event` bridge): **10 of
+58** Phase 4 proxy exports and **3 of 16** Phase 4 subscriptions were implemented at that checkpoint.
+Window state and zoom are now layered on that foundation: the frontend-owned `WindowState` union keeps
+upstream's precedence, resize plus wrapper transitions replace Electron's state channel, and a Rust
+per-webview map backs the getter Tauri does not provide while the setter and event share the same owner.
+The `window-state` plugin saves geometry but skips automatic restore for `main`, because the plugin would
+otherwise show it before the renderer is ready. That lifecycle slice is now complete: `main` starts
+hidden; Rust records native ready/page-load durations; the renderer sends its elapsed time; and the
+one-shot command restores size, position and maximization before showing/focusing the window and
+emitting the upstream three-field launch-timing payload. Visibility is deliberately excluded from
+plugin restoration because the handshake owns it; decorations and fullscreen retain their separate
+policies. The adjacent theme slice is complete too: application-wide light/dark/system selection,
+resolved-dark queries, payload-free change notification and native window background color all use
+Tauri directly under explicit capabilities. Paths/files/dialogs/trash are now complete as a second
+frontend-facing group: typed Tauri path mappings and OS architecture replace Electron queries,
+opener handles URLs, file paths and reveal, Rust conservatively classifies macOS application bundles
+before opening folder contents, and the `trash` crate performs recoverable deletion in a blocking
+task. Open/save dialogs translate the subset of Electron options the real consumers use and return
+the same first-path-or-`null` result. The audit is now **27 of 58** proxy exports and **7 of 16**
+subscriptions implemented. Its capability and Linux initialization are covered by the Ubuntu 26.04
+container's real application-launch, native-menu and native-dialog WebDriver smoke.
+
+#### What this phase is, measured
+
+The channel table is a routing decision, not a work list — the same distinction Phase 3 drew. Splitting
+the 70 rows by the mechanism each one names:
+
+| Mechanism | Count | Where the code lands |
+|---|---|---|
+| **No IPC** — a Tauri/plugin API the frontend calls directly | 37 | `src/lib/platform/**` |
+| Frontend event or plugin listener | 5 | `src/lib/platform/**` — the three quit channels, `notification-event`, `log` |
+| `#[tauri::command]` | 21 | `src-tauri/src/commands/**` + `platform/**` |
+| `emit` from Rust | 6 | `src-tauri/src/platform/**` |
+| Deleted rather than routed | 1 | `get-config-migration-result` — guiding principle 6 |
+
+Re-derive with:
+
+```sh
+awk '/^### 7.1/,/^### 7.2/' MIGRATION_MAP.md | grep '^| ' | grep -v '^| Phase ' | grep '| 4 |'
+```
+
+then partition on the mechanism column. **The `grep -v '^| Phase '` is load-bearing**: §7.1 opens with a
+per-phase summary table whose own rows end in a phase number, and without excluding them the four phase
+totals sum to 85 rather than 82. That is how the first draft of this table published 71/23 — the
+miscount was in the measurement, not the map.
+
+**42 of 70 need no Rust at all**, which inverts the intuition this section was originally written with
+("each of these is a self-contained swap" — most of them are not swaps, they are deletions). Five more
+collapse into one plugin call: the auto-updater's push channels were separate only because Squirrel
+reported progress as a state machine.
+
+That does not make the 42 free. Each needs the Tauri API **confirmed on WebKitGTK** rather than assumed
+from the docs, a capability permission added, and a wrapper under the name upstream used — because §5
+already decided rdc keeps a central IPC module, so these are not orphans in the Phase 1 Step 3 sense.
+Their consumers are known and counted: 33 upstream files import `ui/main-process-proxy.ts`.
+
+**Upstream code in scope, measured** (~5,400 lines): menus 1,447 (`main-process/menu/**` 8 files, plus
+`models/app-menu.ts` at 669 and `lib/menu-item.ts` at 134), editors 1,400 (7 files), shells 1,269
+(6 files), `main-process/main.ts` 1,050, `main-process/app-window.ts` 657, `lib/custom-integration.ts`
+230, `lib/parse-pac-string.ts` 123, `main-process/notifications.ts` 125, `main-process/migrate-config-dir.ts`
+96, `lib/window-state.ts` 64, `lib/stores/token-store.ts` 19 (nineteen lines of keytar calls).
+**Of that, 2,487 lines are Windows-only** (`shells/win32.ts` 587, `editors/win32.ts` 631, and the
+`registry-js`/WOW64/toast-CLSID paths) and are explicitly not in scope — see below.
+
+#### The work list is `ui/main-process-proxy.ts`
+
+Phase 4 has the same verification problem Phase 3 had: every consumer is unported UI, so "is it done"
+cannot be answered from this repo. Phase 3 answered it by measuring against upstream's store imports.
+The Phase 4 analogue is better than that, because upstream centralised the whole surface in one file
+that declares each channel with its arity:
+
+- **67 entry points** — `main-process-proxy.ts` has 69 exports, two of which (`invokeProxy`, `sendProxy`)
+  are the typed proxy factories rather than channels.
+- **19 subscriptions** — the distinct channels named by `ipcRenderer.on(...)` across `ui/` and `lib/`.
+  The Phase 4 kickoff measurement corrected the planned count of 18: `app-menu` had been omitted from
+  the prose even though its route was already present in §7.1.
+
+`scripts/measure-platform-surface.mjs` (new, sibling to `measure-store-surface.mjs`, needs
+`../desktop-plus` so it is a local gate rather than CI) parses those 86 names out of upstream and checks
+each one in **both directions** against what rdc provides: a registered command, a `src/lib/platform/**`
+export, a named later phase, or a recorded "no equivalent" with its consequence. Both directions,
+because Phase 3's reverse check is what found three commands nobody asked for.
+
+**Kickoff baseline (measured, not estimated):** all 67 proxy entry points are classified: 58 belong to
+Phase 4, 8 to Phases 5/6/9, and `getConfigMigrationResult` is deliberately deleted. Of the 19 subscribed
+channels, 16 belong to Phase 4 and 3 to later phases. Phase 4 starts with 0 of its 58 wrappers and 0 of
+its 16 subscriptions implemented; the script reports those as pending while failing only on structural
+inventory errors until the phase's exit gate is applied.
+
+#### Decisions settled before starting
+
+**1. The menu splits: TypeScript owns the structure, Rust owns the key bindings.**
+
+*Structure → TypeScript.* Upstream's menu lives in the main process because Electron requires it there,
+and on Windows and Linux the app then *serialises it back* to the renderer over `get-app-menu`/`app-menu`
+so React can draw it — `app-window.ts:88` makes the window frameless when `titleBarStyle === 'custom'`,
+and `ui/app-menu/**` renders the menu bar. But the decisive fact is not the frameless window: it is that
+**`buildDefaultMenuTemplate` takes 11 app-state fields** (`models/menu-labels.ts` — selected editor,
+selected shell, two confirmation preferences, the contribution-target default branch truncated to 25
+characters *for display*, force-push state, PR presence, stash visibility, repository type, filter
+visibility), and `lib/menu-update.ts` computes a 531-line enablement policy on top. The menu is a
+**continuous function of frontend state**, not a static definition that happens to sit in the main
+process. Rust owning it means the frontend pushing 11 fields plus an enablement map on every relevant
+change so Rust can re-template — which is precisely what upstream does, and precisely because Electron
+left it no choice.
+
+So `build-default-menu.ts` ports to a TypeScript module the React menu bar renders directly, and
+`models/app-menu.ts` (669 lines) stops being an Electron *adapter* and becomes the menu model proper —
+unblocking the Phase 1 deferral recorded in `MIGRATION_MAP.md` §1.
+
+*Bindings → Rust, and this is what makes the split non-obvious.* **macOS requires a native menu bar** —
+an application cannot draw one in-window — and Rust builds it before the webview has finished loading.
+Anything the menu needs at that moment **cannot live in webview storage**. That is the same argument this
+plan already accepts for `titleBarStyle`, which is a Rust-side config read exactly because it decides the
+window before the window exists. Independently: a keybinding map is the artifact users hand-edit, diff
+and sync between machines, and `localStorage` inside a WebKit data directory is opaque and non-portable.
+
+So `platform/keybindings.rs` owns a `MenuId → binding` map: defaults in Rust, user overrides persisted to
+a JSON file in the app config directory, `get`/`set`/`reset` commands, an `emit` when it changes, and
+**conflict detection at set time** since that is where the map is authoritative. Both sides key on
+`src/models/menu-ids.ts`, already ported in Phase 1 — which is why that small enum matters more than it
+looked.
+
+*The enabling change: 52 accelerator declarations come out of the template.* They are inline literals in the
+773-line definition today, and **you cannot rebind what is baked into a literal.** Extracting them with
+**identical defaults is a data reorganisation, not a behaviour change**, so guiding principle 3 holds —
+the rebinding *UI* is the new feature, and it is Phase 7's. Doing the extraction during the port costs
+one pass; retrofitting costs a second pass over the same 52 sites. Same call §9 already makes ("bind each
+extraction to the phase that ports its consumer") and the same call Phase 3 made on the `Image` model: a
+ported type changing while its consumer is still unported is the cheapest moment for it.
+
+The declarations produce **50 logical bindings**, not 52: `preferences` and
+`repository-preferences` each occur in both the macOS application menu and the non-macOS File menu with
+the same default. `scripts/measure-menu-accelerators.mjs` preserves both invariants separately: its
+ordered source audit has 52 entries, while the runtime map has 50 unique menu IDs.
+
+*A binding crosses as structured data, never as a string.* Upstream's `"CmdOrCtrl+Shift+P"` has three
+consumers — muda's `Accelerator` for the macOS menu, a `KeyboardEvent` matcher for the Linux/Windows
+dispatcher, and `friendlyAcceleratorText` (in `ui/app-menu/menu-list-item.tsx`) for display. Crossing the
+string would implement that grammar twice in two languages, which is what `AGENTS.md` rule 2 forbids and
+what produced the duplicate-`AppFileStatus` bug. Rust parses once, resolves `CmdOrCtrl` against the real
+platform, and crosses `{ modifiers, key }` the frontend matches directly against the event. The `key`
+is specifically the physical `KeyboardEvent.code` vocabulary (`KeyP`, `Digit1`, `Comma`), not the
+layout-dependent `KeyboardEvent.key`: Tauri 2.11's native menu setter parses through muda's physical
+`Accelerator`, so this gives both consumers one representation instead of introducing a second key
+translation.
+
+macOS starts with a **minimal Rust bootstrap menu** because the native menu must exist before the webview
+loads. It contains only lifecycle-safe items and the Rust-owned bindings; it does not duplicate labels
+or enablement policy. After `renderer-ready`, TypeScript pushes the canonical state-derived structure,
+labels and enablement to replace that bootstrap menu. Later state changes use the same push path.
+
+*What this costs in channels, stated precisely.* **Three disappear on every platform**
+(`get-app-menu`, `app-menu`, `execute-menu-item-by-id`); `update-menu-state` and
+`update-preferred-app-menu-item-labels` disappear **on Linux and Windows only** and survive on macOS with
+their **direction reversed** — renderer→main, because Rust needs labels and enablement to build the native
+menu. `menu-event` narrows to the macOS native menu. An earlier draft of this section claimed five
+unconditional deletions; that was wrong, and macOS is why.
+
+*And the genuinely new code:* Electron registers accelerators natively and they fire on Linux with the
+menu bar hidden. `models/app-menu.ts` carries `accelerator` and `menu-list-item.tsx` only *renders* it —
+verified, nothing upstream dispatches it — so the Linux/Windows dispatcher is a spike, not a port.
+
+**2. Proxy support leaves Phase 4 entirely, and Phase 5 owns it.** `envForProxy` resolves through
+Electron's `session.resolveProxy` — the same `session` object as `webRequest`, which is already Phase 5's
+subject. Phase 5 also already owns the three other network channels with no Tauri equivalent
+(`update-accounts`, `certificate-error`, `show-certificate-trust-dialog`), is already flagged as the
+plan's highest architectural risk with explicit design time budgeted, and "needs a redesign, not a port"
+describes the proxy exactly. Phase 5's title widens from `webRequest` to session-level behaviours and it
+inherits `envForProxy`, `getFallbackUrlForProxyResolve`, `resolve-proxy` and `lib/parse-pac-string.ts`
+(123 lines, with an upstream test). **The consequence stands and is not being decided here: no remote
+operation has proxy support today**, and it will not until Phase 5.
+
+**3. Windows moves to Phase 10**, extending the stance `MIGRATION_MAP.md` §3 already takes for hooks:
+`shells/win32.ts`, `editors/win32.ts`, `lib/process/win32.ts`, `registry-js` → `winreg`,
+`find-toast-activator-clsid.ts`, WOW64 detection, and `install-windows-cli`/`uninstall-windows-cli`
+(already Phase 9) are deferred to one explicit Windows phase. That is 2,487 of the 5,400 lines. Rust
+modules and shared domain enums still carry the Windows seam so Phase 10 adds `#[cfg(windows)]` arms
+rather than restructuring Linux/macOS code.
+
+**4. The phase splits on what Phase 7 blocks on.** Phase 7 cannot start against a phase that stays open
+for the updater, so 4a is everything the UI calls and 4b is everything it does not.
+
+#### Phase 4a — what Phase 7 blocks on
+
+1. **Measure the surface.** `scripts/measure-platform-surface.mjs`, before any code, with every name
+   classified and zero uncovered. Phase 3's lesson applied up front: a number nobody can re-derive is a
+   claim, not a measurement.
+2. **Plugins and capabilities.** Wire `window-state` (**wired for persistence; initial restore now
+   runs inside the implemented `renderer-ready` command**), `os`, `process`, `dialog`, `log` (`opener` is
+   already wired), each with its capability permission and a smoke check **in the Linux container** —
+   `tauri.conf.json` currently declares one window and `core:default` + `opener:default`, so every
+   permission this phase needs is an addition to audit.
+3. **`src/lib/platform/**` — the wrapper module.** The 42 frontend/plugin channels, exported under the
+   names `main-process-proxy.ts` used, so Phase 7 imports them unchanged. Tested against a mocked
+   `@tauri-apps/api`, the way `*-ipc.ts` wrappers already are.
+4. **Window lifecycle.** `main.ts` + `app-window.ts` → `lib.rs` and `platform/window.rs`: creation and
+   the `titleBarStyle` decision (`native` / `custom` / `native-without-menu-bar`, read from
+   `main-process-config` *before* the window exists, which is why it is a command and not frontend
+   state), the `renderer-ready` gate on showing the window, zoom factor — Tauri sets it but does not
+   report it, so Rust remembers what it set and emits `zoom-factor-changed` — background colour, window
+   title, `set-window-selected-repository`, `launch-timing-stats`, and the **quit flow reversing
+   direction**: three Electron channels asking the renderer for permission become one preventable
+   `onCloseRequested` the frontend answers in place.
+   **Multi-window needs design, not a port**: upstream's `getAppWindows`, `findWindowForRepositoryPath`
+   and `normalizeRepositoryPath` back `open-repository-in-new-window`, and Tauri's `WebviewWindow` model
+   is different enough that the routing rule should be decided explicitly.
+5. **Menus and key bindings.** Per decision 1, and the largest slice in 4a. Five pieces:
+   - `src/lib/menu/default-menu.ts` — the structure, labels and roles ported from `build-default-menu.ts`
+     **without accelerators**, plus `lib/menu-item.ts`; and `src/models/app-menu.ts`, which is the same
+     model minus `menuFromElectronMenu`.
+   - `src-tauri/src/platform/keybindings.rs` — the `MenuId → { modifiers, key }` map: 52 source
+     declarations audited into 50 logical defaults, `CmdOrCtrl` resolved against the real platform,
+     user overrides in a JSON file under the app config directory, `get`/`set`/`reset` commands, an
+     `emit` on change, and conflict detection at set time. Its tests are pure map logic and need no
+     display, which is where the coverage goes.
+   - `src-tauri/src/platform/menu.rs` — the macOS native `Menu` built from the pushed structure plus the
+     binding map, `on_menu_event` → `emit('menu-event')`, and the reversed label/enablement pushes that
+     survive on macOS only.
+   - `show-contextual-menu` as a command building and popping a `Menu`. **33 upstream files depend on it**,
+     so it is not optional and it is not macOS-only. **Implemented for ordinary, checkbox, separator and
+     nested items:** per-popup native IDs map back to the renderer's nested index path, and a main-thread
+     marker distinguishes dismissal from Tauri's asynchronously forwarded selection event.
+   - The **Linux/Windows accelerator dispatcher** in the frontend, matching `keydown` against the map, plus
+     `friendlyAcceleratorText` for display. This is the new code in the slice; spike it before estimating.
+
+   Port `app/test/unit/main-process/menu-test.ts` here. `spell-checker-menu-test.ts`, the WebKitGTK
+   suggestions investigation and Electron's synthetic `editMenu` placeholder move to Phase 7: both are
+   webview text-input behavior, and muda's Linux edit roles currently use X11 key injection with an
+   explicit Wayland TODO. The contextual-menu command rejects those two deferred requests instead of
+   displaying controls that do nothing on the primary target.
+
+   Explicitly **not** in this slice: the preferences UI for rebinding (Phase 7, and the one place rdc adds
+   a capability upstream never had), and `lib/menu-update.ts`'s enablement policy (Phase 7, since it is a
+   function of app state).
+
+   **Ordering note: slice 7 comes first.** The menu structure needs `models/menu-labels.ts`, whose
+   `selectedShell` field is typed `Shell` from `lib/shells` — so editor and shell discovery has to land
+   before the menu can be typed, even though the menu is the larger slice.
+6. **Paths, files, shell and trash.** `get-path`/`get-app-path` (frontend `@tauri-apps/api/path`),
+   `get-exec-path`, `get-app-architecture`, dialogs, `show-item-in-folder`/`open-external`/
+   `unsafe-open-directory` through `tauri-plugin-opener`, and `move-to-trash` as a command over the
+   `trash` crate — **Tauri has no trash API, and deleting instead would be a data-loss bug**, which is
+   also the protection the `listSubmodules` fix in §8 exists to preserve. Plus `lib/shell.ts` →
+   `commands/shell.rs`, `lib/helpers/linux.ts` → `platform/linux_helpers.rs`, and `lib/app-shell.ts` as
+   the thin TypeScript wrapper.
+
+   **Implemented on Linux/macOS:** all renderer-consumed path names, resource/executable paths,
+   architecture plus Rosetta detection, reveal/open with macOS bundle safety, recoverable trash, and
+   the open/save dialog adapters. WOW64 translation detection remains with every Windows runtime arm
+   in Phase 10; the two application-folder commands are the separate macOS-only Phase 4b extra.
+7. **Editors and shells** (`lib/editors/**`, `lib/shells/**` minus win32, `lib/custom-integration.ts`).
+   Discovery and launch are testable without a display — that is where the `#[cfg(test)]` coverage goes.
+   Unblocks the two Phase 1 models still held by Node `fs`/`child_process`: `editor-override` and
+   `menu-labels` (`MIGRATION_PLAN.md` Phase 1 Step 4).
+
+   **Started:** Linux editor discovery is the first bounded increment. Its Rust tests pin upstream's
+   editor ordering, first-existing-path selection, and home-scoped Flatpak/JetBrains/Zed candidates;
+   `get_available_editors` crosses through a typed `src/lib/platform/editors.ts` wrapper and its
+   `FoundEditor` serializer shape is in the generated wire snapshot. macOS discovery then landed over
+   the real Spotlight metadata query (`mdfind`), with tests pinning bundle-ID fallback order and parsing
+   independently of the host's installed applications. Normal and custom editor launch then landed:
+   arguments cross as arrays into a process API rather than a shell; Flatpak launch uses
+   `flatpak-spawn --host`, and macOS application bundles use `/usr/bin/open -a`. The custom parser pins
+   quoting, empty arguments, inert shell syntax, unmatched-quote errors and `%TARGET_PATH%` expansion.
+   Custom validation then landed over the OS executable-access check (including symlinks) and macOS
+   `mdls` bundle metadata, with the result in the generated wire snapshot; whole-integration validation
+   also requires a parseable argument string containing `%TARGET_PATH%`. Finally, the one pure
+   stored-format migration remains in `src/lib/custom-integration.ts`: its type admits the legacy
+   argument array that persisted data can really contain, joins it without mutation, and preserves
+   upstream's `null` meaning of “no update needed.”
+
+   Shell discovery then started with the same boundary: Rust owns filesystem and Spotlight access,
+   while `src/models/shell.ts` owns the IPC domain shape. Linux checks the exact 20 upstream
+   executable paths in preference order; macOS checks 10 shells by bundle ID, including Alacritty's
+   fallback ID and the Kitty/Alacritty/Tabby/WezTerm/Warp executable paths inside their bundles.
+   Normal and custom launch then landed with each Linux/macOS terminal's exact argument/cwd behavior,
+   plus frontend selected-shell fallback. The shared enum and a cross-platform assembly test already
+   pin all 11 Windows labels and their upstream ordering, but registry discovery, Windows command-line
+   parsing and launch remain Phase 10 work.
+
+#### Phase 4b — independent of Phase 7
+
+8. **Keychain.** `keytar` → the `keyring` crate behind a command; nineteen lines of upstream to replace.
+   **Its testing story needs deciding first**: on Linux `keyring` talks to the Secret Service over D-Bus,
+   which a headless container does not have, so either the tests run against a mock backend or the
+   command's tests are container-excluded and the gap is recorded. Do not discover this while debugging CI.
+9. **Config and GUIDs.** `get-main-process-config`/`update-main-process-config`, `save-guid`/`get-guid`
+   (`platform/install_id.rs`). **`migrate-config-dir.ts` is dropped, not ported** — see the
+   configuration-compatibility principle above. `get-config-migration-result` therefore has nothing to
+   report and goes with it, which is the second channel this phase deletes outright rather than routing.
+10. **Notifications and deep links.** `tauri-plugin-notification` for `show-notification` and the two
+    permission channels, its action listener for `notification-event` — the vendored `desktop-notifications`
+    native addon goes away and **macOS and Linux gain notifications they never had**. Then
+    `tauri-plugin-deep-link` for `x-github-client://` → `url-action`, replacing
+    `setAsDefaultProtocolClient`.
+11. **Updater — API surface only.** `tauri-plugin-updater` replaces Squirrel outright; the five push
+    channels become one promise. **It cannot be finished here**: an updater needs signing keys, an update
+    endpoint and real artifacts, which are Phase 9 packaging. 4b lands the plugin, the frontend shape and
+    `show-installing-update`; Phase 9 supplies the infrastructure and Phase 8 then ports the
+    mock-update-server E2E test against the new flow.
+13. **macOS-only extras**, small and last since they are not the primary target: `is-in-application-folder`,
+    `move-to-applications-folder`, `get-apple-action-on-double-click` (a `plist` read — no plugin covers
+    it), `dialog-did-open` → `request_user_attention`, and `fs-admin` → the `osascript` CLI installer
+    already specified in the audit below.
+    - `fs-admin` (elevated filesystem ops) → **decided: keep macOS-only, same behavior as today.** Usage audit: the only consumer is `app/src/ui/lib/install-cli.ts`, called from the single macOS-gated menu action `Dispatcher.installDarwinCLI()` (`app/src/ui/app.tsx:568`) — a user-initiated, low-frequency action that unlinks/mkdir-p/symlinks `/usr/local/bin/desktop-plus-cli`, retrying with elevation only if the unprivileged attempt fails. No Windows or Linux runtime equivalent exists today (Windows gets its CLI shim from the Squirrel installer at install time; Linux packaging is expected to place it on PATH at package-install time), so there's no gap to fill on the primary target. No native addon/crate is needed for the port: shell out to `osascript -e 'do shell script "..." with administrator privileges'` for the three trivial `std::fs`-equivalent ops (unlink, mkdir -p, symlink), mirroring the old callback API 1:1 with a single Rust command.
+
+#### What Phase 4 does not own
+
+| Left open | Owner | Why it isn't Phase 4 |
+|---|---|---|
+| `uncaught-exception`, `send-error-report`, `error`, `crash-ready`, `crash-quit`, and where log files go on a crash | Phase 6 | Phase 4 wires `tauri-plugin-log`; what happens *to* a crash is a pipeline, not a plugin |
+| `update-accounts`, `certificate-error`, `show-certificate-trust-dialog` | Phase 5 | Network interception; the first exists only to feed the authenticated-image filter Phase 5 replaces |
+| `resolve-proxy`, `envForProxy`, `getFallbackUrlForProxyResolve`, `lib/parse-pac-string.ts` | Phase 5 | Decision 2 — the same Electron `session` object as `webRequest`, and the same "redesign, not a port" |
+| `install-windows-cli`, `uninstall-windows-cli`, `cli-action`, updater keys and endpoint | Phase 9 | Packaging |
+| Menu **enable-state logic** (`lib/menu-update.ts`, 531 lines) | Phase 7 | It is a function of app state; Phase 4 owns the mechanism it drives, not the policy |
+| The keybinding **preferences UI** | Phase 7 | 4a lands the map, the persistence and the commands; rebinding is a new feature with no upstream counterpart |
+| Hook enable/failure preferences (`lib/hooks/config.ts`) | Phase 7 | `localStorage` preferences state, already routed there |
+| Every Windows arm | Phase 10 | Decision 3 — grouped into a testable target-specific phase |
+
+#### Exit criteria
+
+Written against the Phase 3 closure lesson: **a command counted is not a command that works.** The
+surface criteria are necessary and demonstrably insufficient — all four of Phase 3's were green while
+`create_merge_commit` was dropping index entries — so the behavioural criteria are listed first.
+
+**4a closes when:**
+
+- Every Rust platform module has `#[cfg(test)]` tests for the logic that is testable without a display:
+  editor and shell discovery, custom-integration argument parsing, the menu tree and its IDs, the
+  `titleBarStyle` decision, trash and path resolution.
+- `app/test/unit/main-process/menu-test.ts` is ported and green, or a named
+  blocker is recorded per `AGENTS.md` rule 4.
+- **The container E2E harness gets its first real specs.** Phase 4a is the first phase whose output
+  cannot be tested any other way — a window, a menu, a theme and a dialog need a webview. This is also
+  the first genuine exercise of the Phase 0 harness, and the Phase 3.5 caveat still applies: X11/Xvfb
+  validates the plumbing, not native-Wayland rendering. **Done for the first Phase 4 slice:** the
+  debug application launches under WebDriver, a nested native contextual-menu selection returns its
+  index path and invokes its React callback, Escape returns menu dismissal, and a real native directory
+  dialog opens and dismisses through the plugin. The macOS application menu is manually validated
+  because the repository's supported driver path is Linux-only.
+- `measure-platform-surface.mjs --require-complete` reports **zero pending or uncovered** across the 67
+  entry points and 19 subscriptions in the inventory, in both directions, with every later-phase
+  deferral naming its owner.
+- Every 4a row in `MIGRATION_MAP.md` §7.1 has its status flipped, and every deviation from decisions 1–3
+  is written into §8 **with its consequence** — the menu inversion, the accelerator dispatcher, and
+  anything WebKitGTK turns out not to expose.
+
+- **The keybinding map is pinned on both sides.** It crosses IPC, so it is a wire shape: a snapshot entry
+  and a TypeScript fixture checked against `src/models/**`, per `AGENTS.md` rule 3. A test asserts all 52
+  source declarations match upstream item for item and that they collapse to exactly 50 logical defaults
+  — that is what makes the extraction a reorganisation rather than a rewrite, and the only thing standing
+  between "same bindings" and a claim.
+
+**4b closes when** the same measurement covers its channels, the keychain's testing story is recorded
+rather than improvised, and the updater's Phase 9 dependency is written down instead of left as an
+unfinished slice. Two things are **not** 4b criteria: proxy support, which moved to Phase 5 by decision 2,
+and config-directory migration, which is dropped by principle 6.
+
+#### Open questions to settle inside the phase, not before it
+
+Each of these needs an experiment rather than a decision from the plan, and each is a place where
+guessing would be cheaper than checking and worse:
+
+- Whether Tauri's `WebviewWindow` model supports upstream's per-repository window routing, or whether
+  rdc should be single-window until Phase 7 has an opinion.
+- Whether `keyring`'s Linux backend can be tested in the container at all.
+- What scheme replaces `x-github-client://`. Principle 6 frees rdc from *config* compatibility but does
+  not decide this one, because the binding constraint is external: the scheme has to match the callback
+  URL registered in a GitHub OAuth application. rdc needs its own OAuth app regardless, so its own scheme
+  is probably correct — but check what else claims `x-github-client://` on a machine with GitHub Desktop
+  installed before reusing it, since two applications registering one scheme is a coin toss.
+- Whether the frontend accelerator dispatcher can see every chord it needs. A webview does not receive
+  keys the window manager or the compositor claims first, and on Wayland that set is not the same as
+  X11's — which the Phase 3.5 harness cannot tell us. Test on a real session, per Phase 3.5's
+  manual-testing compensation.
+
+### Phase 5 — session-level behaviors (needs a redesign, not a port)
+
+**Renamed from "webRequest-based behaviors" when Phase 4 handed it the proxy.** The common factor is not
+request interception specifically: it is that every item here reaches through Electron's `session` object,
+which Tauri has no counterpart for. Four channels have **no known equivalent** and all four are this
+phase's (`MIGRATION_MAP.md` §7.1).
+
 Electron's `webRequest` API (used for `alive-origin-filter.ts`, `same-origin-filter.ts`, `ordered-webrequest.ts`, `authenticated-image-filter.ts`) has no direct Tauri equivalent — Tauri's webview doesn't expose the same request-interception hooks.
-- **Authenticated image loading**: instead of injecting auth headers into webview-issued requests, fetch the image in Rust (which already has the credentials) and hand the webview a data URL or blob via a command. Cleaner than the old approach, not just a workaround.
-- **Origin/CSP enforcement**: enforce via Tauri's CSP config (`tauri.conf.json`) and the capability/permission system instead of a runtime filter — this is more declarative and auditable than the old imperative filter chain.
-- This phase is the highest architectural risk in the whole plan — budget explicit design time, don't estimate it like a mechanical port.
+- **Authenticated image loading**: instead of injecting auth headers into webview-issued requests, fetch the image in Rust (which already has the credentials) and hand the webview a data URL or blob via a command. Cleaner than the old approach, not just a workaround. Prefer an `rdc-blob`-style capability URL over a data URL, for the reasons Phase 3 settled — a 4 MB image is ~5.5 MB of JSON string otherwise.
+- **Origin/CSP enforcement**: enforce via Tauri's CSP config (`tauri.conf.json`) and the capability/permission system instead of a runtime filter — this is more declarative and auditable than the old imperative filter chain. **This phase owes Phase 3 a debt**: the CSP it introduces must allow `rdc-blob:` in `img-src` and `connect-src`, or every image diff breaks. `csp` is `null` today.
+- **Proxy support (inherited from Phase 4)**: `resolve-proxy`, `envForProxy`, `getFallbackUrlForProxyResolve`, and `lib/parse-pac-string.ts` (123 lines, with an upstream test at `app/test/unit/parse-pac-string-test.ts`). `session.resolveProxy` is Chromium's proxy resolver, PAC scripts included, and there is no crate covering OS proxy configuration across all three platforms — so the design question is how much of it rdc needs, not how to reimplement it. **Until this lands, no remote operation has proxy support**, which is a known user-facing gap carried since Phase 2, not an oversight.
+- **Certificates**: `certificate-error` and `show-certificate-trust-dialog` — wry exposes no certificate-error hook, so verify on WebKitGTK before promising parity; the second is the recovery path for the first and was macOS/Windows-only upstream anyway.
+- This phase is the highest architectural risk in the whole plan — budget explicit design time, don't estimate it like a mechanical port. It is also independent of Phase 7, so it can run in parallel with the UI work rather than blocking it.
 
 ### Phase 6 — Crash/exception reporting
 - Old pattern: separate `CrashWindow` BrowserWindow + custom IPC. Tauri has no equivalent built-in.
@@ -1962,6 +2387,11 @@ Electron's `webRequest` API (used for `alive-origin-filter.ts`, `same-origin-fil
 
 ### Phase 7 — UI migration (React 16.8.4 → 19)
 Port `app/test/unit/ui/**` (~30 files) alongside each component group, component-by-component, using the existing dispatcher/store pattern as the seam:
+- **Finish webview-native edit context menus and spell checking with the text inputs.** Investigate what
+  WebKitGTK exposes for suggestions, port `spell-checker-menu-test.ts`, and replace Electron's synthetic
+  `editMenu` expansion with a Wayland-safe path. Phase 4 deliberately rejects both requests: muda's Linux
+  predefined edit actions depend on X11 key injection and are marked TODO for Wayland, so merely rendering
+  them would create nonfunctional Cut/Copy/Paste controls on the primary target.
 - `app/src/ui/dispatcher/**` + `app/src/lib/stores/**` (27 files, e.g. `app-store.ts`) is a solid seam — keep it. Only the leaf calls that currently go through `ipc-renderer.ts`/`main-process-proxy.ts` need to change to `invoke`/`listen`; the store/dispatcher shape itself doesn't need to change.
 - **Consume the Phase 3 commit terminal Channel:** attach before invoking `create_commit`, retain at most
   256 KiB for a progress dialog opened after output has started, expose a subscribe/replay handle in
@@ -1977,15 +2407,47 @@ Port `app/test/unit/ui/**` (~30 files) alongside each component group, component
 ### Phase 8 — E2E
 - Keep the Phase 0 decision: use `tauri-driver` through the Linux-only Compose harness. Choose the
   WebDriver client library when the real specs land; that does not reopen the driver/backend decision.
-- Port `app-launch.e2e.ts` and the mock-update-server-based update flow test last, once Phase 4's updater swap has landed — the old test is intrinsically Squirrel-shaped and needs rewriting against `tauri-plugin-updater`'s flow, not a straight port.
+- **Phase 4a lands the first real specs**, not this phase — a window, a menu, a theme and a dialog cannot
+  be tested any other way, so the harness gets exercised there and Phase 8 inherits a working suite rather
+  than an empty one.
+- Port `app-launch.e2e.ts` and the mock-update-server-based update flow test last, once Phase 4b's updater swap **and** Phase 9's signing keys and update endpoint have landed — the old test is intrinsically Squirrel-shaped and needs rewriting against `tauri-plugin-updater`'s flow, not a straight port.
 
 ### Phase 9 — Packaging & CLI
 - `app/src/cli/**` (small, Node-target CLI) is not part of the Tauri app proper — lowest priority, can stay a thin standalone Node/Rust binary, port last or in parallel by anyone not blocked on the main app.
 - `app/src/highlighter/**` (webworker target) → straightforward Vite `?worker` import, no architectural change needed.
+- **Product-identity cleanup:** every inherited Help-menu destination is currently for Desktop Plus or
+  GitHub Desktop (`Report Issue`, user guides and keyboard shortcuts), and the non-macOS About item still
+  says `Desktop Plus`. Replace the complete group with rdc-owned destinations and branding once its
+  repository/docs/release URLs are final; Phase 4 deliberately keeps the upstream values while porting
+  menu behavior.
+
+### Phase 10 — Windows platform support
+
+Windows is a named phase rather than an indefinite deferral. It owns the 2,487 Windows-only lines
+removed from Phase 4's critical path: `shells/win32.ts`, `editors/win32.ts`,
+`lib/process/win32.ts`, registry access (`registry-js` → `winreg`), toast activation/WOW64 handling,
+and the Windows arms of custom integrations and hooks. Phase 9 still owns installer-created CLI
+shims and packaging/signing.
+
+Shell support begins from the contract already pinned in Phase 4: Command Prompt, PowerShell,
+PowerShell Core, Hyper, Git Bash, Cygwin, Warp, WSL, Alacritty, Windows Terminal and Fluent Terminal,
+in upstream order. Completion requires Windows CI that exercises registry fixtures, PATH and
+environment fallbacks, installed-WSL detection, Windows argument parsing, `cmd.exe / START` quoting,
+custom-shell working directories, and discovery/launch smoke tests. A Windows arm is not complete
+merely because it cross-compiles from Linux or macOS.
 
 ## Sequencing recommendation
 
 Phases 1–3 (models, lib, git, IPC) can mostly proceed in parallel once Phase 0 tooling is in place — they don't depend on each other. Phase 4 (platform integrations) can start as soon as the relevant Tauri plugins are wired into `src-tauri/src/lib.rs`, independent of UI progress. Phase 5 (webRequest redesign) and the fs-admin elevation helper in Phase 4 are the two items to prototype *early* despite being "later" in the dependency chain, because they're the only two places where "port the old code" isn't a valid strategy — you need working design spikes before estimating the rest of the timeline. Phase 7 (UI) is naturally last-to-finish since it depends on Phases 3–6 being available to call, but individual component groups can start against a mocked `invoke` layer as soon as the IPC channel table from Phase 3 is drafted (even before the Rust side implements it).
+
+**Revised now that Phases 0–3 are closed and Phase 4 is split.** Phase 4 is the only phase left that
+Phase 7 blocks on, which is why it splits: **4a is the critical path** (the `src/lib/platform/**` wrapper
+module, window lifecycle, menus, paths/shell/editors), and Phase 7 can start component groups against it
+as each slice lands. **4b runs in parallel and blocks nothing** — its updater slice is itself blocked on
+Phase 9, so treat 4b and Phase 9's packaging work as one thread. Phase 5 and Phase 6 remain independent
+design work; Phase 5's CSP owes Phase 3 an `img-src`/`connect-src` entry for `rdc-blob:`. The two items
+still worth a spike before estimating are Phase 5's request-interception redesign and 4a's accelerator
+dispatcher, which is new code rather than a port.
 
 ## Weak points in the current codebase worth calling out (summary)
 

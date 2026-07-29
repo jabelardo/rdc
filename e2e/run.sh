@@ -1,19 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Phase 0 scaffold: there is no app or E2E spec suite yet (that's Phase 8,
-# once the app has an actual UI and the Squirrel->tauri-plugin-updater swap
-# from Phase 4 has landed). This script exists to make the harness itself
-# — the container, tauri-driver, WebKitWebDriver, Xvfb — a real, checkable
-# thing rather than an aspirational Dockerfile. Replace the body below with
-# the real WebDriver/Playwright suite in Phase 8; keep the Xvfb/env setup.
-#
-# Xvfb is started directly here rather than via the `xvfb-run` wrapper:
-# xvfb-run's readiness handshake waits on a SIGUSR1 signal from Xvfb to its
-# parent, which hangs indefinitely when that parent is PID 1 in a container
-# (no init process to mediate signal delivery the way it expects on a
-# normal Linux desktop). Polling for the display socket avoids that.
-
+# E2E is deliberately Linux-container-only. Xvfb validates the native
+# WebDriver/IPC plumbing; it is not evidence about Wayland rendering.
 export DISPLAY=:99
 Xvfb "${DISPLAY}" -screen 0 1280x1024x24 -nolisten tcp &
 XVFB_PID=$!
@@ -36,15 +25,20 @@ if ! kill -0 "${XVFB_PID}" 2>/dev/null; then
   exit 1
 fi
 
-echo "==> Verifying tauri-driver starts under this container's WebKitWebDriver..."
+echo "==> Building the debug application exercised by WebDriver..."
+pnpm tauri build --debug --no-bundle
+
+echo "==> Starting tauri-driver..."
 tauri-driver --port 4444 &
 DRIVER_PID=$!
-sleep 2
-
+for _ in $(seq 1 20); do
+  curl --silent --fail http://127.0.0.1:4444/status >/dev/null 2>&1 && break
+  sleep 0.5
+done
 if ! kill -0 "${DRIVER_PID}" 2>/dev/null; then
   echo "tauri-driver failed to start or exited early" >&2
   exit 1
 fi
 
-echo "==> tauri-driver is running (pid ${DRIVER_PID}) against Xvfb ${DISPLAY}. Harness OK."
-echo "==> No E2E spec suite yet — see MIGRATION_PLAN.md Phase 8."
+echo "==> Running the real Tauri WebDriver specs..."
+node --test --test-timeout=30000 e2e/*.test.mjs

@@ -10,7 +10,15 @@ import type { IStatusResult } from './lib/git-ipc'
 // that each response shape renders. The Rust half (the exact JSON) is pinned by
 // `crates/git-ops/tests/wire_contract.rs`.
 const invoke = vi.hoisted(() => vi.fn())
+const installMacOSDefaultMenu = vi.hoisted(() => vi.fn())
+const showContextualMenu = vi.hoisted(() => vi.fn())
+const showOpenDialog = vi.hoisted(() => vi.fn())
+const sendReady = vi.hoisted(() => vi.fn())
 vi.mock('@tauri-apps/api/core', () => ({ invoke }))
+vi.mock('./lib/menu/startup', () => ({ installMacOSDefaultMenu }))
+vi.mock('./lib/menu/context-menu', () => ({ showContextualMenu }))
+vi.mock('./lib/platform/dialogs', () => ({ showOpenDialog }))
+vi.mock('./lib/platform/window', () => ({ sendReady }))
 
 const cleanStatus: IStatusResult = {
   currentBranch: 'main',
@@ -31,6 +39,21 @@ async function readStatusFor(path: string) {
 describe('App', () => {
   beforeEach(() => {
     invoke.mockReset()
+    installMacOSDefaultMenu.mockReset()
+    installMacOSDefaultMenu.mockResolvedValue(vi.fn())
+    showContextualMenu.mockReset()
+    showContextualMenu.mockResolvedValue(undefined)
+    showOpenDialog.mockReset()
+    showOpenDialog.mockResolvedValue(null)
+    sendReady.mockReset()
+    sendReady.mockResolvedValue(undefined)
+  })
+
+  it('reports readiness after the first render', async () => {
+    render(<App />)
+
+    expect(sendReady).toHaveBeenCalledOnce()
+    expect(sendReady).toHaveBeenCalledWith(expect.any(Number))
   })
 
   it('invokes get_status with camelCase argument names', async () => {
@@ -120,5 +143,50 @@ describe('App', () => {
     render(<App />)
     expect(screen.getByRole('button', { name: /read status/i })).toBeDisabled()
     expect(invoke).not.toHaveBeenCalled()
+  })
+
+  it('reports a nested native contextual-menu selection', async () => {
+    showContextualMenu.mockImplementation(async items => {
+      items[1].submenu[0].action()
+    })
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(
+      screen.getByRole('button', { name: /open contextual menu/i })
+    )
+
+    expect(showContextualMenu).toHaveBeenCalledOnce()
+    expect(await screen.findByText('Selected nested item')).toBeInTheDocument()
+  })
+
+  it('reports native contextual-menu dismissal', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(
+      screen.getByRole('button', { name: /open contextual menu/i })
+    )
+
+    expect(
+      await screen.findByText('Contextual menu dismissed')
+    ).toBeInTheDocument()
+  })
+
+  it('reports native directory-dialog dismissal', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(
+      screen.getByRole('button', { name: /open directory dialog/i })
+    )
+
+    expect(showOpenDialog).toHaveBeenCalledWith({
+      title: 'Choose a repository directory',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    expect(
+      await screen.findByText('Directory dialog dismissed')
+    ).toBeInTheDocument()
   })
 })

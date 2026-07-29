@@ -126,12 +126,12 @@ jobs:
         run: cargo test -p git-ops
 
   e2e-harness:
-    name: E2E harness (Linux container)
+    name: E2E (Linux container)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       # Use the same entry point as every developer machine. This deliberately
       # builds and runs Dockerfile.e2e through Compose; no host-installed
       # tauri-driver or WebKitWebDriver path is supported.
-      - name: Build and verify the containerized E2E harness
-        run: docker compose -f docker-compose.e2e.yml run --rm e2e
+      - name: Build and run the containerized E2E suite
+        run: docker compose -f docker-compose.e2e.yml run --rm --build e2e

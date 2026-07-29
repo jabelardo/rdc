@@ -7,6 +7,23 @@
     },
     "kind": 1
   },
+  "appMenu": {
+    "items": [
+      {
+        "accessKey": null,
+        "action": {
+          "event": "pull",
+          "type": "menu-event"
+        },
+        "enabled": true,
+        "id": "pull",
+        "label": "Pull",
+        "type": "menuItem",
+        "visible": true
+      }
+    ],
+    "type": "menu"
+  },
   "binaryDiff": {
     "kind": 2
   },
@@ -91,6 +108,26 @@
       }
     ]
   },
+  "contextMenu": [
+    {
+      "label": "Parent",
+      "submenu": [
+        {
+          "checked": true,
+          "enabled": false,
+          "label": "Chosen",
+          "type": "checkbox"
+        }
+      ]
+    },
+    {
+      "type": "separator"
+    }
+  ],
+  "customIntegrationPathValidation": {
+    "bundleID": "com.example.Editor",
+    "isValid": true
+  },
   "emptyStatusResult": {
     "doConflictedFilesExist": false,
     "files": [],
@@ -104,6 +141,14 @@
     "remote": "origin",
     "title": "Fetching origin",
     "value": 0.45
+  },
+  "foundEditor": {
+    "editor": "Visual Studio Code",
+    "path": "/usr/bin/code"
+  },
+  "foundShell": {
+    "path": "/usr/bin/gnome-terminal",
+    "shell": "GNOME Terminal"
   },
   "goneBranch": {
     "isGone": true,
@@ -150,6 +195,15 @@
       3
     ]
   ],
+  "keybindings": {
+    "pull": {
+      "key": "KeyP",
+      "modifiers": [
+        "control",
+        "shift"
+      ]
+    }
+  },
   "largeTextDiff": {
     "hasHiddenBidiChars": false,
     "hunks": [
