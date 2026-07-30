@@ -18,6 +18,7 @@ const initialLabels = {
 function isStartupActionSupported(action: MenuAction): boolean {
   return (
     action.type === 'open-external' ||
+    action.type === 'show-logs' ||
     action.type === 'zoom' ||
     action.type === 'reload-window' ||
     action.type === 'quit' ||
@@ -61,6 +62,7 @@ type StartupActionEnvironment = {
   readonly openExternal: (url: string) => void | Promise<void>
   readonly reload: () => void
   readonly selectAll: () => void
+  readonly showLogs: () => void | Promise<void>
   readonly setZoom: (factor: number) => void | Promise<void>
 }
 
@@ -111,6 +113,8 @@ export function createStartupMenuActionExecutor(
         await environment.quit()
         return true
       case 'show-logs':
+        await environment.showLogs()
+        return true
       case 'show-devtools':
       case 'crash-main-process':
         return false

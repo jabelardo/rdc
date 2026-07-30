@@ -43,6 +43,7 @@ serde_json = "1"
 shlex = { workspace = true }
 libc = { workspace = true }
 thiserror = { workspace = true }
+log = "0.4"
 
 # Workspace crates: the git backend and the credential bridge.
 git-ops = { path = "crates/git-ops" }

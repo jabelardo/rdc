@@ -31,6 +31,14 @@ Target: `rdc` (Tauri 2.0 + React 19 + Vite, currently the untouched default scaf
 
    Note this narrows principle 3 rather than contradicting it: *behaviour* parity remains the default
    for anything ported, and it is the storage format and the UI that are free to move.
+7. **The first product milestone is a macOS/Linux MVP, not complete upstream parity.** A phase
+   boundary must not make an unrelated parity feature a prerequisite for a useful application. The
+   MVP is the same exposed Git workflow on macOS and Linux; Linux supplies deterministic
+   `tauri-driver` automation, while a locally packaged macOS `.app` supplies the native WKWebView
+   acceptance evidence that automation cannot. Windows remains a named, complete Phase 10 rather
+   than being hidden inside the MVP. GitHub collaboration, enterprise proxy/certificate handling,
+   telemetry, signing/notarization, automatic updates and the standalone CLI are post-MVP unless an
+   MVP slice directly depends on them.
 
 ## Module mapping strategy
 
@@ -302,7 +310,7 @@ recorded against the phase that owns its blocker. File counterparts alone are in
 | Commit terminal transport | Phase 3 | **Done:** combined stdout/stderr crosses a command-scoped Channel. The only production consumer upstream is commit progress. |
 | Commit terminal history/dialog and the hook-failure decision | Phase 7 | These require repository state, a late-subscriber buffer, popup lifecycle, and an answer from the user. They are consumers of the Phase 3 seams, not transport work. |
 | Image diff production and blob transport | Phase 3 / Phase 7 | **Phase 3 done:** image diffs use scoped `rdc-blob` capability URLs, with no raw-byte command. Phase 7 owns rendering and the bounded text-prefix consumer. |
-| `envForProxy` | Phase 5 | Electron's `session.resolveProxy` is a `session`-level capability, not a platform swap — rehomed from Phase 4 when Phase 4 was planned. **No remote operation has proxy support today**; that is a known gap, not an oversight. |
+| `envForProxy` | Phase 5c | Electron's `session.resolveProxy` is a `session`-level capability, not a platform swap — rehomed from Phase 4 when Phase 4 was planned. **No remote operation has proxy support today**; that is a known gap, not an oversight. |
 | `getGlobalConfigPath` | Phase 4 — **done** | `GlobalConfig::path` asks `git config --edit --global` under `GIT_EDITOR=printf %s`, preserving path resolution and file creation; the command and typed wrapper are green. |
 | `getFilesDiffText`, the remaining rev-list queries, `getConfigValueWithOrigin` and its formatters, accounts/keychain, SSH env | Phase 7 | Each lands with its consumer, and the config formatters emit UI strings. |
 
@@ -1457,7 +1465,7 @@ job. A number in a plan that nobody can re-derive is a claim, not a measurement.
 |---|---|---|
 | Has a command | 98 | of 142 currently registered |
 | Lives in TypeScript by design | 8 | the script verifies the named file exports it |
-| Owned by a later phase | 3 | `envForRemoteOperation` (Phase 5 for proxy, Phase 7 for accounts); `getConfigValueWithOrigin`, `getFilesDiffText` (Phase 7) |
+| Owned by a later phase | 3 | `envForRemoteOperation` (Phase 5c for proxy, Phase 7d/7f for remote/account consumers); `getConfigValueWithOrigin`, `getFilesDiffText` (Phase 7) |
 | **Not covered** | 0 | the classification is exhaustive |
 
 **The 8 in TypeScript**, each because a round trip would buy nothing: `formatAsLocalRef`, `revRange` and
@@ -1530,7 +1538,7 @@ what other phases are blocked on, and the hooks half is freshest now.
      from the start.
    - **`getMediaType` is ported in Rust**, because the protocol handler is what sets `Content-Type`.
      The port uses the registered `image/jpeg` media type rather than upstream's `image/jpg`.
-   - **CSP is currently `null`.** When Phase 5 adds one it must allow `rdc-blob:` in `img-src` and
+   - **CSP is currently `null`.** When Phase 5a adds one it must allow `rdc-blob:` in `img-src` and
      `connect-src`; recorded there rather than guessed at here.
    - **URL construction goes through a helper**, since Tauri serves custom schemes through different URL
      forms per platform. Verified in the Linux container before anything is built on top of it.
@@ -1566,8 +1574,8 @@ Measured by `scripts/measure-store-surface.mjs`; all implementation criteria are
 
 **Closed 2026-07-29:** Phase 3's implementation and measurement criteria are complete. The closure
 revision passed the required local gates and is held to the same standard in CI. Remaining work is
-explicitly owned elsewhere: platform commands by Phase 4, proxy integration by Phase 5, the capability URL's
-production CSP by Phase 5, and UI/store consumers—including terminal history and the unused upstream
+explicitly owned elsewhere: platform commands by Phase 4, proxy integration by Phase 5c, the capability URL's
+production CSP by Phase 5a, and UI/store consumers—including terminal history and the unused upstream
 merge/rebase/push/pull terminal callbacks—by Phase 7.
 
 **What closing on these criteria does not buy, learned immediately after.** A review of the closure
@@ -2026,7 +2034,7 @@ open-repository action until that renderer is ready, and never normalizes the re
 one of multiple windows destroys only that window; the last-window hide/quit policy remains unchanged.
 The audit is now **39 of 58** proxy exports and **8 of 15** subscriptions implemented: **39 of 39**
 Phase 4a wrappers and **8 of 8** Phase 4a subscriptions. The remaining 19 wrappers and 7 subscriptions
-belong to 4b; `url-action` moved to Phase 9 with the single-instance/deep-link seam.
+belong to 4b; `url-action` moved to Phase 9b with the single-instance/deep-link seam.
 Its capability and Linux initialization are covered by the Ubuntu 26.04 container's six real
 application-launch, menu, dialog, multi-window and process-lifetime WebDriver specs.
 
@@ -2035,9 +2043,11 @@ application-launch, menu, dialog, multi-window and process-lifetime WebDriver sp
 The Phase 2 `getGlobalConfigPath` handoff, which sat outside that proxy measurement, is now implemented
 and test-first. Config and install-ID persistence are read back through fresh owners, and the updater's
 complete lifecycle is fake-backend tested. Phase 4 therefore closes as the Linux/macOS implementation
-phase. Native-session evidence is not erased: Linux Secret Service/notification-daemon checks are Phase
-8 gates, packaged macOS Keychain/notification/attention/CLI checks are Phase 9 gates, and every Windows
-backend and runtime check is Phase 10. That ownership split is target structure, not a parity claim.
+phase. Native-session evidence is not erased: the Phase 8 MVP acceptance covers the behavior exposed
+by 7a–7e on Linux and a Phase 9a local macOS bundle; Secret Service, packaged-macOS
+Keychain/notification/attention/CLI and signed-release checks travel with their post-MVP consumers in
+Phase 9b when the MVP does not expose them. Every Windows backend and runtime check is Phase 10. That
+ownership split is target structure, not a parity claim.
 
 #### What this phase is, measured
 
@@ -2185,15 +2195,15 @@ Electron's `session.resolveProxy` — the same `session` object as `webRequest`,
 subject. Phase 5 also already owns the three other network channels with no Tauri equivalent
 (`update-accounts`, `certificate-error`, `show-certificate-trust-dialog`), is already flagged as the
 plan's highest architectural risk with explicit design time budgeted, and "needs a redesign, not a port"
-describes the proxy exactly. Phase 5's title widens from `webRequest` to session-level behaviours and it
-inherits `envForProxy`, `getFallbackUrlForProxyResolve`, `resolve-proxy` and `lib/parse-pac-string.ts`
-(123 lines, with an upstream test). **The consequence stands and is not being decided here: no remote
-operation has proxy support today**, and it will not until Phase 5.
+describes the proxy exactly. The later MVP reorganization assigns it specifically to Phase 5c, which
+inherits `envForProxy`, `getFallbackUrlForProxyResolve`, `resolve-proxy` and
+`lib/parse-pac-string.ts` (123 lines, with an upstream test). **The consequence stands: no remote
+operation has proxy support today**, and it will not until Phase 5c.
 
 **3. Windows moves to Phase 10**, extending the stance `MIGRATION_MAP.md` §3 already takes for hooks:
 `shells/win32.ts`, `editors/win32.ts`, `lib/process/win32.ts`, `registry-js` → `winreg`,
 `find-toast-activator-clsid.ts`, WOW64 detection, and the Windows implementation of
-`install-windows-cli`/`uninstall-windows-cli` are deferred to one explicit Windows phase. Phase 9 owns
+`install-windows-cli`/`uninstall-windows-cli` are deferred to one explicit Windows phase. Phase 9b owns
 the shared packaging/external-action design; Phase 10 owns the Windows registry, shim and installer
 behavior. That is 2,487 of the 5,400 lines before those adjacent runtime seams are counted. Rust
 modules and shared domain enums still carry the Windows seam so Phase 10 adds `#[cfg(windows)]` arms
@@ -2242,9 +2252,9 @@ for the updater, so 4a is everything the UI calls and 4b is everything it does n
    fresh uniquely labelled webview from the same `main` startup template. Rust queues
    `{ kind: 'open-repository', path, persistSelection: false }` by label and returns it exactly once
    from that window's `renderer-ready` handshake, after restore/show/focus, which removes the
-   emit-before-listener race without importing Phase 9's external `cli-action` stream. The path crosses
+   emit-before-listener race without importing Phase 9b's external `cli-action` stream. The path crosses
    verbatim. `findWindowForRepositoryPath`, `normalizeRepositoryPath` and most-specific matching belong
-   only to Phase 9's single-instance/external-action routing.
+   only to Phase 9b's single-instance/external-action routing.
    **Multi-window lifetime is implemented:** a close request destroys only the current window while
    another app window exists; the last window still follows the existing macOS hide/non-macOS quit
    policy. Destruction clears both routing metadata and any unclaimed startup action.
@@ -2377,8 +2387,8 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
    runtime, and the crate mock covers missing entries, overwrite, delete, backend failure, pair
    isolation and secret-free errors. Phase 7 consumers can keep the existing facade unchanged.
    Ubuntu 26.04 now compiles and runs the mock-backed contract against the Secret Service-linked
-   build. A real macOS Keychain check remains a Phase 9 packaged-app gate; an isolated-D-Bus Linux
-   round trip or named manual real-session check is a Phase 8 gate.
+   build. Native credential-store evidence follows the feature that consumes it: Phase 8 when exposed
+   by the MVP, otherwise Phase 9b.
 
 10. **Window attention and macOS extras (4 wrappers plus the direct CLI installer).**
     - `dialog-did-open` becomes a focused-window guard plus Tauri critical
@@ -2388,11 +2398,11 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
       `None` are special, every missing/unknown value behaves as `Maximize`.
     - Implement application-folder detection and relocation behind macOS-only commands. Pure bundle
       path/decision logic is unit-tested now; moving a real signed `.app` and relaunching it is a
-      Phase 9 packaging validation, not something a dev binary can prove.
+      Phase 9b release-package validation, not something a dev binary can prove.
     - Replace `fs-admin` with one user-initiated macOS installer command: try ordinary
       unlink/mkdir/symlink first, then an escaped `osascript` elevation request. The installed name is
       rdc-owned. Test command construction and filesystem behavior without elevation; validate the
-      authorization prompt with the packaged artifact in Phase 9.
+      authorization prompt with the packaged artifact in Phase 9b.
 
     **Implementation complete; packaged presentation evidence open:** the focused-window adapter now
     preserves both halves of upstream macOS behavior—`NSBeep` and a critical AppKit attention
@@ -2403,7 +2413,7 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
     launcher, replaces stale links without elevation first, and falls back to a fully quoted
     `osascript` authorization request. Pure path, preference, filesystem and quoting contracts are
     green. A signed `.app` move/relaunch, visible attention/beep, authorization prompt, and launcher
-    argument routing remain Phase 9 evidence; the last item depends on Phase 9 single-instance/CLI
+    argument routing remain Phase 9b evidence; the last item depends on Phase 9b single-instance/CLI
     action delivery.
 
 11. **Notifications (3 wrappers, 1 subscription) — spike identity and ownership first.**
@@ -2418,7 +2428,7 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
       validation, listener cleanup and multi-window click ownership. Linux/macOS native display and
       click need real-session manual evidence unless an isolated notification daemon makes the
       container test reliable. Full-process relaunch delivery needs packaged lifecycle evidence in
-      Phase 9 rather than a unit-test claim.
+      Phase 9b rather than a unit-test claim.
 
     **Implementation complete; packaged/native-session evidence open:** the spike rejected
     `tauri-plugin-notification`: its desktop backend discards the native handle and extra payload,
@@ -2431,8 +2441,8 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
     Linux and Windows retain upstream's effectively granted permission contract. This also adds Linux
     notifications. A bundled macOS app is required to prove display, permission prompt and click;
     an isolated Linux notification-daemon click and any click after a complete process relaunch remain
-    open target evidence: Linux owns it in Phase 8, packaged macOS in Phase 9, and Windows in Phase
-    10. The measured surface is now **50 of 58** Phase 4 wrappers and **9 of 15**
+    open target evidence: Linux MVP behavior is checked in Phase 8, packaged macOS release identity
+    in Phase 9b, and Windows in Phase 10. The measured surface is now **50 of 58** Phase 4 wrappers and **9 of 15**
     subscriptions; all remaining entries belong to the updater slice.
 
 12. **Updater mechanism, not release infrastructure (8 wrappers, 6 subscriptions).**
@@ -2448,7 +2458,7 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
     - Tests use an injected fake updater backend to pin every transition, repeated-check exclusion,
       progress, errors, close policy and cleanup. Phase 4b installs the plugin and compiles the real
       adapter, but **does not claim a working release channel**: Tauri manifests, the public key,
-      endpoint, signed artifacts and the mock-update-server E2E belong to Phase 9/8.
+      endpoint, signed artifacts and the mock-update-server E2E belong to Phase 9b.
 
     **Implementation complete; signed release evidence deferred:** `UpdateController` now owns the
     retained Tauri `Update` resource and the complete checking/available/downloading/not-available/
@@ -2459,28 +2469,29 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
     close cancels while download/install is active and notifies the existing popup seam; macOS or
     preference-driven hide remains safe and allowed. The official Rust/JavaScript plugin and default
     capability are installed. The legacy URL parameter is intentionally not applied dynamically:
-    Phase 9 supplies Tauri's signed endpoint/public key and decides whether its release service needs
+    Phase 9b supplies Tauri's signed endpoint/public key and decides whether its release service needs
     an analogue of Squirrel's install-GUID rollout query. Ten focused controller tests and the close
-    policy tests cover the fake-backend lifecycle; a live signed update remains Phase 9/8 evidence.
+    policy tests cover the fake-backend lifecycle; live signed-update and mock-server evidence remains
+    Phase 9b work.
 
 13. **Phase 4b closed; target evidence transferred, not waived.** Every 4b row in
     `MIGRATION_MAP.md` is routed, the reverse audit names the non-proxy keychain, CLI and updater
     owners, and `measure-platform-surface.mjs --require-complete` reports **58/58 Phase 4 wrappers and
-    15/15 subscriptions**. `url-action` remains visibly owned by Phase 9 rather than hidden as pending
+    15/15 subscriptions**. `url-action` remains visibly owned by Phase 9b rather than hidden as pending
     work. Config/install-ID fresh-owner reload tests and the missed `getGlobalConfigPath` handoff close
-    the deterministic gaps. Real Secret Service and notification-daemon behavior gates Phase 8;
-    packaged macOS identity/presentation gates Phase 9; Windows backends and runtime behavior gate
-    Phase 10.
+    the deterministic gaps. The Phase 8 gate covers native behavior used by the MVP; post-MVP Secret
+    Service, notification-daemon and packaged-macOS identity/presentation evidence follows its Phase
+    9b consumer. Windows backends and runtime behavior gate Phase 10.
 
 #### What Phase 4 does not own
 
 | Left open | Owner | Why it isn't Phase 4 |
 |---|---|---|
-| `uncaught-exception`, `send-error-report`, `error`, `crash-ready`, `crash-quit`, and where log files go on a crash | Phase 6 | Phase 4 wires `tauri-plugin-log`; what happens *to* a crash is a pipeline, not a plugin |
-| `update-accounts`, `certificate-error`, `show-certificate-trust-dialog` | Phase 5 | Network interception; the first exists only to feed the authenticated-image filter Phase 5 replaces |
-| `resolve-proxy`, `envForProxy`, `getFallbackUrlForProxyResolve`, `lib/parse-pac-string.ts` | Phase 5 | Decision 2 — the same Electron `session` object as `webRequest`, and the same "redesign, not a port" |
-| `cli-action`, `url-action`, updater keys/endpoint and cross-platform packaging policy | Phase 9 | External launch routing, signed releases and deep links share the single-instance/package boundary |
-| `install-windows-cli`, `uninstall-windows-cli`, Windows protocol/CLI registration and Windows updater application | Phase 10, consuming Phase 9 infrastructure | Registry, PATH, shims, installer format and signed-runtime behavior require a Windows host |
+| `uncaught-exception`, `send-error-report`, `error`, `crash-ready`, `crash-quit`, and where log files go on a crash | Phase 6a / 6b | Phase 4 wires `tauri-plugin-log`; local recovery is an MVP concern and external reporting is not |
+| `update-accounts`, `certificate-error`, `show-certificate-trust-dialog` | Phase 5b / 5c | Account-fed media and enterprise certificate recovery have different consumers |
+| `resolve-proxy`, `envForProxy`, `getFallbackUrlForProxyResolve`, `lib/parse-pac-string.ts` | Phase 5c | Decision 2 — the same Electron `session` object as `webRequest`, and the same "redesign, not a port" |
+| `cli-action`, `url-action`, updater keys/endpoint and cross-platform packaging policy | Phase 9b | External launch routing, signed releases and deep links share the public-release boundary |
+| `install-windows-cli`, `uninstall-windows-cli`, Windows protocol/CLI registration and Windows updater application | Phase 10, consuming Phase 9b infrastructure | Registry, PATH, shims, installer format and signed-runtime behavior require a Windows host |
 | Menu **enable-state logic** (`lib/menu-update.ts`, 531 lines) | Phase 7 | It is a function of app state; Phase 4 owns the mechanism it drives, not the policy |
 | The keybinding **preferences UI** | Phase 7 | 4a lands the map, the persistence and the commands; rebinding is a new feature with no upstream counterpart |
 | Hook enable/failure preferences (`lib/hooks/config.ts`) | Phase 7 | `localStorage` preferences state, already routed there |
@@ -2513,7 +2524,7 @@ surface criteria are necessary and demonstrably insufficient — all four of Pha
   Linux-only.
 - `measure-platform-surface.mjs --require-phase4a-complete` reports **39 of 39 wrappers and 8 of 8
   subscriptions implemented**, with zero uncovered entries in either direction. The 19 wrappers and
-  7 subscriptions left pending are explicitly assigned to 4b; `url-action` is assigned to Phase 9,
+  7 subscriptions left pending are explicitly assigned to 4b; `url-action` is assigned to Phase 9b,
   and `--require-complete` remains the whole-Phase-4 closure gate.
 - Every 4a row in `MIGRATION_MAP.md` §7.1 has its status flipped, and every deviation from decisions 1–3
   is written into §8 **with its consequence** — the menu inversion, the accelerator dispatcher, and
@@ -2533,15 +2544,16 @@ controller's complete lifecycle passes against its fake backend.
 The original criterion put every native credential-store and notification-click check directly on
 4b. Implementation showed that this mixed three different target gates into one phase: Linux requires
 a real D-Bus desktop session, macOS notification delivery requires a packaged identity, and Windows
-requires backends not yet compiled into rdc. The checks remain mandatory but now close their target
-phases: Linux Secret Service plus notification-daemon click in Phase 8, packaged macOS Keychain plus
-notification display/permission/click in Phase 9, and Windows Credential Manager plus notification
-identity/click in Phase 10. A live update check/install remains Phase 9/8 evidence because it requires
-a signed artifact, public key and endpoint. Phase 4 closes without claiming any of that evidence early.
+requires backends not yet compiled into rdc. The checks remain mandatory but now follow their consumer:
+Phase 8 qualifies native behavior exposed by the macOS/Linux MVP; post-MVP Linux Secret Service,
+notification-daemon, packaged-macOS Keychain and notification-identity checks close with Phase 9b;
+Windows Credential Manager and notification identity/click close in Phase 10. A live update
+check/install is Phase 9b evidence because it requires a signed artifact, public key and endpoint.
+Phase 4 closes without claiming any of that evidence early.
 
 Three things are **not** 4b criteria: proxy support, which moved to Phase 5 by decision 2;
 config-directory migration, which is dropped by principle 6; and deep-link delivery, which moved to
-Phase 9 because Tauri requires the single-instance plugin on Linux/Windows and the packaged scheme must
+Phase 9b because Tauri requires the single-instance plugin on Linux/Windows and the packaged scheme must
 match rdc's registered OAuth callback; this coupling is explicit in
 [Tauri's desktop deep-link documentation](https://v2.tauri.app/plugin/deep-linking/).
 
@@ -2550,92 +2562,224 @@ match rdc's registered OAuth callback; this coupling is explicit in
 Each of these needs an experiment rather than a decision from the plan, and each is a place where
 guessing would be cheaper than checking and worse:
 
-- The credential abstraction and persistent backend choice are resolved. Phase 8 must still prove a
-  real Secret Service set/get/delete under isolated D-Bus or record the named manual Wayland-session
-  check; Phase 9 proves Apple Keychain from the packaged app.
+- The credential abstraction and persistent backend choice are resolved. Native proof follows the
+  first product consumer: Phase 8 if the MVP exposes it, otherwise Phase 9b.
 - The notification spike found no desktop `onAction` to scope: Tauri's plugin actions are
   mobile-only and its desktop backend is fire-and-forget. The chosen direct `notify-rust` handle feeds
   one Rust global router, whose owner/focused/main fallback and consume-once behavior are unit-tested.
-  Packaged macOS, real-session Linux and Windows click evidence are owned by Phases 9, 8 and 10
-  respectively.
+  Native notification evidence is Phase 8 when exposed by the MVP, otherwise Phase 9b; Windows is
+  Phase 10.
 - Before the macOS-extra slice closes, compare Tauri's critical attention request with Electron's
-  beep-plus-dock-bounce behavior and test application relocation with a packaged `.app` in Phase 9.
+  beep-plus-dock-bounce behavior and test application relocation with a signed `.app` in Phase 9b.
 
-### Phase 5 — session-level behaviors (needs a redesign, not a port)
+### Phase 5 — session-level behaviors, split by product dependency
 
-**Renamed from "webRequest-based behaviors" when Phase 4 handed it the proxy.** The common factor is not
-request interception specifically: it is that every item here reaches through Electron's `session` object,
-which Tauri has no counterpart for. Four channels have **no known equivalent** and all four are this
-phase's (`MIGRATION_MAP.md` §7.1).
+Electron's `session` APIs have no single Tauri counterpart, but that implementation fact must not make
+all four behaviors one product gate.
 
-Electron's `webRequest` API (used for `alive-origin-filter.ts`, `same-origin-filter.ts`, `ordered-webrequest.ts`, `authenticated-image-filter.ts`) has no direct Tauri equivalent — Tauri's webview doesn't expose the same request-interception hooks.
-- **Authenticated image loading**: instead of injecting auth headers into webview-issued requests, fetch the image in Rust (which already has the credentials) and hand the webview a data URL or blob via a command. Cleaner than the old approach, not just a workaround. Prefer an `rdc-blob`-style capability URL over a data URL, for the reasons Phase 3 settled — a 4 MB image is ~5.5 MB of JSON string otherwise.
-- **Origin/CSP enforcement**: enforce via Tauri's CSP config (`tauri.conf.json`) and the capability/permission system instead of a runtime filter — this is more declarative and auditable than the old imperative filter chain. **This phase owes Phase 3 a debt**: the CSP it introduces must allow `rdc-blob:` in `img-src` and `connect-src`, or every image diff breaks. `csp` is `null` today.
-- **Proxy support (inherited from Phase 4)**: `resolve-proxy`, `envForProxy`, `getFallbackUrlForProxyResolve`, and `lib/parse-pac-string.ts` (123 lines, with an upstream test at `app/test/unit/parse-pac-string-test.ts`). `session.resolveProxy` is Chromium's proxy resolver, PAC scripts included, and there is no crate covering OS proxy configuration across all three platforms — so the design question is how much of it rdc needs, not how to reimplement it. **Until this lands, no remote operation has proxy support**, which is a known user-facing gap carried since Phase 2, not an oversight.
-- **Certificates**: `certificate-error` and `show-certificate-trust-dialog` — wry exposes no certificate-error hook, so verify on WebKitGTK before promising parity; the second is the recovery path for the first and was macOS/Windows-only upstream anyway.
-- This phase is the highest architectural risk in the whole plan — budget explicit design time, don't estimate it like a mechanical port. It is also independent of Phase 7, so it can run in parallel with the UI work rather than blocking it.
+#### Phase 5a — MVP security baseline — **COMPLETE**
 
-### Phase 6 — Crash/exception reporting
-- Old pattern: separate `CrashWindow` BrowserWindow + custom IPC. Tauri has no equivalent built-in.
-- Recommend: Rust panic hook + a lightweight in-process error dialog (native `tauri::api::dialog` or a small dedicated webview), plus a unified Sentry (or similar) integration across both the Rust and React sides instead of the old bespoke crash-window/exception-reporting split. Simpler and gets you one reporting pipeline instead of two.
+- **Production CSP is explicit and closed.** `default-src 'self'`; scripts remain self-only and gain
+  only Tauri's build-time hashes/nonces; `base-uri`, `frame-src` and `object-src` are `none`.
+  `rdc-blob:` is present in both `img-src` and `connect-src`, preserving Phase 3's image-diff
+  capability. Dynamic React style properties require the one deliberate relaxation,
+  `style-src 'unsafe-inline'`; no script eval or remote HTTP(S) source is allowed.
+- **Development has a separate policy.** `devCsp` adds only the exact Vite
+  `http://localhost:1420` document/module endpoint and `ws://localhost:1420` HMR transport. It does
+  not add wildcard HTTP, HTTPS or eval. A real `pnpm tauri dev` WKWebView launch is green.
+- **Top-level navigation is a separate boundary.** `security.rs` permits the packaged
+  `tauri://localhost` / `http://tauri.localhost` origins, exact Vite development origin and
+  `about:blank`; external HTTP(S), file, data, JavaScript and blob-capability documents cannot replace
+  the application. External destinations continue through the opener plugin.
+- **The native capability is least-privilege for the current frontend.** `core:default` is removed;
+  rdc grants the exact app/event/path/resource/window/webview commands it imports and narrows dialog,
+  OS and updater defaults to the operations actually used. `freezePrototype` protects the shared
+  JavaScript prototype before application code runs.
+- Rust config/navigation tests pin the source lists and denied origins. The Linux packaged-app E2E
+  proves the production policy is enforced by verifying that an injected inline script cannot run,
+  freezes `Object.prototype`, and still completes the existing native/IPC journey.
 
-### Phase 7 — UI migration (React 16.8.4 → 19)
-Port `app/test/unit/ui/**` (~30 files) alongside each component group, component-by-component, using the existing dispatcher/store pattern as the seam:
-- **Finish webview-native edit context menus and spell checking with the text inputs.** Investigate what
-  WebKitGTK exposes for suggestions, port `spell-checker-menu-test.ts`, and replace Electron's synthetic
-  `editMenu` expansion with a Wayland-safe path. Phase 4 deliberately rejects both requests: muda's Linux
-  predefined edit actions depend on X11 key injection and are marked TODO for Wayland, so merely rendering
-  them would create nonfunctional Cut/Copy/Paste controls on the primary target.
-- `app/src/ui/dispatcher/**` + `app/src/lib/stores/**` (27 files, e.g. `app-store.ts`) is a solid seam — keep it. Only the leaf calls that currently go through `ipc-renderer.ts`/`main-process-proxy.ts` need to change to `invoke`/`listen`; the store/dispatcher shape itself doesn't need to change.
-- **Consume the Phase 3 commit terminal Channel:** attach before invoking `create_commit`, retain at most
-  256 KiB for a progress dialog opened after output has started, expose a subscribe/replay handle in
-  repository state, and clear it after the operation. Port `commit-progress/**` and its xterm-backed
-  dialog against that state. Separately, connect hook failures to the abort/ignore popup and enable hook
-  interception from the existing preference; terminal chunks are one-way data, while hook failure
-  requires a user response.
-- **react-virtualized → replace, don't port.** It's effectively unmaintained and known to misbehave under React 18+ StrictMode/concurrent rendering. Replace with `@tanstack/react-virtual` (actively maintained, hooks-based, composes well with the existing function-component surfaces). This is a required change, not optional, given the React 19 target — flag it early since virtualized lists (`repositories-list`, `history`, `changes`) are core UI.
-- React 16.8.4 → 19 is a large jump: `ReactDOM.render` → `createRoot` (rdc's scaffold already uses `createRoot`), string refs (if any remain) must go, legacy `defaultProps` on function components now warns — grep for these before porting each component rather than discovering them at runtime.
-- CodeMirror 5, `dompurify`, `marked`, `@floating-ui/react-dom`, `focus-trap-react`, `dexie`, `@xterm/xterm` are all React-version-agnostic; port as-is. **Optional fast-follow improvement**: CodeMirror 5 → 6 has a much better TS-first API, but don't couple this to the Tauri migration — separate effort.
-- **Optional modernization** (explicitly not required for parity): many GH-Desktop-era components are class-based `PureComponent`s for manual `shouldComponentUpdate` optimization. React 19 supports class components fine — don't force a hooks rewrite during the port. Revisit per-component after parity, where profiling shows it's worth it.
+The MVP performs no authenticated webview HTTP requests, so closing `connect-src` also removes the
+redirect/header-leak condition `same-origin-filter.ts` defended. Phase 5b must keep authenticated
+fetches in Rust rather than widening this policy to arbitrary HTTPS; Alive websocket origin rewriting
+and any future GitHub API transport travel with that post-MVP consumer.
 
-### Phase 8 — E2E
+#### Phase 5b — authenticated media (post-MVP, with GitHub collaboration)
 
-- Keep the Phase 0 decision: use `tauri-driver` through the Linux-only Compose harness. Choose the
-  WebDriver client library when the real specs land; that does not reopen the driver/backend decision.
-- **Phase 4a lands the first real specs**, not this phase — a window, a menu, a theme and a dialog cannot
-  be tested any other way, so the harness gets exercised there and Phase 8 inherits a working suite rather
-  than an empty one.
-- Close Phase 4's **Linux native-session evidence** here: run TokenStore set/get/delete against an
-  isolated Secret Service D-Bus service, and deliver/click a retained `notify-rust` notification through
-  an isolated notification daemon. If either daemon cannot be made deterministic in the container,
-  retain the unit contract and record the named Ubuntu 26.04/Wayland manual check; do not silently mark
-  it automated.
-- Port `app-launch.e2e.ts` and the mock-update-server-based update flow test last, once Phase 4b's
-  updater swap **and** Phase 9's signing keys and update endpoint have landed. The old test is
-  intrinsically Squirrel-shaped and needs rewriting against `tauri-plugin-updater`'s flow, including
-  download progress, close prevention, install and relaunch.
+- Replace authenticated-image request-header injection with a Rust fetch using the account
+  credentials and return an opaque, scoped `rdc-blob`-style capability URL. Do not return a data URL:
+  a 4 MB image becomes roughly 5.5 MB of JSON and remains resident in JavaScript.
+- Retire `update-accounts` with that consumer rather than creating account state before the GitHub UI.
 
-### Phase 9 — Packaging & CLI
+#### Phase 5c — enterprise networking (post-MVP by default)
 
-- `app/src/cli/**` (small, Node-target CLI) is not part of the Tauri app proper — lowest priority, can stay a thin standalone Node/Rust binary, port last or in parallel by anyone not blocked on the main app.
-- `app/src/highlighter/**` (webworker target) → straightforward Vite `?worker` import, no architectural change needed.
-- Land the shared external-action boundary: single-instance startup/second-instance routing,
-  `cli-action`, registered deep links and the final rdc OAuth callback scheme. Repository-path matching
-  stays most-specific; platform normalization is injected so Phase 10 can add Windows
-  case-insensitivity without duplicating routing policy.
-- Produce signed Tauri bundles and update metadata, configure the updater public key/endpoint, and
-  decide whether rdc's release service needs an install-ID rollout equivalent to Squirrel's `guid`.
-  Phase 8 owns the mock-server lifecycle E2E. Phase 10 qualifies the Windows installer/updater target;
-  a macOS/Linux artifact does not prove it.
-- Close Phase 4's **packaged macOS evidence** with the signed `.app`: Apple Keychain
-  set/get/delete, notification permission/display/click, attention/beep presentation,
-  Applications-folder move/relaunch, the authorization-backed `/usr/local/bin/rdc` installer, and
-  launcher argument routing through the single-instance controller.
-- **Product-identity cleanup:** every inherited Help-menu destination is currently for Desktop Plus or
-  GitHub Desktop (`Report Issue`, user guides and keyboard shortcuts), and the non-macOS About item still
-  says `Desktop Plus`. Replace the complete group with rdc-owned destinations and branding once its
-  repository/docs/release URLs are final; Phase 4 deliberately keeps the upstream values while porting
-  menu behavior.
+- Own `resolve-proxy`, `envForProxy`, `getFallbackUrlForProxyResolve` and
+  `lib/parse-pac-string.ts`. Chromium previously resolved OS proxy configuration and PAC scripts;
+  there is no equivalent cross-platform crate.
+- Investigate `certificate-error` and `show-certificate-trust-dialog`. wry exposes no general
+  certificate-error hook, so verify what WebKitGTK and WKWebView actually permit before promising
+  parity.
+- Until this lands, remote operations have no PAC/custom proxy or application-managed certificate
+  trust workflow. The MVP must report that limitation clearly. Promote 5c into the MVP only if
+  managed/corporate networks become an initial-user requirement.
+
+Phase 5c remains the highest architectural-risk work in the plan, but it no longer blocks the core UI.
+
+### Phase 6 — resilience first, reporting second
+
+#### Phase 6a — MVP resilience — **COMPLETE**
+
+- **Renderer recovery stays in the trusted application window.** `FatalErrorBoundary` replaces a
+  failed React tree with a small local recovery screen containing the error message, Reload and Show
+  Logs. `componentDidCatch` records both the JavaScript stack and React component stack. There is no
+  second privileged crash document and therefore no `error`, `crash-ready` or `crash-quit` channel.
+- **Failures outside React remain diagnosable.** Window `error` and `unhandledrejection` listeners
+  append durable records without suppressing the webview's own diagnostics. This replaces the
+  renderer-to-main `uncaught-exception` channel; external submission remains absent until Phase 6b
+  has consent and privacy policy.
+- **Native panic output reaches the same log.** A once-installed Rust panic hook writes the payload
+  and source location through the application logger, then invokes the previous hook so stderr and
+  the platform's normal panic behavior remain intact.
+- **Logs are bounded and reachable.** The native logger rotates at every launch, retains the same
+  fourteen-session ceiling as upstream, and caps each file at 10 MiB. Help → Show Logs is enabled in
+  the startup menu and opens the guarded application-log directory; the fatal screen exposes the
+  same action even when the normal React tree is gone.
+- Focused React tests force a render failure and exercise both recovery actions; listener, menu and
+  guarded-path tests pin the remaining frontend behavior, and Rust tests pin panic formatting and
+  retention.
+
+#### Phase 6b — reporting pipeline (post-MVP)
+
+- Add one consent-aware Sentry-or-equivalent pipeline across Rust and React.
+- Decide crash retention, privacy copy and report submission before enabling external telemetry.
+- The five old crash-window IPC channels disappear rather than being reproduced.
+
+### Phase 7 — UI migration as vertical macOS/Linux MVP slices
+
+The old Phase 7 grouped roughly 109,938 lines of `ui/**` and 21,995 lines of stores behind one
+completion boundary. It is replaced by product slices. Each slice ports its upstream tests first,
+adds its own Linux-container E2E journey and is manually exercised on macOS.
+
+The dispatcher/store shape remains the compatibility seam. Port `app-store.ts` incrementally behind
+that facade as each slice needs behavior; do not copy its 12,310 lines in one batch and do not redesign
+the state architecture merely to make the phases smaller. Consumer-bound portable `lib/**` files land
+with the slice that first imports them.
+
+#### Phase 7a — application shell and repository ownership
+
+- Replace the current React integration harness with the first real application shell.
+- Port the minimum dispatcher, repository store, selected-repository state and persistence.
+- Add, open, remove, remember and reopen existing repositories.
+- Connect current repository state to the Phase 4 menu tree and startup/open-in-new-window actions.
+- E2E: add a repository, restart the app and reopen the same selection.
+
+#### Phase 7b — working tree, diff and commit
+
+- Port the changes list, text diff, selection, stage/unstage, discard confirmation and commit form.
+- Consume Phase 3's commit terminal Channel: subscribe before invoking, retain at most 256 KiB,
+  replay to late progress-dialog subscribers and clear it when the operation ends.
+- Connect hook failure to its abort/ignore response seam. The complete xterm presentation may
+  fast-follow if a bounded textual progress view is sufficient for the first slice.
+- Move `app/src/highlighter/**` here as a Vite `?worker` import if syntax-highlighted diffs are part
+  of the exposed MVP.
+- E2E: edit a file, inspect its diff, stage it and commit it.
+
+#### Phase 7c — history, branches and minimum conflict recovery
+
+- Port commit history, commit details/diffs, branch listing, create and checkout.
+- Show merge/conflict state and allow a user-resolved file to be staged. Rebase editing, reorder,
+  squash and other advanced history operations remain parity work.
+- E2E: create a branch, commit, switch branches and inspect history.
+
+#### Phase 7d — remote synchronization without built-in accounts
+
+- Port clone, fetch, pull and push with transfer progress.
+- The MVP uses credentials already available to system Git, an SSH agent or the existing
+  credential-helper path. It does not include GitHub sign-in, publish, pull requests, checks or issues.
+- Authentication, proxy and certificate failures must produce actionable errors rather than a
+  generic operation failure.
+- E2E uses a local bare remote so it does not depend on the public network or developer credentials.
+
+#### Phase 7e — MVP hardening and presentation
+
+- Port only the preferences needed by exposed behavior: theme, destructive-operation confirmation
+  and editor/shell selection.
+- Complete accessibility, keyboard navigation and realistic-large-repository performance passes.
+- Replace `react-virtualized` with `@tanstack/react-virtual` for the repositories, changes and history
+  surfaces. Do not combine the port with a class-component-to-hooks rewrite.
+- Hide, disable or clearly mark commands whose feature has not landed; a preview must not imply that
+  every upstream menu action works.
+- Replace inherited Desktop Plus/GitHub Desktop Help destinations and About text with rdc branding.
+
+#### Phase 7f — post-MVP UI and upstream parity
+
+- GitHub accounts/collaboration, stashes, tags, advanced merge/rebase flows, worktrees, LFS,
+  submodules, advanced preferences, keybinding preferences and other surfaces not required above.
+- Finish webview-native edit context menus and spell checking with their text-input consumers.
+  WebKitGTK suggestions and the Wayland-safe replacement for Electron's synthetic `editMenu` remain
+  an explicit investigation, not an MVP blocker.
+- CodeMirror 5 may move to 6 later, based on its own tests and profiling.
+
+React 19 supports the upstream class components. For every slice, grep for `ReactDOM.render`, string
+refs and legacy function-component `defaultProps`; modernize only what React 19 requires.
+
+### Phase 8 — continuous E2E plus MVP platform acceptance
+
+- Every Phase 7a–7d slice lands a Linux-container `tauri-driver` journey. Phase 8 is no longer where
+  product E2E begins; it is the final environment-qualification gate.
+- Run the complete MVP journey on Ubuntu 26.04/Wayland. Use isolated Secret Service and notification
+  daemons only for features the MVP actually exposes; otherwise retain those checks with their
+  post-MVP consumer.
+- Build a local macOS `.app` and manually run the same repository, commit, branch and remote journeys,
+  plus menu, dialog, close/relaunch, editor/shell and persisted-state checks. WKWebView has no
+  `tauri-driver` backend, so this named checklist is evidence rather than pretending native macOS E2E
+  is automated.
+- Code signing, notarization, updater download/install/relaunch and public release credentials are
+  Phase 9b. They are not required for the local macOS MVP artifact.
+
+### Phase 9 — preview packaging before public release infrastructure
+
+#### Phase 9a — macOS/Linux MVP packaging
+
+- Produce locally installable Linux bundles and a locally packaged macOS `.app`.
+- Validate clean launch, configuration/log locations, repository persistence and the complete MVP
+  journey from those artifacts in Phase 8.
+- Finish product identity needed by the preview. Release URLs that do not exist yet may be visibly
+  marked rather than retaining Desktop Plus destinations.
+
+#### Phase 9b — public release engineering (post-MVP)
+
+- Produce signed/notarized Tauri bundles and update metadata; configure the updater public key and
+  endpoint and decide whether the release service needs an install-ID rollout equivalent.
+- Port the updater mock-server lifecycle E2E, including download progress, close prevention, install
+  and relaunch.
+- Land single-instance startup/second-instance routing, `cli-action`, registered deep links and the
+  final rdc OAuth callback scheme. Keep most-specific repository matching platform-neutral so Phase 10
+  adds Windows case-insensitivity without duplicating routing policy.
+- Qualify packaged macOS Keychain and notification behavior, attention presentation,
+  Applications-folder relocation and the authorization-backed `/usr/local/bin/rdc` installer when
+  their consumers are release features.
+- Port `app/src/cli/**` last or independently as a thin standalone Node/Rust binary.
+
+#### macOS/Linux MVP exit criteria
+
+The milestone closes only when both target platforms expose the same supported workflow:
+
+1. A clean artifact launches, adds an existing repository, persists it and reopens the selection.
+2. The user can inspect status and text diffs; stage, unstage and discard; and create a commit.
+3. The user can inspect history; create and check out a branch; and recover from the minimum supported
+   merge-conflict state without being stranded.
+4. Clone, fetch, pull and push work with a local bare remote and with credentials already available to
+   system Git/SSH. Unsupported account, PAC/proxy or certificate-trust cases fail with actionable copy.
+5. Menus, dialogs, close/relaunch, editor/shell launch and MVP preferences operate on both platforms;
+   unimplemented parity actions are not presented as working.
+6. Phase 5a's CSP/capability audit and Phase 6a's recovery path are complete.
+7. All repository quality gates pass, every 7a–7d Linux E2E journey is green in the container,
+   the Ubuntu 26.04/Wayland full journey is green, and the named packaged-macOS checklist is recorded.
+
+Signing, notarization, automatic updates, GitHub accounts/collaboration, enterprise proxy/certificate
+management, telemetry, the standalone CLI, complete upstream UI parity and Windows are explicitly not
+part of this milestone.
 
 ### Phase 10 — Windows platform support
 
@@ -2645,7 +2789,7 @@ removed from Phase 4's critical path: `shells/win32.ts`, `editors/win32.ts`,
 and the Windows arms of custom integrations and hooks. The Phase 4 reevaluation adds the adjacent
 target seams that the line count did not: Credential Manager, notification identity/clicks,
 trampoline/askpass packaging, native-plugin runtime qualification, Windows CLI/protocol registration,
-and signed installer/updater behavior. Phase 9 still owns the cross-platform release,
+and signed installer/updater behavior. Phase 9b still owns the cross-platform release,
 single-instance/deep-link and signing design; Phase 10 makes those designs work on Windows.
 
 Shell support begins from the contract already pinned in Phase 4: Command Prompt, PowerShell,
@@ -2681,7 +2825,7 @@ The work is grouped so a feature cannot disappear behind “Windows later”:
    dialogs, opener/reveal, recoverable Recycle Bin trash, log path and process relaunch on WebView2.
    Add WOW64/ARM64 translation detection and preserve the unsafe-directory trailing-backslash guard
    that prevents `C:\\path\\foo.exe` being opened when the caller intended `C:\\path\\foo`.
-6. **Packaging, CLI, protocols and updater.** Against Phase 9's shared controller, choose and sign the
+6. **Packaging, CLI, protocols and updater.** Against Phase 9b's shared controller, choose and sign the
    supported Tauri Windows bundle target(s); implement rdc-owned `.bat` and POSIX/WSL CLI shims in a
    stable per-user location; update the user PATH without losing value type/order; uninstall only
    rdc-owned entries; register deep-link protocols with the required launcher argument; and verify
@@ -2695,15 +2839,28 @@ Phase 10 supplies and qualifies the native behavior it calls.
 
 ## Sequencing recommendation
 
-Phases 1–3 (models, lib, git, IPC) can mostly proceed in parallel once Phase 0 tooling is in place — they don't depend on each other. Phase 4 (platform integrations) can start as soon as the relevant Tauri plugins are wired into `src-tauri/src/lib.rs`, independent of UI progress. Phase 5 (webRequest redesign) and the fs-admin elevation helper in Phase 4 are the two items to prototype *early* despite being "later" in the dependency chain, because they're the only two places where "port the old code" isn't a valid strategy — you need working design spikes before estimating the rest of the timeline. Phase 7 (UI) is naturally last-to-finish since it depends on Phases 3–6 being available to call, but individual component groups can start against a mocked `invoke` layer as soon as the IPC channel table from Phase 3 is drafted (even before the Rust side implements it).
+Phases 0–4, 5a and 6a are closed. The shortest path to the agreed macOS/Linux MVP is:
 
-**Revised now that Phases 0–4 are closed.** Phase 7's platform boundary is available: the
-`src/lib/platform/**` wrappers, window lifecycle, menus, paths, Linux/macOS shells/editors and the
-independent 4b controllers are complete. Phase 5 and Phase 6 remain independent design work; Phase 5's
-CSP owes Phase 3 an `img-src`/`connect-src` entry for `rdc-blob:`. Phase 8 inherits Linux native-session
-checks, Phase 9 owns packaged macOS/release evidence, and Phase 10 owns the complete Windows target
-rather than reopening Phase 4 for each platform arm. The remaining item worth a spike before estimating
-is Phase 5's request-interception redesign.
+```text
+7a repository shell
+             ↓
+7b changes and commit
+             ↓
+7c history and branches
+             ↓
+7d remote synchronization
+             ↓
+7e hardening + 9a local packages
+             ↓
+8 macOS/Linux MVP acceptance
+```
+
+The Linux E2E for each slice lands with that slice; Phase 8 runs the complete acceptance set. Phase 5b
+joins the post-MVP GitHub-collaboration work. Phase 5c can be prototyped independently because it is
+still the highest architectural risk, but proxy/PAC and application-managed certificate trust do not
+block the MVP unless the initial-user profile changes. Phase 6b and 9b follow the MVP. Phase 7f is the
+remaining UI/parity backlog. Phase 10 owns the complete Windows target and consumes shared public-release
+infrastructure from Phase 9b where appropriate.
 
 ## Weak points in the current codebase worth calling out (summary)
 

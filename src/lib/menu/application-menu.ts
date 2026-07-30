@@ -29,6 +29,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import { quitApp } from '../platform/lifetime'
 import { selectAllWindowContents } from '../platform/menu'
 import { setWindowZoomFactor } from '../platform/window'
+import { showApplicationLogs } from '../resilience/logs'
 
 type MenuDispatcherState = {
   readonly menu: AppMenu
@@ -156,6 +157,7 @@ function defaultDependencies(): ApplicationMenuDependencies {
       openExternal: url => openUrl(url),
       reload: () => window.location.reload(),
       selectAll: selectAllWindowContents,
+      showLogs: showApplicationLogs,
       setZoom: setWindowZoomFactor,
     }),
     getKeybindings,

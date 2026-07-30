@@ -98,11 +98,11 @@ Directory-level breakdown (file counts exclude `*-test.ts`):
 | `lib/databases/` | 6 | Dexie/IndexedDB — works fine in a Tauri webview as-is | `rdc/src/lib/databases/` | not-started |
 | `lib/fonts/` | 2 | | `rdc/src/lib/fonts/` | not-started |
 | `lib/helpers/` | 8 | minus `linux.ts` (§3 — spawns `xdg-*` helpers) | `rdc/src/lib/helpers/` | not-started |
-| `lib/highlighter/` | 2 | becomes a Vite `?worker` import target, see Phase 9 | `rdc/src/lib/highlighter/` | not-started |
+| `lib/highlighter/` | 2 | becomes a Vite `?worker` import target with the diff UI | `rdc/src/lib/highlighter/` | Phase 7b if the MVP exposes highlighted diffs; otherwise Phase 7f |
 | `lib/hooks/` | 7 | minus 4 files in §3 (only 3 stay: check each — likely thin wrappers) | `rdc/src/lib/hooks/` | not-started |
 | `lib/logging/` | 6 | minus `get-log-path.ts` (§3) | `rdc/src/lib/logging/` | not-started |
 | `lib/markdown-filters/` | 14 | minus `emoji-filter.ts` (§3, but see improvement note) | `rdc/src/lib/markdown-filters/` | not-started |
-| `lib/notifications/` | 2 | callback cache and display facade; native OS notification call is Rust-owned | `rdc/src/lib/notifications/` | **Phase 4b complete** — bounded callback ownership and unmatched-click fallback are tested; Linux, packaged macOS and Windows target evidence is assigned to Phases 8/9/10 |
+| `lib/notifications/` | 2 | callback cache and display facade; native OS notification call is Rust-owned | `rdc/src/lib/notifications/` | **Phase 4b complete** — bounded callback ownership and unmatched-click fallback are tested; native evidence follows an exposed Phase 8 MVP consumer or the Phase 9b/10 release targets |
 | `lib/process/` | 1 | `win32.ts` — entirely backend, see §3 | — | n/a, moved to §3 |
 | `lib/progress/` | 10 | minus `from-process.ts`, `lfs.ts` (§3) | `rdc/src/lib/progress/` | not-started |
 | `lib/shells/` | 6 | **all** backend (external process launch) — see §3 | — | n/a, moved to §3 |
@@ -159,7 +159,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/git-delimiter-parser.ts` (`createLogParser`) | `crates/git-ops/src/git_delimiter_parser.rs::LogParser` — **done** (needed by `getBinaryPaths`'s `check-attr` parsing). | 2 |
 | `lib/git/branch.ts` | `crates/git-ops/src/branch.rs` — **done**: `create_branch`, `get_branch_names`, `rename_branch` (incl. the case-only-rename retry), `delete_local_branch`, `delete_remote_branch`, `get_branches_pointed_at`, `get_merged_branches`. Remote deletion propagates authentication failures rather than classifying them, which is the original's explicit choice, and cleans up a stale tracking ref when the remote branch is already gone. Proxy support is absent here as everywhere — see `environment.ts`. | 2 |
 | `lib/git/for-each-ref.ts` | `crates/git-ops/src/for_each_ref.rs` — **done**: `get_branches` and `get_branches_differing_from_upstream`. This is the branch *list*; `branch.rs` is the branch *operations*. Hydrated into the `Branch` class by `src/lib/branch-ipc.ts`. Two deliberate improvements — epoch seconds instead of a `new Date()` parse of git's `iso8601`, and a canonicalized worktree-path comparison — see §8. | 2 |
-| `lib/git/environment.ts` | **partially ported, and the one `lib/git` file without a full counterpart.** `envForAuthentication` is `crates/git-ops/src/authentication.rs`; `getFallbackUrlForProxyResolve` and `envForProxy` are **not** ported, because `envForProxy` resolves through Electron's `session.resolveProxy`. There is no Tauri equivalent — it needs reading the OS proxy configuration natively. **Owned by Phase 5**, with `resolve-proxy`, `getFallbackUrlForProxyResolve` and `lib/parse-pac-string.ts`: `session.resolveProxy` is the same Electron `session` object as `webRequest`, so this is session-level redesign work rather than the platform swap it was first filed as. Consequence, unchanged and now with a named owner: **no remote operation has proxy support today.** | 5 |
+| `lib/git/environment.ts` | **partially ported, and the one `lib/git` file without a full counterpart.** `envForAuthentication` is `crates/git-ops/src/authentication.rs`; `getFallbackUrlForProxyResolve` and `envForProxy` are **not** ported, because `envForProxy` resolves through Electron's `session.resolveProxy`. There is no Tauri equivalent — it needs reading the OS proxy configuration natively. **Owned by Phase 5c**, with `resolve-proxy`, `getFallbackUrlForProxyResolve` and `lib/parse-pac-string.ts`: `session.resolveProxy` is the same Electron `session` object as `webRequest`, so this is session-level redesign work rather than the platform swap it was first filed as. Consequence, unchanged and now with a named owner: **no remote operation has proxy support today.** | 5c |
 | `lib/git/git-delimiter-parser.ts` | `crates/git-ops/src/git_delimiter_parser.rs` — **done**, including the `%x00` log parser. | 2 |
 | `lib/git/refs.ts` | `crates/git-ops/src/refs.rs` — **done** (`format_as_local_ref`, `get_symbolic_ref`). | 2 |
 | `lib/git/update-ref.ts` (`deleteRef`) | `crates/git-ops/src/update_ref.rs` — **done**. `updateRef` has no consumer anywhere in upstream and is deliberately dropped rather than carried as dead API. | 2 |
@@ -182,12 +182,12 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/path.ts` **(tentative — verify)** | likely `src-tauri/src/platform/fs_utils.rs`, but confirm it's not pure string manipulation that could stay TS | 1 |
 | `lib/process/win32.ts` | native registry/process responsibilities split across planned `src-tauri/src/platform/windows/{registry,process,cli}.rs` | **Phase 10** — PATH registry value/type preservation, process output/errors and CLI support; no shared Phase 4 module |
 | `lib/custom-integration.ts` | model → `src/models/custom-integration.ts`; stored-format migration and the frontend-facing validation facade → `src/lib/custom-integration.ts`; parsing, validation, placeholder expansion and process launch → `src-tauri/src/platform/custom_integration.rs` + `editors.rs` | **Phase 4 complete on Linux/macOS** — the pure migration preserves the upstream no-update `null` contract, while POSIX parsing, executable/symlink validation, macOS bundle validation, and launch are native; Windows parsing is Phase 10 |
-| `lib/stores/token-store.ts` | `src-tauri/src/platform/credential_store.rs` + credential commands + `src/lib/stores/token-store.ts` | **Phase 4b complete** — `keytar` becomes pinned `keyring` 3.6.3; Apple Keychain / persistent Linux Secret Service are explicit and the mock pins the contract. Linux real-session, packaged macOS and Windows Credential Manager evidence is assigned to Phases 8/9/10 |
-| `ui/lib/install-cli.ts` + `static/darwin/desktop-plus-cli.sh` | `src-tauri/src/platform/cli_installer.rs` + `resources/rdc-cli` + `src/lib/platform/cli.ts` | **Phase 4b implementation complete** — the rdc-owned `/usr/local/bin/rdc` symlink is installed directly or through an escaped macOS authorization request; packaged prompt and argument routing remain Phase 9 evidence |
+| `lib/stores/token-store.ts` | `src-tauri/src/platform/credential_store.rs` + credential commands + `src/lib/stores/token-store.ts` | **Phase 4b complete** — `keytar` becomes pinned `keyring` 3.6.3; Apple Keychain / persistent Linux Secret Service are explicit and the mock pins the contract. Native evidence follows an exposed Phase 8 MVP consumer or the Phase 9b/10 release targets |
+| `ui/lib/install-cli.ts` + `static/darwin/desktop-plus-cli.sh` | `src-tauri/src/platform/cli_installer.rs` + `resources/rdc-cli` + `src/lib/platform/cli.ts` | **Phase 4b implementation complete** — the rdc-owned `/usr/local/bin/rdc` symlink is installed directly or through an escaped macOS authorization request; packaged prompt and argument routing remain Phase 9b evidence |
 | `lib/copilot/byok.ts` | stays TypeScript; secret calls use `src/lib/stores/token-store.ts` → Phase 4 credential commands | **Phase 7 consumer over the Phase 4-complete TokenStore** — no separate `copilot_byok.rs` command or duplicate keychain API |
 | `lib/copilot-conflict-context.ts` **(tentative)** | `src-tauri/src/commands/copilot_conflict_context.rs` | 2 |
 | `lib/get-architecture.ts`, `get-os.ts` | `src/lib/platform/paths.ts` + `src/lib/platform/system.ts` + `src-tauri/src/platform/system.rs` | **Phase 4 complete on Linux/macOS** — Tauri OS/architecture plus Rosetta detection; Windows version/support policy and WOW64 are Phase 10 |
-| `lib/get-main-guid.ts`, `get-updater-guid.ts` | main/stats ID → `src-tauri/src/platform/install_id.rs` + `src/lib/platform/install-id.ts`; updater rollout identity → Phase 9 release-channel design | **Phase 4 stats install ID complete**; the Squirrel `guid` query parameter is not sent to Tauri's configured signed endpoint, so Phase 9 decides whether rdc's release service needs an equivalent rollout identity |
+| `lib/get-main-guid.ts`, `get-updater-guid.ts` | main/stats ID → `src-tauri/src/platform/install_id.rs` + `src/lib/platform/install-id.ts`; updater rollout identity → Phase 9b release-channel design | **Phase 4 stats install ID complete**; the Squirrel `guid` query parameter is not sent to Tauri's configured signed endpoint, so Phase 9b decides whether rdc's release service needs an equivalent rollout identity |
 | `lib/find-toast-activator-clsid.ts` | Phase 10 Windows notification packaging/runtime investigation — current `notify-rust` candidate removes the manual activator lookup from shared Phase 4 code, but Windows evidence decides whether packaged identity still needs it | 10 |
 | `lib/main-process-config.ts` | `src-tauri/src/config.rs` + `src-tauri/src/commands/config.rs` + `src/lib/platform/config.ts` | **Phase 4 complete** — startup `titleBarStyle`, typed get/serialized partial update, and live `hideWindowOnQuit` close policy |
 | `lib/logging/get-log-path.ts` | `tauri-plugin-log` path configuration, with crash-log discovery/retention in Phase 6 | **Phase 4 logging mechanism complete / Phase 6 crash consumer** |
@@ -281,7 +281,7 @@ operation that consumes them rather than counted as separate backend behavior.
 | `diff-check.ts` | conflict-marker detection → `diff_check.rs` | **complete** |
 | `diff-index.ts` | index status, null tree and index changes → `diff_index.rs` + `models/index-status.ts` | **complete** |
 | `diff.ts` | working-directory, commit, range, resolution, and image diff production → `diff.rs`; images use Phase 3's scoped `rdc-blob` capability URLs; `getFilesDiffText` and rendering wait for store/UI consumers | backend and byte transport **complete**; remaining consumers **Phase 7** |
-| `environment.ts` | authentication half → `authentication.rs`; proxy fallback/resolution has no Electron-free equivalent yet | **deferred Phase 5** |
+| `environment.ts` | authentication half → `authentication.rs`; proxy fallback/resolution has no Electron-free equivalent yet | **deferred Phase 5c** |
 | `fetch.ts` | fetch, refspec fetch and fast-forward → `fetch.rs` | **complete** |
 | `for-each-ref.ts` | branches and upstream-difference queries → `for_each_ref.rs` | **complete** |
 | `format-patch.ts` | mailbox patch generation → `format_patch.rs` | **complete** |
@@ -354,20 +354,20 @@ Everything else in `lib/**` not listed above → §2 (portable, stays TS as-is).
 
 | Old path | Target | Phase |
 |---|---|---|
-| `main.ts` | `src-tauri/src/lib.rs` + platform action routing | **Phase 4 lifecycle/startup complete**; single-instance/deep-link routing is Phase 9, and Windows protocol-launcher/AppUserModelID/runtime arms are Phase 10 |
+| `main.ts` | `src-tauri/src/lib.rs` + platform action routing | **Phase 4 lifecycle/startup complete**; single-instance/deep-link routing is Phase 9b, and Windows protocol-launcher/AppUserModelID/runtime arms are Phase 10 |
 | `app-window.ts` | `src-tauri/src/lib.rs` + `src-tauri/src/platform/window.rs` + `src/lib/platform/lifetime.ts` + `tauri-plugin-window-state` (replaces `electron-window-state`) | **Phase 4a done** — startup `titleBarStyle`, direct state/zoom wrappers, the `renderer-ready` restore/show gate, frontend-owned preventable close flow, per-window selected-repository metadata, fresh repository-window creation and non-last-window destruction are implemented; persisted geometry/maximization restores before the first visible frame |
 | `ipc-main.ts` | *(deleted)* — superseded by `#[tauri::command]` registration | 3 |
 | `ipc-webcontents.ts` | *(deleted)* — superseded by `app.emit()` | 3 |
 | `trusted-ipc-sender.ts` | *(deleted)* — Tauri's IPC has no equivalent "trusted sender" gap to guard against in the same way; confirm no replacement needed | 3 |
-| `crash-window.ts`, `show-uncaught-exception.ts`, `exception-reporting.ts` | Rust panic hook + unified Sentry integration (see Phase 6) | 6 |
-| `menu/build-context-menu.ts`, `build-default-menu.ts`, `build-test-menu.ts`, `crash-menu.ts`, `ensure-item-ids.ts`, `get-all-menu-items.ts`, `index.ts`, `menu-event.ts` | structure/model → `src/lib/menu/**` + `src/models/app-menu.ts` (**default/test tree and Linux/Windows dispatcher done**); bindings/persistence → `src-tauri/src/platform/keybindings.rs` (**done**); native macOS → `src-tauri/src/platform/menu.rs` (**mechanism done and manually validated; automation is Linux-only**); general/nested contextual menus → `src-tauri/src/platform/context_menu.rs` + `src/lib/menu/context-menu.ts` (**done; edit placeholder deferred below**). **Phase 9 owns the inherited Help destinations and `About Desktop Plus` label as product identity, after rdc's URLs are final.** | 4 / 9 |
+| `crash-window.ts`, `show-uncaught-exception.ts`, `exception-reporting.ts` | **Phase 6a local recovery complete:** an in-window React fatal boundary, global renderer-error logging, a chained Rust panic hook and bounded/revealable logs replace the crash process; unified consent-aware external reporting remains Phase 6b | **6a complete** / 6b |
+| `menu/build-context-menu.ts`, `build-default-menu.ts`, `build-test-menu.ts`, `crash-menu.ts`, `ensure-item-ids.ts`, `get-all-menu-items.ts`, `index.ts`, `menu-event.ts` | structure/model → `src/lib/menu/**` + `src/models/app-menu.ts` (**default/test tree and Linux/Windows dispatcher done**); bindings/persistence → `src-tauri/src/platform/keybindings.rs` (**done**); native macOS → `src-tauri/src/platform/menu.rs` (**mechanism done and manually validated; automation is Linux-only**); general/nested contextual menus → `src-tauri/src/platform/context_menu.rs` + `src/lib/menu/context-menu.ts` (**done; edit placeholder deferred below**). **Phase 7e owns rdc Help/About identity; final public-release URLs may follow in Phase 9b.** | 4 / 7e / 9b |
 | `menu/build-spell-check-menu.ts` + contextual `editMenu` expansion | WebKitGTK suggestions and Wayland-safe edit actions, ported with their text-input consumers | 7 |
-| `notifications.ts` | `src-tauri/src/platform/notification.rs` + `src-tauri/src/commands/notification.rs` + `src/lib/platform/notifications.ts` — **Phase 4b complete** with one Rust click router and a retained `notify-rust` handle; Linux daemon, packaged macOS identity and Windows toast evidence are Phase 8/9/10 gates | 4 / 8 / 9 / 10 |
-| `squirrel-updater.ts` | *(deleted)* — **Phase 4b complete** via `tauri-plugin-updater` + `src/lib/platform/updater.ts`; signed endpoint/key/mock-server evidence remains Phase 9/8 and Windows installer/apply/relaunch evidence is Phase 10 | 4 / 8 / 9 / 10 |
+| `notifications.ts` | `src-tauri/src/platform/notification.rs` + `src-tauri/src/commands/notification.rs` + `src/lib/platform/notifications.ts` — **Phase 4b complete** with one Rust click router and a retained `notify-rust` handle; native evidence follows an exposed Phase 8 MVP consumer or the Phase 9b/10 release targets | 4 / 8 / 9b / 10 |
+| `squirrel-updater.ts` | *(deleted)* — **Phase 4b complete** via `tauri-plugin-updater` + `src/lib/platform/updater.ts`; signed endpoint/key/mock-server evidence is Phase 9b and Windows installer/apply/relaunch evidence is Phase 10 | 4 / 9b / 10 |
 | `shell.ts` | folded into `src/lib/platform/files.ts` + native opener plugin (merge with `lib/shell.ts`, §3) | **Phase 4 complete on Linux/macOS; Windows safety/runtime Phase 10** |
 | `migrate-config-dir.ts` | *(dropped, not ported)* — the "confirm relevance" question has an answer: rdc owes `desktop-plus` no configuration compatibility, per `MIGRATION_PLAN.md` guiding principle 6. Settings formats are rdc's own | 4 |
-| `desktop-console-transport.ts`, `desktop-file-transport.ts`, `log.ts` | Rust `tracing` + file appender, replacing Winston | 6 |
-| `alive-origin-filter.ts`, `same-origin-filter.ts`, `ordered-webrequest.ts`, `authenticated-image-filter.ts` | **Phase 5 redesign, not a port** — see `MIGRATION_PLAN.md` Phase 5 | 5 |
+| `desktop-console-transport.ts`, `desktop-file-transport.ts`, `log.ts` | **complete for local recovery:** `tauri-plugin-log` writes renderer and Rust records to stdout plus a launch-rotated application log, retaining fourteen sessions at up to 10 MiB each; Phase 6b may add a consent-aware reporting sink | **6a complete** / 6b |
+| `alive-origin-filter.ts`, `same-origin-filter.ts`, `ordered-webrequest.ts`, `authenticated-image-filter.ts` | **Phase 5 redesign, not a port** — **5a complete:** closed production/dev CSP, exact application-document navigation and least-privilege native capability replace the generic filter mechanism for the MVP, which performs no authenticated webview HTTP. Alive origin rewriting, authenticated media and any GitHub API transport remain with their account consumer in 5b; authenticated fetch belongs in Rust rather than behind an HTTPS wildcard | 5a / 5b |
 | `now.ts`, `get-os.ts` | trivial — inline or drop, don't create a module for a one-liner | — |
 
 ---
@@ -390,8 +390,8 @@ row since the mapping is mechanical; flagging only what's non-mechanical:
   `merge-conflicts/`, `multi-commit-operation/`, `notifications/`, `octicons/`,
   `open-pull-request/`, `preferences/`, `repositories-list/`, `repository-settings/`,
   `stashing/`, `toolbar/`, `tutorial/`, `welcome/`, `window/`, `worktrees/`, plus the smaller
-  ones — full list in the Phase-0 survey) — straight 1:1 port, component-by-component, per
-  Phase 7's sequencing (start once Phase 3's IPC table is drafted, doesn't need Rust finished).
+  ones — full list in the Phase-0 survey) — straight 1:1 destination, ported component-by-component
+  with the Phase 7a–7e MVP consumer or retained explicitly in the Phase 7f parity backlog.
 
 Phase: 7 (all rows).
 
@@ -484,12 +484,12 @@ cross is a platform integration.
 | | Count |
 |---|---|
 | Phase 4 — native platform integrations | 69 |
-| Phase 6 — crash and exception reporting | 5 |
-| Phase 5 — session-level network behaviour | 4 |
-| Phase 9 — packaging, deep links and the CLI | 4 |
+| Phase 6a/6b — resilience and external reporting | 5 |
+| Phase 5b/5c — authenticated media and enterprise networking | 4 |
+| Phase 9b — packaging, deep links and the CLI | 4 |
 
 Phase 4 was 71 and Phase 5 was 3 until `resolve-proxy` moved between them; it became 69 when
-`url-action` joined Phase 9's single-instance/deep-link seam.
+`url-action` joined Phase 9b's single-instance/deep-link seam.
 
 Phase 4's frontend-facing audit is `scripts/measure-platform-surface.mjs`. Its kickoff baseline parses
 67 callable exports from `ui/main-process-proxy.ts` and **19** distinct `ipcRenderer.on(...)` channels
@@ -501,8 +501,9 @@ their later phase or deliberate deletion.
 zero pending, and the repository-wide reverse audit reports zero registered commands without a named
 consumer. The proxy inventory did not include Phase 2's `getGlobalConfigPath` handoff; that command,
 its typed wrapper and fresh-file test now land explicitly. Config/install-ID fresh-owner reads close
-their persistence criterion. Native-session checks retain target owners: Linux Phase 8, packaged macOS
-Phase 9 and Windows Phase 10.
+their persistence criterion. Native-session checks follow the product consumer: Phase 8 for behavior
+exposed by the macOS/Linux MVP, Phase 9b for post-MVP packaged release behavior, and Phase 10 for
+Windows.
 
 **37 of the 82 need no IPC at all.** A Tauri plugin API is callable straight from the frontend, so
 `minimize-window` becomes `getCurrentWindow().minimize()` and the channel simply disappears — which is
@@ -623,7 +624,7 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 | `show-save-dialog` | request/response | **implemented, no IPC** — `tauri-plugin-dialog`; returns one path or `null` | 4 |
 | `show-open-dialog` | request/response | **implemented, no IPC** — Electron property flags translate to Tauri options and multiple results collapse to the first | 4 |
 | `is-in-application-folder` | request/response | **implemented command** — macOS bundle ancestry plus system/per-user Applications-folder detection; `null` elsewhere | 4 |
-| `move-to-applications-folder` | request/response | **implemented command** — Finder relocation and relaunch on macOS; packaged `.app` evidence remains Phase 9 | 4 |
+| `move-to-applications-folder` | request/response | **implemented command** — Finder relocation and relaunch on macOS; signed packaged `.app` evidence remains Phase 9b | 4 |
 
 **Updater and process lifetime** (13)
 
@@ -675,21 +676,21 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 
 | Channel | Direction | Tauri mechanism | Phase |
 |---|---|---|---|
-| `log` | renderer→main | **implemented through `tauri-plugin-log`** — the plugin writes stdout and the application log file; Phase 6 owns retention and what happens to a crash | 4 |
-| `uncaught-exception` | renderer→main | command | 6 |
-| `send-error-report` | renderer→main | command | 6 |
-| `error` | main→renderer | `emit` from Rust | 6 |
-| `crash-ready` | renderer→main | command — the separate crash `BrowserWindow` is what these serve, and Phase 6 replaces it outright | 6 |
-| `crash-quit` | renderer→main | command | 6 |
+| `log` | renderer→main | **implemented through `tauri-plugin-log`** — stdout plus a launch-rotated application log with Phase 6a's fourteen-session / 10 MiB-per-file bound | **4 / 6a complete** |
+| `uncaught-exception` | renderer→main | **deleted** — React fatal recovery plus browser `error`/`unhandledrejection` logging stays in the renderer | **6a complete** |
+| `send-error-report` | renderer→main | external reporting, if enabled | 6b |
+| `error` | main→renderer | **deleted** — Rust panics log natively; the React boundary owns renderer recovery | **6a complete** |
+| `crash-ready` | renderer→main | **deleted** with the separate crash `BrowserWindow` | **6a complete** |
+| `crash-quit` | renderer→main | **deleted** with the separate crash `BrowserWindow`; Reload uses the existing document | **6a complete** |
 
 **Network interception and certificates** (4)
 
 | Channel | Direction | Tauri mechanism | Phase |
 |---|---|---|---|
-| `update-accounts` | renderer→main | — (design work) — its only upstream purpose is feeding `installAuthenticatedImageFilter`, which Phase 5 replaces with fetching in Rust | 5 |
-| `resolve-proxy` | request/response | — (design work) — **rehomed from Phase 4 to Phase 5.** `session.resolveProxy` is the same Electron `session` object as `webRequest`, so it belongs with the other session-level behaviours that need a redesign rather than a port. Phase 5 inherits `envForProxy`, `getFallbackUrlForProxyResolve` and `lib/parse-pac-string.ts` with it. **Consequence until then: no remote operation has proxy support.** | 5 |
-| `certificate-error` | main→renderer | — (may have no equivalent) — wry exposes no certificate-error hook; verify on WebKitGTK before promising parity | 5 |
-| `show-certificate-trust-dialog` | renderer→main | — (may have no equivalent) — macOS and Windows only upstream, and it is the recovery path for the above | 5 |
+| `update-accounts` | renderer→main | — (design work) — its only upstream purpose is feeding `installAuthenticatedImageFilter`, replaced with fetching in Rust | 5b |
+| `resolve-proxy` | request/response | — (design work) — `session.resolveProxy` is Chromium's cross-platform/PAC resolver and has no direct Tauri equivalent. **Consequence until then: no remote operation has proxy support.** | 5c |
+| `certificate-error` | main→renderer | — (may have no equivalent) — wry exposes no certificate-error hook; verify on WebKitGTK before promising parity | 5c |
+| `show-certificate-trust-dialog` | renderer→main | — (may have no equivalent) — macOS and Windows only upstream, and it is the recovery path for the above | 5c |
 
 ### 7.2 Git commands (no upstream channel)
 
@@ -792,6 +793,50 @@ shape of everything it carries is pinned by a wire-contract test on the Rust sid
 ---
 
 ## 8. Deliberate deviations from a verbatim port
+
+### The MVP webview has no general network authority
+
+Electron's `OrderedWebRequest` existed because several independent consumers needed to rewrite the one
+Chromium session: Alive websocket origin headers, authenticated images and stripping credentials when
+an authenticated fetch redirected across origins. Tauri exposes no equivalent interception layer, and
+recreating one would preserve authority the macOS/Linux MVP does not need.
+
+Phase 5a instead closes the production webview to self, Tauri IPC and opaque `rdc-blob:` capabilities.
+External destinations use the scoped opener plugin; an exact navigation predicate prevents HTTP(S),
+file, data, JavaScript and blob documents from replacing the application. Development adds only Vite's
+exact loopback HTTP/WebSocket pair. The broad `core:default` native capability is also removed, so a
+frontend compromise cannot invoke unused image, resource, menu, tray or event-emission commands.
+
+`style-src 'unsafe-inline'` is retained deliberately because React and the ported UI assign dynamic
+element styles; scripts remain self-only with Tauri's generated hashes/nonces, and neither policy
+allows eval or wildcard HTTP(S). `Object.prototype` is frozen before application code runs.
+
+The consequence is structural: there is no authenticated webview HTTP request whose headers can leak
+across a redirect. Phase 5b keeps authenticated image/account fetches in Rust and owns the Alive/GitHub
+transport design. It must not weaken 5a by adding a general HTTPS `connect-src`.
+
+### The first product milestone is a macOS/Linux MVP, not completion of every parity track
+
+After Phases 0–4 closed, the remaining sequential plan still placed the complete `ui/**` tree, all
+stores, enterprise session behavior, crash telemetry and release engineering before the application
+became useful. That phase boundary was an implementation inventory, not a product dependency.
+
+The revised plan preserves the phase numbers but splits them by consumer:
+
+- Phase 5a supplies the MVP CSP/capability baseline; authenticated media moves with GitHub
+  collaboration in 5b, and proxy/PAC plus certificate-trust work is the 5c enterprise track.
+- Phase 6a supplies local resilience; external reporting is 6b.
+- Phase 7a–7e delivers repository ownership, local changes/commit, history/branches, remote
+  synchronization and hardening as tested vertical slices. Phase 7f retains post-MVP UI/parity.
+- Phase 8 is continuous Linux E2E plus final Ubuntu and packaged-macOS acceptance, not a late test
+  implementation phase.
+- Phase 9a produces local macOS/Linux preview artifacts; signing, notarization, updater, deep links
+  and the standalone CLI remain the 9b public-release track.
+
+The exposed MVP workflow is the same on macOS and Linux. Linux is the automated `tauri-driver`
+environment; native macOS is a named packaged-`.app` manual acceptance surface because WKWebView has no
+WebDriver backend. Windows remains the complete Phase 10 target. This is sequencing, not permission to
+silently drop upstream behavior: deferred features retain a named owner in the plan and this map.
 
 ### The application menu is serializable frontend data, not Electron click closures
 
@@ -905,7 +950,7 @@ notification, while a hide-only close preserves the renderer and remains allowed
 only the retained update and relaunches through `tauri-plugin-process`.
 
 **Consequence:** the old `checkForUpdates(url)` argument is source compatibility only. Tauri verifies
-updates against a signed endpoint and public key from package configuration, so Phase 9 owns those
+updates against a signed endpoint and public key from package configuration, so Phase 9b owns those
 values and any replacement for Squirrel's per-install `guid` rollout query. Until they land, the real
 plugin compiles and the complete lifecycle is fake-backend tested, but a live check/install is not
 claimed.
@@ -913,7 +958,7 @@ claimed.
 ### Windows target inventory is Phase 10, not a Phase 4 tail
 
 Phase 4 closes the shared and Linux/macOS implementation without calling Windows supported. Phase 10
-owns every native Windows implementation and runtime check below; Phase 9 supplies the shared signed
+owns every native Windows implementation and runtime check below; Phase 9b supplies the shared signed
 package, single-instance and deep-link infrastructure it consumes.
 
 | Upstream seam | Phase 10 destination / acceptance |
@@ -960,7 +1005,7 @@ rdc creates a uniquely labelled webview from the same hidden `main` template and
 startup action in Rust under that label. The target renderer's existing `renderer-ready` command takes
 and returns it exactly once, after restoring and showing the window. **Consequence:** the path and
 `persistSelection: false` semantics are unchanged, but delivery is a command response instead of a
-post-load push event. This removes the emit-before-listener race and keeps Phase 9's external
+post-load push event. This removes the emit-before-listener race and keeps Phase 9b's external
 `cli-action` stream out of the Phase 4a boundary. Destroying a window discards any unclaimed action.
 
 When more than one application window exists, the preventable close decision destroys only the

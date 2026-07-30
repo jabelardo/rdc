@@ -30,6 +30,30 @@
   text-align: center;
 }
 
+.fatal-error {
+  box-sizing: border-box;
+  max-width: 48rem;
+  margin: 10vh auto 0;
+  padding: 2rem;
+}
+
+.fatal-error h1 {
+  text-align: left;
+}
+
+.fatal-error pre {
+  overflow: auto;
+  padding: 1rem;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 8%);
+  white-space: pre-wrap;
+}
+
+.fatal-error-actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;

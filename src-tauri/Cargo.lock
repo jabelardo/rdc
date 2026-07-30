@@ -2973,6 +2973,7 @@ dependencies = [
  "http",
  "keyring",
  "libc",
+ "log",
  "mac-usernotifications",
  "notify-rust",
  "serde",

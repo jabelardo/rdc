@@ -35,6 +35,23 @@ describe('native integration', () => {
     assert.equal(heading, 'rdc')
   })
 
+  it('enforces the production CSP and freezes the shared prototype', async () => {
+    const security = await driver.executeScript(() => ({
+      inlineScriptBlocked: (() => {
+        delete window.__rdcInlineCspProbe
+        const script = document.createElement('script')
+        script.textContent = 'window.__rdcInlineCspProbe = true'
+        document.head.append(script)
+        script.remove()
+        return window.__rdcInlineCspProbe !== true
+      })(),
+      objectPrototypeFrozen: Object.isFrozen(Object.prototype),
+    }))
+
+    assert.equal(security.objectPrototypeFrozen, true)
+    assert.equal(security.inlineScriptBlocked, true)
+  })
+
   it('returns a nested contextual-menu selection to React', async () => {
     await openContextMenu()
     sendNativeKeys('Home', 'Down', 'Right', 'Home', 'Return')

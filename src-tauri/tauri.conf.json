@@ -20,7 +20,62 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": ["'self'"],
+        "base-uri": ["'none'"],
+        "connect-src": [
+          "'self'",
+          "ipc:",
+          "http://ipc.localhost",
+          "rdc-blob:"
+        ],
+        "font-src": ["'self'", "data:"],
+        "form-action": ["'self'"],
+        "frame-src": ["'none'"],
+        "img-src": ["'self'", "data:", "blob:", "rdc-blob:"],
+        "manifest-src": ["'self'"],
+        "object-src": ["'none'"],
+        "script-src": ["'self'"],
+        "style-src": ["'self'", "'unsafe-inline'"],
+        "worker-src": ["'self'", "blob:"]
+      },
+      "devCsp": {
+        "default-src": ["'self'", "http://localhost:1420"],
+        "base-uri": ["'none'"],
+        "connect-src": [
+          "'self'",
+          "ipc:",
+          "http://ipc.localhost",
+          "rdc-blob:",
+          "http://localhost:1420",
+          "ws://localhost:1420"
+        ],
+        "font-src": ["'self'", "data:", "http://localhost:1420"],
+        "form-action": ["'self'"],
+        "frame-src": ["'none'"],
+        "img-src": [
+          "'self'",
+          "data:",
+          "blob:",
+          "rdc-blob:",
+          "http://localhost:1420"
+        ],
+        "manifest-src": ["'self'", "http://localhost:1420"],
+        "object-src": ["'none'"],
+        "script-src": ["'self'", "http://localhost:1420"],
+        "style-src": [
+          "'self'",
+          "'unsafe-inline'",
+          "http://localhost:1420"
+        ],
+        "worker-src": ["'self'", "blob:", "http://localhost:1420"]
+      },
+      "freezePrototype": true
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": ""
     }
   },
   "bundle": {

@@ -6,6 +6,8 @@ mod blob_protocol;
 mod config;
 mod hook_state;
 mod platform;
+mod resilience;
+mod security;
 
 mod trampoline_state;
 
@@ -30,7 +32,8 @@ fn create_window_from_main_template(
     );
 
     let builder = tauri::WebviewWindowBuilder::from_config(app, &window_config)?
-        .decorations(title_bar.decorations);
+        .decorations(title_bar.decorations)
+        .on_navigation(security::is_allowed_navigation);
     #[cfg(target_os = "macos")]
     let builder = if title_bar.macos_title_bar_overlay {
         builder.title_bar_style(tauri::TitleBarStyle::Overlay)
@@ -62,9 +65,7 @@ pub fn run() {
     disable_webkit_compositing();
 
     tauri::Builder::default()
-        // Phase 4 establishes stdout and application-log-file transport.
-        // Crash context, retention and reporting remain one Phase 6 pipeline.
-        .plugin(tauri_plugin_log::Builder::new().build())
+        .plugin(resilience::application_log_plugin())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
@@ -100,6 +101,7 @@ pub fn run() {
         // what it was handed and cannot name anything else — see src/blob_protocol.rs.
         .manage(blob_protocol::BlobRegistry::new())
         .setup(|app| {
+            resilience::install_panic_logging();
             app.state::<platform::window::LaunchTimingState>()
                 .mark_main_ready();
             #[cfg(not(target_os = "macos"))]
@@ -312,6 +314,32 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    fn tauri_config() -> serde_json::Value {
+        serde_json::from_str(include_str!("../tauri.conf.json"))
+            .expect("Tauri configuration should be valid JSON")
+    }
+
+    fn directive<'a>(
+        config: &'a serde_json::Value,
+        policy: &str,
+        name: &str,
+    ) -> &'a [serde_json::Value] {
+        config["app"]["security"][policy][name]
+            .as_array()
+            .unwrap_or_else(|| panic!("{policy}.{name} should be an explicit source list"))
+    }
+
+    fn source_is_allowed(
+        config: &serde_json::Value,
+        policy: &str,
+        directive_name: &str,
+        source: &str,
+    ) -> bool {
+        directive(config, policy, directive_name)
+            .iter()
+            .any(|value| value == source)
+    }
+
     #[test]
     fn desktop_capability_allows_lifetime_and_updater_operations() {
         let capability: serde_json::Value =
@@ -327,11 +355,135 @@ mod tests {
                 .any(|permission| permission == "core:window:allow-hide"),
             "the macOS close handler calls window.hide()"
         );
+        for required in [
+            "updater:allow-check",
+            "updater:allow-download",
+            "updater:allow-install",
+        ] {
+            assert!(
+                permissions.iter().any(|permission| permission == required),
+                "the frontend updater needs {required}"
+            );
+        }
+    }
+
+    #[test]
+    fn desktop_capability_does_not_grant_unused_core_permission_sets() {
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json"))
+                .expect("default capability should be valid JSON");
+        let permissions = capability["permissions"]
+            .as_array()
+            .expect("default capability should list permissions");
+
         assert!(
-            permissions
+            !permissions
                 .iter()
-                .any(|permission| permission == "updater:default"),
-            "the frontend updater needs check, download and install permission"
+                .any(|permission| permission == "core:default"),
+            "core:default also exposes unused image, resources, menu, tray and event-emission commands"
+        );
+        for required in [
+            "core:app:allow-set-app-theme",
+            "core:event:allow-listen",
+            "core:event:allow-unlisten",
+            "core:path:default",
+            "core:resources:allow-close",
+            "core:webview:allow-set-webview-zoom",
+        ] {
+            assert!(
+                permissions.iter().any(|permission| permission == required),
+                "the current frontend imports require {required}"
+            );
+        }
+    }
+
+    #[test]
+    fn production_csp_is_closed_and_keeps_ipc_and_blob_capabilities() {
+        let config = tauri_config();
+
+        assert_eq!(
+            directive(&config, "csp", "default-src"),
+            [serde_json::Value::String("'self'".into())]
+        );
+        for closed in ["base-uri", "frame-src", "object-src"] {
+            assert_eq!(
+                directive(&config, "csp", closed),
+                [serde_json::Value::String("'none'".into())],
+                "{closed} should fail closed"
+            );
+        }
+        for source in ["'self'", "ipc:", "http://ipc.localhost", "rdc-blob:"] {
+            assert!(
+                source_is_allowed(&config, "csp", "connect-src", source),
+                "connect-src needs {source}"
+            );
+        }
+        for source in ["'self'", "data:", "blob:", "rdc-blob:"] {
+            assert!(
+                source_is_allowed(&config, "csp", "img-src", source),
+                "img-src needs {source}"
+            );
+        }
+        for forbidden in ["*", "http:", "https:", "'unsafe-eval'"] {
+            assert!(
+                !config["app"]["security"]["csp"]
+                    .as_object()
+                    .expect("production csp should be a directive map")
+                    .values()
+                    .flat_map(|value| {
+                        value
+                            .as_array()
+                            .expect("each directive should be a source list")
+                    })
+                    .any(|value| value == forbidden),
+                "production CSP must not contain {forbidden}"
+            );
+        }
+        assert_eq!(config["app"]["security"]["freezePrototype"], true);
+    }
+
+    #[test]
+    fn development_csp_adds_only_the_vite_loopback_transport() {
+        let config = tauri_config();
+
+        for source in ["http://localhost:1420", "ws://localhost:1420"] {
+            assert!(
+                source_is_allowed(&config, "devCsp", "connect-src", source),
+                "Vite development requires {source}"
+            );
+        }
+        assert!(
+            source_is_allowed(&config, "devCsp", "script-src", "http://localhost:1420"),
+            "the development document loads Vite's module from its loopback server"
+        );
+        for forbidden in ["*", "http:", "https:", "'unsafe-eval'"] {
+            assert!(
+                !config["app"]["security"]["devCsp"]
+                    .as_object()
+                    .expect("development csp should be a directive map")
+                    .values()
+                    .flat_map(|value| {
+                        value
+                            .as_array()
+                            .expect("each directive should be a source list")
+                    })
+                    .any(|value| value == forbidden),
+                "development CSP must not contain {forbidden}"
+            );
+        }
+    }
+
+    #[test]
+    fn updater_has_an_explicit_pre_release_configuration() {
+        let config = tauri_config();
+        let updater = config["plugins"]["updater"]
+            .as_object()
+            .expect("the updater plugin rejects an absent/null configuration at startup");
+
+        assert_eq!(
+            updater.get("pubkey").and_then(serde_json::Value::as_str),
+            Some(""),
+            "Phase 9b owns the real signing key; pre-release builds still need a valid config object"
         );
     }
 }
