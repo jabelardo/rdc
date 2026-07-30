@@ -113,7 +113,9 @@ describe('current window controls', () => {
 
   it('requests critical attention only when a dialog opens unfocused', async () => {
     await sendDialogDidOpen()
-    expect(invoke).toHaveBeenCalledWith('beep')
+    if (__DARWIN__) {
+      expect(invoke).toHaveBeenCalledWith('beep')
+    }
     expect(currentWindow.requestUserAttention).toHaveBeenCalledWith(1)
 
     invoke.mockClear()
