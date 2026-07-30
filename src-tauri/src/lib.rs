@@ -3,10 +3,43 @@ mod commands;
 use tauri::{webview::PageLoadEvent, Manager};
 
 mod blob_protocol;
+mod config;
 mod hook_state;
 mod platform;
 
 mod trampoline_state;
+
+fn create_window_from_main_template(
+    app: &tauri::AppHandle,
+    label: &str,
+) -> Result<tauri::WebviewWindow, Box<dyn std::error::Error>> {
+    let mut window_config = app
+        .config()
+        .app
+        .windows
+        .iter()
+        .find(|window| window.label == "main")
+        .cloned()
+        .ok_or_else(|| std::io::Error::other("tauri.conf.json has no main window template"))?;
+    window_config.label = label.to_owned();
+    let directory = app.path().app_config_dir()?;
+    let main_process_config = config::read_main_process_config(&directory)?;
+    let title_bar = config::title_bar_decision(
+        config::HostPlatform::current(),
+        main_process_config.title_bar_style,
+    );
+
+    let builder = tauri::WebviewWindowBuilder::from_config(app, &window_config)?
+        .decorations(title_bar.decorations);
+    #[cfg(target_os = "macos")]
+    let builder = if title_bar.macos_title_bar_overlay {
+        builder.title_bar_style(tauri::TitleBarStyle::Overlay)
+    } else {
+        builder
+    };
+
+    Ok(builder.build()?)
+}
 
 // WebKitGTK's native-Wayland GPU compositing path has known unresolved
 // crash/render bugs as of 2026 (e.g. tauri-apps/wry#1727), and Wayland is
@@ -29,9 +62,13 @@ pub fn run() {
     disable_webkit_compositing();
 
     tauri::Builder::default()
+        // Phase 4 establishes stdout and application-log-file transport.
+        // Crash context, retention and reporting remain one Phase 6 pipeline.
+        .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
+        .plugin(tauri_plugin_process::init())
         // Persist geometry now, but do not let the plugin's automatic restore
         // show the main window before Phase 4a's renderer-ready handshake.
         .plugin(
@@ -49,6 +86,7 @@ pub fn run() {
         .manage(commands::keybindings::KeybindingState::new())
         .manage(platform::menu::NativeMenuState::new())
         .manage(platform::context_menu::ContextMenuState::new())
+        .manage(platform::window::WindowRoutingState::default())
         .manage(platform::window::WindowZoomState::default())
         .manage(platform::window::LaunchTimingState::new())
         // Blobs the app has decided the webview may read. A URL is a capability: the frontend can fetch
@@ -70,6 +108,10 @@ pub fn run() {
                     .map_err(std::io::Error::other)?;
                 platform::menu::install_bootstrap(app, &bindings).map_err(std::io::Error::other)?;
             }
+            // The template is deliberately `create: false`: titleBarStyle is
+            // process-owned startup configuration and must be applied before
+            // the native window exists.
+            create_window_from_main_template(app.handle(), "main")?;
             Ok(())
         })
         .on_page_load(|webview, payload| {
@@ -79,6 +121,13 @@ pub fn run() {
             match payload.event() {
                 PageLoadEvent::Started => state.mark_load_started(webview.label()),
                 PageLoadEvent::Finished => state.mark_load_finished(webview.label()),
+            }
+        })
+        .on_window_event(|window, event| {
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                window
+                    .state::<platform::window::WindowRoutingState>()
+                    .remove(window.label());
             }
         })
         .on_menu_event(|app, event| {
@@ -117,6 +166,8 @@ pub fn run() {
             commands::keybindings::reset_keybindings,
             commands::menu::set_native_menu,
             commands::menu::show_contextual_menu,
+            commands::window::set_window_selected_repository,
+            commands::window::open_repository_in_new_window,
             commands::window::get_current_window_zoom_factor,
             commands::window::set_window_zoom_factor,
             commands::window::renderer_ready,

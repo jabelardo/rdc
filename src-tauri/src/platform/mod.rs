@@ -13,3 +13,4 @@ pub mod shell_model;
 pub mod shells;
 pub mod system;
 pub mod window;
+pub mod window_model;

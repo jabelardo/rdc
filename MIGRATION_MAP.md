@@ -187,7 +187,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/get-architecture.ts`, `get-os.ts` | `src-tauri/src/platform/system_info.rs` | 4 |
 | `lib/get-main-guid.ts`, `get-updater-guid.ts` | `src-tauri/src/platform/install_id.rs` | 4 |
 | `lib/find-toast-activator-clsid.ts` | `src-tauri/src/platform/notifications/windows.rs` — superseded by `tauri-plugin-notification`, confirm still needed at all | 4 |
-| `lib/main-process-config.ts` | `src-tauri/src/config.rs` | 0/1 |
+| `lib/main-process-config.ts` | `src-tauri/src/config.rs` | **Phase 4a startup read done** for `titleBarStyle`; Phase 4b adds the typed frontend get/update surface and `hideWindowOnQuit` |
 | `lib/logging/get-log-path.ts` | `src-tauri/src/platform/log_path.rs` | 4/6 |
 
 **(b) File stays TypeScript; only its internal Node/Electron touch-points get swapped for
@@ -353,7 +353,7 @@ Everything else in `lib/**` not listed above → §2 (portable, stays TS as-is).
 | Old path | Target | Phase |
 |---|---|---|
 | `main.ts` | `src-tauri/src/lib.rs` (app entry/lifecycle, single-instance, protocol registration) | 4 |
-| `app-window.ts` | `src-tauri/src/lib.rs` + `src-tauri/src/platform/window.rs` + `tauri-plugin-window-state` (replaces `electron-window-state`) | **Phase 4a in progress** — direct state/zoom wrappers and the `renderer-ready` restore/show gate are done; persisted geometry/maximization restore before the first visible frame, while visibility, decorations and fullscreen remain separately owned |
+| `app-window.ts` | `src-tauri/src/lib.rs` + `src-tauri/src/platform/window.rs` + `src/lib/platform/lifetime.ts` + `tauri-plugin-window-state` (replaces `electron-window-state`) | **Phase 4a done** — startup `titleBarStyle`, direct state/zoom wrappers, the `renderer-ready` restore/show gate, frontend-owned preventable close flow, per-window selected-repository metadata, fresh repository-window creation and non-last-window destruction are implemented; persisted geometry/maximization restores before the first visible frame |
 | `ipc-main.ts` | *(deleted)* — superseded by `#[tauri::command]` registration | 3 |
 | `ipc-webcontents.ts` | *(deleted)* — superseded by `app.emit()` | 3 |
 | `trusted-ipc-sender.ts` | *(deleted)* — Tauri's IPC has no equivalent "trusted sender" gap to guard against in the same way; confirm no replacement needed | 3 |
@@ -518,12 +518,12 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 
 | Channel | Direction | Tauri mechanism | Phase |
 |---|---|---|---|
-| `get-app-menu` | renderer→main | command reading the `Menu` state | 4 |
-| `app-menu` | main→renderer | `emit` from Rust | 4 |
-| `update-menu-state` | renderer→main | command → `MenuItem::set_enabled` | 4 |
-| `update-preferred-app-menu-item-labels` | renderer→main | command rebuilding the menu | 4 |
-| `execute-menu-item-by-id` | renderer→main | command → `MenuEvent` | 4 |
-| `menu-event` | main→renderer | `on_menu_event` → `emit` | 4 |
+| `get-app-menu` | renderer→main | **implemented with no IPC** — `ApplicationMenuController.menu` owns the current frontend tree | 4 |
+| `app-menu` | main→renderer | **implemented with no IPC** — tree replacement stays inside `ApplicationMenuController` | 4 |
+| `update-menu-state` | renderer→main | **implemented as in-process tree replacement**; Phase 7 supplies the app-state policy | 4 |
+| `update-preferred-app-menu-item-labels` | renderer→main | **implemented by rebuilding/replacing the frontend tree**; macOS mirrors it through `set_native_menu` | 4 |
+| `execute-menu-item-by-id` | renderer→main | **implemented in-process** against the current enabled/visible item and shared action executor | 4 |
+| `menu-event` | main→renderer | **implemented and narrowed to macOS** — `on_menu_event` emits the typed action; Linux/Windows execute locally | 4 |
 | `show-contextual-menu` | request/response | command building a `Menu` and popping it up | 4 |
 | `select-all-window-contents` | renderer→main | **implemented with no IPC** — `document.execCommand('selectAll')` in the frontend | 4 |
 | `dialog-did-open` | renderer→main | command → `request_user_attention` — beeps on macOS and bounces the dock; nothing to route if that is dropped | 4 |
@@ -552,8 +552,10 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 > frontend state on every platform**; `update-menu-state` and `update-preferred-app-menu-item-labels` do
 > the same **on Linux and Windows only** and survive on macOS with their **direction reversed**
 > (renderer→main), since Rust needs labels and enablement to build the native menu; `menu-event` narrows
-> to the macOS native menu. Rows are left as routed until 4a lands so this column and the measured
-> partition in `MIGRATION_PLAN.md` describe the same table; flipping them is part of 4a's exit criteria.
+> to the macOS native menu. This is now implemented by `ApplicationMenuController`: it preserves open
+> menu state while replacing the tree, rejects stale/disabled execution, refreshes macOS after tree or
+> binding changes, and gives Linux/Windows the live tree and binding map through the capture-phase
+> dispatcher. Phase 7 plugs its state-derived tree and action dispatcher into that owner.
 >
 > **The cost:** Electron registers accelerators natively and they fire on Linux with the menu bar hidden.
 > `models/app-menu.ts` carries `accelerator` and `ui/app-menu/menu-list-item.tsx` only renders it —
@@ -581,9 +583,9 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 | `get-current-window-zoom-factor` | request/response | **implemented command** — Tauri sets zoom but does not report it, so Rust remembers the last successful value per webview | 4 |
 | `zoom-factor-changed` | main→renderer | **implemented** — the setter emits from the originating window; there is no native webview zoom event | 4 |
 | `update-window-background-color` | renderer→main | **implemented, no IPC** — current window `.setBackgroundColor()` accepts the same CSS color string | 4 |
-| `set-window-selected-repository` | renderer→main | command — the main process keeps it for the window title and the jump list | 4 |
-| `open-repository-in-new-window` | renderer→main | command creating a `WebviewWindow` | 4 |
-| `renderer-ready` | renderer→main | **implemented command** — the window starts hidden; the one-shot handshake restores persisted size/position/maximization, then shows and focuses it | 4 |
+| `set-window-selected-repository` | renderer→main | **implemented command** — stores the renderer's verbatim `string \| null` routing hint by originating window label and removes it on native window destruction | 4 |
+| `open-repository-in-new-window` | renderer→main | **implemented command** — always creates a fresh uniquely labelled `WebviewWindow` from the `main` template and queues the verbatim repository path for that renderer | 4 |
+| `renderer-ready` | renderer→main | **implemented command** — the window starts hidden; the one-shot handshake restores persisted size/position/maximization, shows and focuses it, then returns any queued startup action exactly once | 4 |
 | `launch-timing-stats` | main→renderer | **implemented** — Rust combines native ready/load durations with the renderer duration and emits the upstream three-field payload | 4 |
 
 **Theme** (3)
@@ -624,11 +626,11 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 | `auto-updater-update-not-available` | main→renderer | **no IPC** — the plugin's own promise | 4 |
 | `auto-updater-update-downloaded` | main→renderer | **no IPC** — the plugin's download progress | 4 |
 | `auto-updater-error` | main→renderer | **no IPC** — a rejected promise — five push channels collapse into one plugin call, since Squirrel's state machine was the only reason they were separate | 4 |
-| `restart-app` | renderer→main | **no IPC** — `tauri-plugin-process` `relaunch()` | 4 |
-| `quit-app` | renderer→main | **no IPC** — `exit()` | 4 |
-| `will-quit` | renderer→main | `onCloseRequested` → the frontend decides — **direction reverses**: Electron asked the renderer for permission through three channels; Tauri hands the frontend a preventable event | 4 |
-| `will-quit-even-if-updating` | renderer→main | same event, different reason | 4 |
-| `cancel-quitting` | renderer→main | `event.preventDefault()` | 4 |
+| `restart-app` | renderer→main | **implemented, no IPC** — `tauri-plugin-process` `relaunch()` | 4 |
+| `quit-app` | renderer→main | **implemented, no IPC** — `exit(0)` after the frontend has resolved application-state policy | 4 |
+| `will-quit` | renderer→main | **implemented with direction reversed** — one `onCloseRequested` handler synchronously prevents close, then the frontend decides `quit` / `hide` / `cancel` | 4 |
+| `will-quit-even-if-updating` | renderer→main | **implemented by the same decision point** — update state becomes frontend policy rather than a Rust flag | 4 |
+| `cancel-quitting` | renderer→main | **implemented by returning `cancel`**; no second channel or mutable cross-process state survives | 4 |
 
 **Notifications** (4)
 
@@ -662,7 +664,7 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 
 | Channel | Direction | Tauri mechanism | Phase |
 |---|---|---|---|
-| `log` | renderer→main | `tauri-plugin-log` — the plugin writes the file; Phase 6 owns what happens to a crash | 4 |
+| `log` | renderer→main | **implemented through `tauri-plugin-log`** — the plugin writes stdout and the application log file; Phase 6 owns retention and what happens to a crash | 4 |
 | `uncaught-exception` | renderer→main | command | 6 |
 | `send-error-report` | renderer→main | command | 6 |
 | `error` | main→renderer | `emit` from Rust | 6 |
@@ -847,6 +849,54 @@ callers retain their source shape, but pass only title, initial path, filters, d
 directory-creation behavior. **Consequence:** the macOS clone chooser uses the native default save
 button/name-field presentation rather than `Select` / `Clone As:`; the selected path and cancellation
 contract are unchanged.
+
+### Application close is one frontend decision, not three renderer-to-main flags
+
+Electron set `quitting` and `quittingEvenIfUpdating` flags synchronously in the main process, then
+consulted them during a later `BrowserWindow.close`. Tauri delivers a preventable close request to the
+renderer instead. `src/lib/platform/lifetime.ts` prevents that event before awaiting anything and lets
+frontend policy resolve it as `quit`, `hide` or `cancel`; repeated close requests coalesce while that
+decision is pending. Explicit quit and restart reach `tauri-plugin-process` only after the caller has
+resolved the same application-state policy.
+
+**Consequence:** `will-quit`, `will-quit-even-if-updating` and `cancel-quitting` disappear together
+instead of becoming commands, so there is no cross-process state to race or reset. macOS keeps
+upstream's hide-on-close default. Linux and Windows default to quitting until Phase 4b's
+`hideWindowOnQuit` config is available, at which point the same decision function can return `hide`
+without changing the native boundary.
+
+### A new repository window receives its startup action through readiness
+
+Upstream's explicit `open-repository-in-new-window` handler always constructs a fresh window, waits
+for its page load, then sends an `open-repository` CLI action with `persistSelection: false`. It does
+not consult `findWindowForRepositoryPath` or normalize the requested path; those operations belong to
+external CLI/open-event routing.
+
+rdc creates a uniquely labelled webview from the same hidden `main` template and queues the structured
+startup action in Rust under that label. The target renderer's existing `renderer-ready` command takes
+and returns it exactly once, after restoring and showing the window. **Consequence:** the path and
+`persistSelection: false` semantics are unchanged, but delivery is a command response instead of a
+post-load push event. This removes the emit-before-listener race and keeps Phase 9's external
+`cli-action` stream out of the Phase 4a boundary. Destroying a window discards any unclaimed action.
+
+When more than one application window exists, the preventable close decision destroys only the
+requesting window. The last window retains the platform hide/quit policy described above.
+
+### Startup chrome reads rdc's config before the main window exists
+
+`tauri.conf.json` keeps `main` as a `create: false` template. During setup Rust reads
+`app_config_dir/main-process-config.json`, applies the platform decision, and only then constructs the
+webview. This preserves upstream's load-bearing synchronous ordering without moving config into
+webview storage. The matrix is also upstream's: macOS always uses native overlay chrome, Windows is
+always frameless, and only Linux consults `native` / `custom` / `native-without-menu-bar`.
+
+The filename and directory are intentionally rdc-owned under guiding principle 6; Desktop Plus's
+`.main-process-config` is not imported. **Consequence:** an existing Desktop Plus title-bar preference
+does not carry over. A missing or unknown value defaults to `native`, while malformed JSON fails
+startup as upstream's synchronous `JSON.parse` did. `native-without-menu-bar` already selects native
+decorations. The Phase 4a menu-state bridge is now in place; suppressing Phase 7's frontend-rendered
+Linux menu still needs the typed Phase 4b config surface, because Tauri's window builder has no
+Electron-style `autoHideMenuBar` property.
 
 ### Three ported functions have no command, on purpose
 

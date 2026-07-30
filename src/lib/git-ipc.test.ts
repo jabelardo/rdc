@@ -258,6 +258,8 @@ describe('the git IPC wire shape', () => {
       'trailer',
       'uninitializedSubmoduleEntry',
       'unrenderableDiff',
+      // The window startup action — covered by models/cli-action.test.ts.
+      'windowStartupAction',
       // Covered by worktree-ipc.test.ts.
       'worktreeEntry',
     ])

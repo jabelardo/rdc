@@ -2000,17 +2000,29 @@ otherwise show it before the renderer is ready. That lifecycle slice is now comp
 hidden; Rust records native ready/page-load durations; the renderer sends its elapsed time; and the
 one-shot command restores size, position and maximization before showing/focusing the window and
 emitting the upstream three-field launch-timing payload. Visibility is deliberately excluded from
-plugin restoration because the handshake owns it; decorations and fullscreen retain their separate
-policies. The adjacent theme slice is complete too: application-wide light/dark/system selection,
+plugin restoration because the handshake owns it; fullscreen retains its separate policy. Startup
+decorations now come from the Rust-owned `titleBarStyle` read before `main` exists. The adjacent theme
+slice is complete too: application-wide light/dark/system selection,
 resolved-dark queries, payload-free change notification and native window background color all use
 Tauri directly under explicit capabilities. Paths/files/dialogs/trash are now complete as a second
 frontend-facing group: typed Tauri path mappings and OS architecture replace Electron queries,
 opener handles URLs, file paths and reveal, Rust conservatively classifies macOS application bundles
 before opening folder contents, and the `trash` crate performs recoverable deletion in a blocking
 task. Open/save dialogs translate the subset of Electron options the real consumers use and return
-the same first-path-or-`null` result. The audit is now **27 of 58** proxy exports and **7 of 16**
-subscriptions implemented. Its capability and Linux initialization are covered by the Ubuntu 26.04
-container's real application-launch, native-menu and native-dialog WebDriver smoke.
+the same first-path-or-`null` result. App lifetime then reversed three synchronous Electron flags into
+one preventable frontend close decision, and the process/log plugins are wired under explicit
+capabilities. The application menu now has one frontend owner across all platforms: it executes current
+items locally, refreshes the native macOS tree after structure or binding changes, and supplies live
+tree/binding state to the Linux/Windows keydown dispatcher. Five Electron proxy shapes and the
+`app-menu` subscription therefore disappear. Selected-repository metadata is also implemented as a
+window-scoped Rust routing hint, stored verbatim and cleared by `null` or native destruction. The
+explicit new-window command creates a fresh webview from the startup template, queues its one-shot
+open-repository action until that renderer is ready, and never normalizes the requested path. Closing
+one of multiple windows destroys only that window; the last-window hide/quit policy remains unchanged.
+The audit is now **39 of 58** proxy exports and **8 of 16** subscriptions implemented: **39 of 39**
+Phase 4a wrappers and **8 of 8** Phase 4a subscriptions, with all remaining work assigned to 4b.
+Its capability and Linux initialization are covered by the Ubuntu 26.04 container's six real
+application-launch, menu, dialog, multi-window and process-lifetime WebDriver specs.
 
 #### What this phase is, measured
 
@@ -2178,11 +2190,11 @@ for the updater, so 4a is everything the UI calls and 4b is everything it does n
 1. **Measure the surface.** `scripts/measure-platform-surface.mjs`, before any code, with every name
    classified and zero uncovered. Phase 3's lesson applied up front: a number nobody can re-derive is a
    claim, not a measurement.
-2. **Plugins and capabilities.** Wire `window-state` (**wired for persistence; initial restore now
-   runs inside the implemented `renderer-ready` command**), `os`, `process`, `dialog`, `log` (`opener` is
-   already wired), each with its capability permission and a smoke check **in the Linux container** —
-   `tauri.conf.json` currently declares one window and `core:default` + `opener:default`, so every
-   permission this phase needs is an addition to audit.
+2. **Plugins and capabilities.** **All Phase 4a plugins are wired with window-scoped permissions:**
+   `window-state` (persistence, with initial restore inside `renderer-ready`), `os`, `process`, `dialog`,
+   `log` and `opener`. The Linux-container application exercises dialog directly, sends a renderer log
+   record at startup, and its final lifetime spec exits through the process plugin after a real native
+   close request.
 3. **`src/lib/platform/**` — the wrapper module.** The 42 frontend/plugin channels, exported under the
    names `main-process-proxy.ts` used, so Phase 7 imports them unchanged. Tested against a mocked
    `@tauri-apps/api`, the way `*-ipc.ts` wrappers already are.
@@ -2194,9 +2206,31 @@ for the updater, so 4a is everything the UI calls and 4b is everything it does n
    title, `set-window-selected-repository`, `launch-timing-stats`, and the **quit flow reversing
    direction**: three Electron channels asking the renderer for permission become one preventable
    `onCloseRequested` the frontend answers in place.
-   **Multi-window needs design, not a port**: upstream's `getAppWindows`, `findWindowForRepositoryPath`
-   and `normalizeRepositoryPath` back `open-repository-in-new-window`, and Tauri's `WebviewWindow` model
-   is different enough that the routing rule should be decided explicitly.
+   **Implemented:** close is prevented synchronously, repeated requests coalesce while the frontend
+   decides `quit` / `hide` / `cancel`, macOS preserves hide-on-close, and explicit quit/restart use the
+   process plugin only after frontend policy. Phase 4b's config supplies the optional non-macOS
+   `hideWindowOnQuit` value; no Rust-side quitting flags return.
+   **`titleBarStyle` is implemented before native creation:** the configured `main` window is a
+   `create: false` template; Rust reads `main-process-config.json`, applies upstream's platform matrix
+   (macOS native overlay, Windows custom chrome, Linux preference), then constructs the webview.
+   Missing or unknown values use `native`, while malformed JSON remains a startup error as upstream's
+   synchronous `JSON.parse` was. `native-without-menu-bar` shares native decorations; the menu bridge
+   is in place, while suppressing Phase 7's frontend-rendered Linux menu waits for Phase 4b's typed
+   config surface rather than a nonexistent window-builder property.
+   **Selected-repository metadata is implemented:** the typed frontend setter sends `string | null`;
+   Rust scopes the verbatim value to the originating window label and removes it on `null` or native
+   destruction. Upstream uses this field only when routing externally supplied CLI/open actions—not
+   for the title or jump list.
+   **Explicit new-window creation is implemented:** `open-repository-in-new-window` always creates a
+   fresh uniquely labelled webview from the same `main` startup template. Rust queues
+   `{ kind: 'open-repository', path, persistSelection: false }` by label and returns it exactly once
+   from that window's `renderer-ready` handshake, after restore/show/focus, which removes the
+   emit-before-listener race without importing Phase 9's external `cli-action` stream. The path crosses
+   verbatim. `findWindowForRepositoryPath`, `normalizeRepositoryPath` and most-specific matching belong
+   only to Phase 9's single-instance/external-action routing.
+   **Multi-window lifetime is implemented:** a close request destroys only the current window while
+   another app window exists; the last window still follows the existing macOS hide/non-macOS quit
+   policy. Destruction clears both routing metadata and any unclaimed startup action.
 5. **Menus and key bindings.** Per decision 1, and the largest slice in 4a. Five pieces:
    - `src/lib/menu/default-menu.ts` — the structure, labels and roles ported from `build-default-menu.ts`
      **without accelerators**, plus `lib/menu-item.ts`; and `src/models/app-menu.ts`, which is the same
@@ -2215,6 +2249,13 @@ for the updater, so 4a is everything the UI calls and 4b is everything it does n
      marker distinguishes dismissal from Tauri's asynchronously forwarded selection event.
    - The **Linux/Windows accelerator dispatcher** in the frontend, matching `keydown` against the map, plus
      `friendlyAcceleratorText` for display. This is the new code in the slice; spike it before estimating.
+
+   **The ownership bridge is implemented:** `ApplicationMenuController` holds the current immutable
+   `AppMenu`, executes an item or ID only after re-resolving it against current enabled/visible state,
+   and preserves open-menu IDs when replacing the tree. On macOS it installs the native action listener
+   before pushing the tree and rebuilds native state after tree or keybinding changes. On Linux/Windows
+   it installs the capture-phase dispatcher against live controller state. Phase 7 replaces the startup
+   tree with its state-derived tree and action dispatcher; its enablement policy is not duplicated here.
 
    Port `app/test/unit/main-process/menu-test.ts` here. `spell-checker-menu-test.ts`, the WebKitGTK
    suggestions investigation and Electron's synthetic `editMenu` placeholder move to Phase 7: both are
@@ -2329,11 +2370,16 @@ surface criteria are necessary and demonstrably insufficient — all four of Pha
   validates the plumbing, not native-Wayland rendering. **Done for the first Phase 4 slice:** the
   debug application launches under WebDriver, a nested native contextual-menu selection returns its
   index path and invokes its React callback, Escape returns menu dismissal, and a real native directory
-  dialog opens and dismisses through the plugin. The macOS application menu is manually validated
-  because the repository's supported driver path is Linux-only.
-- `measure-platform-surface.mjs --require-complete` reports **zero pending or uncovered** across the 67
-  entry points and 19 subscriptions in the inventory, in both directions, with every later-phase
-  deferral naming its owner.
+  dialog opens and dismisses through the plugin. A fifth spec opens a second repository window,
+  observes the exact one-shot action (including an unnormalized path and `persistSelection: false`),
+  and closes only that child. A sixth requests `Window.close()` on the last window, crosses the
+  preventable frontend decision and observes the process plugin terminate the real application. The
+  macOS application menu is manually validated because the repository's supported driver path is
+  Linux-only.
+- `measure-platform-surface.mjs --require-phase4a-complete` reports **39 of 39 wrappers and 8 of 8
+  subscriptions implemented**, with zero uncovered entries in either direction. The 19 wrappers and
+  8 subscriptions left pending are explicitly assigned to 4b; `--require-complete` remains the
+  whole-Phase-4 closure gate.
 - Every 4a row in `MIGRATION_MAP.md` §7.1 has its status flipped, and every deviation from decisions 1–3
   is written into §8 **with its consequence** — the menu inversion, the accelerator dispatcher, and
   anything WebKitGTK turns out not to expose.

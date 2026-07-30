@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { MenuAction, MenuItem } from '../../models/app-menu'
+import type { MenuItem } from '../../models/app-menu'
 import {
   buildStartupMenu,
   createStartupMenuActionExecutor,
-  installMacOSDefaultMenu,
 } from './startup'
 
 function allItems(items: ReadonlyArray<MenuItem>): ReadonlyArray<MenuItem> {
@@ -36,58 +35,12 @@ describe('startup default menu', () => {
     ).toMatchObject({ enabled: true })
   })
 
-  it('registers the action listener before replacing the bootstrap menu and cleans up', async () => {
-    const calls: string[] = []
-    const unlisten = vi.fn()
-    let onAction: ((action: MenuAction) => void) | undefined
-    const execute = vi.fn()
-    const install = vi.fn(async () => {
-      calls.push('install')
-    })
-    const listen = vi.fn(async (callback: (action: MenuAction) => void) => {
-      calls.push('listen')
-      onAction = callback
-      return unlisten
-    })
-
-    const dispose = await installMacOSDefaultMenu({
-      execute,
-      install,
-      listen,
-    })
-    onAction?.({ type: 'menu-event', event: 'select-all' })
-    dispose()
-
-    expect(calls).toEqual(['listen', 'install'])
-    expect(install).toHaveBeenCalledWith(buildStartupMenu())
-    expect(execute).toHaveBeenCalledWith({
-      type: 'menu-event',
-      event: 'select-all',
-    })
-    expect(unlisten).toHaveBeenCalledOnce()
-  })
-
-  it('removes the listener when native installation fails', async () => {
-    const unlisten = vi.fn()
-
-    await expect(
-      installMacOSDefaultMenu({
-        execute: vi.fn(),
-        install: async () => {
-          throw new Error('native menu failed')
-        },
-        listen: async () => unlisten,
-      })
-    ).rejects.toThrow('native menu failed')
-
-    expect(unlisten).toHaveBeenCalledOnce()
-  })
 })
 
 describe('startup menu actions', () => {
   it('executes every action the startup menu leaves enabled', async () => {
     const environment = {
-      close: vi.fn(async () => undefined),
+      quit: vi.fn(async () => undefined),
       openExternal: vi.fn(async () => undefined),
       reload: vi.fn(),
       selectAll: vi.fn(),
@@ -119,12 +72,12 @@ describe('startup menu actions', () => {
     expect(environment.selectAll).toHaveBeenCalledOnce()
     expect(environment.setZoom.mock.calls).toEqual([[1.1], [1], [1]])
     expect(environment.reload).toHaveBeenCalledOnce()
-    expect(environment.close).toHaveBeenCalledOnce()
+    expect(environment.quit).toHaveBeenCalledOnce()
   })
 
   it('refuses actions that must wait for the Phase 7 dispatcher', async () => {
     const execute = createStartupMenuActionExecutor({
-      close: vi.fn(),
+      quit: vi.fn(),
       openExternal: vi.fn(),
       reload: vi.fn(),
       selectAll: vi.fn(),

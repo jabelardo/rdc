@@ -2,6 +2,7 @@
 //
 // Usage, from the repository root:
 //
+//   node scripts/measure-platform-surface.mjs [path-to-desktop-plus] [--require-phase4a-complete]
 //   node scripts/measure-platform-surface.mjs [path-to-desktop-plus] [--require-complete]
 //
 // This is a local gate rather than CI because it needs the sibling upstream checkout. It deliberately
@@ -16,13 +17,53 @@ import ts from 'typescript'
 
 const args = process.argv.slice(2)
 const upstream = args.find(argument => !argument.startsWith('--')) ?? '../desktop-plus'
+const requirePhase4aComplete = args.includes('--require-phase4a-complete')
 const requireComplete = args.includes('--require-complete')
 const UPSTREAM_PROXY = join(upstream, 'app/src/ui/main-process-proxy.ts')
 const UPSTREAM_SOURCE = join(upstream, 'app/src')
 const PLATFORM_SOURCE = 'src/lib/platform'
-const PLATFORM_ADAPTER_FILES = ['src/lib/custom-integration.ts']
+const PLATFORM_ADAPTER_FILES = [
+  'src/lib/custom-integration.ts',
+  'src/lib/menu/application-menu.ts',
+]
 
 const PROXY_FACTORIES = new Set(['invokeProxy', 'sendProxy'])
+
+// Phase 4 was split after the inventory was built: 4a is the platform substrate Phase 7 needs,
+// while these independent integrations are 4b. Keep the boundary here so 4a can have a real closure
+// gate without pretending that the whole phase is complete.
+export const PHASE_4B_PROXY_EXPORTS = new Set([
+  'sendDialogDidOpen',
+  'checkForUpdates',
+  'quitAndInstallUpdate',
+  'onAutoUpdaterError',
+  'onAutoUpdaterCheckingForUpdate',
+  'onAutoUpdaterUpdateAvailable',
+  'onAutoUpdaterUpdateNotAvailable',
+  'onAutoUpdaterUpdateDownloaded',
+  'onShowInstallingUpdate',
+  'getAppleActionOnDoubleClick',
+  'moveToApplicationsFolder',
+  'isInApplicationFolder',
+  'saveGUID',
+  'getGUID',
+  'updateMainProcessConfig',
+  'getMainProcessConfig',
+  'showNotification',
+  'getNotificationsPermission',
+  'requestNotificationsPermission',
+])
+
+export const PHASE_4B_SUBSCRIPTIONS = new Set([
+  'notification-event',
+  'url-action',
+  'auto-updater-error',
+  'auto-updater-checking-for-update',
+  'auto-updater-update-available',
+  'auto-updater-update-not-available',
+  'auto-updater-update-downloaded',
+  'show-installing-update',
+])
 
 // These exports are still part of the upstream proxy contract, but another phase owns their replacement.
 const LATER_PHASE_EXPORTS = new Map([
@@ -44,6 +85,7 @@ const DELETED_EXPORTS = new Map([
 // Upstream subscribed directly to raw Electron channels, so these replacement
 // adapters necessarily have frontend-friendly names rather than channel names.
 const SUBSCRIPTION_ADAPTERS = new Map([
+  ['app-menu', 'ApplicationMenuController'],
   ['blur', 'onWindowFocusChanged'],
   ['focus', 'onWindowFocusChanged'],
   ['menu-event', 'onNativeMenuAction'],
@@ -53,10 +95,28 @@ const SUBSCRIPTION_ADAPTERS = new Map([
   ['zoom-factor-changed', 'onWindowZoomFactorChanged'],
 ])
 
+// These upstream functions only existed to synchronously manipulate Electron
+// main-process flags before a later window close. Tauri gives the renderer the
+// preventable close event directly, so all three collapse into one handler.
+const PROXY_ADAPTERS = new Map([
+  ['getAppMenu', 'ApplicationMenuController'],
+  ['updateMenuState', 'ApplicationMenuController'],
+  ['updatePreferredAppMenuItemLabels', 'ApplicationMenuController'],
+  ['executeMenuItem', 'ApplicationMenuController'],
+  ['executeMenuItemById', 'ApplicationMenuController'],
+  ['sendWillQuitSync', 'installCloseRequestHandler'],
+  ['sendWillQuitEvenIfUpdatingSync', 'installCloseRequestHandler'],
+  ['sendCancelQuittingSync', 'installCloseRequestHandler'],
+])
+
 // Platform integrations imported directly from Node-bound upstream modules rather than through
 // main-process-proxy.ts. They are part of Phase 4's broader module map, but not one of its 67 proxy
 // entry points, so the reverse audit requires a named consumer here.
 const CONSUMER_OUTSIDE_PROXY = new Map([
+  [
+    'installApplicationMenu',
+    'App.tsx installs the Phase 4a frontend menu owner before Phase 7 ports the full application shell',
+  ],
   ['getAvailableEditors', 'lib/editors/lookup.ts and Phase 7 preferences/store consumers'],
   ['getAvailableShells', 'ui/preferences/preferences.tsx and lib/stores/app-store.ts'],
   ['findShellOrDefault', 'lib/stores/app-store.ts'],
@@ -98,6 +158,10 @@ const CONSUMER_OUTSIDE_PROXY = new Map([
   [
     'setNativeMenu',
     'macOS startup installs the frontend-owned default tree after renderer load',
+  ],
+  [
+    'installDefaultCloseRequestHandler',
+    'the current React harness supplies Phase 4a platform-default close policy',
   ],
 ])
 
@@ -258,6 +322,7 @@ function measure() {
   const phase4Exports = proxyExports.filter(
     name => !LATER_PHASE_EXPORTS.has(name) && !DELETED_EXPORTS.has(name)
   )
+  const phase4aExports = phase4Exports.filter(name => !PHASE_4B_PROXY_EXPORTS.has(name))
 
   const upstreamFiles = walk(UPSTREAM_SOURCE).map(file => ({
     file,
@@ -269,18 +334,36 @@ function measure() {
 
   const laterSubscriptions = [...subscriptions].filter(channel => routes.get(channel) !== 4)
   const phase4Subscriptions = [...subscriptions].filter(channel => routes.get(channel) === 4)
+  const phase4aSubscriptions = phase4Subscriptions.filter(
+    channel => !PHASE_4B_SUBSCRIPTIONS.has(channel)
+  )
 
   const providedExports = platformExports()
   const commands = registeredCommands()
-  const implementedPhase4Exports = phase4Exports.filter(name => providedExports.has(name))
-  const pendingPhase4Exports = phase4Exports.filter(name => !providedExports.has(name))
+  const implementedPhase4Exports = phase4Exports.filter(
+    name =>
+      providedExports.has(name) ||
+      providedExports.has(PROXY_ADAPTERS.get(name))
+  )
+  const pendingPhase4Exports = phase4Exports.filter(
+    name =>
+      !providedExports.has(name) &&
+      !providedExports.has(PROXY_ADAPTERS.get(name))
+  )
+  const pendingPhase4aExports = phase4aExports.filter(
+    name =>
+      !providedExports.has(name) &&
+      !providedExports.has(PROXY_ADAPTERS.get(name))
+  )
   const subscriptionAdapterExports = new Set(SUBSCRIPTION_ADAPTERS.values())
+  const proxyAdapterExports = new Set(PROXY_ADAPTERS.values())
   const extraExports = [...providedExports]
     .filter(
       name =>
         !proxySet.has(name) &&
         !CONSUMER_OUTSIDE_PROXY.has(name) &&
-        !subscriptionAdapterExports.has(name)
+        !subscriptionAdapterExports.has(name) &&
+        !proxyAdapterExports.has(name)
     )
     .sort()
 
@@ -290,6 +373,15 @@ function measure() {
   const pendingPhase4Subscriptions = phase4Subscriptions.filter(
     channel => !isSubscriptionImplemented(channel, providedExports, commands)
   )
+  const pendingPhase4aSubscriptions = phase4aSubscriptions.filter(
+    channel => !isSubscriptionImplemented(channel, providedExports, commands)
+  )
+  const stalePhase4bExports = [...PHASE_4B_PROXY_EXPORTS].filter(
+    name => !phase4Exports.includes(name)
+  )
+  const stalePhase4bSubscriptions = [...PHASE_4B_SUBSCRIPTIONS].filter(
+    channel => !phase4Subscriptions.includes(channel)
+  )
 
   console.log(`${proxyExports.length} upstream main-process proxy entry points`)
   console.log(`   ${phase4Exports.length} owned by Phase 4`)
@@ -297,6 +389,9 @@ function measure() {
   console.log(`   ${DELETED_EXPORTS.size} deliberately deleted`)
   console.log(`   ${implementedPhase4Exports.length} Phase 4 wrappers implemented`)
   console.log(`   ${pendingPhase4Exports.length} Phase 4 wrappers pending`)
+  console.log(
+    `   ${phase4aExports.length - pendingPhase4aExports.length}/${phase4aExports.length} Phase 4a wrappers implemented`
+  )
   for (const name of pendingPhase4Exports) console.log(`   PENDING WRAPPER: ${name}`)
 
   console.log(`\n${subscriptions.size} distinct upstream renderer subscriptions`)
@@ -304,6 +399,9 @@ function measure() {
   console.log(`   ${laterSubscriptions.length} owned by later phases`)
   console.log(`   ${implementedPhase4Subscriptions.length} Phase 4 listeners/commands implemented`)
   console.log(`   ${pendingPhase4Subscriptions.length} Phase 4 listeners/commands pending`)
+  console.log(
+    `   ${phase4aSubscriptions.length - pendingPhase4aSubscriptions.length}/${phase4aSubscriptions.length} Phase 4a listeners/commands implemented`
+  )
   for (const channel of pendingPhase4Subscriptions) console.log(`   PENDING SUBSCRIPTION: ${channel}`)
 
   console.log(`\n${providedExports.size} Phase 4 adapter runtime exports`)
@@ -312,6 +410,10 @@ function measure() {
   for (const name of unknownClassifications) console.log(`   STALE CLASSIFICATION: ${name}`)
   for (const channel of unclassifiedSubscriptions) console.log(`   UNROUTED SUBSCRIPTION: ${channel}`)
   for (const name of duplicateProxyExports) console.log(`   EXPORTED TWICE: ${name}`)
+  for (const name of stalePhase4bExports) console.log(`   STALE PHASE 4B WRAPPER: ${name}`)
+  for (const channel of stalePhase4bSubscriptions) {
+    console.log(`   STALE PHASE 4B SUBSCRIPTION: ${channel}`)
+  }
 
   // Pending Phase 4 implementation is expected while the phase is open. Structural errors are not:
   // the inventory, classifications and reverse check must stay exact from the first slice onward.
@@ -320,10 +422,15 @@ function measure() {
     duplicateProxyExports.length +
     unknownClassifications.length +
     unclassifiedSubscriptions.length +
-    extraExports.length
+    extraExports.length +
+    stalePhase4bExports.length +
+    stalePhase4bSubscriptions.length
+  const pendingPhase4aProblems = requirePhase4aComplete
+    ? pendingPhase4aExports.length + pendingPhase4aSubscriptions.length
+    : 0
   const pendingProblems =
     requireComplete ? pendingPhase4Exports.length + pendingPhase4Subscriptions.length : 0
-  process.exitCode = structuralProblems + pendingProblems > 0 ? 1 : 0
+  process.exitCode = structuralProblems + pendingPhase4aProblems + pendingProblems > 0 ? 1 : 0
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

@@ -1,10 +1,15 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::Mutex,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex,
+    },
     time::{Duration, Instant},
 };
 
 use serde::Serialize;
+
+use super::window_model::WindowStartupAction;
 
 const DEFAULT_ZOOM_FACTOR: f64 = 1.0;
 
@@ -13,6 +18,19 @@ const DEFAULT_ZOOM_FACTOR: f64 = 1.0;
 #[derive(Default)]
 pub struct WindowZoomState {
     factors: Mutex<HashMap<String, f64>>,
+}
+
+#[derive(Default)]
+struct WindowRoutingInner {
+    selected_paths: HashMap<String, String>,
+    startup_actions: HashMap<String, WindowStartupAction>,
+}
+
+/// Owns per-window routing metadata and one-shot renderer startup actions.
+#[derive(Default)]
+pub struct WindowRoutingState {
+    next_window_number: AtomicU64,
+    inner: Mutex<WindowRoutingInner>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -140,11 +158,127 @@ impl WindowZoomState {
     }
 }
 
+impl WindowRoutingState {
+    #[cfg(test)]
+    pub fn get(&self, label: &str) -> Option<String> {
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .selected_paths
+            .get(label)
+            .cloned()
+    }
+
+    pub fn set(&self, label: &str, path: Option<String>) {
+        let mut inner = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(path) = path {
+            inner.selected_paths.insert(label.to_owned(), path);
+        } else {
+            inner.selected_paths.remove(label);
+        }
+    }
+
+    pub fn next_window_label(&self) -> String {
+        let number = self.next_window_number.fetch_add(1, Ordering::Relaxed) + 1;
+        format!("repository-{number}")
+    }
+
+    pub fn queue_open_repository(&self, label: &str, path: impl Into<String>) {
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .startup_actions
+            .insert(label.to_owned(), WindowStartupAction::open_repository(path));
+    }
+
+    pub fn take_startup_action(&self, label: &str) -> Option<WindowStartupAction> {
+        self.inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .startup_actions
+            .remove(label)
+    }
+
+    pub fn remove(&self, label: &str) {
+        let mut inner = self
+            .inner
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        inner.selected_paths.remove(label);
+        inner.startup_actions.remove(label);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, Instant};
 
-    use super::{LaunchTimingState, WindowZoomState};
+    use super::{LaunchTimingState, WindowRoutingState, WindowZoomState};
+
+    #[test]
+    fn selected_repository_paths_are_scoped_by_window_and_stored_verbatim() {
+        let state = WindowRoutingState::default();
+
+        assert_eq!(state.get("main"), None);
+        state.set("main", Some("/repo/../repo".to_owned()));
+        state.set("other", Some("/other".to_owned()));
+
+        assert_eq!(state.get("main").as_deref(), Some("/repo/../repo"));
+        assert_eq!(state.get("other").as_deref(), Some("/other"));
+    }
+
+    #[test]
+    fn null_and_window_destruction_remove_selected_repository_metadata() {
+        let state = WindowRoutingState::default();
+        state.set("main", Some("/repo".to_owned()));
+        state.set("main", None);
+        assert_eq!(state.get("main"), None);
+
+        state.set("main", Some(String::new()));
+        assert_eq!(state.get("main").as_deref(), Some(""));
+        state.remove("main");
+        assert_eq!(state.get("main"), None);
+    }
+
+    #[test]
+    fn repository_window_labels_are_unique_and_tauri_safe() {
+        let state = WindowRoutingState::default();
+
+        assert_eq!(state.next_window_label(), "repository-1");
+        assert_eq!(state.next_window_label(), "repository-2");
+    }
+
+    #[test]
+    fn a_new_windows_open_action_is_one_shot_and_preserves_the_path() {
+        let state = WindowRoutingState::default();
+        state.queue_open_repository("repository-1", "/repo/../repo");
+
+        let action = state
+            .take_startup_action("repository-1")
+            .expect("the target window should receive its queued action");
+        assert_eq!(
+            serde_json::to_value(action).expect("the action should serialize"),
+            serde_json::json!({
+                "kind": "open-repository",
+                "path": "/repo/../repo",
+                "persistSelection": false,
+            })
+        );
+        assert!(state.take_startup_action("repository-1").is_none());
+    }
+
+    #[test]
+    fn window_destruction_drops_an_unclaimed_startup_action() {
+        let state = WindowRoutingState::default();
+        state.queue_open_repository("repository-1", "/repo");
+
+        state.remove("repository-1");
+
+        assert!(state.take_startup_action("repository-1").is_none());
+    }
 
     #[test]
     fn each_webview_starts_at_electrons_default_zoom() {

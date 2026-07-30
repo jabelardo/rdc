@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import type { ILaunchStats } from '../../models/launch-stats'
+import type { OpenRepositoryAction } from '../../models/cli-action'
 import type { WindowState } from '../../models/window-state'
 
 const windowStateListeners = new Set<(state: WindowState) => void>()
@@ -54,6 +55,24 @@ export function isWindowMaximized(): Promise<boolean> {
 
 export function setWindowTitle(title: string): Promise<void> {
   return getCurrentWindow().setTitle(title)
+}
+
+/**
+ * Record the repository selected in this window for native-process routing.
+ * Rust stores the value verbatim; the future routing operation owns path
+ * normalization and most-specific-window matching, as upstream did.
+ */
+export function setWindowSelectedRepository(
+  repositoryPath: string | null
+): Promise<void> {
+  return invoke('set_window_selected_repository', { repositoryPath })
+}
+
+/** Create a distinct native window and queue its one-shot repository action. */
+export function openRepositoryInNewWindow(
+  repositoryPath: string
+): Promise<void> {
+  return invoke('open_repository_in_new_window', { repositoryPath })
 }
 
 /**
@@ -127,7 +146,9 @@ export function onWindowZoomFactorChanged(
 }
 
 /** Tell Rust that the renderer has completed its initial application load. */
-export function sendReady(rendererReadyTime: number): Promise<void> {
+export function sendReady(
+  rendererReadyTime: number
+): Promise<OpenRepositoryAction | null> {
   return invoke('renderer_ready', { rendererReadyTime })
 }
 

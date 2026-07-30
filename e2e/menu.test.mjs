@@ -27,7 +27,7 @@ describe('native integration', () => {
   })
 
   after(async () => {
-    await driver?.quit()
+    await driver?.quit().catch(() => undefined)
   })
 
   it('launches the real Tauri application', async () => {
@@ -63,6 +63,66 @@ describe('native integration', () => {
       until.elementTextIs(output, 'Directory dialog dismissed'),
       5_000
     )
+  })
+
+  it('delivers a repository action to a fresh window and closes only that window', async () => {
+    const originalWindow = await driver.getWindowHandle()
+    const repositoryPath = '/tmp/repo/../repo'
+    const input = await driver.findElement(
+      By.css('input[placeholder="/path/to/a/git/repository"]')
+    )
+    await input.clear()
+    await input.sendKeys(repositoryPath)
+    await driver
+      .findElement(By.css('[aria-label="Repository window harness"] button'))
+      .click()
+
+    await driver.wait(
+      async () => (await driver.getAllWindowHandles()).length === 2,
+      5_000
+    )
+    const handles = await driver.getAllWindowHandles()
+    const repositoryWindow = handles.find(handle => handle !== originalWindow)
+    assert.ok(repositoryWindow)
+    await driver.switchTo().window(repositoryWindow)
+
+    const output = await driver.wait(
+      until.elementLocated(
+        By.css('[aria-label="Repository window harness"] output')
+      ),
+      5_000
+    )
+    await driver.wait(
+      until.elementTextIs(
+        output,
+        `Open repository: ${repositoryPath}; persist selection: false`
+      ),
+      5_000
+    )
+
+    await driver
+      .findElement(By.css('[aria-label="Application lifetime harness"] button'))
+      .click()
+    await driver.wait(
+      async () => (await driver.getAllWindowHandles()).length === 1,
+      5_000
+    )
+    await driver.switchTo().window(originalWindow)
+  })
+
+  it('resolves a native close request in the frontend and exits', async () => {
+    await driver
+      .findElement(By.css('[aria-label="Application lifetime harness"] button'))
+      .click()
+
+    await driver.wait(async () => {
+      try {
+        execFileSync('pgrep', ['-x', 'rdc'])
+        return false
+      } catch {
+        return true
+      }
+    }, 5_000)
   })
 })
 

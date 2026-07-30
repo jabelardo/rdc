@@ -64,10 +64,11 @@ docker compose -f docker-compose.e2e.yml run --rm --build e2e
 
 This builds `Dockerfile.e2e` (Ubuntu 26.04 + Rust + `tauri-driver` + WebKitWebDriver + a
 headless Xvfb display), builds the real debug Tauri binary, and runs the Node WebDriver specs
-under `e2e/*.test.mjs`. Phase 4 supplies the first four: application launch, nested native
-contextual-menu selection, native contextual-menu dismissal, and native directory-dialog
-dismissal. `--build` is intentional; without it, Compose silently reuses an image containing
-an older source tree.
+under `e2e/*.test.mjs`. Phase 4 supplies the first six: application launch, nested native
+contextual-menu selection, native contextual-menu dismissal, native directory-dialog dismissal,
+fresh repository-window startup and child-only close, and the preventable last-window close path
+exiting through the process plugin. `--build` is intentional;
+without it, Compose silently reuses an image containing an older source tree.
 
 **Known limitation**: this harness runs entirely over X11 (Xvfb). It does not exercise
 native-Wayland WebKitGTK rendering, which is the only rendering path real users hit by

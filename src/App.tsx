@@ -5,10 +5,16 @@ import {
   type IStatusResult,
 } from './lib/git-ipc'
 import { AppFileStatusKind } from './models/status'
-import { installMacOSDefaultMenu } from './lib/menu/startup'
+import { installApplicationMenu } from './lib/menu/application-menu'
 import { showContextualMenu } from './lib/menu/context-menu'
 import { showOpenDialog } from './lib/platform/dialogs'
-import { sendReady } from './lib/platform/window'
+import { installDefaultCloseRequestHandler } from './lib/platform/lifetime'
+import {
+  closeWindow,
+  openRepositoryInNewWindow,
+  sendReady,
+} from './lib/platform/window'
+import type { OpenRepositoryAction } from './models/cli-action'
 import './App.css'
 
 const rendererStartTime = performance.now()
@@ -30,15 +36,13 @@ function App() {
     'No contextual-menu selection'
   )
   const [dialogResult, setDialogResult] = useState('No directory selected')
+  const [startupAction, setStartupAction] =
+    useState<OpenRepositoryAction | null>(null)
 
   useEffect(() => {
-    if (!__DARWIN__) {
-      return
-    }
-
     let disposed = false
     let unlisten: (() => void) | undefined
-    void installMacOSDefaultMenu()
+    void installDefaultCloseRequestHandler()
       .then(cleanup => {
         if (disposed) {
           cleanup()
@@ -47,7 +51,7 @@ function App() {
         }
       })
       .catch(error => {
-        log.error('Failed to install the macOS default menu', error)
+        log.error('Failed to install the native close handler', error)
       })
 
     return () => {
@@ -57,9 +61,36 @@ function App() {
   }, [])
 
   useEffect(() => {
-    void sendReady(performance.now() - rendererStartTime).catch(error => {
-      log.error('Failed to complete the renderer-ready handshake', error)
-    })
+    let disposed = false
+    let dispose: (() => void) | undefined
+    void installApplicationMenu()
+      .then(controller => {
+        if (disposed) {
+          controller.dispose()
+        } else {
+          dispose = () => controller.dispose()
+        }
+      })
+      .catch(error => {
+        log.error('Failed to install the application menu', error)
+      })
+
+    return () => {
+      disposed = true
+      dispose?.()
+    }
+  }, [])
+
+  useEffect(() => {
+    void sendReady(performance.now() - rendererStartTime)
+      .then(action => {
+        if (action?.kind === 'open-repository') {
+          setStartupAction(action)
+        }
+      })
+      .catch(error => {
+        log.error('Failed to complete the renderer-ready handshake', error)
+      })
   }, [])
 
   async function load(event: React.FormEvent) {
@@ -123,6 +154,22 @@ function App() {
     setDialogResult(selected ?? 'Directory dialog dismissed')
   }
 
+  async function requestApplicationClose() {
+    try {
+      await closeWindow()
+    } catch (error) {
+      log.error('Failed to request application close', error)
+    }
+  }
+
+  async function openRepositoryWindow() {
+    try {
+      await openRepositoryInNewWindow(path)
+    } catch (error) {
+      log.error('Failed to open repository in a new window', error)
+    }
+  }
+
   return (
     <main className="container">
       <h1>rdc</h1>
@@ -152,6 +199,27 @@ function App() {
           Open directory dialog
         </button>
         <output aria-live="polite">{dialogResult}</output>
+      </section>
+
+      <section aria-label="Repository window harness">
+        <button
+          type="button"
+          disabled={path.trim() === ''}
+          onClick={() => void openRepositoryWindow()}
+        >
+          Open repository in new window
+        </button>
+        <output aria-live="polite">
+          {startupAction === null
+            ? 'No startup repository'
+            : `Open repository: ${startupAction.path}; persist selection: ${String(startupAction.persistSelection)}`}
+        </output>
+      </section>
+
+      <section aria-label="Application lifetime harness">
+        <button type="button" onClick={() => void requestApplicationClose()}>
+          Request application close
+        </button>
       </section>
 
       {error !== null && <p style={{ color: 'crimson' }}>{error}</p>}

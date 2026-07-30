@@ -667,6 +667,11 @@
   "unrenderableDiff": {
     "kind": 5
   },
+  "windowStartupAction": {
+    "kind": "open-repository",
+    "path": "/repo/../repo",
+    "persistSelection": false
+  },
   "worktreeEntry": {
     "branch": "refs/heads/main",
     "head": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

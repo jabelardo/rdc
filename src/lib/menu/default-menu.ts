@@ -31,7 +31,7 @@ const event = (name: MenuEvent): MenuAction => ({
   event: name,
 })
 
-function runtimePlatform(): MenuPlatform {
+export function currentMenuPlatform(): MenuPlatform {
   return __DARWIN__ ? 'macos' : __WIN32__ ? 'windows' : 'linux'
 }
 
@@ -100,7 +100,7 @@ function normalizeTemplate(template: ReadonlyArray<TemplateItem>): IMenu {
 
 export function buildDefaultMenu(
   params: MenuLabelsEvent,
-  platform: MenuPlatform = runtimePlatform()
+  platform: MenuPlatform = currentMenuPlatform()
 ): IMenu {
   const mac = platform === 'macos'
   const windows = platform === 'windows'

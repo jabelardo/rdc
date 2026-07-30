@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ILaunchStats } from '../../models/launch-stats'
+import type { CLIAction } from '../../models/cli-action'
 import type { WindowState } from '../../models/window-state'
 
 const currentWindow = vi.hoisted(() => ({
@@ -33,12 +34,14 @@ const {
   isWindowMaximized,
   maximizeWindow,
   minimizeWindow,
+  openRepositoryInNewWindow,
   onWindowFocusChanged,
   onWindowStateChanged,
   onWindowZoomFactorChanged,
   onLaunchTimingStats,
   restoreWindow,
   sendReady,
+  setWindowSelectedRepository,
   setWindowTitle,
   setWindowZoomFactor,
 } = await import('./window')
@@ -98,6 +101,35 @@ describe('current window controls', () => {
     await setWindowTitle('Repository — rdc')
 
     expect(currentWindow.setTitle).toHaveBeenCalledWith('Repository — rdc')
+  })
+
+  it('stores and clears the selected repository through the window-scoped command', async () => {
+    invoke.mockResolvedValue(undefined)
+
+    await setWindowSelectedRepository('/repo/../repo')
+    await setWindowSelectedRepository(null)
+
+    expect(invoke).toHaveBeenNthCalledWith(
+      1,
+      'set_window_selected_repository',
+      { repositoryPath: '/repo/../repo' }
+    )
+    expect(invoke).toHaveBeenNthCalledWith(
+      2,
+      'set_window_selected_repository',
+      { repositoryPath: null }
+    )
+  })
+
+  it('requests a fresh repository window without normalizing the path', async () => {
+    invoke.mockResolvedValue(undefined)
+
+    await openRepositoryInNewWindow('/repo/../repo')
+
+    expect(invoke).toHaveBeenCalledWith(
+      'open_repository_in_new_window',
+      { repositoryPath: '/repo/../repo' }
+    )
   })
 
   it('unwraps focus and blur events into one boolean subscription', async () => {
@@ -221,10 +253,15 @@ describe('current window controls', () => {
     expect(callback).toHaveBeenCalledWith(1.1)
   })
 
-  it('reports renderer readiness with the upstream timing argument', async () => {
-    invoke.mockResolvedValue(undefined)
+  it('reports readiness and returns a queued one-shot startup action', async () => {
+    const action: CLIAction = {
+      kind: 'open-repository',
+      path: '/repo',
+      persistSelection: false,
+    }
+    invoke.mockResolvedValue(action)
 
-    await sendReady(42.5)
+    await expect(sendReady(42.5)).resolves.toBe(action)
 
     expect(invoke).toHaveBeenCalledWith('renderer_ready', {
       rendererReadyTime: 42.5,

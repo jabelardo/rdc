@@ -89,6 +89,9 @@ use keybinding_model::{Keybinding, KeybindingModifier};
 #[path = "../../../src/platform/menu_model.rs"]
 mod menu_model;
 use menu_model::{MenuAction, MenuItemModel, MenuKind, MenuModel};
+#[path = "../../../src/platform/window_model.rs"]
+mod window_model;
+use window_model::WindowStartupAction;
 #[path = "../../../src/platform/shell_model.rs"]
 mod shell_model;
 use shell_model::FoundShell;
@@ -1001,6 +1004,10 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
                 role: None,
             }],
         }),
+    );
+    cases.insert(
+        "windowStartupAction",
+        to_value(WindowStartupAction::open_repository("/repo/../repo")),
     );
     cases.insert(
         "contextMenu",

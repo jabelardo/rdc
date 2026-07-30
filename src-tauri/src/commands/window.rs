@@ -1,12 +1,43 @@
-use tauri::{Emitter, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, State, WebviewWindow};
 use tauri_plugin_window_state::{StateFlags, WindowExt};
 
-use crate::platform::window::{LaunchTimingState, WindowZoomState};
+use crate::{
+    create_window_from_main_template,
+    platform::{
+        window::{LaunchTimingState, WindowRoutingState, WindowZoomState},
+        window_model::WindowStartupAction,
+    },
+};
 
 use super::CommandError;
 
 const ZOOM_FACTOR_CHANGED_EVENT: &str = "zoom-factor-changed";
 const LAUNCH_TIMING_STATS_EVENT: &str = "launch-timing-stats";
+
+#[tauri::command]
+pub fn set_window_selected_repository(
+    window: WebviewWindow,
+    state: State<'_, WindowRoutingState>,
+    repository_path: Option<String>,
+) -> Result<(), CommandError> {
+    state.set(window.label(), repository_path);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_repository_in_new_window(
+    app: AppHandle,
+    state: State<'_, WindowRoutingState>,
+    repository_path: String,
+) -> Result<(), CommandError> {
+    let label = state.next_window_label();
+    state.queue_open_repository(&label, repository_path);
+    if let Err(error) = create_window_from_main_template(&app, &label) {
+        state.remove(&label);
+        return Err(CommandError::message(error.to_string()));
+    }
+    Ok(())
+}
 
 #[tauri::command]
 pub fn get_current_window_zoom_factor(
@@ -34,11 +65,12 @@ pub fn set_window_zoom_factor(
 #[tauri::command]
 pub fn renderer_ready(
     window: WebviewWindow,
-    state: State<'_, LaunchTimingState>,
+    timing_state: State<'_, LaunchTimingState>,
+    routing_state: State<'_, WindowRoutingState>,
     renderer_ready_time: f64,
-) -> Result<(), CommandError> {
-    let Some(stats) = state.complete(window.label(), renderer_ready_time) else {
-        return Ok(());
+) -> Result<Option<WindowStartupAction>, CommandError> {
+    let Some(stats) = timing_state.complete(window.label(), renderer_ready_time) else {
+        return Ok(None);
     };
 
     // electron-window-state persisted geometry and maximization. Visibility
@@ -55,5 +87,6 @@ pub fn renderer_ready(
     show_result.map_err(|error| CommandError::message(error.to_string()))?;
     window
         .emit(LAUNCH_TIMING_STATS_EVENT, stats)
-        .map_err(|error| CommandError::message(error.to_string()))
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    Ok(routing_state.take_startup_action(window.label()))
 }

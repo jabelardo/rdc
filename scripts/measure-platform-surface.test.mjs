@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'vitest'
 import {
+  PHASE_4B_PROXY_EXPORTS,
+  PHASE_4B_SUBSCRIPTIONS,
   exportedValues,
   isSubscriptionImplemented,
   routedChannelPhases,
@@ -8,6 +10,13 @@ import {
 } from './measure-platform-surface.mjs'
 
 describe('measure-platform-surface', () => {
+  it('pins the independent Phase 4b surface', () => {
+    assert.equal(PHASE_4B_PROXY_EXPORTS.size, 19)
+    assert.equal(PHASE_4B_SUBSCRIPTIONS.size, 8)
+    assert.equal(PHASE_4B_PROXY_EXPORTS.has('openRepositoryInNewWindow'), false)
+    assert.equal(PHASE_4B_SUBSCRIPTIONS.has('app-menu'), false)
+  })
+
   it('reads exported runtime values without counting types', () => {
     const names = exportedValues(
       'module.ts',
@@ -76,6 +85,7 @@ describe('measure-platform-surface', () => {
 
   it('maps raw Electron subscription channels to typed platform adapters', () => {
     const exports = new Set([
+      'ApplicationMenuController',
       'onNativeMenuAction',
       'onWindowFocusChanged',
       'onWindowStateChanged',
@@ -86,6 +96,7 @@ describe('measure-platform-surface', () => {
     assert.equal(isSubscriptionImplemented('focus', exports, commands), true)
     assert.equal(isSubscriptionImplemented('blur', exports, commands), true)
     assert.equal(isSubscriptionImplemented('menu-event', exports, commands), true)
+    assert.equal(isSubscriptionImplemented('app-menu', exports, commands), true)
     assert.equal(
       isSubscriptionImplemented('window-state-changed', exports, commands),
       true

@@ -1,14 +1,9 @@
-import { getCurrentWindow } from '@tauri-apps/api/window'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import type { IMenu, MenuAction, MenuItem } from '../../models/app-menu'
-import type { UnlistenFn } from '@tauri-apps/api/event'
 import {
-  onNativeMenuAction,
-  selectAllWindowContents,
-  setNativeMenu,
-} from '../platform/menu'
-import { setWindowZoomFactor } from '../platform/window'
-import { buildDefaultMenu } from './default-menu'
+  buildDefaultMenu,
+  currentMenuPlatform,
+  type MenuPlatform,
+} from './default-menu'
 
 const ZoomFactors = [0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
 
@@ -54,13 +49,15 @@ function withHonestStartupEnablement(item: MenuItem): MenuItem {
  * Build the full macOS structure while disabling actions whose Phase 7
  * dispatcher or later platform integration does not exist yet.
  */
-export function buildStartupMenu(): IMenu {
-  const menu = buildDefaultMenu(initialLabels, 'macos')
+export function buildStartupMenu(
+  platform: MenuPlatform = currentMenuPlatform()
+): IMenu {
+  const menu = buildDefaultMenu(initialLabels, platform)
   return { ...menu, items: menu.items.map(withHonestStartupEnablement) }
 }
 
 type StartupActionEnvironment = {
-  readonly close: () => void | Promise<void>
+  readonly quit: () => void | Promise<void>
   readonly openExternal: (url: string) => void | Promise<void>
   readonly reload: () => void
   readonly selectAll: () => void
@@ -111,56 +108,12 @@ export function createStartupMenuActionExecutor(
         environment.reload()
         return true
       case 'quit':
-        await environment.close()
+        await environment.quit()
         return true
       case 'show-logs':
       case 'show-devtools':
       case 'crash-main-process':
         return false
     }
-  }
-}
-
-type DefaultMenuDependencies = {
-  readonly execute: (action: MenuAction) => void | Promise<unknown>
-  readonly install: (menu: IMenu) => Promise<void>
-  readonly listen: (
-    callback: (action: MenuAction) => void
-  ) => Promise<UnlistenFn>
-}
-
-const executeStartupMenuAction = createStartupMenuActionExecutor({
-  close: () => getCurrentWindow().close(),
-  openExternal: url => openUrl(url),
-  reload: () => window.location.reload(),
-  selectAll: selectAllWindowContents,
-  setZoom: setWindowZoomFactor,
-})
-
-const defaultDependencies: DefaultMenuDependencies = {
-  execute: executeStartupMenuAction,
-  install: setNativeMenu,
-  listen: onNativeMenuAction,
-}
-
-/**
- * Replace Rust's lifecycle-safe bootstrap after the renderer can receive menu
- * actions. Resolves to the listener cleanup function.
- */
-export async function installMacOSDefaultMenu(
-  dependencies: DefaultMenuDependencies = defaultDependencies
-): Promise<UnlistenFn> {
-  const unlisten = await dependencies.listen(action => {
-    void Promise.resolve(dependencies.execute(action)).catch(error => {
-      log.error('Failed to execute startup menu action', error)
-    })
-  })
-
-  try {
-    await dependencies.install(buildStartupMenu())
-    return unlisten
-  } catch (error) {
-    unlisten()
-    throw error
   }
 }

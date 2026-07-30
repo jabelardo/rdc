@@ -161,6 +161,10 @@ export class AppMenu {
     private readonly menuItemById: Map<string, MenuItem>
   ) {}
 
+  public get rootMenu(): IMenu {
+    return this.menu
+  }
+
   public getItemById(id: string): MenuItem | undefined {
     return this.menuItemById.get(id)
   }

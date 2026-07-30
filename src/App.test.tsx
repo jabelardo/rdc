@@ -10,15 +10,25 @@ import type { IStatusResult } from './lib/git-ipc'
 // that each response shape renders. The Rust half (the exact JSON) is pinned by
 // `crates/git-ops/tests/wire_contract.rs`.
 const invoke = vi.hoisted(() => vi.fn())
-const installMacOSDefaultMenu = vi.hoisted(() => vi.fn())
+const installApplicationMenu = vi.hoisted(() => vi.fn())
 const showContextualMenu = vi.hoisted(() => vi.fn())
 const showOpenDialog = vi.hoisted(() => vi.fn())
 const sendReady = vi.hoisted(() => vi.fn())
+const openRepositoryInNewWindow = vi.hoisted(() => vi.fn())
+const closeWindow = vi.hoisted(() => vi.fn())
+const installDefaultCloseRequestHandler = vi.hoisted(() => vi.fn())
 vi.mock('@tauri-apps/api/core', () => ({ invoke }))
-vi.mock('./lib/menu/startup', () => ({ installMacOSDefaultMenu }))
+vi.mock('./lib/menu/application-menu', () => ({ installApplicationMenu }))
 vi.mock('./lib/menu/context-menu', () => ({ showContextualMenu }))
 vi.mock('./lib/platform/dialogs', () => ({ showOpenDialog }))
-vi.mock('./lib/platform/window', () => ({ sendReady }))
+vi.mock('./lib/platform/lifetime', () => ({
+  installDefaultCloseRequestHandler,
+}))
+vi.mock('./lib/platform/window', () => ({
+  closeWindow,
+  openRepositoryInNewWindow,
+  sendReady,
+}))
 
 const cleanStatus: IStatusResult = {
   currentBranch: 'main',
@@ -39,14 +49,20 @@ async function readStatusFor(path: string) {
 describe('App', () => {
   beforeEach(() => {
     invoke.mockReset()
-    installMacOSDefaultMenu.mockReset()
-    installMacOSDefaultMenu.mockResolvedValue(vi.fn())
+    installApplicationMenu.mockReset()
+    installApplicationMenu.mockResolvedValue({ dispose: vi.fn() })
     showContextualMenu.mockReset()
     showContextualMenu.mockResolvedValue(undefined)
     showOpenDialog.mockReset()
     showOpenDialog.mockResolvedValue(null)
     sendReady.mockReset()
-    sendReady.mockResolvedValue(undefined)
+    sendReady.mockResolvedValue(null)
+    openRepositoryInNewWindow.mockReset()
+    openRepositoryInNewWindow.mockResolvedValue(undefined)
+    closeWindow.mockReset()
+    closeWindow.mockResolvedValue(undefined)
+    installDefaultCloseRequestHandler.mockReset()
+    installDefaultCloseRequestHandler.mockResolvedValue(vi.fn())
   })
 
   it('reports readiness after the first render', async () => {
@@ -54,6 +70,63 @@ describe('App', () => {
 
     expect(sendReady).toHaveBeenCalledOnce()
     expect(sendReady).toHaveBeenCalledWith(expect.any(Number))
+  })
+
+  it('installs the frontend-owned native close decision', async () => {
+    render(<App />)
+
+    expect(installDefaultCloseRequestHandler).toHaveBeenCalledOnce()
+  })
+
+  it('installs the cross-platform application menu owner', async () => {
+    render(<App />)
+
+    expect(installApplicationMenu).toHaveBeenCalledOnce()
+  })
+
+  it('requests close through the native window boundary', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(
+      screen.getByRole('button', { name: /request application close/i })
+    )
+
+    expect(closeWindow).toHaveBeenCalledOnce()
+  })
+
+  it('requests a new repository window with the path unchanged', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const path = screen.getByPlaceholderText(
+      /path\/to\/a\/git\/repository/i
+    )
+    await user.type(path, '/repo/../repo')
+    await user.click(
+      screen.getByRole('button', {
+        name: /open repository in new window/i,
+      })
+    )
+
+    expect(openRepositoryInNewWindow).toHaveBeenCalledWith(
+      '/repo/../repo'
+    )
+  })
+
+  it('renders the repository action returned by the ready handshake', async () => {
+    sendReady.mockResolvedValue({
+      kind: 'open-repository',
+      path: '/repo/../repo',
+      persistSelection: false,
+    })
+
+    render(<App />)
+
+    expect(
+      await screen.findByText(
+        'Open repository: /repo/../repo; persist selection: false'
+      )
+    ).toBeInTheDocument()
   })
 
   it('invokes get_status with camelCase argument names', async () => {
