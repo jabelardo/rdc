@@ -2851,6 +2851,59 @@ history/conflict operations remain Phase 7f parity rather than MVP blockers.
   generic operation failure.
 - E2E uses a local bare remote so it does not depend on the public network or developer credentials.
 
+**Remote discovery and fetch slice complete:** `RemoteStore` loads remotes alongside explicit
+branch/HEAD facts and preserves upstream's selection policy: the current branch's tracked remote,
+then `origin`, then the first remote. A user fetch serializes against other synchronization work,
+fetches the tracked and distinct default remotes in that order, aggregates Channel progress, and
+best-effort fast-forwards eligible inactive tracking branches before refreshing remote and branch
+state. Repository and operation generations reject stale loads and progress. The shell exposes the
+remote and progress, and the native Repository menu enables Fetch only while the selected repository
+has a usable remote and no operation is running. Authentication copy points to the system credential
+helper or SSH agent; unclassified transport failures retain Git's message and explicitly explain that
+application-managed PAC/proxy and certificate trust remain unsupported. The Ubuntu journey creates a
+local bare remote, advances it from an independent clone, fetches through rdc and verifies both the
+remote-tracking ref and refreshed remote branch.
+
+**Normal push slice complete:** the same operation lock now pushes the explicit current local branch
+to its tracked remote/branch, or sends a null remote branch for an unpublished branch so native Git
+establishes upstream tracking. Tags and force-with-lease remain unexposed rather than silently
+changing the MVP action. Push progress is followed by a fetch of the same remote, inactive-branch
+fast-forward and complete fact refresh; branch switches also refresh synchronization policy so a
+previous branch's upstream cannot leak into the next action. `PushNotFastForward` receives specific
+“fetch and pull” recovery copy without offering destructive force push. The shell and native menu
+enable Push only for a selected repository with a remote, an explicit local branch and no active
+operation. The Ubuntu bare-remote journey creates a no-upstream local branch, pushes it through rdc,
+verifies the remote tip and confirms Git recorded `origin/<branch>` as its upstream.
+
+**Pull slice complete:** Pull is enabled only when the explicit current local branch has an upstream;
+detached, unborn and unpublished branches cannot accidentally rely on ambient Git defaults. The
+controller passes the chosen remote plus explicit user-initiated/no-verify policy, scales transfer
+progress through the same post-operation fetch, inactive-branch fast-forward and fact refresh used
+by Push, and retains the single synchronization lock. Merge conflicts and local-change overwrite
+failures receive repository-recovery copy rather than the generic unsupported-transport guidance.
+The shell refreshes working-tree and conflict state after both successful and failed pull attempts,
+so Git leaving a merge in progress immediately enters Phase 7c's supported conflict surface. The
+Ubuntu journey advances the pushed branch from the independent clone, pulls through rdc, verifies
+the local `HEAD` equals the remote tip and reads the new file from that commit.
+
+**Generic clone slice complete:** `CloneStore` validates and serializes one native clone, surfaces its
+Channel progress and the same actionable authentication/transport errors as other remote operations,
+and rejects progress from a reset operation. The shell accepts any system-Git URL or local path plus
+an explicit destination. Its native chooser preserves the already-recorded platform split: macOS
+selects the exact target with a save dialog, while Linux selects a parent and appends the repository
+name inferred from the URL. A successful clone is added through `AppStore`, selected immediately and
+persisted through the existing repository database; a failed clone never registers its destination.
+The Repository menu and empty/sidebar shell expose Clone even when no repository is selected.
+Account-aware repository selection, GitHub sign-in and clone options beyond the generic native
+command remain Phase 7f. The Ubuntu local-bare-remote journey verifies the cloned `HEAD`, `origin`
+URL, automatic selection and selection restoration after the real application process restarts.
+
+**Closed 2026-07-30:** Phase 7d's macOS/Linux MVP workflow is implemented: clone, fetch, normal push
+including first publish, and tracked-branch pull run through the product shell with native progress,
+serialized operation state, actionable errors and local-bare-remote E2E coverage. Built-in accounts,
+force push, tag push, advanced hook preferences and application-managed PAC/proxy or certificate
+trust remain explicitly post-MVP.
+
 #### Phase 7e — MVP hardening and presentation
 
 - Port only the preferences needed by exposed behavior: theme, destructive-operation confirmation

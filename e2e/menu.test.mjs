@@ -26,9 +26,26 @@ describe('native integration', () => {
     const fixtureRoot = mkdtempSync('/tmp/rdc-e2e-repository-')
     repositoryFixture = {
       canonical: path.join(fixtureRoot, 'repo'),
+      remote: path.join(fixtureRoot, 'remote.git'),
+      publisher: path.join(fixtureRoot, 'publisher'),
+      clone: path.join(fixtureRoot, 'cloned'),
     }
     mkdirSync(repositoryFixture.canonical)
     execFileSync('git', ['init', '--quiet', repositoryFixture.canonical])
+    execFileSync('git', [
+      'init',
+      '--bare',
+      '--quiet',
+      repositoryFixture.remote,
+    ])
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'remote',
+      'add',
+      'origin',
+      repositoryFixture.remote,
+    ])
     execFileSync('git', [
       '-C',
       repositoryFixture.canonical,
@@ -141,13 +158,13 @@ describe('native integration', () => {
       )
     )
     assert.equal(await includeFile.isSelected(), true)
-    await includeFile.click()
+    await driver.executeScript(element => element.click(), includeFile)
     await driver.wait(
       async () => !(await includeFile.isSelected()),
       5_000,
       'working-tree file did not become excluded'
     )
-    await includeFile.click()
+    await driver.executeScript(element => element.click(), includeFile)
     await driver.wait(
       async () => await includeFile.isSelected(),
       5_000,
@@ -409,16 +426,30 @@ describe('native integration', () => {
       ),
       5_000
     )
-    const discardSelectedLines = await driver.wait(
-      until.elementLocated(
-        By.xpath("//button[normalize-space()='Discard selected lines']")
-      ),
-      5_000
-    )
-    await driver.wait(until.elementIsEnabled(discardSelectedLines), 5_000)
-    await driver.executeScript(
-      element => element.click(),
-      discardSelectedLines
+    await driver.wait(
+      async () => {
+        try {
+          const discardSelectedLines = await driver.findElement(
+            By.xpath(
+              "//button[normalize-space()='Discard selected lines']"
+            )
+          )
+          if (!(await discardSelectedLines.isEnabled())) {
+            return false
+          }
+          await driver.executeScript(
+            element => element.click(),
+            discardSelectedLines
+          )
+          return true
+        } catch {
+          // Independent store refreshes may replace this button. Reacquire
+          // the live element before clicking it.
+          return false
+        }
+      },
+      5_000,
+      'discard selected lines did not accept the click'
     )
     await driver.wait(
       until.elementLocated(By.css('[role="alertdialog"]')),
@@ -445,10 +476,24 @@ describe('native integration', () => {
       'discard confirmation did not accept the click'
     )
     await driver.wait(
+      () =>
+        String(
+          execFileSync('git', [
+            '-C',
+            repositoryFixture.canonical,
+            'status',
+            '--porcelain',
+          ])
+        ).trim() === '',
+      10_000,
+      'discarded selection remained in the working tree'
+    )
+    await driver.navigate().refresh()
+    await driver.wait(
       until.elementLocated(
         By.xpath("//p[normalize-space()='No local changes.']")
       ),
-      10_000
+      5_000
     )
 
     const discardedPath = path.join(
@@ -477,10 +522,16 @@ describe('native integration', () => {
       )
       .click()
     await driver.wait(
+      () => !existsSync(discardedPath),
+      10_000,
+      'discarded file remained on disk'
+    )
+    await driver.navigate().refresh()
+    await driver.wait(
       until.elementLocated(
         By.xpath("//p[normalize-space()='No local changes.']")
       ),
-      10_000
+      5_000
     )
     assert.equal(existsSync(discardedPath), false)
 
@@ -637,6 +688,408 @@ describe('native integration', () => {
     ])
   })
 
+  it('fetches an updated branch from a local bare remote', async () => {
+    const branch = String(
+      execFileSync('git', [
+        '-C',
+        repositoryFixture.canonical,
+        'branch',
+        '--show-current',
+      ])
+    ).trim()
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'push',
+      '--set-upstream',
+      'origin',
+      `${branch}:${branch}`,
+    ])
+    execFileSync('git', [
+      '--git-dir',
+      repositoryFixture.remote,
+      'symbolic-ref',
+      'HEAD',
+      `refs/heads/${branch}`,
+    ])
+    execFileSync('git', [
+      'clone',
+      '--quiet',
+      repositoryFixture.remote,
+      repositoryFixture.publisher,
+    ])
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.publisher,
+      'config',
+      'user.name',
+      'rdc Remote E2E',
+    ])
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.publisher,
+      'config',
+      'user.email',
+      'rdc-remote-e2e@example.invalid',
+    ])
+    writeFileSync(
+      path.join(repositoryFixture.publisher, 'from-remote.txt'),
+      'arrived through fetch\n'
+    )
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.publisher,
+      'add',
+      'from-remote.txt',
+    ])
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.publisher,
+      'commit',
+      '--quiet',
+      '-m',
+      'Advance the bare remote',
+    ])
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.publisher,
+      'push',
+      '--quiet',
+      'origin',
+      branch,
+    ])
+    const remoteHead = String(
+      execFileSync('git', [
+        '--git-dir',
+        repositoryFixture.remote,
+        'rev-parse',
+        `refs/heads/${branch}`,
+      ])
+    ).trim()
+    const localRemoteRef = () =>
+      String(
+        execFileSync('git', [
+          '-C',
+          repositoryFixture.canonical,
+          'rev-parse',
+          `refs/remotes/origin/${branch}`,
+        ])
+      ).trim()
+    assert.notEqual(localRemoteRef(), remoteHead)
+
+    const fetchButton = await driver.findElement(
+      By.xpath(
+        "//section[@aria-label='Remote synchronization']//button[normalize-space()='Fetch']"
+      )
+    )
+    await driver.executeScript(element => element.click(), fetchButton)
+    await driver.wait(
+      () => localRemoteRef() === remoteHead,
+      10_000,
+      'fetch did not update the remote-tracking branch'
+    )
+    const remoteBranchOption = await driver.wait(
+      until.elementLocated(
+        By.xpath(
+          `//select[@aria-label='Current branch']/option[contains(normalize-space(.), 'origin/${branch} (remote)')]`
+        )
+      ),
+      10_000
+    )
+    assert.match(await remoteBranchOption.getText(), /\(remote\)$/)
+  })
+
+  it('pushes an unpublished branch to the local bare remote', async () => {
+    const originalBranch = String(
+      execFileSync('git', [
+        '-C',
+        repositoryFixture.canonical,
+        'branch',
+        '--show-current',
+      ])
+    ).trim()
+    const pushBranch = 'phase-7d-push'
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'checkout',
+      '--quiet',
+      '--no-track',
+      '-b',
+      pushBranch,
+      `origin/${originalBranch}`,
+    ])
+    writeFileSync(
+      path.join(repositoryFixture.canonical, 'pushed-by-rdc.txt'),
+      'this commit was pushed through rdc\n'
+    )
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'add',
+      'pushed-by-rdc.txt',
+    ])
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'commit',
+      '--quiet',
+      '--no-verify',
+      '-m',
+      'Push through rdc',
+    ])
+    const localHead = String(
+      execFileSync('git', [
+        '-C',
+        repositoryFixture.canonical,
+        'rev-parse',
+        'HEAD',
+      ])
+    ).trim()
+    assert.throws(() =>
+      execFileSync(
+        'git',
+        [
+          '--git-dir',
+          repositoryFixture.remote,
+          'rev-parse',
+          `refs/heads/${pushBranch}`,
+        ],
+        { stdio: 'ignore' }
+      )
+    )
+
+    await driver.navigate().refresh()
+    const pushButton = await driver.wait(
+      async () => {
+        try {
+          const button = await driver.findElement(
+            By.xpath(
+              "//section[@aria-label='Remote synchronization']//button[normalize-space()='Push']"
+            )
+          )
+          return (await button.isEnabled()) ? button : false
+        } catch {
+          return false
+        }
+      },
+      10_000,
+      'push did not become available for the new branch'
+    )
+    await driver.executeScript(element => element.click(), pushButton)
+    await driver.wait(
+      () => {
+        try {
+          execFileSync(
+            'git',
+            [
+              '--git-dir',
+              repositoryFixture.remote,
+              'show-ref',
+              '--verify',
+              '--quiet',
+              `refs/heads/${pushBranch}`,
+            ],
+            { stdio: 'ignore' }
+          )
+          return true
+        } catch {
+          return false
+        }
+      },
+      10_000,
+      'push did not create the branch in the bare remote'
+    )
+    assert.equal(
+      String(
+        execFileSync('git', [
+          '--git-dir',
+          repositoryFixture.remote,
+          'rev-parse',
+          `refs/heads/${pushBranch}`,
+        ])
+      ).trim(),
+      localHead
+    )
+    assert.equal(
+      String(
+        execFileSync('git', [
+          '-C',
+          repositoryFixture.canonical,
+          'rev-parse',
+          '--abbrev-ref',
+          '--symbolic-full-name',
+          '@{upstream}',
+        ])
+      ).trim(),
+      `origin/${pushBranch}`
+    )
+  })
+
+  it('pulls a remote commit into the current working tree', async () => {
+    const pullBranch = 'phase-7d-push'
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.publisher,
+      'fetch',
+      '--quiet',
+      'origin',
+      pullBranch,
+    ])
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.publisher,
+      'checkout',
+      '--quiet',
+      '-b',
+      pullBranch,
+      '--track',
+      `origin/${pullBranch}`,
+    ])
+    writeFileSync(
+      path.join(repositoryFixture.publisher, 'pulled-by-rdc.txt'),
+      'this commit was pulled through rdc\n'
+    )
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.publisher,
+      'add',
+      'pulled-by-rdc.txt',
+    ])
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.publisher,
+      'commit',
+      '--quiet',
+      '-m',
+      'Pull through rdc',
+    ])
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.publisher,
+      'push',
+      '--quiet',
+      'origin',
+      pullBranch,
+    ])
+    const remoteHead = String(
+      execFileSync('git', [
+        '--git-dir',
+        repositoryFixture.remote,
+        'rev-parse',
+        `refs/heads/${pullBranch}`,
+      ])
+    ).trim()
+    const localHead = () =>
+      String(
+        execFileSync('git', [
+          '-C',
+          repositoryFixture.canonical,
+          'rev-parse',
+          'HEAD',
+        ])
+      ).trim()
+    assert.notEqual(localHead(), remoteHead)
+
+    const pullButton = await driver.wait(
+      async () => {
+        try {
+          const button = await driver.findElement(
+            By.xpath(
+              "//section[@aria-label='Remote synchronization']//button[normalize-space()='Pull']"
+            )
+          )
+          return (await button.isEnabled()) ? button : false
+        } catch {
+          return false
+        }
+      },
+      10_000,
+      'pull did not become available for the tracked branch'
+    )
+    await driver.executeScript(element => element.click(), pullButton)
+    await driver.wait(
+      () => localHead() === remoteHead,
+      10_000,
+      'pull did not fast-forward the current branch'
+    )
+    assert.equal(
+      String(
+        execFileSync('git', [
+          '-C',
+          repositoryFixture.canonical,
+          'show',
+          'HEAD:pulled-by-rdc.txt',
+        ])
+      ),
+      'this commit was pulled through rdc\n'
+    )
+  })
+
+  it('clones the local bare remote and selects the persisted repository', async () => {
+    await driver
+      .findElement(By.css('[aria-label="Clone repository"]'))
+      .click()
+    const cloneDialog = await driver.wait(
+      until.elementLocated(
+        By.xpath(
+          "//section[@role='dialog' and @aria-labelledby='clone-dialog-title']"
+        )
+      ),
+      5_000
+    )
+    await cloneDialog
+      .findElement(By.css('#clone-url'))
+      .sendKeys(repositoryFixture.remote)
+    await cloneDialog
+      .findElement(By.css('#clone-path'))
+      .sendKeys(repositoryFixture.clone)
+    await cloneDialog
+      .findElement(
+        By.xpath(".//button[@type='submit' and normalize-space()='Clone']")
+      )
+      .click()
+
+    await driver.wait(
+      until.elementLocated(
+        By.css(
+          `[data-repository-path="${repositoryFixture.clone}"][aria-current="true"]`
+        )
+      ),
+      10_000
+    )
+    assert.equal(
+      String(
+        execFileSync('git', [
+          '-C',
+          repositoryFixture.clone,
+          'remote',
+          'get-url',
+          'origin',
+        ])
+      ).trim(),
+      repositoryFixture.remote
+    )
+    assert.equal(
+      String(
+        execFileSync('git', [
+          '-C',
+          repositoryFixture.clone,
+          'rev-parse',
+          'HEAD',
+        ])
+      ).trim(),
+      String(
+        execFileSync('git', [
+          '--git-dir',
+          repositoryFixture.remote,
+          'rev-parse',
+          'HEAD',
+        ])
+      ).trim()
+    )
+  })
+
   it('restores a repository after the application process restarts', async () => {
     stopApplication()
     await waitForApplicationExit()
@@ -644,7 +1097,9 @@ describe('native integration', () => {
 
     driver = await startApplication()
     await driver.wait(
-      until.elementLocated(repositorySelector(true)),
+      until.elementLocated(
+        repositorySelector(true, repositoryFixture.clone)
+      ),
       5_000
     )
   })
@@ -681,9 +1136,12 @@ function stopApplication() {
   execFileSync('pkill', ['-x', 'rdc'])
 }
 
-function repositorySelector(selected = false) {
+function repositorySelector(
+  selected = false,
+  repositoryPath = repositoryFixture.canonical
+) {
   return By.css(
-    `[data-repository-path="${repositoryFixture.canonical}"]${
+    `[data-repository-path="${repositoryPath}"]${
       selected ? '[aria-current="true"]' : ''
     }`
   )

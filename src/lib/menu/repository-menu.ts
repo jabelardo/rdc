@@ -2,6 +2,7 @@ import type { IMenu, MenuItem } from '../../models/app-menu'
 import type { MenuEvent } from '../../models/menu-event'
 import type { Repository } from '../../models/repository'
 import type { AppStoreState } from '../stores/app-store'
+import type { RemoteState } from '../stores/remote-store'
 import { buildStartupMenu } from './startup'
 import type { MenuPlatform } from './default-menu'
 
@@ -19,6 +20,10 @@ type RepositoryMenuEnvironment = {
     path: string
   ) => void | Promise<void>
   readonly showFolderContents: (path: string) => void | Promise<void>
+  readonly fetch: () => void | Promise<void>
+  readonly push: () => void | Promise<void>
+  readonly pull: () => void | Promise<void>
+  readonly showClone: () => void
 }
 
 function withEnablement(
@@ -53,12 +58,24 @@ function withEnablement(
  */
 export function buildRepositoryMenu(
   state: AppStoreState,
-  platform: MenuPlatform
+  platform: MenuPlatform,
+  remoteState?: RemoteState
 ): IMenu {
   const hasRepositories = state.repositories.length > 0
   const hasSelection = state.selectedRepository !== null
+  const canFetch =
+    hasSelection &&
+    remoteState?.repositoryPath === state.selectedRepository?.path &&
+    remoteState.currentRemote !== null &&
+    !remoteState.loading &&
+    remoteState.operation === null
+  const canPush = canFetch && remoteState?.currentBranch !== null
+  const canPull =
+    canPush &&
+    typeof remoteState?.currentBranch?.upstream === 'string'
   const enabledByID = new Map<string, boolean>([
     ['add-local-repository', true],
+    ['clone-repository', true],
     ['new-window', hasSelection],
     ['show-repository-list', hasRepositories],
     ['repository', hasSelection],
@@ -66,6 +83,9 @@ export function buildRepositoryMenu(
     ['open-working-directory', hasSelection],
     ['show-changes', hasSelection],
     ['show-history', hasSelection],
+    ['fetch', canFetch],
+    ['push', canPush],
+    ['pull', canPull],
   ])
   const menu = buildStartupMenu(platform)
 
@@ -87,6 +107,9 @@ export function createRepositoryMenuEventExecutor(
         return true
       case 'choose-repository':
         environment.chooseRepository()
+        return true
+      case 'clone-repository':
+        environment.showClone()
         return true
       case 'open-new-window': {
         const repository = store.state.selectedRepository
@@ -124,6 +147,24 @@ export function createRepositoryMenuEventExecutor(
         }
         return true
       }
+      case 'fetch':
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        await environment.fetch()
+        return true
+      case 'push':
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        await environment.push()
+        return true
+      case 'pull':
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        await environment.pull()
+        return true
       default:
         return false
     }

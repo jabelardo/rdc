@@ -244,7 +244,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/app-shell.ts` | facade over `src/lib/platform/files.ts`, `system.ts`, recoverable trash and repository-scoped permanent-delete commands | **Phase 4 mechanism complete; Phase 7b discard facade complete** with a path-validated Rust replacement for Node `fs.rm`; Phase 10 validates Windows opener/Recycle Bin/beep behavior |
 | `lib/stores/app-store.ts` | `rdc/src/lib/stores/app-store.ts` | **Phase 7a MVP implementation complete:** durable repository ownership, selected-ID restoration, native per-window metadata and repository-derived menu updates are live; macOS acceptance remains pending, and later slices extend this store rather than replace it | **7a MVP implementation complete / macOS acceptance pending** |
 | `lib/stores/repositories-store.ts` + `lib/databases/repositories-database.ts` | same paths in `rdc/src/lib/**` | **Phase 7a local subset complete:** add/get/deduplicate/remove and local repository fields; GitHub association and its schema migrations remain with the post-MVP account consumer | **7a local complete / 7f accounts** |
-| `lib/stores/git-store.ts` | incremental state slices under `rdc/src/lib/stores/`; **Phase 7b MVP working tree, whole-file and partial-line inclusion, partial commit, recoverable whole-file discard with explicit permanent retry, partial-line discard, selected-file diff, minimum commit form, bounded/replaying commit-terminal history and hook-failure Abort/Ignore are live** in `working-tree-store.ts` plus `discard-changes.ts`. **Phase 7c MVP is live** across three focused stores: `history-store.ts` owns the first 100 hydrated `HEAD` commits, stable selection, hydrated selected-commit changesets, changed-file selection and read-only first-parent/root-commit diffs; `branch-store.ts` owns hydrated local/remote listing, explicit current-branch state, create-from-HEAD plus checkout, local checkout progress and post-checkout fact refresh; `conflict-store.ts` owns merge visibility and safe staging only after Git reports a marker-free external-editor resolution. Each rejects stale asynchronous results. Remote checkout naming and advanced history/conflict operations remain post-MVP. Frontend stores convert raw Git facts into view state rather than expanding the IPC contract. | **7b / 7c MVP complete** |
+| `lib/stores/git-store.ts` | incremental state slices under `rdc/src/lib/stores/`; **Phase 7b MVP working tree, whole-file and partial-line inclusion, partial commit, recoverable whole-file discard with explicit permanent retry, partial-line discard, selected-file diff, minimum commit form, bounded/replaying commit-terminal history and hook-failure Abort/Ignore are live** in `working-tree-store.ts` plus `discard-changes.ts`. **Phase 7c MVP is live** across three focused stores: `history-store.ts` owns the first 100 hydrated `HEAD` commits, stable selection, hydrated selected-commit changesets, changed-file selection and read-only first-parent/root-commit diffs; `branch-store.ts` owns hydrated local/remote listing, explicit current-branch state, create-from-HEAD plus checkout, local checkout progress and post-checkout fact refresh; `conflict-store.ts` owns merge visibility and safe staging only after Git reports a marker-free external-editor resolution. **Phase 7d MVP is live** across `remote-store.ts` and `clone-store.ts`: tracked/default-remote choice, serialized fetch/push/pull, aggregate progress, first-publish upstream setup, post-operation fetch, best-effort inactive-branch fast-forward, actionable transport/non-fast-forward/merge errors and stale-operation rejection, plus generic URL/path clone followed by durable repository registration and selection. Failed pulls still refresh conflict and working-tree state. Each focused store converts raw Git facts into view state rather than expanding the IPC contract. Remote checkout naming and advanced history/conflict/account operations remain post-MVP. | **7b / 7c / 7d MVP complete** |
 | `lib/stores/helpers/create-tutorial-repository.ts` | `rdc/src/lib/stores/helpers/create-tutorial-repository.ts` | same | 7 |
 | `lib/source-map-support.ts` | *(dropped)* | Node-specific stack-trace remapping for the Electron main process; superseded by Rust panic hook + Sentry (Phase 6) | 6 |
 | `lib/release-notes.ts` | `rdc/src/lib/release-notes.ts` **(tentative)** | see improvement flag in §2 — may not need a Rust command at all if changelog data becomes a bundled asset | 1 |
@@ -270,7 +270,7 @@ operation that consumes them rather than counted as separate backend behavior.
 | `checkout.ts` | branch/commit/path/conflict checkout and progress → `checkout.rs` | **complete** |
 | `cherry-pick.ts` | start, snapshot, continue, abort and state detection → `cherry_pick.rs` + `operation_state.rs` | **complete** |
 | `clean.ts` | `cleanUntrackedFiles` → `clean.rs` | **complete** |
-| `clone.ts` | clone and progress → `clone.rs` | **complete** |
+| `clone.ts` | clone and progress → `clone.rs`; `CloneStore` supplies the Phase 7d generic URL/path form policy, progress/error state and successful handoff to durable repository registration | **backend + Phase 7d generic-clone consumer complete**; account-aware clone options **7f** |
 | `coerce-to-buffer.ts` | Node `Buffer` coercion is superseded by byte-native `GitOutput` | **complete — superseded** |
 | `coerce-to-string.ts` | string coercion is superseded by explicit lossy/trimmed output conversion | **complete — superseded** |
 | `commit.ts` | create/amend and merge commits → `commit.rs`; hook progress and combined commit stdout/stderr cross through Channels | backend and Channel handoff **complete**; bounded frontend history, enable state and progress dialog **Phase 7** |
@@ -283,7 +283,7 @@ operation that consumes them rather than counted as separate backend behavior.
 | `diff-index.ts` | index status, null tree and index changes → `diff_index.rs` + `models/index-status.ts` | **complete** |
 | `diff.ts` | working-directory, commit, range, resolution, and image diff production → `diff.rs`; images use Phase 3's scoped `rdc-blob` capability URLs; `getFilesDiffText` and rendering wait for store/UI consumers | backend and byte transport **complete**; remaining consumers **Phase 7** |
 | `environment.ts` | authentication half → `authentication.rs`; proxy fallback/resolution has no Electron-free equivalent yet | **deferred Phase 5c** |
-| `fetch.ts` | fetch, refspec fetch and fast-forward → `fetch.rs` | **complete** |
+| `fetch.ts` | fetch, refspec fetch and fast-forward → `fetch.rs`; `RemoteStore` now supplies the Phase 7d tracked/default-remote policy, aggregate progress, refresh sequence and menu/UI consumer | **backend + Phase 7d fetch consumer complete** |
 | `for-each-ref.ts` | branches and upstream-difference queries → `for_each_ref.rs` | **complete** |
 | `format-patch.ts` | mailbox patch generation → `format_patch.rs` | **complete** |
 | `git-delimiter-parser.ts` | log and for-each-ref delimiter parsers → `git_delimiter_parser.rs` | **complete** |
@@ -296,9 +296,9 @@ operation that consumes them rather than counted as separate backend behavior.
 | `merge-tree.ts` | mergeability calculation → `merge_tree.rs` | **complete** |
 | `merge.ts` | merge, base, abort and state detection → `merge.rs` + `operation_state.rs`; hook progress crosses on a Channel. Its optional terminal callback has no production caller upstream. | **complete**; hook enable state **Phase 7** |
 | `multi-operation-terminal-output.ts` | bounded replay and live fan-out → `multi_operation_terminal_output.rs`; `create_commit` subscribes a Tauri Channel for its concrete upstream consumer | **complete** |
-| `pull.ts` | pull, progress and hook progress → `pull.rs`. Upstream declares terminal and hook-failure callbacks but never copies them into its Git execution options, so its terminal callback is a no-op; rdc does not silently turn it into a new feature. | **complete**; hook enable/failure UI **Phase 7** |
+| `pull.ts` | pull, progress and hook progress → `pull.rs`. Upstream declares terminal and hook-failure callbacks but never copies them into its Git execution options, so its terminal callback is a no-op; rdc does not silently turn it into a new feature. Phase 7d now exposes tracked-branch pull, post-pull fetch/refresh, progress and immediate conflict-state refresh. | **backend + Phase 7d pull consumer complete**; advanced hook preferences **7f** |
 | `push-terminal-chunk.ts` | bounded terminal chunk handling → `terminal_output.rs` | **complete** |
-| `push.ts` | push, lease, transfer progress and hook progress → `push.rs`; upstream's optional terminal callback has no production caller | **complete**; hook enable/failure UI **Phase 7** |
+| `push.ts` | push, lease, transfer progress and hook progress → `push.rs`; upstream's optional terminal callback has no production caller. Phase 7d now exposes normal tracked and first-publish push with progress plus post-push fetch/refresh; force-with-lease, tags and persisted shell-hook preferences remain unexposed. | **backend + Phase 7d normal-push consumer complete**; advanced controls **7f** |
 | `rebase.ts` | state, snapshot, start/continue/abort and interactive reorder/squash → `rebase.rs`, `reorder.rs`, `squash.rs`; upstream's optional terminal callback has no production caller | **complete** |
 | `reflog.ts` | recent branches and branch checkouts → `reflog.rs` | **complete** |
 | `refs.ts` | local-ref formatting and symbolic ref → `refs.rs` | **complete** |
@@ -381,7 +381,9 @@ row since the mapping is mechanical; flagging only what's non-mechanical:
 - `ui/dispatcher/` (3 files) + `app/src/lib/stores/**` — the seam. Keep the shape (Phase 7).
 - The Phase 7a shell now lives in `src/App.tsx`: repository sidebar, selected-repository workspace,
   add/select/remove, accessible contextual actions and open-in-new-window routing are implemented.
-  The feature-specific upstream component tree remains a component-by-component Phase 7b–7f port.
+  Phase 7d now adds generic Clone plus remote discovery, user-initiated Fetch, normal Push and
+  tracked-branch Pull, shared progress and actionable errors through `CloneStore` and `RemoteStore`;
+  the remaining feature-specific component tree stays a component-by-component Phase 7e–7f port.
 - `ui/lib/` (104 files) — shared UI helpers/components (list virtualization, filter-list,
   dialog helpers, etc.). This is where `react-virtualized` usage concentrates — audit this
   directory first when starting Phase 7's replacement with `@tanstack/react-virtual`.
@@ -765,12 +767,12 @@ shape of everything it carries is pinned by a wire-contract test on the Rust sid
 | _(new)_ | request/response | `checkout_index` → `checkoutIndex()` | **done** |
 | _(new)_ | request/response | `get_trailer_separator_characters`, `parse_trailers`, `merge_trailers` | **done** |
 | _(new)_ | request/response | the six `*_worktree*` commands → `src/lib/worktree-ipc.ts` | **done** — three listing entry points, because a linked worktree's `.git` is a file elsewhere |
-| _(new)_ | request/response + Channel | `push` → `push()` | **done** |
+| _(new)_ | request/response + Channel | `push` → `push()` | **done** — Phase 7d normal-push consumer live; force/tags remain later controls |
 | _(new)_ | request/response + Channel | `fetch` → `fetch()` | **done** |
 | _(new)_ | request/response | `fetch_refspec` → `fetchRefspec()` | **done** — no Channel; one ref, and a missing refspec resolves |
-| _(new)_ | request/response + Channel | `pull` → `pull()` | **done** |
+| _(new)_ | request/response + Channel | `pull` → `pull()` | **done** — Phase 7d tracked-branch consumer live |
 | _(new)_ | request/response | `fast_forward_branches` → `fastForwardBranches()` | **done** |
-| _(new)_ | request/response + Channel | `clone` → `clone()` | **done** |
+| _(new)_ | request/response + Channel | `clone` → `clone()` | **done** — Phase 7d generic URL/path consumer and durable repository handoff live; account-aware options remain 7f |
 | _(new)_ | request/response | `get_remotes` → `getRemotes()` | **done** |
 | _(new)_ | request/response | `add_remote` → `addRemote()` | **done** |
 | _(new)_ | request/response | `remove_remote` → `removeRemote()` | **done** |

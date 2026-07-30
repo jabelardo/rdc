@@ -14,9 +14,10 @@
  *
  * # What works today
  *
- * rdc supplies no credentials of its own yet — the accounts store and prompt UI are Phase 7. Until
- * then the backend declines, which makes git fall through to *its* own helpers: a repository reachable
- * over SSH with a loaded agent, or over HTTPS with a system credential manager, works now.
+ * The macOS/Linux MVP deliberately supplies no built-in account credentials. The backend declines,
+ * which makes git fall through to *its* own helpers: a repository reachable over SSH with a loaded
+ * agent, or over HTTPS with a system credential manager, works now. Built-in accounts remain
+ * post-MVP collaboration work.
  */
 
 import { Channel, invoke } from '@tauri-apps/api/core'

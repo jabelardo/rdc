@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { join } from '@tauri-apps/api/path'
+import { getCloneDirectoryName } from './lib/clone-destination'
 import { installApplicationMenu } from './lib/menu/application-menu'
 import { showContextualMenu } from './lib/menu/context-menu'
 import { currentMenuPlatform } from './lib/menu/default-menu'
@@ -6,7 +8,10 @@ import {
   buildRepositoryMenu,
   createRepositoryMenuEventExecutor,
 } from './lib/menu/repository-menu'
-import { showOpenDialog } from './lib/platform/dialogs'
+import {
+  showOpenDialog,
+  showSaveDialog,
+} from './lib/platform/dialogs'
 import { showFolderContents } from './lib/platform/files'
 import { installDefaultCloseRequestHandler } from './lib/platform/lifetime'
 import {
@@ -18,12 +23,16 @@ import {
 } from './lib/stores/app-store'
 import { getDefaultAppStore } from './lib/stores/default-app-store'
 import { getDefaultBranchStore } from './lib/stores/default-branch-store'
+import { getDefaultCloneStore } from './lib/stores/default-clone-store'
 import { getDefaultConflictStore } from './lib/stores/default-conflict-store'
 import { getDefaultHistoryStore } from './lib/stores/default-history-store'
+import { getDefaultRemoteStore } from './lib/stores/default-remote-store'
 import { getDefaultWorkingTreeStore } from './lib/stores/default-working-tree-store'
 import type { BranchState } from './lib/stores/branch-store'
+import type { CloneState } from './lib/stores/clone-store'
 import type { ConflictState } from './lib/stores/conflict-store'
 import type { HistoryState } from './lib/stores/history-store'
+import type { RemoteState } from './lib/stores/remote-store'
 import type { WorkingTreeState } from './lib/stores/working-tree-store'
 import { mapStatus } from './lib/status'
 import { BranchType } from './models/branch'
@@ -37,16 +46,22 @@ type RepositoryView = 'changes' | 'history'
 function App() {
   const [appStore] = useState(getDefaultAppStore)
   const [branchStore] = useState(getDefaultBranchStore)
+  const [cloneStore] = useState(getDefaultCloneStore)
   const [conflictStore] = useState(getDefaultConflictStore)
   const [historyStore] = useState(getDefaultHistoryStore)
+  const [remoteStore] = useState(getDefaultRemoteStore)
   const [workingTreeStore] = useState(getDefaultWorkingTreeStore)
   const [appState, setAppState] = useState<AppStoreState>(appStore.state)
   const [workingTreeState, setWorkingTreeState] =
     useState<WorkingTreeState>(workingTreeStore.state)
   const [historyState, setHistoryState] =
     useState<HistoryState>(historyStore.state)
+  const [remoteState, setRemoteState] =
+    useState<RemoteState>(remoteStore.state)
   const [branchState, setBranchState] =
     useState<BranchState>(branchStore.state)
+  const [cloneState, setCloneState] =
+    useState<CloneState>(cloneStore.state)
   const [conflictState, setConflictState] =
     useState<ConflictState>(conflictStore.state)
   const [repositoryView, setRepositoryView] =
@@ -63,6 +78,9 @@ function App() {
   const [discarding, setDiscarding] = useState(false)
   const [permanentlyDiscard, setPermanentlyDiscard] = useState(false)
   const [discardSelection, setDiscardSelection] = useState(false)
+  const [showCloneDialog, setShowCloneDialog] = useState(false)
+  const [cloneURL, setCloneURL] = useState('')
+  const [clonePath, setClonePath] = useState('')
 
   useEffect(() => {
     let disposed = false
@@ -92,6 +110,7 @@ function App() {
       | undefined
     let updatePending = false
     let latestState = appStore.state
+    let latestRemoteState = remoteStore.state
     const platform = currentMenuPlatform()
     const executeMenuEvent = createRepositoryMenuEventExecutor(appStore, {
       addLocalRepository: addExistingRepository,
@@ -106,22 +125,43 @@ function App() {
       showHistory: () => setRepositoryView('history'),
       openRepositoryInNewWindow,
       showFolderContents,
+      fetch: refreshAfterFetch,
+      push: refreshAfterPush,
+      pull: refreshAfterPull,
+      showClone: openCloneDialog,
     })
-    const unsubscribe = appStore.onDidUpdate(state => {
-      latestState = state
+    const replaceMenu = () => {
       if (controller === undefined) {
         updatePending = true
         return
       }
       void controller
-        .replaceMenu(buildRepositoryMenu(state, platform))
+        .replaceMenu(
+          buildRepositoryMenu(
+            latestState,
+            platform,
+            latestRemoteState
+          )
+        )
         .catch(error => {
           log.error('Failed to update the application menu', error)
         })
+    }
+    const unsubscribe = appStore.onDidUpdate(state => {
+      latestState = state
+      replaceMenu()
+    })
+    const unsubscribeRemote = remoteStore.onDidUpdate(state => {
+      latestRemoteState = state
+      replaceMenu()
     })
 
     void installApplicationMenu({
-      initialMenu: buildRepositoryMenu(latestState, platform),
+      initialMenu: buildRepositoryMenu(
+        latestState,
+        platform,
+        latestRemoteState
+      ),
       executeMenuEvent,
     })
       .then(async installedController => {
@@ -132,7 +172,11 @@ function App() {
           if (updatePending) {
             updatePending = false
             await controller.replaceMenu(
-              buildRepositoryMenu(latestState, platform)
+              buildRepositoryMenu(
+                latestState,
+                platform,
+                latestRemoteState
+              )
             )
           }
         }
@@ -144,9 +188,16 @@ function App() {
     return () => {
       disposed = true
       unsubscribe()
+      unsubscribeRemote()
       controller?.dispose()
     }
-  }, [appStore])
+  }, [
+    appStore,
+    branchStore,
+    cloneStore,
+    historyStore,
+    remoteStore,
+  ])
 
   useEffect(() => {
     const unsubscribe = workingTreeStore.onDidUpdate(setWorkingTreeState)
@@ -159,10 +210,12 @@ function App() {
     if (repository === null) {
       branchStore.clear()
       conflictStore.clear()
+      remoteStore.clear()
       workingTreeStore.clear()
     } else {
       void branchStore.load(repository.path)
       void conflictStore.load(repository.path)
+      void remoteStore.load(repository.path)
       void workingTreeStore.load(repository.path)
     }
     return unsubscribe
@@ -171,6 +224,7 @@ function App() {
     branchStore,
     conflictStore,
     historyStore,
+    remoteStore,
     workingTreeStore,
   ])
 
@@ -185,6 +239,16 @@ function App() {
   useEffect(
     () => historyStore.onDidUpdate(setHistoryState),
     [historyStore]
+  )
+
+  useEffect(
+    () => cloneStore.onDidUpdate(setCloneState),
+    [cloneStore]
+  )
+
+  useEffect(
+    () => remoteStore.onDidUpdate(setRemoteState),
+    [remoteStore]
   )
 
   useEffect(
@@ -257,6 +321,59 @@ function App() {
     }
   }
 
+  function openCloneDialog(): void {
+    cloneStore.reset()
+    setShowCloneDialog(true)
+  }
+
+  function dismissCloneDialog(): void {
+    if (cloneState.operation !== null) {
+      return
+    }
+    cloneStore.reset()
+    setShowCloneDialog(false)
+  }
+
+  async function chooseCloneDestination(): Promise<void> {
+    const platform = currentMenuPlatform()
+    if (platform === 'macos') {
+      const selected = await showSaveDialog({
+        title: 'Choose a clone destination',
+        defaultPath: clonePath || undefined,
+        properties: ['createDirectory'],
+      })
+      if (selected !== null) {
+        setClonePath(selected)
+      }
+      return
+    }
+
+    const parent = await showOpenDialog({
+      title: 'Choose a parent directory',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    if (parent === null) {
+      return
+    }
+    const name = getCloneDirectoryName(cloneURL)
+    setClonePath(name === null ? parent : await join(parent, name))
+  }
+
+  async function submitClone(): Promise<void> {
+    const clonedPath = await cloneStore.clone(cloneURL, clonePath)
+    if (clonedPath === null) {
+      return
+    }
+    try {
+      await appStore.addRepository(clonedPath)
+      setCloneURL('')
+      setClonePath('')
+      setShowCloneDialog(false)
+    } catch (error) {
+      setError(String(error))
+    }
+  }
+
   async function selectRepository(repository: Repository) {
     try {
       setError(null)
@@ -315,9 +432,54 @@ function App() {
     if (repository === null || !(await operation())) {
       return
     }
-    await workingTreeStore.load(repository.path)
-    await conflictStore.load(repository.path)
+    await Promise.all([
+      remoteStore.load(repository.path),
+      workingTreeStore.load(repository.path),
+      conflictStore.load(repository.path),
+    ])
     if (repositoryView === 'history') {
+      await historyStore.load(repository.path)
+    }
+  }
+
+  async function refreshAfterFetch(): Promise<void> {
+    const repository = appStore.state.selectedRepository
+    if (repository === null || !(await remoteStore.fetch())) {
+      return
+    }
+    await branchStore.load(repository.path)
+    if (historyStore.state.repositoryPath === repository.path) {
+      await historyStore.load(repository.path)
+    }
+  }
+
+  async function refreshAfterPush(): Promise<void> {
+    const repository = appStore.state.selectedRepository
+    if (repository === null || !(await remoteStore.push())) {
+      return
+    }
+    await Promise.all([
+      branchStore.load(repository.path),
+      conflictStore.load(repository.path),
+      workingTreeStore.load(repository.path),
+    ])
+    if (historyStore.state.repositoryPath === repository.path) {
+      await historyStore.load(repository.path)
+    }
+  }
+
+  async function refreshAfterPull(): Promise<void> {
+    const repository = appStore.state.selectedRepository
+    if (repository === null) {
+      return
+    }
+    await remoteStore.pull()
+    await Promise.all([
+      branchStore.load(repository.path),
+      conflictStore.load(repository.path),
+      workingTreeStore.load(repository.path),
+    ])
+    if (historyStore.state.repositoryPath === repository.path) {
       await historyStore.load(repository.path)
     }
   }
@@ -393,14 +555,24 @@ function App() {
       <aside className="repository-sidebar" aria-label="Repositories">
         <div className="repository-shell-heading">
           <h1>rdc</h1>
-          <button
-            type="button"
-            aria-label="Add existing repository"
-            title="Add existing repository"
-            onClick={() => void addExistingRepository()}
-          >
-            Add
-          </button>
+          <div>
+            <button
+              type="button"
+              aria-label="Clone repository"
+              title="Clone repository"
+              onClick={openCloneDialog}
+            >
+              Clone
+            </button>
+            <button
+              type="button"
+              aria-label="Add existing repository"
+              title="Add existing repository"
+              onClick={() => void addExistingRepository()}
+            >
+              Add
+            </button>
+          </div>
         </div>
         {appState.repositories.length === 0 ? (
           <p className="repository-list-empty">No repositories yet.</p>
@@ -458,6 +630,9 @@ function App() {
               onClick={() => void addExistingRepository()}
             >
               Add existing repository
+            </button>
+            <button type="button" onClick={openCloneDialog}>
+              Clone repository
             </button>
           </div>
         ) : (
@@ -570,6 +745,89 @@ function App() {
               {branchState.operationError !== null && (
                 <p className="application-error" role="alert">
                   {branchState.operationError}
+                </p>
+              )}
+            </section>
+            <section
+              className="remote-controls"
+              aria-label="Remote synchronization"
+            >
+              <div>
+                <h3>Remote</h3>
+                <p>
+                  {remoteState.loading
+                    ? 'Loading remotes…'
+                    : remoteState.currentRemote === null
+                      ? 'No remote configured.'
+                      : `${remoteState.currentRemote.name} — ${remoteState.currentRemote.url}`}
+                </p>
+              </div>
+              <div className="remote-actions">
+                <button
+                  type="button"
+                  disabled={
+                    remoteState.loading ||
+                    remoteState.currentRemote === null ||
+                    remoteState.operation !== null
+                  }
+                  onClick={() => void refreshAfterFetch()}
+                >
+                  {remoteState.operation === 'fetch'
+                    ? 'Fetching…'
+                    : 'Fetch'}
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    remoteState.loading ||
+                    remoteState.currentRemote === null ||
+                    remoteState.currentBranch === null ||
+                    remoteState.currentBranch.upstream === null ||
+                    remoteState.operation !== null
+                  }
+                  onClick={() => void refreshAfterPull()}
+                >
+                  {remoteState.operation === 'pull'
+                    ? 'Pulling…'
+                    : 'Pull'}
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    remoteState.loading ||
+                    remoteState.currentRemote === null ||
+                    remoteState.currentBranch === null ||
+                    remoteState.operation !== null
+                  }
+                  onClick={() => void refreshAfterPush()}
+                >
+                  {remoteState.operation === 'push'
+                    ? 'Pushing…'
+                    : 'Push'}
+                </button>
+              </div>
+              {remoteState.progress !== null && (
+                <p
+                  className="remote-progress"
+                  role="status"
+                >
+                  {remoteState.progress.title ?? 'Fetching'}
+                  {remoteState.progress.description
+                    ? ` — ${remoteState.progress.description}`
+                    : ''}
+                  {` (${Math.round(
+                    remoteState.progress.value * 100
+                  )}%)`}
+                </p>
+              )}
+              {remoteState.error !== null && (
+                <p className="application-error" role="alert">
+                  {remoteState.error}
+                </p>
+              )}
+              {remoteState.operationError !== null && (
+                <p className="application-error" role="alert">
+                  {remoteState.operationError}
                 </p>
               )}
             </section>
@@ -1198,6 +1456,87 @@ function App() {
                 Ignore hook failure
               </button>
             </div>
+          </section>
+        </div>
+      )}
+      {showCloneDialog && (
+        <div className="dialog-backdrop">
+          <section
+            className="confirmation-dialog clone-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="clone-dialog-title"
+          >
+            <h2 id="clone-dialog-title">Clone a repository</h2>
+            <form
+              onSubmit={event => {
+                event.preventDefault()
+                void submitClone()
+              }}
+            >
+              <label htmlFor="clone-url">Repository URL</label>
+              <input
+                id="clone-url"
+                value={cloneURL}
+                disabled={cloneState.operation !== null}
+                onChange={event =>
+                  setCloneURL(event.currentTarget.value)
+                }
+              />
+              <label htmlFor="clone-path">Destination path</label>
+              <div className="clone-path">
+                <input
+                  id="clone-path"
+                  value={clonePath}
+                  disabled={cloneState.operation !== null}
+                  onChange={event =>
+                    setClonePath(event.currentTarget.value)
+                  }
+                />
+                <button
+                  type="button"
+                  disabled={cloneState.operation !== null}
+                  onClick={() => void chooseCloneDestination()}
+                >
+                  Browse…
+                </button>
+              </div>
+              {cloneState.progress !== null && (
+                <div className="clone-progress" role="status">
+                  <progress
+                    value={cloneState.progress.value}
+                    max={1}
+                  />
+                  <span>
+                    {cloneState.progress.description ??
+                      cloneState.progress.title ??
+                      'Cloning…'}
+                  </span>
+                </div>
+              )}
+              {cloneState.error !== null && (
+                <p className="application-error" role="alert">
+                  {cloneState.error}
+                </p>
+              )}
+              <div className="confirmation-dialog-actions">
+                <button
+                  type="button"
+                  disabled={cloneState.operation !== null}
+                  onClick={dismissCloneDialog}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={cloneState.operation !== null}
+                >
+                  {cloneState.operation === 'clone'
+                    ? 'Cloning…'
+                    : 'Clone'}
+                </button>
+              </div>
+            </form>
           </section>
         </div>
       )}
