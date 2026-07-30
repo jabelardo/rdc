@@ -36,7 +36,7 @@ import {
 import { UpdateBranchStrategy } from '../lib/update-branch-strategy'
 import { assertNever, fatalError } from '../lib/fatal-error'
 import { createEqualityHash } from './equality-hash'
-import { isTrustedRemoteHost } from '../lib/api'
+import { isTrustedRemoteHost } from '../lib/trusted-remote-host'
 import { EditorOverride } from './editor-override'
 import { basename } from '../lib/path-utils'
 

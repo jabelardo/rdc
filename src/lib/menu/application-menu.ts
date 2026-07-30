@@ -6,6 +6,7 @@ import {
   type MenuAction,
 } from '../../models/app-menu'
 import type { MenuKeybindings } from '../../models/keybinding'
+import type { MenuEvent } from '../../models/menu-event'
 import {
   getKeybindings,
   onKeybindingsChanged,
@@ -55,6 +56,11 @@ export type ApplicationMenuDependencies = {
 }
 
 type NativeMenuSynchronizer = (menu: IMenu) => Promise<void>
+
+export type ApplicationMenuConfiguration = {
+  readonly initialMenu?: IMenu
+  readonly executeMenuEvent?: (event: MenuEvent) => Promise<boolean>
+}
 
 /**
  * Frontend ownership replaces five Electron channels: menu reads, state and
@@ -147,19 +153,31 @@ function reportExecutionFailure(error: unknown): void {
   )
 }
 
-function defaultDependencies(): ApplicationMenuDependencies {
+function defaultDependencies(
+  configuration: ApplicationMenuConfiguration
+): ApplicationMenuDependencies {
   const platform = currentMenuPlatform()
+  const executeStartupAction = createStartupMenuActionExecutor({
+    quit: quitApp,
+    openExternal: url => openUrl(url),
+    reload: () => window.location.reload(),
+    selectAll: selectAllWindowContents,
+    showLogs: showApplicationLogs,
+    setZoom: setWindowZoomFactor,
+  })
   return {
     platform,
-    initialMenu: buildStartupMenu(platform),
-    executeAction: createStartupMenuActionExecutor({
-      quit: quitApp,
-      openExternal: url => openUrl(url),
-      reload: () => window.location.reload(),
-      selectAll: selectAllWindowContents,
-      showLogs: showApplicationLogs,
-      setZoom: setWindowZoomFactor,
-    }),
+    initialMenu: configuration.initialMenu ?? buildStartupMenu(platform),
+    executeAction: async action => {
+      if (
+        action.type === 'menu-event' &&
+        configuration.executeMenuEvent !== undefined &&
+        (await configuration.executeMenuEvent(action.event))
+      ) {
+        return true
+      }
+      return executeStartupAction(action)
+    },
     getKeybindings,
     onKeybindingsChanged,
     onNativeMenuAction,
@@ -175,7 +193,10 @@ function defaultDependencies(): ApplicationMenuDependencies {
  * structured keybindings from the webview.
  */
 export async function installApplicationMenu(
-  dependencies: ApplicationMenuDependencies = defaultDependencies()
+  configuration: ApplicationMenuConfiguration = {},
+  dependencies: ApplicationMenuDependencies = defaultDependencies(
+    configuration
+  )
 ): Promise<ApplicationMenuController> {
   let latestBindings: MenuKeybindings | undefined
   let controller: ApplicationMenuController | undefined

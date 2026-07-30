@@ -32,6 +32,7 @@ import { HttpStatusCode } from './http-status-code'
 import { CopilotError, parseCopilotPaymentRequiredError } from './copilot-error'
 import { BypassReasonType } from '../models/secret-scanning'
 import { assertNever } from './fatal-error'
+import { isKnownThirdPartyHost } from './trusted-remote-host'
 
 const envEndpoint = process.env['DESKTOP_GITHUB_DOTCOM_API_ENDPOINT']
 const envHTMLURL = process.env['DESKTOP_GITHUB_DOTCOM_HTML_URL']
@@ -3608,52 +3609,7 @@ function getCombinedRefStatus(
   return 'success'
 }
 
-const knownThirdPartyHosts = new Set([
-  'dev.azure.com',
-  'gitlab.com',
-  'bitbucket.org',
-  'codeberg.org',
-  'amazonaws.com',
-  'visualstudio.com',
-])
-
-const isKnownThirdPartyHost = (hostname: string) => {
-  if (knownThirdPartyHosts.has(hostname)) {
-    return true
-  }
-
-  for (const knownHost of knownThirdPartyHosts) {
-    if (hostname.endsWith(`.${knownHost}`)) {
-      return true
-    }
-  }
-
-  return false
-}
-
-/**
- * Determines whether a given remote URL belongs to a trusted host.
- */
-export function isTrustedRemoteHost(url: string) {
-  try {
-    const { protocol, host } = new window.URL(url)
-
-    if (protocol !== 'https:') {
-      return false
-    }
-
-    // We must explicitly allow github.com for users that are not logged-in,
-    // as it is not part of the knowThirdPartyHosts constant.
-    if (host === 'github.com' || host.endsWith('.github.com')) {
-      return true
-    }
-
-    // Check known third party hosts.
-    return isKnownThirdPartyHost(host)
-  } catch {
-    return false
-  }
-}
+export { isTrustedRemoteHost } from './trusted-remote-host'
 
 /**
  * Attempts to determine whether or not the url belongs to a GitHub host.

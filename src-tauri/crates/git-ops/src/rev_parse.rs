@@ -151,11 +151,11 @@ fn dubious_ownership_pattern() -> &'static Regex {
 /// caller passed in. That matters immediately on macOS, where the temp directory is a symlink
 /// (`/var` → `/private/var`), so canonicalizing would break any comparison against the input path.
 fn resolve(base: &Path, relative: &str) -> PathBuf {
-    if relative.is_empty() {
-        return base.to_path_buf();
-    }
-
-    let joined = base.join(relative);
+    let joined = if relative.is_empty() {
+        base.to_path_buf()
+    } else {
+        base.join(relative)
+    };
     let mut normalized = PathBuf::new();
     for component in joined.components() {
         match component {
@@ -462,6 +462,14 @@ mod tests {
     #[test]
     fn resolve_handles_empty_cdup() {
         assert_eq!(resolve(Path::new("/a/b"), ""), PathBuf::from("/a/b"));
+    }
+
+    #[test]
+    fn resolve_normalizes_the_repository_root_when_cdup_is_empty() {
+        assert_eq!(
+            resolve(Path::new("/a/nested/../repository"), ""),
+            PathBuf::from("/a/repository")
+        );
     }
 
     #[test]

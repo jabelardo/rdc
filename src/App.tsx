@@ -1,43 +1,31 @@
 import { useEffect, useState } from 'react'
-import {
-  getStatus,
-  isCommandError,
-  type IStatusResult,
-} from './lib/git-ipc'
-import { AppFileStatusKind } from './models/status'
 import { installApplicationMenu } from './lib/menu/application-menu'
 import { showContextualMenu } from './lib/menu/context-menu'
+import { currentMenuPlatform } from './lib/menu/default-menu'
+import {
+  buildRepositoryMenu,
+  createRepositoryMenuEventExecutor,
+} from './lib/menu/repository-menu'
 import { showOpenDialog } from './lib/platform/dialogs'
+import { showFolderContents } from './lib/platform/files'
 import { installDefaultCloseRequestHandler } from './lib/platform/lifetime'
 import {
-  closeWindow,
   openRepositoryInNewWindow,
   sendReady,
 } from './lib/platform/window'
-import type { OpenRepositoryAction } from './models/cli-action'
+import {
+  type AppStoreState,
+} from './lib/stores/app-store'
+import { getDefaultAppStore } from './lib/stores/default-app-store'
+import type { Repository } from './models/repository'
 import './App.css'
 
 const rendererStartTime = performance.now()
 
-/**
- * A deliberately plain harness for the first end-to-end IPC slice.
- *
- * Its job is to prove the boundary works with real data — Rust runs git, the typed result crosses
- * IPC, React renders it — not to be the eventual UI. The real interface arrives in Phase 7, ported
- * from `desktop-plus/app/src/ui/**`.
- */
 function App() {
-  const [path, setPath] = useState('')
-  const [status, setStatus] = useState<IStatusResult | null>(null)
-  const [notARepository, setNotARepository] = useState(false)
+  const [appStore] = useState(getDefaultAppStore)
+  const [appState, setAppState] = useState<AppStoreState>(appStore.state)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [contextMenuResult, setContextMenuResult] = useState(
-    'No contextual-menu selection'
-  )
-  const [dialogResult, setDialogResult] = useState('No directory selected')
-  const [startupAction, setStartupAction] =
-    useState<OpenRepositoryAction | null>(null)
 
   useEffect(() => {
     let disposed = false
@@ -62,13 +50,52 @@ function App() {
 
   useEffect(() => {
     let disposed = false
-    let dispose: (() => void) | undefined
-    void installApplicationMenu()
-      .then(controller => {
+    let controller:
+      | Awaited<ReturnType<typeof installApplicationMenu>>
+      | undefined
+    let updatePending = false
+    let latestState = appStore.state
+    const platform = currentMenuPlatform()
+    const executeMenuEvent = createRepositoryMenuEventExecutor(appStore, {
+      addLocalRepository: addExistingRepository,
+      chooseRepository: () => {
+        document
+          .querySelector<HTMLElement>(
+            '[aria-label="Repositories"] [aria-current="true"]'
+          )
+          ?.focus()
+      },
+      openRepositoryInNewWindow,
+      showFolderContents,
+    })
+    const unsubscribe = appStore.onDidUpdate(state => {
+      latestState = state
+      if (controller === undefined) {
+        updatePending = true
+        return
+      }
+      void controller
+        .replaceMenu(buildRepositoryMenu(state, platform))
+        .catch(error => {
+          log.error('Failed to update the application menu', error)
+        })
+    })
+
+    void installApplicationMenu({
+      initialMenu: buildRepositoryMenu(latestState, platform),
+      executeMenuEvent,
+    })
+      .then(async installedController => {
         if (disposed) {
-          controller.dispose()
+          installedController.dispose()
         } else {
-          dispose = () => controller.dispose()
+          controller = installedController
+          if (updatePending) {
+            updatePending = false
+            await controller.replaceMenu(
+              buildRepositoryMenu(latestState, platform)
+            )
+          }
         }
       })
       .catch(error => {
@@ -77,210 +104,213 @@ function App() {
 
     return () => {
       disposed = true
-      dispose?.()
+      unsubscribe()
+      controller?.dispose()
     }
-  }, [])
+  }, [appStore])
 
   useEffect(() => {
+    let disposed = false
+    const unsubscribe = appStore.onDidUpdate(state => {
+      if (!disposed) {
+        setAppState(state)
+      }
+    })
+    const load = appStore.load().catch(error => {
+      log.error('Failed to load the repository list', error)
+      if (!disposed) {
+        setError(String(error))
+      }
+    })
+
     void sendReady(performance.now() - rendererStartTime)
-      .then(action => {
+      .then(async action => {
         if (action?.kind === 'open-repository') {
-          setStartupAction(action)
+          await load
+          await appStore.addRepository(
+            action.path,
+            action.persistSelection
+          )
         }
       })
       .catch(error => {
         log.error('Failed to complete the renderer-ready handshake', error)
       })
-  }, [])
 
-  async function load(event: React.FormEvent) {
-    event.preventDefault()
-    setLoading(true)
-    setError(null)
-    setStatus(null)
-    setNotARepository(false)
-
-    try {
-      const result = await getStatus(path)
-      if (result === null) {
-        // A path that isn't a repository is a normal answer, not a failure.
-        setNotARepository(true)
-      } else {
-        setStatus(result)
-      }
-    } catch (e) {
-      // Errors arrive as the serialized CommandError, carrying a classified `kind` the UI could
-      // branch on. Showing the message is enough for a harness.
-      setError(isCommandError(e) ? e.message : String(e))
-    } finally {
-      setLoading(false)
+    return () => {
+      disposed = true
+      unsubscribe()
     }
-  }
+  }, [appStore])
 
-  async function openContextMenu() {
-    setContextMenuResult('No contextual-menu selection')
-    let selected = false
-    await showContextualMenu([
-      {
-        label: 'Select first item',
-        action: () => {
-          selected = true
-          setContextMenuResult('Selected first item')
-        },
-      },
-      {
-        label: 'More',
-        submenu: [
-          {
-            label: 'Select nested item',
-            action: () => {
-              selected = true
-              setContextMenuResult('Selected nested item')
-            },
-          },
-        ],
-      },
-    ])
-    if (!selected) {
-      setContextMenuResult('Contextual menu dismissed')
-    }
-  }
-
-  async function openDirectoryDialog() {
+  async function addExistingRepository() {
     const selected = await showOpenDialog({
       title: 'Choose a repository directory',
       properties: ['openDirectory', 'createDirectory'],
     })
-    setDialogResult(selected ?? 'Directory dialog dismissed')
-  }
+    if (selected === null) {
+      return
+    }
 
-  async function requestApplicationClose() {
     try {
-      await closeWindow()
+      setError(null)
+      await appStore.addRepository(selected)
     } catch (error) {
-      log.error('Failed to request application close', error)
+      setError(String(error))
     }
   }
 
-  async function openRepositoryWindow() {
+  async function selectRepository(repository: Repository) {
     try {
-      await openRepositoryInNewWindow(path)
+      setError(null)
+      await appStore.selectRepository(repository)
     } catch (error) {
-      log.error('Failed to open repository in a new window', error)
+      setError(String(error))
+    }
+  }
+
+  async function openRepositoryContextMenu(repository: Repository) {
+    if (appState.selectedRepository?.id !== repository.id) {
+      await selectRepository(repository)
+    }
+    await showContextualMenu([
+      {
+        label: 'Open in New Window',
+        action: () => {
+          void runRepositoryAction(() =>
+            openRepositoryInNewWindow(repository.path)
+          )
+        },
+      },
+      {
+        label: 'Show in File Manager',
+        action: () => {
+          void runRepositoryAction(() =>
+            showFolderContents(repository.path)
+          )
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'Remove',
+        action: () => {
+          void runRepositoryAction(() =>
+            appStore.removeRepository(repository)
+          )
+        },
+      },
+    ])
+  }
+
+  async function runRepositoryAction(action: () => Promise<void>) {
+    try {
+      setError(null)
+      await action()
+    } catch (error) {
+      setError(String(error))
     }
   }
 
   return (
-    <main className="container">
-      <h1>rdc</h1>
-      <p>Repository status, read by Rust and rendered here.</p>
-
-      <form className="row" onSubmit={load}>
-        <input
-          value={path}
-          onChange={e => setPath(e.currentTarget.value)}
-          placeholder="/path/to/a/git/repository"
-          style={{ minWidth: '22rem' }}
-        />
-        <button type="submit" disabled={loading || path.trim() === ''}>
-          {loading ? 'Reading…' : 'Read status'}
-        </button>
-      </form>
-
-      <section aria-label="Native integration harness">
-        <button type="button" onClick={() => void openContextMenu()}>
-          Open contextual menu
-        </button>
-        <output aria-live="polite">{contextMenuResult}</output>
-      </section>
-
-      <section aria-label="Native dialog harness">
-        <button type="button" onClick={() => void openDirectoryDialog()}>
-          Open directory dialog
-        </button>
-        <output aria-live="polite">{dialogResult}</output>
-      </section>
-
-      <section aria-label="Repository window harness">
-        <button
-          type="button"
-          disabled={path.trim() === ''}
-          onClick={() => void openRepositoryWindow()}
-        >
-          Open repository in new window
-        </button>
-        <output aria-live="polite">
-          {startupAction === null
-            ? 'No startup repository'
-            : `Open repository: ${startupAction.path}; persist selection: ${String(startupAction.persistSelection)}`}
-        </output>
-      </section>
-
-      <section aria-label="Application lifetime harness">
-        <button type="button" onClick={() => void requestApplicationClose()}>
-          Request application close
-        </button>
-      </section>
-
-      {error !== null && <p style={{ color: 'crimson' }}>{error}</p>}
-      {notARepository && <p>That path is not a git repository.</p>}
-
-      {status !== null && (
-        <div style={{ textAlign: 'left', display: 'inline-block' }}>
-          <p>
-            <strong>{status.currentBranch ?? '(detached)'}</strong>
-            {status.currentUpstreamBranch !== undefined && (
-              <> → {status.currentUpstreamBranch}</>
-            )}
-            {status.branchAheadBehind !== undefined && (
-              <>
-                {' '}
-                (ahead {status.branchAheadBehind.ahead}, behind{' '}
-                {status.branchAheadBehind.behind})
-              </>
-            )}
-          </p>
-
-          {status.mergeHeadFound && <p>A merge is in progress.</p>}
-          {status.rebaseInternalState !== undefined && (
-            <p>Rebasing {status.rebaseInternalState.targetBranch}.</p>
-          )}
-
-          {status.files.length === 0 ? (
-            <p>No changes.</p>
-          ) : (
-            <ul>
-              {status.files.map(file => (
-                <li key={file.path}>
-                  <code>{describe(file.status.kind)}</code> {file.path}
-                </li>
-              ))}
-            </ul>
-          )}
+    <main className="application-shell">
+      <aside className="repository-sidebar" aria-label="Repositories">
+        <div className="repository-shell-heading">
+          <h1>rdc</h1>
+          <button
+            type="button"
+            aria-label="Add existing repository"
+            title="Add existing repository"
+            onClick={() => void addExistingRepository()}
+          >
+            Add
+          </button>
         </div>
-      )}
+        {appState.repositories.length === 0 ? (
+          <p className="repository-list-empty">No repositories yet.</p>
+        ) : (
+          <ul className="repository-list">
+            {appState.repositories.map(repository => (
+              <li
+                key={repository.id}
+                className="repository-list-item"
+              >
+                <button
+                  type="button"
+                  className="repository-list-selection"
+                  data-repository-path={repository.path}
+                  aria-label={`Select ${repository.name}`}
+                  aria-current={
+                    appState.selectedRepository?.id === repository.id
+                      ? 'true'
+                      : undefined
+                  }
+                  onClick={() => void selectRepository(repository)}
+                  onContextMenu={event => {
+                    event.preventDefault()
+                    void openRepositoryContextMenu(repository)
+                  }}
+                >
+                  <strong>{repository.name}</strong>
+                  <span>{repository.path}</span>
+                </button>
+                <button
+                  type="button"
+                  className="repository-list-actions"
+                  aria-label={`More actions for ${repository.name}`}
+                  onClick={() =>
+                    void openRepositoryContextMenu(repository)
+                  }
+                >
+                  …
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </aside>
+
+      <section className="repository-workspace" aria-label="Selected repository">
+        {appState.selectedRepository === null ? (
+          <div className="repository-empty-state">
+            <h2>Add a repository to get started</h2>
+            <p>
+              Open an existing Git repository from your computer.
+            </p>
+            <button
+              type="button"
+              onClick={() => void addExistingRepository()}
+            >
+              Add existing repository
+            </button>
+          </div>
+        ) : (
+          <div className="selected-repository">
+            <p className="selected-repository-eyebrow">Repository</p>
+            <h2>{appState.selectedRepository.name}</h2>
+            <p>{appState.selectedRepository.path}</p>
+            <button
+              type="button"
+              onClick={() =>
+                void runRepositoryAction(() =>
+                  openRepositoryInNewWindow(
+                    appState.selectedRepository!.path
+                  )
+                )
+              }
+            >
+              Open in new window
+            </button>
+          </div>
+        )}
+
+        {error !== null && (
+          <p className="application-error" role="alert">
+            {error}
+          </p>
+        )}
+      </section>
     </main>
   )
-}
-
-/** A short label for a file's status. */
-function describe(kind: AppFileStatusKind): string {
-  switch (kind) {
-    case AppFileStatusKind.New:
-      return 'new'
-    case AppFileStatusKind.Modified:
-      return 'modified'
-    case AppFileStatusKind.Deleted:
-      return 'deleted'
-    case AppFileStatusKind.Copied:
-      return 'copied'
-    case AppFileStatusKind.Renamed:
-      return 'renamed'
-    case AppFileStatusKind.Conflicted:
-      return 'conflicted'
-    case AppFileStatusKind.Untracked:
-      return 'untracked'
-  }
 }
 
 export default App

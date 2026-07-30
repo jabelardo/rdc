@@ -118,7 +118,7 @@ describe('application menu controller', () => {
       calls.push('set-native-menu')
     })
 
-    const controller = await installApplicationMenu(deps)
+    const controller = await installApplicationMenu({}, deps)
     expect(calls).toEqual([
       'binding-listener',
       'get-bindings',
@@ -159,7 +159,7 @@ describe('application menu controller', () => {
       new Error('native menu failed')
     )
 
-    await expect(installApplicationMenu(deps)).rejects.toThrow(
+    await expect(installApplicationMenu({}, deps)).rejects.toThrow(
       'native menu failed'
     )
 
@@ -196,7 +196,7 @@ describe('application menu controller', () => {
       }
     )
 
-    const controller = await installApplicationMenu(deps)
+    const controller = await installApplicationMenu({}, deps)
 
     expect(deps.onNativeMenuAction).not.toHaveBeenCalled()
     expect(deps.setNativeMenu).not.toHaveBeenCalled()

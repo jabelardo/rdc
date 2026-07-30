@@ -2665,13 +2665,42 @@ that facade as each slice needs behavior; do not copy its 12,310 lines in one ba
 the state architecture merely to make the phases smaller. Consumer-bound portable `lib/**` files land
 with the slice that first imports them.
 
-#### Phase 7a — application shell and repository ownership
+#### Phase 7a — application shell and repository ownership — **IN PROGRESS**
 
 - Replace the current React integration harness with the first real application shell.
 - Port the minimum dispatcher, repository store, selected-repository state and persistence.
 - Add, open, remove, remember and reopen existing repositories.
 - Connect current repository state to the Phase 4 menu tree and startup/open-in-new-window actions.
 - E2E: add a repository, restart the app and reopen the same selection.
+
+**Repository-ownership slice complete:** the first incremental `AppStore` and `RepositoriesStore`
+persist local repositories in an rdc-owned IndexedDB, deduplicate by canonical top-level working
+directory, restore the last selected ID with upstream's first-repository fallback, and publish every
+selection to Phase 4's native per-window metadata. The integration harness has been replaced by a
+product-facing repository sidebar and selected-repository workspace. The shell lists, adds, selects
+and removes existing working repositories, exposes discoverable new-window and contextual actions,
+and routes native startup/open-in-new-window actions through the same store. Ported store and React
+tests cover add/get/dedup/remove/fresh-store restore, selection policy and every exposed shell action.
+The Linux WebDriver journey opens and dismisses the real native chooser, seeds a canonical repository
+as an explicit deterministic IndexedDB precondition, observes it in the real shell, closes the native
+process under test, releases the WebDriver session, launches a new application process and observes the same
+selection restored.
+
+**Repository-menu slice complete:** the Phase 4 tree now follows the incremental `AppStore` on every
+selection change. Add Local Repository is backed by the native directory dialog, Repository List is
+enabled only when the store is non-empty, and Remove Repository / Show in File Manager plus the
+Repository submenu are enabled only while a repository is selected. Commands from later product
+slices remain honestly disabled. The same tree drives macOS native menu replacement and
+Linux/Windows structured keybindings; the Linux journey opens the add-repository dialog through
+Ctrl+O rather than bypassing the menu through an in-window button.
+
+**Remaining Phase 7a acceptance:** manually exercise the harness-free shell on macOS. Dynamic child
+windows and native contextual-menu selection are covered at their Rust/TypeScript seams, but the
+Linux `tauri-driver` journey no longer drives them: GTK's modal popup input and discovery of a child
+webview became unreliable once the diagnostic harness was removed. X11 focus injection after the
+native chooser is likewise not used as proof of close-request behavior; its focused frontend tests
+and the manual macOS close gesture own that evidence. Keep these automation gaps explicit until a
+product-level driver signal replaces timing and X11 input injection.
 
 #### Phase 7b — working tree, diff and commit
 

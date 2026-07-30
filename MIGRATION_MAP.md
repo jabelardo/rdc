@@ -95,7 +95,7 @@ Directory-level breakdown (file counts exclude `*-test.ts`):
 | `lib/actions-log-parser/` | 4 | pure parser | `rdc/src/lib/actions-log-parser/` | not-started |
 | `lib/ci-checks/` | 1 | | `rdc/src/lib/ci-checks/` | not-started |
 | `lib/copilot/` | 2 | minus `byok.ts` (§3) | `rdc/src/lib/copilot/` | not-started |
-| `lib/databases/` | 6 | Dexie/IndexedDB — works fine in a Tauri webview as-is | `rdc/src/lib/databases/` | not-started |
+| `lib/databases/` | 6 | Dexie/IndexedDB — **Phase 7a local repository schema implemented**; GitHub/account, issues and other databases travel with their consumers | `rdc/src/lib/databases/` | **partial — 7a** |
 | `lib/fonts/` | 2 | | `rdc/src/lib/fonts/` | not-started |
 | `lib/helpers/` | 8 | minus `linux.ts` (§3 — spawns `xdg-*` helpers) | `rdc/src/lib/helpers/` | not-started |
 | `lib/highlighter/` | 2 | becomes a Vite `?worker` import target with the diff UI | `rdc/src/lib/highlighter/` | Phase 7b if the MVP exposes highlighted diffs; otherwise Phase 7f |
@@ -242,7 +242,8 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/rm.ts` | `crates/git-ops/src/rm.rs` — **complete**: `removeConflictedFile` and `unstageAllFiles`. The latter is `rm --cached -r -f .`, which is *not* `reset.ts`'s `unstageAll`; upstream keeps them in different files for that reason. | 3 |
 | `lib/ipc-shared.ts` | `rdc/MIGRATION_MAP.md` §7 channel table; hand-written `src/lib/*-ipc.ts` wrappers over native `invoke` (**no** codegen — see §8) | 3 |
 | `lib/app-shell.ts` | facade over `src/lib/platform/files.ts`, `system.ts` and trash command | **Phase 4 mechanism complete**; Phase 7 ports the repository-shaped facade, Phase 10 validates Windows opener/Recycle Bin/beep behavior |
-| `lib/stores/app-store.ts` | `rdc/src/lib/stores/app-store.ts` | **keep this file and its shape** (Phase 7 principle) — only its direct OS-touching calls change to `invoke` | 7 |
+| `lib/stores/app-store.ts` | `rdc/src/lib/stores/app-store.ts` | **Phase 7a incremental port started:** durable repository ownership, selected-ID restoration, native per-window metadata and repository-derived menu updates are live; later slices extend this store rather than replace it | **7a partial** |
+| `lib/stores/repositories-store.ts` + `lib/databases/repositories-database.ts` | same paths in `rdc/src/lib/**` | **Phase 7a local subset complete:** add/get/deduplicate/remove and local repository fields; GitHub association and its schema migrations remain with the post-MVP account consumer | **7a local complete / 7f accounts** |
 | `lib/stores/git-store.ts` | `rdc/src/lib/stores/git-store.ts` | same | 7 |
 | `lib/stores/helpers/create-tutorial-repository.ts` | `rdc/src/lib/stores/helpers/create-tutorial-repository.ts` | same | 7 |
 | `lib/source-map-support.ts` | *(dropped)* | Node-specific stack-trace remapping for the Electron main process; superseded by Rust panic hook + Sentry (Phase 6) | 6 |
@@ -378,6 +379,9 @@ All directories below map 1:1 to `rdc/src/ui/<same>/`, same filenames. Not re-li
 row since the mapping is mechanical; flagging only what's non-mechanical:
 
 - `ui/dispatcher/` (3 files) + `app/src/lib/stores/**` — the seam. Keep the shape (Phase 7).
+- The Phase 7a shell now lives in `src/App.tsx`: repository sidebar, selected-repository workspace,
+  add/select/remove, accessible contextual actions and open-in-new-window routing are implemented.
+  The feature-specific upstream component tree remains a component-by-component Phase 7b–7f port.
 - `ui/lib/` (104 files) — shared UI helpers/components (list virtualization, filter-list,
   dialog helpers, etc.). This is where `react-virtualized` usage concentrates — audit this
   directory first when starting Phase 7's replacement with `@tanstack/react-virtual`.
@@ -532,7 +536,7 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 |---|---|---|---|
 | `get-app-menu` | renderer→main | **implemented with no IPC** — `ApplicationMenuController.menu` owns the current frontend tree | 4 |
 | `app-menu` | main→renderer | **implemented with no IPC** — tree replacement stays inside `ApplicationMenuController` | 4 |
-| `update-menu-state` | renderer→main | **implemented as in-process tree replacement**; Phase 7 supplies the app-state policy | 4 |
+| `update-menu-state` | renderer→main | **implemented as in-process tree replacement**; Phase 7a supplies repository ownership policy, and later vertical slices add their state only with working consumers | 4 |
 | `update-preferred-app-menu-item-labels` | renderer→main | **implemented by rebuilding/replacing the frontend tree**; macOS mirrors it through `set_native_menu` | 4 |
 | `execute-menu-item-by-id` | renderer→main | **implemented in-process** against the current enabled/visible item and shared action executor | 4 |
 | `menu-event` | main→renderer | **implemented and narrowed to macOS** — `on_menu_event` emits the typed action; Linux/Windows execute locally | 4 |
@@ -837,6 +841,29 @@ The exposed MVP workflow is the same on macOS and Linux. Linux is the automated 
 environment; native macOS is a named packaged-`.app` manual acceptance surface because WKWebView has no
 WebDriver backend. Windows remains the complete Phase 10 target. This is sequencing, not permission to
 silently drop upstream behavior: deferred features retain a named owner in the plan and this map.
+
+### Repository persistence follows product consumers, not Desktop Plus configuration history
+
+Upstream's `RepositoriesDatabase` has nine schema versions because one database combines local paths,
+GitHub repository/owner associations and protected-branch metadata. The Phase 7a MVP consumer needs
+only local repositories, while built-in accounts and GitHub collaboration are explicitly post-MVP.
+
+rdc therefore starts an rdc-owned `rdc-repositories` IndexedDB with the upstream local record fields
+needed by the current `Repository` domain model and a unique path index. It does not copy empty
+GitHub/owner tables or replay Desktop Plus migrations against configuration rdc never owned. This is
+guiding principle 6 applied to durable webview state: repository `.git` bytes remain shared and
+untouched, while application configuration formats are rdc's.
+
+The consequence is explicit rather than hidden: Phase 7a repositories have no persisted GitHub
+association, login or protected-branch metadata. The post-MVP account consumer must extend the rdc
+schema and port the relevant migration behavior when those fields become live; it must not replace
+the local store or introduce a second repository domain type.
+
+The first real persistence journey also found a Phase 2 edge: `getRepositoryType` normalized a
+subdirectory plus Git's `--show-cdup`, but returned its input unchanged when the input was already the
+repository root. An input such as `/nested/../repo` therefore bypassed path deduplication only in that
+case. `rev_parse::resolve` now lexically normalizes the empty-`cdup` path too; a Rust regression test
+and the Linux cross-window journey pin the behavior.
 
 ### The application menu is serializable frontend data, not Electron click closures
 
