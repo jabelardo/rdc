@@ -21,6 +21,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec tsc --noEmit
       - run: pnpm test
+      - name: Qualify Phase 8a inputs and QA fixture
+        run: pnpm qualify:phase8a
 
   rust:
     name: Rust (fmt + clippy + test)

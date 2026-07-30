@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   writeFileSync,
 } from 'node:fs'
 import path from 'node:path'
@@ -103,6 +104,47 @@ describe('native integration', () => {
 
     assert.equal(security.objectPrototypeFrozen, true)
     assert.equal(security.inlineScriptBlocked, true)
+  })
+
+  it('writes configuration and logs only to the isolated application directories', async () => {
+    const config = await driver.executeAsyncScript(done => {
+      window.__TAURI_INTERNALS__
+        .invoke('update_main_process_config', {
+          configDiff: { hideWindowOnQuit: false },
+        })
+        .then(done, error => done({ error: String(error) }))
+    })
+    assert.equal(config.hideWindowOnQuit, false)
+
+    const configPath = path.join(
+      process.env.XDG_CONFIG_HOME,
+      'org.rdc',
+      'main-process-config.json'
+    )
+    await driver.wait(
+      () => existsSync(configPath),
+      5_000,
+      'main-process configuration was not written to app_config_dir'
+    )
+    assert.deepEqual(
+      JSON.parse(readFileSync(configPath, 'utf8')),
+      {
+        titleBarStyle: 'native',
+        hideWindowOnQuit: false,
+      }
+    )
+
+    const logPath = path.join(
+      process.env.XDG_DATA_HOME,
+      'org.rdc',
+      'logs',
+      'rdc.log'
+    )
+    await driver.wait(
+      () => existsSync(logPath),
+      5_000,
+      'renderer startup log was not written to app_log_dir'
+    )
   })
 
   it('opens and dismisses the add-repository dialog from the application menu', async () => {

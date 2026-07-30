@@ -4,6 +4,9 @@ set -euo pipefail
 # E2E is deliberately Linux-container-only. Xvfb validates the native
 # WebDriver/IPC plumbing; it is not evidence about Wayland rendering.
 export DISPLAY=:99
+export XDG_CONFIG_HOME=/tmp/rdc-e2e-config
+export XDG_DATA_HOME=/tmp/rdc-e2e-data
+mkdir -p "${XDG_CONFIG_HOME}" "${XDG_DATA_HOME}"
 Xvfb "${DISPLAY}" -screen 0 1280x1024x24 -nolisten tcp &
 XVFB_PID=$!
 

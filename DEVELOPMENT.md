@@ -33,6 +33,8 @@ day to day.
 | `pnpm test` | Run the Vitest suite (frontend unit/component tests) |
 | `pnpm test:watch` | Vitest in watch mode |
 | `pnpm test:e2e` | Run the E2E suite — always inside the Linux container, see below |
+| `pnpm qualify:phase8a` | Audit MVP build/package inputs and exercise the deterministic Phase 8b fixture generator |
+| `pnpm fixture:phase8b -- <new-directory>` | Create fresh local/remote Git repositories for the human QA cycle |
 | `pnpm tauri <cmd>` | Passthrough to the Tauri CLI |
 
 Rust-side, from `src-tauri/`:
@@ -64,11 +66,15 @@ docker compose -f docker-compose.e2e.yml run --rm --build e2e
 
 This builds `Dockerfile.e2e` (Ubuntu 26.04 + Rust + `tauri-driver` + WebKitWebDriver + a
 headless Xvfb display), builds the real debug Tauri binary, and runs the Node WebDriver specs
-under `e2e/*.test.mjs`. Phase 4 supplies the first six: application launch, nested native
-contextual-menu selection, native contextual-menu dismissal, native directory-dialog dismissal,
-fresh repository-window startup and child-only close, and the preventable last-window close path
-exiting through the process plugin. `--build` is intentional;
-without it, Compose silently reuses an image containing an older source tree.
+under `e2e/*.test.mjs`. The suite covers application and native-window lifecycle, native menus and
+dialogs, configuration/log locations, persistence across a process restart, repository workflows,
+keyboard navigation and large-list behavior. `--build` is intentional; without it, Compose silently
+reuses an image containing an older source tree.
+
+The harness sets isolated `XDG_CONFIG_HOME` and `XDG_DATA_HOME` roots. Its native journey writes
+`main-process-config.json`, observes the startup log under the identifier-scoped log directory,
+persists repository selection across a complete process restart, and proves the production binary
+never falls back to the container user's ambient configuration or data directories.
 
 **Known limitation**: this harness runs entirely over X11 (Xvfb). It does not exercise
 native-Wayland WebKitGTK rendering, which is the only rendering path real users hit by

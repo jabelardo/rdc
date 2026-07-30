@@ -14,7 +14,9 @@
     "tauri": "tauri",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "docker compose -f docker-compose.e2e.yml run --rm --build e2e"
+    "test:e2e": "docker compose -f docker-compose.e2e.yml run --rm --build e2e",
+    "qualify:phase8a": "node --test --test-timeout=10000 scripts/qualify-phase8a.node-test.mjs scripts/create-phase8b-fixture.node-test.mjs && node scripts/qualify-phase8a.mjs",
+    "fixture:phase8b": "node scripts/create-phase8b-fixture.mjs"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.9",

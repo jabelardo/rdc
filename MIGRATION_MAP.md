@@ -855,9 +855,12 @@ The revised plan preserves the phase numbers but splits them by consumer:
 - Phase 7a–7e delivers repository ownership, local changes/commit, history/branches, remote
   synchronization and autonomous hardening as tested vertical slices. Phase 7f retains post-MVP
   UI/parity.
-- Phase 8a exhausts automated qualification and prepares deterministic development builds, fixtures
-  and checklists. Phase 8b is the one human-assisted pre-MVP phase: an iterative visual and
-  platform-QA cycle expected to reveal defects, require fixes and send each fix back through 8a.
+- **Phase 8a complete (2026-07-30):** all automated gates and both no-bundle development-build paths
+  are qualified; CI audits the packaging inputs; the Linux journey isolates and checks config, logs
+  and relaunch persistence; and deterministic repository fixtures plus visual/platform/evidence
+  checklists are ready under `qa/phase-8b/`. No final package was produced. Phase 8b is the one
+  human-assisted pre-MVP phase: an iterative visual and platform-QA cycle expected to reveal defects,
+  require fixes and send each fix back through 8a.
 - Local macOS/Linux packages are produced only after the 8b development-build QA loop settles, then
   receive a focused installed-artifact pass. Signing, notarization, updater, deep links and the
   standalone CLI remain the Phase 9 public-release track.

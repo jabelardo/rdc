@@ -3096,8 +3096,8 @@ records**, requires each rendered list to stay below 40 DOM rows, and sends `End
 changed file to reveal and select `large-0999.txt` within five seconds. The measured journey stayed
 below 300 ms on both closing container runs; the test retains ten-second load and five-second
 navigation ceilings to detect regressions without treating one machine's timing as universal.
-Small-list React contracts, the 1,000-row DOM bound, TypeScript and the complete 13-journey native
-suite are green.
+Small-list React contracts, the 1,000-row DOM bound, TypeScript and the then-complete 13-journey
+native suite were green.
 
 **Phase 7e autonomous implementation complete:** human visual refinement, native macOS acceptance
 and real-Wayland judgment remain intentionally unclaimed and share the explicit Phase 8b QA/fix
@@ -3144,6 +3144,28 @@ throwaway packages while also removing the former acceptance-before-packaging ci
 Phase 8a closes only when all automated gates are green and the development builds, fixtures,
 packaging inputs and checklists required by 8b are ready. A known automated failure may not be
 deferred to human QA.
+
+**Phase 8a complete (2026-07-30):**
+
+- The five repository gates, the 14-journey Ubuntu 26.04 `tauri-driver` suite and
+  `pnpm qualify:phase8a` are green. The container journey now owns isolated XDG config/data roots,
+  asserts the exact persisted startup configuration and identifier-scoped log, and retains the
+  complete-process repository-persistence check.
+- A local macOS `pnpm tauri build --debug --no-bundle` produced the development binary. The Linux
+  journey builds and exercises its real no-bundle binary in the container. No final `.app`, Linux
+  bundle or installer was produced.
+- `scripts/qualify-phase8a.mjs` audits package/Tauri version and identity consistency, Node 24,
+  bundle resources/icons, startup-window ownership, hardened security, scoped capabilities and the
+  executable CLI resource. CI runs the audit and its fixture-generator contract. `org.rdc` and the
+  current icon remain explicitly provisional human decisions for 8b.
+- `scripts/create-phase8b-fixture.mjs` creates a fresh, local-only and ambient-config-independent
+  repository topology: modified and untracked files, an unpublished branch, a local bare remote one
+  commit ahead and a separate publisher. Its topology is pinned by an automated test.
+- `qa/phase-8b/` contains the entry/cycle instructions, normal/compact and Light/Dark/System visual
+  matrix, macOS and real-Wayland checklists, common evidence record and package-last smoke pass.
+
+Phase 8b is therefore the next MVP phase. Its visual and native-platform judgments remain
+deliberately human-assisted, and every resulting fix returns through the complete Phase 8a gate.
 
 #### Phase 8b — human-assisted QA and refinement
 

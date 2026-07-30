@@ -491,7 +491,7 @@ mod tests {
         assert_eq!(
             updater.get("pubkey").and_then(serde_json::Value::as_str),
             Some(""),
-            "Phase 9b owns the real signing key; pre-release builds still need a valid config object"
+            "Phase 9 owns the real signing key; pre-release builds still need a valid config object"
         );
     }
 }
