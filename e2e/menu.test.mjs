@@ -1222,17 +1222,33 @@ describe('native integration', () => {
       ).trim(),
       localHead
     )
+    const upstream = () => {
+      try {
+        return String(
+          execFileSync(
+            'git',
+            [
+              '-C',
+              repositoryFixture.canonical,
+              'rev-parse',
+              '--abbrev-ref',
+              '--symbolic-full-name',
+              '@{upstream}',
+            ],
+            { stdio: ['ignore', 'pipe', 'ignore'] }
+          )
+        ).trim()
+      } catch {
+        return null
+      }
+    }
+    await driver.wait(
+      () => upstream() === `origin/${pushBranch}`,
+      10_000,
+      'push created the remote branch but did not configure its upstream'
+    )
     assert.equal(
-      String(
-        execFileSync('git', [
-          '-C',
-          repositoryFixture.canonical,
-          'rev-parse',
-          '--abbrev-ref',
-          '--symbolic-full-name',
-          '@{upstream}',
-        ])
-      ).trim(),
+      upstream(),
       `origin/${pushBranch}`
     )
   })
