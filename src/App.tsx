@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { join } from '@tauri-apps/api/path'
 import { getCloneDirectoryName } from './lib/clone-destination'
+import { getMainProcessConfig } from './lib/platform/config'
 import { installApplicationMenu } from './lib/menu/application-menu'
 import { showContextualMenu } from './lib/menu/context-menu'
 import { currentMenuPlatform } from './lib/menu/default-menu'
@@ -12,12 +13,21 @@ import {
   showOpenDialog,
   showSaveDialog,
 } from './lib/platform/dialogs'
+import { launchExternalEditor } from './lib/platform/editors'
 import { showFolderContents } from './lib/platform/files'
 import { installDefaultCloseRequestHandler } from './lib/platform/lifetime'
+import { launchShell } from './lib/platform/shells'
+import { onNativeThemeUpdated } from './lib/platform/theme'
 import {
   openRepositoryInNewWindow,
   sendReady,
+  startWindowDragging,
+  setWindowTitle,
 } from './lib/platform/window'
+import {
+  handleWindowTitleBarDoubleClick,
+  shouldShowWindowDragRegion,
+} from './lib/platform/window-drag-region'
 import {
   type AppStoreState,
 } from './lib/stores/app-store'
@@ -26,22 +36,56 @@ import { getDefaultBranchStore } from './lib/stores/default-branch-store'
 import { getDefaultCloneStore } from './lib/stores/default-clone-store'
 import { getDefaultConflictStore } from './lib/stores/default-conflict-store'
 import { getDefaultHistoryStore } from './lib/stores/default-history-store'
+import { getDefaultPreferencesStore } from './lib/stores/default-preferences-store'
 import { getDefaultRemoteStore } from './lib/stores/default-remote-store'
 import { getDefaultWorkingTreeStore } from './lib/stores/default-working-tree-store'
 import type { BranchState } from './lib/stores/branch-store'
 import type { CloneState } from './lib/stores/clone-store'
 import type { ConflictState } from './lib/stores/conflict-store'
 import type { HistoryState } from './lib/stores/history-store'
+import type { PreferencesState } from './lib/stores/preferences-store'
 import type { RemoteState } from './lib/stores/remote-store'
-import type { WorkingTreeState } from './lib/stores/working-tree-store'
+import type {
+  SelectedLinesDiscard,
+  WorkingTreeState,
+} from './lib/stores/working-tree-store'
+import { handleListNavigation } from './lib/ui/list-navigation'
+import { Modal } from './lib/ui/modal'
+import {
+  RepositoryListRow,
+  WorkingTreeFileRow,
+} from './lib/ui/mvp-list-rows'
+import {
+  MvpSidebarCapabilities,
+  type SidebarSectionID,
+  visibleSidebarSections,
+} from './lib/ui/sidebar-sections'
+import { VirtualList } from './lib/ui/virtual-list'
 import { mapStatus } from './lib/status'
 import { BranchType } from './models/branch'
 import type { Repository } from './models/repository'
-import { DiffType } from './models/diff'
+import { DiffLineType, DiffType } from './models/diff'
 import './App.css'
 
 const rendererStartTime = performance.now()
+const rendererPlatform = currentMenuPlatform()
+const mvpSidebarSections = visibleSidebarSections(
+  MvpSidebarCapabilities
+)
 type RepositoryView = 'changes' | 'history'
+
+function diffLineClassName(type: DiffLineType): string {
+  switch (type) {
+    case DiffLineType.Add:
+      return 'diff-line-add'
+    case DiffLineType.Delete:
+      return 'diff-line-delete'
+    case DiffLineType.Hunk:
+      return 'diff-line-hunk'
+    case DiffLineType.Context:
+      return 'diff-line-context'
+  }
+}
 
 function App() {
   const [appStore] = useState(getDefaultAppStore)
@@ -49,6 +93,7 @@ function App() {
   const [cloneStore] = useState(getDefaultCloneStore)
   const [conflictStore] = useState(getDefaultConflictStore)
   const [historyStore] = useState(getDefaultHistoryStore)
+  const [preferencesStore] = useState(getDefaultPreferencesStore)
   const [remoteStore] = useState(getDefaultRemoteStore)
   const [workingTreeStore] = useState(getDefaultWorkingTreeStore)
   const [appState, setAppState] = useState<AppStoreState>(appStore.state)
@@ -58,6 +103,8 @@ function App() {
     useState<HistoryState>(historyStore.state)
   const [remoteState, setRemoteState] =
     useState<RemoteState>(remoteStore.state)
+  const [preferencesState, setPreferencesState] =
+    useState<PreferencesState>(preferencesStore.state)
   const [branchState, setBranchState] =
     useState<BranchState>(branchStore.state)
   const [cloneState, setCloneState] =
@@ -66,6 +113,11 @@ function App() {
     useState<ConflictState>(conflictStore.state)
   const [repositoryView, setRepositoryView] =
     useState<RepositoryView>('changes')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [expandedSidebarSections, setExpandedSidebarSections] =
+    useState<ReadonlySet<SidebarSectionID>>(
+      () => new Set(MvpSidebarCapabilities)
+    )
   const [error, setError] = useState<string | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
   const [newBranchName, setNewBranchName] = useState('')
@@ -78,9 +130,55 @@ function App() {
   const [discarding, setDiscarding] = useState(false)
   const [permanentlyDiscard, setPermanentlyDiscard] = useState(false)
   const [discardSelection, setDiscardSelection] = useState(false)
+  const [selectedLinesDiscard, setSelectedLinesDiscard] =
+    useState<SelectedLinesDiscard | null>(null)
   const [showCloneDialog, setShowCloneDialog] = useState(false)
+  const [showAboutDialog, setShowAboutDialog] = useState(false)
+  const [showPreferencesDialog, setShowPreferencesDialog] =
+    useState(false)
+  const [repositoryToRemove, setRepositoryToRemove] =
+    useState<Repository | null>(null)
   const [cloneURL, setCloneURL] = useState('')
   const [clonePath, setClonePath] = useState('')
+  const [showWindowDragRegion, setShowWindowDragRegion] = useState(
+    shouldShowWindowDragRegion(rendererPlatform, 'native')
+  )
+
+  useEffect(() => {
+    if (rendererPlatform !== 'linux') {
+      return
+    }
+    void getMainProcessConfig()
+      .then(config => {
+        setShowWindowDragRegion(
+          shouldShowWindowDragRegion(
+            rendererPlatform,
+            config.titleBarStyle
+          )
+        )
+      })
+      .catch(error => {
+        log.error('Failed to resolve native title-bar configuration', error)
+      })
+  }, [])
+
+  useEffect(() => {
+    const repository = appState.selectedRepository
+    const title =
+      repository === null
+        ? 'rdc'
+        : `rdc — ${repository.name}${
+            branchState.currentBranch === null
+              ? ''
+              : ` — ${branchState.currentBranch}`
+          }`
+    void setWindowTitle(title).catch(error => {
+      log.error('Failed to update native window title', error)
+    })
+  }, [
+    appState.selectedRepository,
+    branchState.currentBranch,
+  ])
 
   useEffect(() => {
     let disposed = false
@@ -111,7 +209,8 @@ function App() {
     let updatePending = false
     let latestState = appStore.state
     let latestRemoteState = remoteStore.state
-    const platform = currentMenuPlatform()
+    let latestPreferencesState = preferencesStore.state
+    const platform = rendererPlatform
     const executeMenuEvent = createRepositoryMenuEventExecutor(appStore, {
       addLocalRepository: addExistingRepository,
       chooseRepository: () => {
@@ -129,6 +228,11 @@ function App() {
       push: refreshAfterPush,
       pull: refreshAfterPull,
       showClone: openCloneDialog,
+      showAbout: () => setShowAboutDialog(true),
+      showPreferences: () => setShowPreferencesDialog(true),
+      removeRepository: requestRemoveRepository,
+      openInShell,
+      openInExternalEditor,
     })
     const replaceMenu = () => {
       if (controller === undefined) {
@@ -140,7 +244,8 @@ function App() {
           buildRepositoryMenu(
             latestState,
             platform,
-            latestRemoteState
+            latestRemoteState,
+            latestPreferencesState
           )
         )
         .catch(error => {
@@ -155,12 +260,17 @@ function App() {
       latestRemoteState = state
       replaceMenu()
     })
+    const unsubscribePreferences = preferencesStore.onDidUpdate(state => {
+      latestPreferencesState = state
+      replaceMenu()
+    })
 
     void installApplicationMenu({
       initialMenu: buildRepositoryMenu(
         latestState,
         platform,
-        latestRemoteState
+        latestRemoteState,
+        latestPreferencesState
       ),
       executeMenuEvent,
     })
@@ -175,7 +285,8 @@ function App() {
               buildRepositoryMenu(
                 latestState,
                 platform,
-                latestRemoteState
+                latestRemoteState,
+                latestPreferencesState
               )
             )
           }
@@ -189,6 +300,7 @@ function App() {
       disposed = true
       unsubscribe()
       unsubscribeRemote()
+      unsubscribePreferences()
       controller?.dispose()
     }
   }, [
@@ -196,6 +308,7 @@ function App() {
     branchStore,
     cloneStore,
     historyStore,
+    preferencesStore,
     remoteStore,
   ])
 
@@ -206,6 +319,7 @@ function App() {
     setDiscarding(false)
     setPermanentlyDiscard(false)
     setDiscardSelection(false)
+    setSelectedLinesDiscard(null)
     historyStore.clear()
     if (repository === null) {
       branchStore.clear()
@@ -250,6 +364,35 @@ function App() {
     () => remoteStore.onDidUpdate(setRemoteState),
     [remoteStore]
   )
+
+  useEffect(() => {
+    const unsubscribe = preferencesStore.onDidUpdate(
+      setPreferencesState
+    )
+    void preferencesStore.load()
+    let disposed = false
+    let unlistenTheme: (() => void) | undefined
+    void onNativeThemeUpdated(() => {
+      if (preferencesStore.state.theme === 'system') {
+        void preferencesStore.refreshTheme()
+      }
+    })
+      .then(unlisten => {
+        if (disposed) {
+          unlisten()
+        } else {
+          unlistenTheme = unlisten
+        }
+      })
+      .catch(error => {
+        log.error('Failed to observe native theme changes', error)
+      })
+    return () => {
+      disposed = true
+      unsubscribe()
+      unlistenTheme?.()
+    }
+  }, [preferencesStore])
 
   useEffect(
     () => branchStore.onDidUpdate(setBranchState),
@@ -408,9 +551,7 @@ function App() {
       {
         label: 'Remove',
         action: () => {
-          void runRepositoryAction(() =>
-            appStore.removeRepository(repository)
-          )
+          requestRemoveRepository(repository)
         },
       },
     ])
@@ -423,6 +564,43 @@ function App() {
     } catch (error) {
       setError(String(error))
     }
+  }
+
+  function requestRemoveRepository(repository: Repository): void {
+    if (preferencesStore.state.confirmRepositoryRemoval) {
+      setRepositoryToRemove(repository)
+    } else {
+      void runRepositoryAction(() =>
+        appStore.removeRepository(repository)
+      )
+    }
+  }
+
+  async function confirmRemoveRepository(): Promise<void> {
+    if (repositoryToRemove === null) {
+      return
+    }
+    const repository = repositoryToRemove
+    setRepositoryToRemove(null)
+    await runRepositoryAction(() =>
+      appStore.removeRepository(repository)
+    )
+  }
+
+  async function openInShell(path: string): Promise<void> {
+    const shell = preferencesStore.selectedShell
+    if (shell === null) {
+      throw new Error('No terminal application is available')
+    }
+    await launchShell(shell, path)
+  }
+
+  async function openInExternalEditor(path: string): Promise<void> {
+    const editor = preferencesStore.selectedEditor
+    if (editor === null) {
+      throw new Error('No external editor is available')
+    }
+    await launchExternalEditor(path, editor)
   }
 
   async function refreshAfterBranchChange(
@@ -523,98 +701,355 @@ function App() {
       file => file.id === historyState.selectedFileID
     ) ?? null
 
-  async function confirmDiscard() {
-    if (discardFile === null) {
-      return
-    }
-    setDiscarding(true)
-    if (discardSelection) {
-      const discarded = await workingTreeStore.discardSelectedLines()
-      setDiscarding(false)
-      if (discarded) {
-        setDiscardFileID(null)
-        setDiscardSelection(false)
+  function requestDiscard(fileID: string, selection: boolean): void {
+    if (selection || preferencesStore.state.confirmDiscardChanges) {
+      const selectedLines = selection
+        ? workingTreeStore.getSelectedLinesDiscard()
+        : null
+      if (selection && selectedLines === null) {
+        return
       }
+      setDiscardFileID(fileID)
+      setDiscardSelection(selection)
+      setSelectedLinesDiscard(selectedLines)
+      setPermanentlyDiscard(false)
       return
     }
-    const result = await workingTreeStore.discardFile(
-      discardFile.id,
-      permanentlyDiscard
-    )
+    void discardWholeFile(fileID, false)
+  }
+
+  async function discardWholeFile(
+    fileID: string,
+    permanent: boolean
+  ): Promise<void> {
+    setDiscarding(true)
+    let result = await workingTreeStore.discardFile(fileID, permanent)
+    if (
+      result === 'trash-failed' &&
+      !preferencesStore.state.confirmDiscardChangesPermanently
+    ) {
+      result = await workingTreeStore.discardFile(fileID, true)
+    }
     setDiscarding(false)
     if (result === 'discarded') {
       setDiscardFileID(null)
       setPermanentlyDiscard(false)
+      setSelectedLinesDiscard(null)
     } else if (result === 'trash-failed') {
+      setDiscardFileID(fileID)
       setPermanentlyDiscard(true)
+      setDiscardSelection(false)
+      setSelectedLinesDiscard(null)
     }
   }
 
+  async function confirmDiscard() {
+    if (discardFile === null) {
+      return
+    }
+    if (discardSelection) {
+      setDiscarding(true)
+      const discarded = await workingTreeStore.discardSelectedLines(
+        selectedLinesDiscard
+      )
+      setDiscarding(false)
+      if (discarded) {
+        setDiscardFileID(null)
+        setDiscardSelection(false)
+        setSelectedLinesDiscard(null)
+      }
+      return
+    }
+    await discardWholeFile(discardFile.id, permanentlyDiscard)
+  }
+
+  function cancelDiscard(): void {
+    if (discarding) {
+      return
+    }
+    setDiscardFileID(null)
+    setPermanentlyDiscard(false)
+    setDiscardSelection(false)
+    setSelectedLinesDiscard(null)
+  }
+
+  function toggleSidebarSection(section: SidebarSectionID): void {
+    setExpandedSidebarSections(current => {
+      const next = new Set(current)
+      if (next.has(section)) {
+        next.delete(section)
+      } else {
+        next.add(section)
+      }
+      return next
+    })
+  }
+
   return (
-    <main className="application-shell">
-      <aside className="repository-sidebar" aria-label="Repositories">
-        <div className="repository-shell-heading">
-          <h1>rdc</h1>
-          <div>
-            <button
-              type="button"
-              aria-label="Clone repository"
-              title="Clone repository"
-              onClick={openCloneDialog}
-            >
-              Clone
-            </button>
-            <button
-              type="button"
-              aria-label="Add existing repository"
-              title="Add existing repository"
-              onClick={() => void addExistingRepository()}
-            >
-              Add
-            </button>
-          </div>
-        </div>
-        {appState.repositories.length === 0 ? (
-          <p className="repository-list-empty">No repositories yet.</p>
-        ) : (
-          <ul className="repository-list">
-            {appState.repositories.map(repository => (
-              <li
-                key={repository.id}
-                className="repository-list-item"
-              >
+    <main
+      className={`application-shell${
+        showWindowDragRegion ? ' webview-titlebar' : ''
+      }${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
+    >
+      {showWindowDragRegion && (
+        <div
+          className="window-drag-region"
+          aria-hidden="true"
+          onMouseDown={event => {
+            if (event.button === 0 && event.detail === 1) {
+              void startWindowDragging().catch(error => {
+                log.error('Failed to start native window dragging', error)
+              })
+            }
+          }}
+          onDoubleClick={() => {
+            void handleWindowTitleBarDoubleClick().catch(error => {
+              log.error(
+                'Failed to perform native title-bar double-click action',
+                error
+              )
+            })
+          }}
+        />
+      )}
+      <aside
+        className={`repository-sidebar${
+          sidebarCollapsed ? ' repository-sidebar-collapsed' : ''
+        }`}
+        aria-label="Navigation"
+      >
+        <button
+          type="button"
+          className="sidebar-collapse"
+          aria-label={
+            sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'
+          }
+          aria-expanded={!sidebarCollapsed}
+          onClick={() => setSidebarCollapsed(collapsed => !collapsed)}
+        >
+          {sidebarCollapsed ? '›' : '‹'}
+        </button>
+        {!sidebarCollapsed && (
+          <>
+            <div className="repository-shell-heading">
+              <h1>rdc</h1>
+              <div>
                 <button
                   type="button"
-                  className="repository-list-selection"
-                  data-repository-path={repository.path}
-                  aria-label={`Select ${repository.name}`}
-                  aria-current={
-                    appState.selectedRepository?.id === repository.id
-                      ? 'true'
-                      : undefined
-                  }
-                  onClick={() => void selectRepository(repository)}
-                  onContextMenu={event => {
-                    event.preventDefault()
-                    void openRepositoryContextMenu(repository)
-                  }}
+                  aria-label="Clone repository"
+                  title="Clone repository"
+                  onClick={openCloneDialog}
                 >
-                  <strong>{repository.name}</strong>
-                  <span>{repository.path}</span>
+                  Clone
                 </button>
                 <button
                   type="button"
-                  className="repository-list-actions"
-                  aria-label={`More actions for ${repository.name}`}
-                  onClick={() =>
-                    void openRepositoryContextMenu(repository)
-                  }
+                  aria-label="Add existing repository"
+                  title="Add existing repository"
+                  onClick={() => void addExistingRepository()}
                 >
-                  …
+                  Add
                 </button>
-              </li>
-            ))}
-          </ul>
+              </div>
+            </div>
+            <div className="sidebar-panels">
+              {mvpSidebarSections.map(section => {
+                const expanded = expandedSidebarSections.has(
+                  section.id
+                )
+                return (
+                  <section
+                    className="sidebar-panel"
+                    key={section.id}
+                  >
+                    <h2>
+                      <button
+                        type="button"
+                        aria-expanded={expanded}
+                        aria-controls={`sidebar-${section.id}`}
+                        onClick={() =>
+                          toggleSidebarSection(section.id)
+                        }
+                      >
+                        <span aria-hidden="true">
+                          {expanded ? '▾' : '▸'}
+                        </span>
+                        {section.label}
+                      </button>
+                    </h2>
+                    {expanded && (
+                      <div
+                        id={`sidebar-${section.id}`}
+                        role="region"
+                        aria-label={section.label}
+                      >
+                        {section.id === 'repositories' &&
+                          (appState.repositories.length === 0 ? (
+                            <p className="repository-list-empty">
+                              No repositories yet.
+                            </p>
+                          ) : (
+                            <VirtualList
+                              items={appState.repositories}
+                              className="repository-list"
+                              ariaLabel="Repositories"
+                              estimateSize={() => 56}
+                              gap={5}
+                              getItemKey={repository => repository.id}
+                            >
+                              {(repository, index, row) => (
+                                <RepositoryListRow
+                                  index={index}
+                                  repositories={appState.repositories}
+                                  repository={repository}
+                                  row={row}
+                                  selectedRepository={
+                                    appState.selectedRepository
+                                  }
+                                  onContextMenu={repository => {
+                                    void openRepositoryContextMenu(
+                                      repository
+                                    )
+                                  }}
+                                  onSelect={repository => {
+                                    void selectRepository(repository)
+                                  }}
+                                />
+                              )}
+                            </VirtualList>
+                          ))}
+                        {section.id === 'branches' &&
+                          (appState.selectedRepository === null ? (
+                            <p className="sidebar-panel-empty">
+                              Select a repository to view branches.
+                            </p>
+                          ) : (
+                            <div className="branch-controls">
+                              {branchState.loading ? (
+                                <p>Loading branches…</p>
+                              ) : branchState.error !== null ? (
+                                <p
+                                  className="application-error"
+                                  role="alert"
+                                >
+                                  {branchState.error}
+                                </p>
+                              ) : (
+                                <label>
+                                  Current branch
+                                  <select
+                                    aria-label="Current branch"
+                                    value={
+                                      branchState.currentBranch ?? ''
+                                    }
+                                    disabled={
+                                      branchState.operation !== null ||
+                                      conflictState.mergeInProgress
+                                    }
+                                    onChange={event =>
+                                      void refreshAfterBranchChange(() =>
+                                        branchStore.checkout(
+                                          event.currentTarget.value
+                                        )
+                                      )
+                                    }
+                                  >
+                                    {branchState.currentBranch ===
+                                      null && (
+                                      <option value="">
+                                        Detached or unborn HEAD
+                                      </option>
+                                    )}
+                                    {branchState.branches.map(branch => (
+                                      <option
+                                        key={branch.ref}
+                                        value={branch.name}
+                                        disabled={
+                                          branch.type ===
+                                          BranchType.Remote
+                                        }
+                                      >
+                                        {branch.name}
+                                        {branch.type ===
+                                        BranchType.Remote
+                                          ? ' (remote)'
+                                          : ''}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                              )}
+                              <form
+                                aria-label="Create branch"
+                                onSubmit={event => {
+                                  event.preventDefault()
+                                  void refreshAfterBranchChange(() =>
+                                    branchStore.createAndCheckout(
+                                      newBranchName
+                                    )
+                                  ).then(() => {
+                                    if (
+                                      branchStore.state
+                                        .operationError === null
+                                    ) {
+                                      setNewBranchName('')
+                                    }
+                                  })
+                                }}
+                              >
+                                <label htmlFor="new-branch-name">
+                                  New branch name
+                                </label>
+                                <input
+                                  id="new-branch-name"
+                                  value={newBranchName}
+                                  disabled={
+                                    branchState.operation !== null ||
+                                    conflictState.mergeInProgress
+                                  }
+                                  onChange={event =>
+                                    setNewBranchName(
+                                      event.currentTarget.value
+                                    )
+                                  }
+                                />
+                                <button
+                                  type="submit"
+                                  disabled={
+                                    branchState.operation !== null ||
+                                    conflictState.mergeInProgress
+                                  }
+                                >
+                                  {branchState.operation === 'creating'
+                                    ? 'Creating…'
+                                    : branchState.operation ===
+                                        'checking-out'
+                                      ? 'Checking out…'
+                                      : 'Create branch'}
+                                </button>
+                              </form>
+                              {branchState.progress !== null && (
+                                <p role="status">
+                                  {branchState.progress.description}
+                                </p>
+                              )}
+                              {branchState.operationError !== null && (
+                                <p
+                                  className="application-error"
+                                  role="alert"
+                                >
+                                  {branchState.operationError}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </section>
+                )
+              })}
+            </div>
+          </>
         )}
       </aside>
 
@@ -637,200 +1072,158 @@ function App() {
           </div>
         ) : (
           <div className="selected-repository">
-            <p className="selected-repository-eyebrow">Repository</p>
-            <h2>{appState.selectedRepository.name}</h2>
-            <p>{appState.selectedRepository.path}</p>
-            <button
-              type="button"
-              onClick={() =>
-                void runRepositoryAction(() =>
-                  openRepositoryInNewWindow(
-                    appState.selectedRepository!.path
-                  )
-                )
-              }
+            <header
+              className="repository-toolbar"
+              role="toolbar"
+              aria-label="Repository actions"
             >
-              Open in new window
-            </button>
-            <section
-              className="branch-controls"
-              aria-label="Branches"
-            >
-              {branchState.loading ? (
-                <p>Loading branches…</p>
-              ) : branchState.error !== null ? (
-                <p className="application-error" role="alert">
-                  {branchState.error}
+              <div className="repository-toolbar-identity">
+                <p className="selected-repository-eyebrow">
+                  Repository
                 </p>
-              ) : (
-                <label>
-                  Current branch
-                  <select
-                    aria-label="Current branch"
-                    value={branchState.currentBranch ?? ''}
-                    disabled={
-                      branchState.operation !== null ||
-                      conflictState.mergeInProgress
-                    }
-                    onChange={event =>
-                      void refreshAfterBranchChange(() =>
-                        branchStore.checkout(
-                          event.currentTarget.value
-                        )
-                      )
-                    }
-                  >
-                    {branchState.currentBranch === null && (
-                      <option value="">Detached or unborn HEAD</option>
-                    )}
-                    {branchState.branches.map(branch => (
-                      <option
-                        key={branch.ref}
-                        value={branch.name}
-                        disabled={branch.type === BranchType.Remote}
-                      >
-                        {branch.name}
-                        {branch.type === BranchType.Remote
-                          ? ' (remote)'
-                          : ''}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <form
-                aria-label="Create branch"
-                onSubmit={event => {
-                  event.preventDefault()
-                  void refreshAfterBranchChange(() =>
-                    branchStore.createAndCheckout(newBranchName)
-                  ).then(() => {
-                    if (branchStore.state.operationError === null) {
-                      setNewBranchName('')
-                    }
-                  })
-                }}
-              >
-                <label htmlFor="new-branch-name">
-                  New branch name
-                </label>
-                <input
-                  id="new-branch-name"
-                  value={newBranchName}
-                  disabled={
-                    branchState.operation !== null ||
-                    conflictState.mergeInProgress
-                  }
-                  onChange={event =>
-                    setNewBranchName(event.currentTarget.value)
-                  }
-                />
-                <button
-                  type="submit"
-                  disabled={
-                    branchState.operation !== null ||
-                    conflictState.mergeInProgress
-                  }
-                >
-                  {branchState.operation === 'creating'
-                    ? 'Creating…'
-                    : branchState.operation === 'checking-out'
-                    ? 'Checking out…'
-                    : 'Create branch'}
-                </button>
-              </form>
-              {branchState.progress !== null && (
-                <p>{branchState.progress.description}</p>
-              )}
-              {branchState.operationError !== null && (
-                <p className="application-error" role="alert">
-                  {branchState.operationError}
-                </p>
-              )}
-            </section>
-            <section
-              className="remote-controls"
-              aria-label="Remote synchronization"
-            >
-              <div>
-                <h3>Remote</h3>
+                <h2>{appState.selectedRepository.name}</h2>
                 <p>
-                  {remoteState.loading
-                    ? 'Loading remotes…'
-                    : remoteState.currentRemote === null
-                      ? 'No remote configured.'
-                      : `${remoteState.currentRemote.name} — ${remoteState.currentRemote.url}`}
+                  {appState.selectedRepository.path}
                 </p>
               </div>
-              <div className="remote-actions">
+              <div className="repository-toolbar-actions">
                 <button
                   type="button"
-                  disabled={
-                    remoteState.loading ||
-                    remoteState.currentRemote === null ||
-                    remoteState.operation !== null
+                  onClick={() =>
+                    void runRepositoryAction(() =>
+                      showFolderContents(
+                        appState.selectedRepository!.path
+                      )
+                    )
                   }
-                  onClick={() => void refreshAfterFetch()}
                 >
-                  {remoteState.operation === 'fetch'
-                    ? 'Fetching…'
-                    : 'Fetch'}
+                  Show files
                 </button>
                 <button
                   type="button"
-                  disabled={
-                    remoteState.loading ||
-                    remoteState.currentRemote === null ||
-                    remoteState.currentBranch === null ||
-                    remoteState.currentBranch.upstream === null ||
-                    remoteState.operation !== null
+                  disabled={preferencesStore.selectedEditor === null}
+                  onClick={() =>
+                    void runRepositoryAction(() =>
+                      openInExternalEditor(
+                        appState.selectedRepository!.path
+                      )
+                    )
                   }
-                  onClick={() => void refreshAfterPull()}
                 >
-                  {remoteState.operation === 'pull'
-                    ? 'Pulling…'
-                    : 'Pull'}
+                  Open in editor
                 </button>
                 <button
                   type="button"
-                  disabled={
-                    remoteState.loading ||
-                    remoteState.currentRemote === null ||
-                    remoteState.currentBranch === null ||
-                    remoteState.operation !== null
+                  disabled={preferencesStore.selectedShell === null}
+                  onClick={() =>
+                    void runRepositoryAction(() =>
+                      openInShell(appState.selectedRepository!.path)
+                    )
                   }
-                  onClick={() => void refreshAfterPush()}
                 >
-                  {remoteState.operation === 'push'
-                    ? 'Pushing…'
-                    : 'Push'}
+                  Open in terminal
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void runRepositoryAction(() =>
+                      openRepositoryInNewWindow(
+                        appState.selectedRepository!.path
+                      )
+                    )
+                  }
+                >
+                  Open in new window
                 </button>
               </div>
-              {remoteState.progress !== null && (
-                <p
-                  className="remote-progress"
-                  role="status"
-                >
-                  {remoteState.progress.title ?? 'Fetching'}
-                  {remoteState.progress.description
-                    ? ` — ${remoteState.progress.description}`
-                    : ''}
-                  {` (${Math.round(
-                    remoteState.progress.value * 100
-                  )}%)`}
-                </p>
-              )}
-              {remoteState.error !== null && (
-                <p className="application-error" role="alert">
-                  {remoteState.error}
-                </p>
-              )}
-              {remoteState.operationError !== null && (
-                <p className="application-error" role="alert">
-                  {remoteState.operationError}
-                </p>
-              )}
-            </section>
+              <section
+                className="remote-controls"
+                aria-label="Remote synchronization"
+                aria-busy={
+                  remoteState.loading ||
+                  remoteState.operation !== null
+                }
+              >
+                <div>
+                  <h3>Remote</h3>
+                  <p>
+                    {remoteState.loading
+                      ? 'Loading remotes…'
+                      : remoteState.currentRemote === null
+                        ? 'No remote configured.'
+                        : `${remoteState.currentRemote.name} — ${remoteState.currentRemote.url}`}
+                  </p>
+                </div>
+                <div className="remote-actions">
+                  <button
+                    type="button"
+                    disabled={
+                      remoteState.loading ||
+                      remoteState.currentRemote === null ||
+                      remoteState.operation !== null
+                    }
+                    onClick={() => void refreshAfterFetch()}
+                  >
+                    {remoteState.operation === 'fetch'
+                      ? 'Fetching…'
+                      : 'Fetch'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      remoteState.loading ||
+                      remoteState.currentRemote === null ||
+                      remoteState.currentBranch === null ||
+                      remoteState.currentBranch.upstream === null ||
+                      remoteState.operation !== null
+                    }
+                    onClick={() => void refreshAfterPull()}
+                  >
+                    {remoteState.operation === 'pull'
+                      ? 'Pulling…'
+                      : 'Pull'}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      remoteState.loading ||
+                      remoteState.currentRemote === null ||
+                      remoteState.currentBranch === null ||
+                      remoteState.operation !== null
+                    }
+                    onClick={() => void refreshAfterPush()}
+                  >
+                    {remoteState.operation === 'push'
+                      ? 'Pushing…'
+                      : 'Push'}
+                  </button>
+                </div>
+                {remoteState.progress !== null && (
+                  <p
+                    className="remote-progress"
+                    role="status"
+                  >
+                    {remoteState.progress.title ?? 'Fetching'}
+                    {remoteState.progress.description
+                      ? ` — ${remoteState.progress.description}`
+                      : ''}
+                    {` (${Math.round(
+                      remoteState.progress.value * 100
+                    )}%)`}
+                  </p>
+                )}
+                {remoteState.error !== null && (
+                  <p className="application-error" role="alert">
+                    {remoteState.error}
+                  </p>
+                )}
+                {remoteState.operationError !== null && (
+                  <p className="application-error" role="alert">
+                    {remoteState.operationError}
+                  </p>
+                )}
+              </section>
+            </header>
             <nav
               className="repository-view-navigation"
               aria-label="Repository views"
@@ -947,10 +1340,17 @@ function App() {
                   )}
                 </section>
               )}
+            <div
+              className="changes-workspace"
+              hidden={repositoryView !== 'changes'}
+            >
             <section
               className="working-tree"
               aria-label="Changes"
-              hidden={repositoryView !== 'changes'}
+              aria-busy={
+                workingTreeState.loading ||
+                workingTreeState.commitLoading
+              }
             >
               <header>
                 <h3>Changes</h3>
@@ -980,59 +1380,43 @@ function App() {
                 workingTreeState.workingDirectory.files.length === 0 ? (
                 <p>No local changes.</p>
               ) : (
-                <ul className="working-tree-files">
-                  {workingTreeState.workingDirectory.files.map(file => (
-                    <li
-                      key={file.id}
-                      data-changed-file-path={file.path}
-                    >
-                      <input
-                        type="checkbox"
-                        aria-label={`Include ${file.path}`}
-                        checked={file.isIncludedInCommit()}
-                        onChange={event =>
-                          workingTreeStore.setFileIncluded(
-                            file.id,
-                            event.currentTarget.checked
-                          )
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="working-tree-file-selection"
-                        aria-current={
-                          workingTreeState.selectedFileID === file.id
-                            ? 'true'
-                            : undefined
-                        }
-                        onClick={() =>
-                          void workingTreeStore.selectFile(file.id)
-                        }
-                      >
-                        <span>{file.path}</span>
-                        <small>{mapStatus(file.status)}</small>
-                      </button>
-                      <button
-                        type="button"
-                        className="working-tree-file-discard"
-                        aria-label={`Discard ${file.path}`}
-                        onClick={() => {
-                          setDiscardFileID(file.id)
-                          setPermanentlyDiscard(false)
-                          setDiscardSelection(false)
-                        }}
-                      >
-                        Discard
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                <VirtualList
+                  items={workingTreeState.workingDirectory.files}
+                  className="working-tree-files"
+                  ariaLabel="Changed files"
+                  estimateSize={() => 42}
+                  gap={5}
+                  getItemKey={file => file.id}
+                >
+                  {(file, index, row) => (
+                    <WorkingTreeFileRow
+                      file={file}
+                      files={
+                        workingTreeState.workingDirectory?.files ?? []
+                      }
+                      index={index}
+                      row={row}
+                      selectedFileID={workingTreeState.selectedFileID}
+                      onDiscard={fileID =>
+                        requestDiscard(fileID, false)
+                      }
+                      onSelect={fileID => {
+                        void workingTreeStore.selectFile(fileID)
+                      }}
+                      onSetIncluded={(fileID, included) =>
+                        workingTreeStore.setFileIncluded(
+                          fileID,
+                          included
+                        )
+                      }
+                    />
+                  )}
+                </VirtualList>
               )}
             </section>
             <section
               className="working-tree-diff"
               aria-label="File diff"
-              hidden={repositoryView !== 'changes'}
             >
               {workingTreeState.diffLoading ? (
                 <p>Loading diff…</p>
@@ -1056,7 +1440,9 @@ function App() {
                           const includeable = line.isIncludeableLine()
                           return (
                             <div
-                              className="working-tree-diff-line"
+                              className={`working-tree-diff-line ${diffLineClassName(
+                                line.type
+                              )}`}
                               role="row"
                               key={`${hunkIndex}-${absoluteIndex}`}
                               data-diff-line-index={absoluteIndex}
@@ -1100,9 +1486,7 @@ function App() {
                     disabled={!hasSelectedDiffLines}
                     onClick={() => {
                       if (selectedWorkingTreeFile !== null) {
-                        setDiscardFileID(selectedWorkingTreeFile.id)
-                        setDiscardSelection(true)
-                        setPermanentlyDiscard(false)
+                        requestDiscard(selectedWorkingTreeFile.id, true)
                       }
                     }}
                   >
@@ -1184,47 +1568,79 @@ function App() {
                   )}
                 </form>
               )}
+            </div>
             <section
               className="history"
               aria-label="History"
+              aria-busy={
+                historyState.loading ||
+                historyState.detailsLoading ||
+                historyState.diffLoading
+              }
               hidden={repositoryView !== 'history'}
             >
-              <h3>History</h3>
-              {historyState.loading ? (
-                <p>Loading history…</p>
-              ) : historyState.error !== null ? (
-                <p className="application-error" role="alert">
-                  {historyState.error}
-                </p>
-              ) : historyState.commits.length === 0 ? (
-                <p>No commits yet.</p>
-              ) : (
-                <ul className="history-commits">
-                  {historyState.commits.map(commit => (
-                    <li key={commit.sha}>
-                      <button
-                        type="button"
-                        data-commit-sha={commit.sha}
-                        aria-current={
-                          historyState.selectedCommitSHA === commit.sha
-                            ? 'true'
-                            : undefined
-                        }
-                        onClick={() =>
-                          void historyStore.selectCommit(commit.sha)
-                        }
-                      >
-                        <code>{commit.shortSha}</code>
-                        <strong>{commit.summary}</strong>
-                        <small>{commit.author.name}</small>
-                        <time dateTime={commit.author.date.toISOString()}>
-                          {commit.author.date.toLocaleDateString()}
-                        </time>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <div className="history-list-pane">
+                <h3>History</h3>
+                {historyState.loading ? (
+                  <p>Loading history…</p>
+                ) : historyState.error !== null ? (
+                  <p className="application-error" role="alert">
+                    {historyState.error}
+                  </p>
+                ) : historyState.commits.length === 0 ? (
+                  <p>No commits yet.</p>
+                ) : (
+                  <ul
+                    className="history-commits"
+                    aria-label="Commits"
+                    data-keyboard-list
+                  >
+                    {historyState.commits.map((commit, index) => (
+                      <li key={commit.sha}>
+                        <button
+                          type="button"
+                          data-commit-sha={commit.sha}
+                          data-keyboard-list-item
+                          aria-current={
+                            historyState.selectedCommitSHA === commit.sha
+                              ? 'true'
+                              : undefined
+                          }
+                          tabIndex={
+                            historyState.selectedCommitSHA === commit.sha ||
+                            (historyState.selectedCommitSHA === null &&
+                              index === 0)
+                              ? 0
+                              : -1
+                          }
+                          onClick={() =>
+                            void historyStore.selectCommit(commit.sha)
+                          }
+                          onKeyDown={event =>
+                            handleListNavigation(
+                              event,
+                              index,
+                              historyState.commits.length,
+                              targetIndex => {
+                                void historyStore.selectCommit(
+                                  historyState.commits[targetIndex].sha
+                                )
+                              }
+                            )
+                          }
+                        >
+                          <code>{commit.shortSha}</code>
+                          <strong>{commit.summary}</strong>
+                          <small>{commit.author.name}</small>
+                          <time dateTime={commit.author.date.toISOString()}>
+                            {commit.author.date.toLocaleDateString()}
+                          </time>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
               {selectedHistoryCommit !== null && (
                 <section
                   className="history-details"
@@ -1269,20 +1685,51 @@ function App() {
                       {historyState.changeset.files.length === 0 ? (
                         <p>No files in commit.</p>
                       ) : (
-                        <ul className="history-files">
-                          {historyState.changeset.files.map(file => (
+                        <ul
+                          className="history-files"
+                          aria-label="Commit files"
+                          data-keyboard-list
+                        >
+                          {historyState.changeset.files.map((file, index) => (
                             <li key={file.id}>
                               <button
                                 type="button"
                                 aria-label={file.path}
+                                data-keyboard-list-item
                                 aria-current={
                                   historyState.selectedFileID ===
                                   file.id
                                     ? 'true'
                                     : undefined
                                 }
+                                tabIndex={
+                                  historyState.selectedFileID === file.id ||
+                                  (historyState.selectedFileID === null &&
+                                    index === 0)
+                                    ? 0
+                                    : -1
+                                }
                                 onClick={() =>
                                   void historyStore.selectFile(file.id)
+                                }
+                                onKeyDown={event =>
+                                  handleListNavigation(
+                                    event,
+                                    index,
+                                    historyState.changeset?.files.length ??
+                                      0,
+                                    targetIndex => {
+                                      const target =
+                                        historyState.changeset?.files[
+                                          targetIndex
+                                        ]
+                                      if (target !== undefined) {
+                                        void historyStore.selectFile(
+                                          target.id
+                                        )
+                                      }
+                                    }
+                                  )
                                 }
                               >
                                 <span>{file.path}</span>
@@ -1316,7 +1763,9 @@ function App() {
                           (hunk, hunkIndex) =>
                             hunk.lines.map((line, lineIndex) => (
                               <div
-                                className="working-tree-diff-line"
+                                className={`working-tree-diff-line ${diffLineClassName(
+                                  line.type
+                                )}`}
                                 role="row"
                                 key={`${hunkIndex}-${
                                   hunk.unifiedDiffStart + lineIndex
@@ -1361,14 +1810,13 @@ function App() {
         )}
       </section>
       {discardFile !== null && (
-        <div className="dialog-backdrop">
-          <section
-            className="confirmation-dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="discard-dialog-title"
-            aria-describedby="discard-dialog-message"
-          >
+        <Modal
+          className="confirmation-dialog"
+          role="alertdialog"
+          aria-labelledby="discard-dialog-title"
+          aria-describedby="discard-dialog-message"
+          onDismiss={discarding ? undefined : cancelDiscard}
+        >
             <h2 id="discard-dialog-title">
               {permanentlyDiscard
                 ? 'Permanently discard changes'
@@ -1395,11 +1843,7 @@ function App() {
               <button
                 type="button"
                 disabled={discarding}
-                onClick={() => {
-                  setDiscardFileID(null)
-                  setPermanentlyDiscard(false)
-                  setDiscardSelection(false)
-                }}
+                onClick={cancelDiscard}
               >
                 Cancel
               </button>
@@ -1416,18 +1860,15 @@ function App() {
                     : 'Discard changes'}
               </button>
             </div>
-          </section>
-        </div>
+        </Modal>
       )}
       {workingTreeState.hookFailure !== null && (
-        <div className="dialog-backdrop">
-          <section
-            className="confirmation-dialog"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="hook-failure-title"
-            aria-describedby="hook-failure-message"
-          >
+        <Modal
+          className="confirmation-dialog"
+          role="alertdialog"
+          aria-labelledby="hook-failure-title"
+          aria-describedby="hook-failure-message"
+        >
             <h2 id="hook-failure-title">Git hook failed</h2>
             <p id="hook-failure-message">
               The{' '}
@@ -1456,19 +1897,198 @@ function App() {
                 Ignore hook failure
               </button>
             </div>
-          </section>
-        </div>
+        </Modal>
+      )}
+      {repositoryToRemove !== null && (
+        <Modal
+          className="confirmation-dialog"
+          role="alertdialog"
+          aria-labelledby="remove-repository-title"
+          aria-describedby="remove-repository-message"
+          onDismiss={() => setRepositoryToRemove(null)}
+        >
+            <h2 id="remove-repository-title">Remove repository</h2>
+            <p id="remove-repository-message">
+              Remove <strong>{repositoryToRemove.name}</strong> from rdc?
+              Files in the repository will not be deleted.
+            </p>
+            <div className="confirmation-dialog-actions">
+              <button
+                type="button"
+                onClick={() => setRepositoryToRemove(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="destructive-button"
+                onClick={() => void confirmRemoveRepository()}
+              >
+                Remove repository
+              </button>
+            </div>
+        </Modal>
+      )}
+      {showAboutDialog && (
+        <Modal
+          className="confirmation-dialog about-dialog"
+          aria-labelledby="about-dialog-title"
+          onDismiss={() => setShowAboutDialog(false)}
+        >
+            <h2 id="about-dialog-title">About rdc</h2>
+            <p>Version {__APP_VERSION__}</p>
+            <p>A Tauri port of Desktop Plus.</p>
+            <div className="confirmation-dialog-actions">
+              <button
+                type="button"
+                onClick={() => setShowAboutDialog(false)}
+              >
+                Close
+              </button>
+            </div>
+        </Modal>
+      )}
+      {showPreferencesDialog && (
+        <Modal
+          className="confirmation-dialog preferences-dialog"
+          aria-labelledby="preferences-dialog-title"
+          onDismiss={() => setShowPreferencesDialog(false)}
+        >
+            <h2 id="preferences-dialog-title">Preferences</h2>
+            <div className="preferences-fields">
+              <label htmlFor="theme-preference">Theme</label>
+              <select
+                id="theme-preference"
+                value={preferencesState.theme}
+                onChange={event =>
+                  void preferencesStore.setTheme(
+                    event.currentTarget
+                      .value as PreferencesState['theme']
+                  )
+                }
+              >
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+
+              <label htmlFor="editor-preference">
+                External editor
+              </label>
+              <select
+                id="editor-preference"
+                value={preferencesState.selectedExternalEditor ?? ''}
+                disabled={preferencesState.loading}
+                onChange={event =>
+                  preferencesStore.setSelectedExternalEditor(
+                    event.currentTarget.value || null
+                  )
+                }
+              >
+                {preferencesState.editors.length === 0 && (
+                  <option value="">No supported editor found</option>
+                )}
+                {preferencesState.editors.map(editor => (
+                  <option key={editor.editor} value={editor.editor}>
+                    {editor.editor}
+                  </option>
+                ))}
+              </select>
+
+              <label htmlFor="shell-preference">Shell</label>
+              <select
+                id="shell-preference"
+                value={preferencesState.selectedShell ?? ''}
+                disabled={preferencesState.loading}
+                onChange={event =>
+                  preferencesStore.setSelectedShell(
+                    (event.currentTarget.value ||
+                      null) as PreferencesState['selectedShell']
+                  )
+                }
+              >
+                {preferencesState.shells.length === 0 && (
+                  <option value="">No supported shell found</option>
+                )}
+                {preferencesState.shells.map(shell => (
+                  <option key={shell.shell} value={shell.shell}>
+                    {shell.shell}
+                  </option>
+                ))}
+              </select>
+
+              <fieldset>
+                <legend>Confirm before</legend>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={
+                      preferencesState.confirmRepositoryRemoval
+                    }
+                    onChange={event =>
+                      preferencesStore.setConfirmRepositoryRemoval(
+                        event.currentTarget.checked
+                      )
+                    }
+                  />
+                  Removing a repository from rdc
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={preferencesState.confirmDiscardChanges}
+                    onChange={event =>
+                      preferencesStore.setConfirmDiscardChanges(
+                        event.currentTarget.checked
+                      )
+                    }
+                  />
+                  Discarding file changes
+                </label>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={
+                      preferencesState.confirmDiscardChangesPermanently
+                    }
+                    onChange={event =>
+                      preferencesStore.setConfirmDiscardChangesPermanently(
+                        event.currentTarget.checked
+                      )
+                    }
+                  />
+                  Permanently discarding changes when trash fails
+                </label>
+              </fieldset>
+            </div>
+            {preferencesState.error !== null && (
+              <p className="application-error" role="alert">
+                {preferencesState.error}
+              </p>
+            )}
+            <div className="confirmation-dialog-actions">
+              <button
+                type="button"
+                onClick={() => setShowPreferencesDialog(false)}
+              >
+                Close
+              </button>
+            </div>
+        </Modal>
       )}
       {showCloneDialog && (
-        <div className="dialog-backdrop">
-          <section
-            className="confirmation-dialog clone-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="clone-dialog-title"
-          >
+        <Modal
+          className="confirmation-dialog clone-dialog"
+          aria-labelledby="clone-dialog-title"
+          onDismiss={
+            cloneState.operation === null
+              ? dismissCloneDialog
+              : undefined
+          }
+        >
             <h2 id="clone-dialog-title">Clone a repository</h2>
             <form
+              aria-busy={cloneState.operation !== null}
               onSubmit={event => {
                 event.preventDefault()
                 void submitClone()
@@ -1537,8 +2157,7 @@ function App() {
                 </button>
               </div>
             </form>
-          </section>
-        </div>
+        </Modal>
       )}
     </main>
   )

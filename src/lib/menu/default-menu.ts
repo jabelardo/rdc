@@ -140,10 +140,10 @@ export function buildDefaultMenu(
   const template: TemplateItem[] = []
   if (mac) {
     template.push({
-      label: 'Desktop Plus',
+      label: 'rdc',
       submenu: [
         {
-          label: 'About Desktop Plus',
+          label: 'About rdc',
           id: 'about',
           action: event('show-about'),
         },
@@ -563,28 +563,19 @@ export function buildDefaultMenu(
     })
   }
 
-  // Phase 9 replaces the inherited Desktop Plus/GitHub Desktop destinations
-  // and the non-macOS About label as one rdc product-identity pass.
   const helpItems: TemplateItem[] = [
     {
       label: mac ? 'Report Issue…' : 'Report issue…',
       action: {
         type: 'open-external',
-        url: 'https://github.com/desktop-plus/desktop-plus/issues/new/choose',
+        url: 'https://github.com/jabelardo/rdc/issues/new',
       },
     },
     {
-      label: 'Show User Guides',
+      label: mac ? 'View rdc on GitHub' : 'View rdc on &GitHub',
       action: {
         type: 'open-external',
-        url: 'https://docs.github.com/en/desktop',
-      },
-    },
-    {
-      label: mac ? 'Show Keyboard Shortcuts' : 'Show keyboard shortcuts',
-      action: {
-        type: 'open-external',
-        url: 'https://docs.github.com/en/desktop/installing-and-configuring-github-desktop/overview/keyboard-shortcuts',
+        url: 'https://github.com/jabelardo/rdc',
       },
     },
     {
@@ -606,7 +597,7 @@ export function buildDefaultMenu(
         ...helpItems,
         separator(),
         {
-          label: '&About Desktop Plus',
+          label: '&About rdc',
           id: 'about',
           action: event('show-about'),
         },

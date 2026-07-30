@@ -34,11 +34,12 @@ Target: `rdc` (Tauri 2.0 + React 19 + Vite, currently the untouched default scaf
 7. **The first product milestone is a macOS/Linux MVP, not complete upstream parity.** A phase
    boundary must not make an unrelated parity feature a prerequisite for a useful application. The
    MVP is the same exposed Git workflow on macOS and Linux; Linux supplies deterministic
-   `tauri-driver` automation, while a locally packaged macOS `.app` supplies the native WKWebView
-   acceptance evidence that automation cannot. Windows remains a named, complete Phase 10 rather
-   than being hidden inside the MVP. GitHub collaboration, enterprise proxy/certificate handling,
-   telemetry, signing/notarization, automatic updates and the standalone CLI are post-MVP unless an
-   MVP slice directly depends on them.
+   `tauri-driver` automation, while development builds supply the native macOS/real-Wayland QA that
+   automation cannot. Local packages are created only after that QA loop settles and receive a
+   focused final artifact pass. Windows remains a named, complete Phase 10 rather than being hidden
+   inside the MVP. GitHub collaboration, enterprise proxy/certificate handling, telemetry,
+   signing/notarization, automatic updates and the standalone CLI are post-MVP unless an MVP slice
+   directly depends on them.
 
 ## Module mapping strategy
 
@@ -2034,7 +2035,7 @@ open-repository action until that renderer is ready, and never normalizes the re
 one of multiple windows destroys only that window; the last-window hide/quit policy remains unchanged.
 The audit is now **39 of 58** proxy exports and **8 of 15** subscriptions implemented: **39 of 39**
 Phase 4a wrappers and **8 of 8** Phase 4a subscriptions. The remaining 19 wrappers and 7 subscriptions
-belong to 4b; `url-action` moved to Phase 9b with the single-instance/deep-link seam.
+belong to 4b; `url-action` moved to Phase 9 with the single-instance/deep-link seam.
 Its capability and Linux initialization are covered by the Ubuntu 26.04 container's six real
 application-launch, menu, dialog, multi-window and process-lifetime WebDriver specs.
 
@@ -2043,10 +2044,10 @@ application-launch, menu, dialog, multi-window and process-lifetime WebDriver sp
 The Phase 2 `getGlobalConfigPath` handoff, which sat outside that proxy measurement, is now implemented
 and test-first. Config and install-ID persistence are read back through fresh owners, and the updater's
 complete lifecycle is fake-backend tested. Phase 4 therefore closes as the Linux/macOS implementation
-phase. Native-session evidence is not erased: the Phase 8 MVP acceptance covers the behavior exposed
-by 7a–7e on Linux and a Phase 9a local macOS bundle; Secret Service, packaged-macOS
+phase. Native-session evidence is not erased: Phase 8b covers the behavior exposed by 7a–7e on Linux
+and macOS, followed by its final local-package pass; Secret Service, packaged-macOS
 Keychain/notification/attention/CLI and signed-release checks travel with their post-MVP consumers in
-Phase 9b when the MVP does not expose them. Every Windows backend and runtime check is Phase 10. That
+Phase 9 when the MVP does not expose them. Every Windows backend and runtime check is Phase 10. That
 ownership split is target structure, not a parity claim.
 
 #### What this phase is, measured
@@ -2203,7 +2204,7 @@ operation has proxy support today**, and it will not until Phase 5c.
 **3. Windows moves to Phase 10**, extending the stance `MIGRATION_MAP.md` §3 already takes for hooks:
 `shells/win32.ts`, `editors/win32.ts`, `lib/process/win32.ts`, `registry-js` → `winreg`,
 `find-toast-activator-clsid.ts`, WOW64 detection, and the Windows implementation of
-`install-windows-cli`/`uninstall-windows-cli` are deferred to one explicit Windows phase. Phase 9b owns
+`install-windows-cli`/`uninstall-windows-cli` are deferred to one explicit Windows phase. Phase 9 owns
 the shared packaging/external-action design; Phase 10 owns the Windows registry, shim and installer
 behavior. That is 2,487 of the 5,400 lines before those adjacent runtime seams are counted. Rust
 modules and shared domain enums still carry the Windows seam so Phase 10 adds `#[cfg(windows)]` arms
@@ -2252,9 +2253,9 @@ for the updater, so 4a is everything the UI calls and 4b is everything it does n
    fresh uniquely labelled webview from the same `main` startup template. Rust queues
    `{ kind: 'open-repository', path, persistSelection: false }` by label and returns it exactly once
    from that window's `renderer-ready` handshake, after restore/show/focus, which removes the
-   emit-before-listener race without importing Phase 9b's external `cli-action` stream. The path crosses
+   emit-before-listener race without importing Phase 9's external `cli-action` stream. The path crosses
    verbatim. `findWindowForRepositoryPath`, `normalizeRepositoryPath` and most-specific matching belong
-   only to Phase 9b's single-instance/external-action routing.
+   only to Phase 9's single-instance/external-action routing.
    **Multi-window lifetime is implemented:** a close request destroys only the current window while
    another app window exists; the last window still follows the existing macOS hide/non-macOS quit
    policy. Destruction clears both routing metadata and any unclaimed startup action.
@@ -2387,8 +2388,8 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
    runtime, and the crate mock covers missing entries, overwrite, delete, backend failure, pair
    isolation and secret-free errors. Phase 7 consumers can keep the existing facade unchanged.
    Ubuntu 26.04 now compiles and runs the mock-backed contract against the Secret Service-linked
-   build. Native credential-store evidence follows the feature that consumes it: Phase 8 when exposed
-   by the MVP, otherwise Phase 9b.
+   build. Native credential-store evidence follows the feature that consumes it: Phase 8b when exposed
+   by the MVP, otherwise Phase 9.
 
 10. **Window attention and macOS extras (4 wrappers plus the direct CLI installer).**
     - `dialog-did-open` becomes a focused-window guard plus Tauri critical
@@ -2398,11 +2399,11 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
       `None` are special, every missing/unknown value behaves as `Maximize`.
     - Implement application-folder detection and relocation behind macOS-only commands. Pure bundle
       path/decision logic is unit-tested now; moving a real signed `.app` and relaunching it is a
-      Phase 9b release-package validation, not something a dev binary can prove.
+      Phase 9 release-package validation, not something a dev binary can prove.
     - Replace `fs-admin` with one user-initiated macOS installer command: try ordinary
       unlink/mkdir/symlink first, then an escaped `osascript` elevation request. The installed name is
       rdc-owned. Test command construction and filesystem behavior without elevation; validate the
-      authorization prompt with the packaged artifact in Phase 9b.
+      authorization prompt with the packaged artifact in Phase 9.
 
     **Implementation complete; packaged presentation evidence open:** the focused-window adapter now
     preserves both halves of upstream macOS behavior—`NSBeep` and a critical AppKit attention
@@ -2413,7 +2414,7 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
     launcher, replaces stale links without elevation first, and falls back to a fully quoted
     `osascript` authorization request. Pure path, preference, filesystem and quoting contracts are
     green. A signed `.app` move/relaunch, visible attention/beep, authorization prompt, and launcher
-    argument routing remain Phase 9b evidence; the last item depends on Phase 9b single-instance/CLI
+    argument routing remain Phase 9 evidence; the last item depends on Phase 9 single-instance/CLI
     action delivery.
 
 11. **Notifications (3 wrappers, 1 subscription) — spike identity and ownership first.**
@@ -2428,7 +2429,7 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
       validation, listener cleanup and multi-window click ownership. Linux/macOS native display and
       click need real-session manual evidence unless an isolated notification daemon makes the
       container test reliable. Full-process relaunch delivery needs packaged lifecycle evidence in
-      Phase 9b rather than a unit-test claim.
+      Phase 9 rather than a unit-test claim.
 
     **Implementation complete; packaged/native-session evidence open:** the spike rejected
     `tauri-plugin-notification`: its desktop backend discards the native handle and extra payload,
@@ -2441,8 +2442,8 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
     Linux and Windows retain upstream's effectively granted permission contract. This also adds Linux
     notifications. A bundled macOS app is required to prove display, permission prompt and click;
     an isolated Linux notification-daemon click and any click after a complete process relaunch remain
-    open target evidence: Linux MVP behavior is checked in Phase 8, packaged macOS release identity
-    in Phase 9b, and Windows in Phase 10. The measured surface is now **50 of 58** Phase 4 wrappers and **9 of 15**
+    open target evidence: Linux MVP behavior is checked in Phase 8b, packaged macOS release identity
+    in Phase 9, and Windows in Phase 10. The measured surface is now **50 of 58** Phase 4 wrappers and **9 of 15**
     subscriptions; all remaining entries belong to the updater slice.
 
 12. **Updater mechanism, not release infrastructure (8 wrappers, 6 subscriptions).**
@@ -2458,7 +2459,7 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
     - Tests use an injected fake updater backend to pin every transition, repeated-check exclusion,
       progress, errors, close policy and cleanup. Phase 4b installs the plugin and compiles the real
       adapter, but **does not claim a working release channel**: Tauri manifests, the public key,
-      endpoint, signed artifacts and the mock-update-server E2E belong to Phase 9b.
+      endpoint, signed artifacts and the mock-update-server E2E belong to Phase 9.
 
     **Implementation complete; signed release evidence deferred:** `UpdateController` now owns the
     retained Tauri `Update` resource and the complete checking/available/downloading/not-available/
@@ -2469,19 +2470,19 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
     close cancels while download/install is active and notifies the existing popup seam; macOS or
     preference-driven hide remains safe and allowed. The official Rust/JavaScript plugin and default
     capability are installed. The legacy URL parameter is intentionally not applied dynamically:
-    Phase 9b supplies Tauri's signed endpoint/public key and decides whether its release service needs
+    Phase 9 supplies Tauri's signed endpoint/public key and decides whether its release service needs
     an analogue of Squirrel's install-GUID rollout query. Ten focused controller tests and the close
     policy tests cover the fake-backend lifecycle; live signed-update and mock-server evidence remains
-    Phase 9b work.
+    Phase 9 work.
 
 13. **Phase 4b closed; target evidence transferred, not waived.** Every 4b row in
     `MIGRATION_MAP.md` is routed, the reverse audit names the non-proxy keychain, CLI and updater
     owners, and `measure-platform-surface.mjs --require-complete` reports **58/58 Phase 4 wrappers and
-    15/15 subscriptions**. `url-action` remains visibly owned by Phase 9b rather than hidden as pending
+    15/15 subscriptions**. `url-action` remains visibly owned by Phase 9 rather than hidden as pending
     work. Config/install-ID fresh-owner reload tests and the missed `getGlobalConfigPath` handoff close
-    the deterministic gaps. The Phase 8 gate covers native behavior used by the MVP; post-MVP Secret
+    the deterministic gaps. The Phase 8b gate covers native behavior used by the MVP; post-MVP Secret
     Service, notification-daemon and packaged-macOS identity/presentation evidence follows its Phase
-    9b consumer. Windows backends and runtime behavior gate Phase 10.
+    9 consumer. Windows backends and runtime behavior gate Phase 10.
 
 #### What Phase 4 does not own
 
@@ -2490,8 +2491,8 @@ The surface audit is **47 of 58** Phase 4 wrappers and **8 of 15** subscriptions
 | `uncaught-exception`, `send-error-report`, `error`, `crash-ready`, `crash-quit`, and where log files go on a crash | Phase 6a / 6b | Phase 4 wires `tauri-plugin-log`; local recovery is an MVP concern and external reporting is not |
 | `update-accounts`, `certificate-error`, `show-certificate-trust-dialog` | Phase 5b / 5c | Account-fed media and enterprise certificate recovery have different consumers |
 | `resolve-proxy`, `envForProxy`, `getFallbackUrlForProxyResolve`, `lib/parse-pac-string.ts` | Phase 5c | Decision 2 — the same Electron `session` object as `webRequest`, and the same "redesign, not a port" |
-| `cli-action`, `url-action`, updater keys/endpoint and cross-platform packaging policy | Phase 9b | External launch routing, signed releases and deep links share the public-release boundary |
-| `install-windows-cli`, `uninstall-windows-cli`, Windows protocol/CLI registration and Windows updater application | Phase 10, consuming Phase 9b infrastructure | Registry, PATH, shims, installer format and signed-runtime behavior require a Windows host |
+| `cli-action`, `url-action`, updater keys/endpoint and cross-platform packaging policy | Phase 9 | External launch routing, signed releases and deep links share the public-release boundary |
+| `install-windows-cli`, `uninstall-windows-cli`, Windows protocol/CLI registration and Windows updater application | Phase 10, consuming Phase 9 infrastructure | Registry, PATH, shims, installer format and signed-runtime behavior require a Windows host |
 | Menu **enable-state logic** (`lib/menu-update.ts`, 531 lines) | Phase 7 | It is a function of app state; Phase 4 owns the mechanism it drives, not the policy |
 | The keybinding **preferences UI** | Phase 7 | 4a lands the map, the persistence and the commands; rebinding is a new feature with no upstream counterpart |
 | Hook enable/failure preferences (`lib/hooks/config.ts`) | Phase 7 | `localStorage` preferences state, already routed there |
@@ -2524,7 +2525,7 @@ surface criteria are necessary and demonstrably insufficient — all four of Pha
   Linux-only.
 - `measure-platform-surface.mjs --require-phase4a-complete` reports **39 of 39 wrappers and 8 of 8
   subscriptions implemented**, with zero uncovered entries in either direction. The 19 wrappers and
-  7 subscriptions left pending are explicitly assigned to 4b; `url-action` is assigned to Phase 9b,
+  7 subscriptions left pending are explicitly assigned to 4b; `url-action` is assigned to Phase 9,
   and `--require-complete` remains the whole-Phase-4 closure gate.
 - Every 4a row in `MIGRATION_MAP.md` §7.1 has its status flipped, and every deviation from decisions 1–3
   is written into §8 **with its consequence** — the menu inversion, the accelerator dispatcher, and
@@ -2545,15 +2546,15 @@ The original criterion put every native credential-store and notification-click 
 4b. Implementation showed that this mixed three different target gates into one phase: Linux requires
 a real D-Bus desktop session, macOS notification delivery requires a packaged identity, and Windows
 requires backends not yet compiled into rdc. The checks remain mandatory but now follow their consumer:
-Phase 8 qualifies native behavior exposed by the macOS/Linux MVP; post-MVP Linux Secret Service,
-notification-daemon, packaged-macOS Keychain and notification-identity checks close with Phase 9b;
+Phase 8b qualifies native behavior exposed by the macOS/Linux MVP; post-MVP Linux Secret Service,
+notification-daemon, packaged-macOS Keychain and notification-identity checks close with Phase 9;
 Windows Credential Manager and notification identity/click close in Phase 10. A live update
-check/install is Phase 9b evidence because it requires a signed artifact, public key and endpoint.
+check/install is Phase 9 evidence because it requires a signed artifact, public key and endpoint.
 Phase 4 closes without claiming any of that evidence early.
 
 Three things are **not** 4b criteria: proxy support, which moved to Phase 5 by decision 2;
 config-directory migration, which is dropped by principle 6; and deep-link delivery, which moved to
-Phase 9b because Tauri requires the single-instance plugin on Linux/Windows and the packaged scheme must
+Phase 9 because Tauri requires the single-instance plugin on Linux/Windows and the packaged scheme must
 match rdc's registered OAuth callback; this coupling is explicit in
 [Tauri's desktop deep-link documentation](https://v2.tauri.app/plugin/deep-linking/).
 
@@ -2563,14 +2564,14 @@ Each of these needs an experiment rather than a decision from the plan, and each
 guessing would be cheaper than checking and worse:
 
 - The credential abstraction and persistent backend choice are resolved. Native proof follows the
-  first product consumer: Phase 8 if the MVP exposes it, otherwise Phase 9b.
+  first product consumer: Phase 8b if the MVP exposes it, otherwise Phase 9.
 - The notification spike found no desktop `onAction` to scope: Tauri's plugin actions are
   mobile-only and its desktop backend is fire-and-forget. The chosen direct `notify-rust` handle feeds
   one Rust global router, whose owner/focused/main fallback and consume-once behavior are unit-tested.
-  Native notification evidence is Phase 8 when exposed by the MVP, otherwise Phase 9b; Windows is
+  Native notification evidence is Phase 8b when exposed by the MVP, otherwise Phase 9; Windows is
   Phase 10.
 - Before the macOS-extra slice closes, compare Tauri's critical attention request with Electron's
-  beep-plus-dock-bounce behavior and test application relocation with a signed `.app` in Phase 9b.
+  beep-plus-dock-bounce behavior and test application relocation with a signed `.app` in Phase 9.
 
 ### Phase 5 — session-level behaviors, split by product dependency
 
@@ -2770,10 +2771,13 @@ from each hydrated text hunk now become the file's selectable-line set. Addition
 selectable; context and hunk headers are not. A partial commit sends Phase 3's existing
 `IFileToStage.partial` shape with the domain status and sorted selected indices, while a partial discard
 sends the exact displayed `ITextDiff` with those indices so Git rejects a stale patch instead of
-discarding different content. The shell exposes a minimal accessible unified-line surface; large-text
-diffs remain whole-file-only rather than pretending they can be partially selected. The Ubuntu 26.04
-journey commits one selected line from a real two-line untracked file, verifies the committed blob,
-discards the remaining working-tree line through the confirmation surface and observes a clean tree.
+discarding different content. The confirmation request snapshots that displayed diff and its selected
+indices before opening the dialog, so an independent status refresh cannot silently replace or clear
+the requested selection while the user decides. The shell exposes a minimal accessible unified-line
+surface; large-text diffs remain whole-file-only rather than pretending they can be partially selected.
+The Ubuntu 26.04 journey commits one selected line from a real two-line untracked file, verifies the
+committed blob, explicitly selects and discards the remaining working-tree line through the confirmation
+surface, and observes a clean tree.
 
 **Hook-failure decision slice complete:** commits can explicitly opt into Phase 3's login-shell hook
 interception through the temporary minimum commit-form checkbox. Progress, terminal output and an
@@ -2904,16 +2908,200 @@ serialized operation state, actionable errors and local-bare-remote E2E coverage
 force push, tag push, advanced hook preferences and application-managed PAC/proxy or certificate
 trust remain explicitly post-MVP.
 
-#### Phase 7e — MVP hardening and presentation
+#### Phase 7e — MVP hardening and presentation (autonomous implementation)
 
 - Port only the preferences needed by exposed behavior: theme, destructive-operation confirmation
   and editor/shell selection.
 - Complete accessibility, keyboard navigation and realistic-large-repository performance passes.
-- Replace `react-virtualized` with `@tanstack/react-virtual` for the repositories, changes and history
-  surfaces. Do not combine the port with a class-component-to-hooks rewrite.
+- Use `@tanstack/react-virtual` where the realistic-large-repository measurements show that rendering
+  the complete list misses the acceptance target. The current MVP shell never imported upstream's
+  `react-virtualized`, and History is deliberately bounded to 100 commits, so this is a measured
+  performance decision rather than a mechanical dependency replacement. Do not combine it with an
+  unrelated component rewrite.
 - Hide, disable or clearly mark commands whose feature has not landed; a preview must not imply that
   every upstream menu action works.
 - Replace inherited Desktop Plus/GitHub Desktop Help destinations and About text with rdc branding.
+
+**Start audit 2026-07-30:** the native discovery and launch mechanisms for macOS/Linux editors and
+shells already exist, as do application-wide native theme control and system-theme notifications.
+Their consumers do not: Preferences, Open in Shell and Open in External Editor remain honestly
+disabled. CSS follows only `prefers-color-scheme`, repository removal currently has no confirmation,
+and discard confirmation is always on. The full menu is already fail-closed for unimplemented menu
+events, but its three enabled Help links still lead to Desktop Plus/GitHub Desktop and About remains
+disabled. Repository, changed-file and commit lists currently render with direct `map`; History is
+bounded to 100 while the other two are not. Basic semantic buttons, labels, alerts and visible focus
+styles are present, but dialogs do not yet trap/restore focus or close on Escape, and selectable lists
+have no arrow-key navigation.
+
+The three MVP preferences stay in TypeScript persistence. They affect renderer behavior and labels;
+none must exist before Rust creates the menu or webview, unlike `titleBarStyle`. Theme selection calls
+the existing native adapter but also drives an explicit document theme so Light/Dark overrides do
+not depend on how a webview interprets the OS media query. Editor and shell preferences persist the
+stable upstream identifiers, then resolve them against native discovery on each launch; an
+uninstalled choice falls back visibly rather than persisting a machine-specific executable path.
+Custom integrations remain Phase 7f.
+
+Work is split into five independently closable slices:
+
+1. **Preferences and integrations:** a small persisted preferences store/dialog for
+   Light/Dark/System, upstream-default confirmation flags for repository removal, recoverable
+   discard and permanent discard, plus installed editor/shell selection. Wire preferred
+   Open-in-Editor/Open-in-Shell actions and their dynamic native-menu labels. Partial-line discard
+   remains confirmation-protected because it cannot use the operating-system trash.
+2. **Honest product surface:** replace or visibly mark the inherited Help links, add an rdc About
+   surface, and audit every enabled menu/action against an executor. Keep GitHub/account,
+   repository-settings, custom-integration and advanced Git commands disabled for Phase 7f rather
+   than adding hollow dialogs.
+3. **Accessibility and keyboard acceptance:** centralize modal focus entry, trapping, Escape,
+   dismissal and focus restoration; add arrow/Home/End selection behavior to repository, changes and
+   history lists; verify accessible names, selected/busy/live state, reduced-motion/high-contrast
+   behavior and keyboard-only completion of the MVP workflow.
+4. **Visual design and product polish:** establish an intentional rdc visual system for typography,
+   spacing, color, controls, panels and dialogs; improve hierarchy across the repository sidebar,
+   changes/history workspace, commit form and diff presentation; and make empty, loading, progress
+   and error states feel like one product. Verify compact-window behavior and both themes without
+   changing the already-tested interaction contracts. Keep this as a CSS/component-structure pass,
+   not a new feature or a rewrite of the stores beneath the shell. Pair automated component and
+   interaction coverage with named macOS/Linux visual acceptance.
+5. **Measured large-repository hardening:** establish representative repository/change/history
+   fixtures and record load, selection and scroll evidence in the Linux WebKit container. Split list
+   rows out of the monolithic shell and add `@tanstack/react-virtual` only to lists whose measured
+   rendering requires it, retaining stable selection and screen-reader semantics. Close with the
+   complete automated Linux MVP journey and deterministic fixtures/checklists ready for Phase 8b.
+
+**Preferences and integrations slice complete:** `PreferencesStore` owns a validated, versioned
+renderer-persistence record for Light/Dark/System, upstream-safe repository-removal, recoverable
+discard and permanent-discard confirmation defaults, and stable editor/shell identifiers. Loading
+applies the native application theme, resolves System to an explicit document theme, follows later
+native system-theme notifications without resetting the native source, and discovers installed
+tools through Phase 4's Rust mechanisms. A stored tool that is no longer installed falls back to the
+first supported installed choice and persists its identifier, never its machine-specific path.
+
+The native Preferences menu now opens the focused MVP settings surface on every platform. Preferred
+Open in Shell and Open in External Editor actions become enabled only after discovery resolves a
+usable tool, and their native labels follow the selection. Repository removal and whole-file discard
+honor their preferences; partial-line discard remains confirmation-protected because it is
+irrecoverable, while a trash failure separately honors the permanent-discard preference. Custom
+integrations remain Phase 7f. Unit/React tests cover persistence, malformed-field fallback, dynamic
+menu policy, launch routing and confirmation behavior. The Ubuntu native journey opens Preferences
+through the real `Ctrl+,` accelerator and verifies a live Dark/System theme transition.
+
+**Overlay-window movement correction:** the Phase 4 startup decision correctly gave macOS
+`TitleBarStyle::Overlay`, but the Phase 7 shell initially supplied no webview drag target, leaving the
+window immovable. The shell now reserves a sticky, non-interactive top strip that calls the scoped
+and rejection-handled native start-dragging API. macOS always receives it, as does the future
+frameless Windows shell; Linux retains native decoration without an extra strip unless startup
+`titleBarStyle` is explicitly `custom`. Double-click reads macOS's existing
+`AppleActionOnDoubleClick` policy and explicitly minimizes, maximizes/restores or does nothing; the
+second press no longer enters Tauri's automatic drag listener or leaks its rejected promise. The
+strip contains no buttons, so moving the window cannot swallow Preferences/Clone/Add clicks.
+Policy, DOM, window-action and capability tests pin all three platform branches. Manual
+`pnpm tauri dev` acceptance on macOS verified sticky dragging after scroll and native Maximize
+double-click without rejected promises on 2026-07-30.
+
+**Honest product surface slice complete:** the application menu and About surface now identify rdc,
+including the installed version, while Help points only to rdc's repository and issue tracker. The
+inherited Desktop Plus issue destination and GitHub Desktop guides/shortcut documentation are
+removed rather than presenting another product's support material as rdc behavior. About is a real
+globally available renderer action on macOS and Linux/Windows menu structures. A recursive
+three-platform contract test executes every visible enabled leaf action through the composed
+repository/startup dispatchers, so adding an enabled command without an executor fails the suite;
+unimplemented Phase 7f commands remain disabled.
+
+**Accessibility and keyboard slice in progress — shared interaction foundation complete:** every
+renderer-owned modal now uses one focus contract: focus enters the first available control, Tab and
+Shift+Tab remain trapped, safe cancellation uses Escape, and dismissal restores the invoking
+control. Decisions that must be resolved explicitly, plus clone/discard while native work is active,
+remain intentionally non-dismissible. Repository, changed-file, commit and commit-file lists share
+non-wrapping Arrow Up/Down plus Home/End navigation and roving tab stops while preserving their
+store-owned selection.
+
+Changes, History, remote synchronization and Clone now expose busy state, operation progress uses
+live status semantics, all interactive form controls receive visible keyboard focus, and explicit
+reduced-motion and forced-colors rules keep those cues available under OS accessibility modes. Unit
+and React integration tests pin focus trapping/restoration and list routing; the Ubuntu WebKit
+journey verifies focus entry, both Tab boundaries and Escape through the real native Preferences
+accelerator. A second real-app journey creates a change, selects it, toggles inclusion, enables hook
+interception, submits the commit, proves the mandatory hook decision ignores Escape, chooses Ignore
+and reaches the new History entry using keyboard input only. The automated/coding acceptance for
+this slice is complete. Phase 8b retains the corresponding macOS manual checklist: native-menu focus
+entry, both modal Tab boundaries and restoration, repository/change/history list navigation,
+keyboard commit plus hook resolution, Reduce Motion and increased-contrast presentation.
+
+**Visual-layout decision:** fix information architecture before styling individual controls. The
+application frame uses one fully collapsible navigation sidebar whose independently collapsible
+section registry names Repositories, Branches, Tags, Stashes, Submodules and Subtrees. A section is
+visible only when its real store and actions exist: the MVP renders Repositories and Branches;
+Tags/Stashes/Submodules/Subtrees remain registered but hidden until their Phase 7f consumers land.
+Flipping visibility without the backing feature is not allowed, preserving the honest-product rule.
+The typed registry and its MVP capability contract are pinned in `src/lib/ui/sidebar-sections.ts`;
+it contains no placeholder renderers or no-op actions.
+
+The native window title carries the current repository and branch. A toolbar below it consolidates
+frequent global/repository actions and compact remote state instead of presenting branch and remote
+cards in the document. Below the Changes/History switch, Changes uses a stable file-list column with
+the commit form beneath it and a flexible diff pane; History reuses the topology for commit list and
+commit details. Conflicts span the workspace as a banner. Implement in this order: typed sidebar
+registry and frame, dynamic native title, live Repositories/Branches panels, toolbar consolidation,
+Changes/History grids, compact-window behavior, then visual tokens and detailed polish.
+
+**Application-frame foundation complete:** the typed registry now drives an independently
+collapsible Repositories and Branches sidebar, and the entire sidebar collapses to a narrow rail.
+Deferred Phase 7f sections are absent from the DOM. Live branch checkout/create controls moved out
+of the document into their repository-scoped panel without changing store behavior or keyboard
+contracts. The native title follows `rdc — repository — branch`, while a full-width toolbar shell
+combines repository identity, the new-window shortcut and compact Fetch/Pull/Push state. React tests
+pin panel independence, whole-sidebar collapse, hidden deferred sections, branch ownership, native
+title text and toolbar composition. The next layout slice replaces the remaining vertically stacked
+Changes/History content with the paired list/detail workspace grids and expands the toolbar's MVP
+shortcuts.
+
+**Visual-system and workspace slice complete:** Changes now uses the planned file-list/commit column
+beside a flexible diff pane; History mirrors it with a bounded commit list beside commit metadata,
+changed files and the selected diff. Both collapse to one column below the compact-window breakpoint
+without changing their semantic regions, roving list navigation or store ownership. The toolbar now
+contains the backed file-manager, preferred editor, preferred terminal and new-window shortcuts plus
+the existing remote controls; unavailable integrations remain disabled rather than opening hollow
+surfaces. Diff rows carry semantic add/delete/hunk classes in both working-tree and history views.
+
+One shared token layer now owns light/dark canvas, surfaces, borders, text hierarchy, toolbar,
+selection, success/danger, warning/error and diff colors, alongside system UI and platform monospace
+font stacks and a compact 13px desktop base. Desktop Plus was used as a validation baseline, not a
+palette to copy: rdc retains the useful role separation, system typography, compact density,
+high-contrast toolbar and semantic diff treatment while keeping its own colors and information
+architecture. Measured foreground/background pairs range from 4.98:1 for the light muted text to
+16.27:1 for primary light text; toolbar and dark-theme muted pairs exceed 6.7:1. React contracts pin
+the paired workspaces, backed toolbar actions and semantic diff classes. The Ubuntu native journey
+pins the typography/token application and proves the 52rem layout becomes a single-column shell and
+workspace. Named macOS acceptance still requires looking at Changes and History in Light/Dark/System
+at normal and compact widths; programmatic screen capture cannot foreground the unsigned debug
+window without Accessibility permission, so that visual judgment is not claimed here.
+
+**Human judgment is consolidated in Phase 8b:** this slice deliberately stops at an automated,
+test-backed structural and token baseline; it does not claim that detailed visual design is finished.
+The macOS/Linux visual review and refinements formerly attached to Phase 7e now run alongside the
+other human-only platform checks in one iterative QA phase. Phase 7e can therefore close when its
+remaining measured large-repository work and automated gates are green, without pretending that
+human visual acceptance happened.
+
+**Measured large-repository slice complete:** the unbounded repository and changed-file lists now
+share a focused `@tanstack/react-virtual` adapter and extracted row components. Lists at or below 100
+items retain ordinary complete DOM semantics; larger lists render a measured window with stable item
+keys, roving tab stops and explicit scroll-before-focus navigation. History remains deliberately
+unvirtualized because `HistoryStore` already caps its MVP batch at 100 commits—adding another moving
+part there had no supporting measurement.
+
+The Ubuntu 26.04 WebKit journey creates **1,000 untracked files** plus **250 additional repository
+records**, requires each rendered list to stay below 40 DOM rows, and sends `End` from the selected
+changed file to reveal and select `large-0999.txt` within five seconds. The measured journey stayed
+below 300 ms on both closing container runs; the test retains ten-second load and five-second
+navigation ceilings to detect regressions without treating one machine's timing as universal.
+Small-list React contracts, the 1,000-row DOM bound, TypeScript and the complete 13-journey native
+suite are green.
+
+**Phase 7e autonomous implementation complete:** human visual refinement, native macOS acceptance
+and real-Wayland judgment remain intentionally unclaimed and share the explicit Phase 8b QA/fix
+cycle. The next non-human-blocked milestone is Phase 8a automated qualification and QA preparation.
 
 #### Phase 7f — post-MVP UI and upstream parity
 
@@ -2929,31 +3117,72 @@ trust remain explicitly post-MVP.
 React 19 supports the upstream class components. For every slice, grep for `ReactDOM.render`, string
 refs and legacy function-component `defaultProps`; modernize only what React 19 requires.
 
-### Phase 8 — continuous E2E plus MVP platform acceptance
+### Phase 8 — automated qualification, human-assisted QA and final MVP artifacts
 
-- Every Phase 7a–7d slice lands a Linux-container `tauri-driver` journey. Phase 8 is no longer where
-  product E2E begins; it is the final environment-qualification gate.
-- Run the complete MVP journey on Ubuntu 26.04/Wayland. Use isolated Secret Service and notification
-  daemons only for features the MVP actually exposes; otherwise retain those checks with their
-  post-MVP consumer.
-- Build a local macOS `.app` and manually run the same repository, commit, branch and remote journeys,
-  plus menu, dialog, close/relaunch, editor/shell and persisted-state checks. WKWebView has no
-  `tauri-driver` backend, so this named checklist is evidence rather than pretending native macOS E2E
-  is automated.
-- Code signing, notarization, updater download/install/relaunch and public release credentials are
-  Phase 9b. They are not required for the local macOS MVP artifact.
+Phase 8 is split by evidence type, not by platform. Phase 8a exhausts work that can proceed without
+human judgment and prepares reproducible development builds and fixtures for Phase 8b. Final
+packaging waits until the human QA/refinement loop has settled the product, avoiding a stream of
+throwaway packages while also removing the former acceptance-before-packaging circular dependency.
 
-### Phase 9 — preview packaging before public release infrastructure
+#### Phase 8a — automated qualification and QA preparation
 
-#### Phase 9a — macOS/Linux MVP packaging
+- Enter only after Phase 7e's autonomous work is complete and the repository has no known automated
+  failures. Every Phase 7a–7d slice already owns a Linux-container `tauri-driver` journey; 8a runs
+  the complete set rather than beginning product E2E late.
+- Run all five repository quality gates, the complete Ubuntu 26.04 container journey and automated
+  development-build checks for clean launch, configuration/log locations, repository persistence
+  and relaunch. Exercise isolated Secret Service or notification daemons only for behavior the MVP
+  exposes; otherwise keep that evidence with its post-MVP consumer.
+- Prepare deterministic seeded repositories, normal/compact viewport and theme matrices, the
+  macOS checklist, the real-Wayland Linux checklist, the final-package smoke checklist and a common
+  evidence/issue template.
+  A human should not spend the QA cycle constructing fixtures or rediscovering expected results.
+- Audit the packaging inputs—rdc-owned metadata, resources, capabilities and configuration—without
+  producing the final packages. Final icon, bundle identifier and presentation choices remain part
+  of the 8b human review.
 
-- Produce locally installable Linux bundles and a locally packaged macOS `.app`.
-- Validate clean launch, configuration/log locations, repository persistence and the complete MVP
-  journey from those artifacts in Phase 8.
-- Finish product identity needed by the preview. Release URLs that do not exist yet may be visibly
-  marked rather than retaining Desktop Plus destinations.
+Phase 8a closes only when all automated gates are green and the development builds, fixtures,
+packaging inputs and checklists required by 8b are ready. A known automated failure may not be
+deferred to human QA.
 
-#### Phase 9b — public release engineering (post-MVP)
+#### Phase 8b — human-assisted QA and refinement
+
+Phase 8b is the one consolidated human-blocked pre-MVP phase. It is an **iterative QA cycle that is
+expected to reveal defects and require fixes**, not a one-shot approval ceremony:
+
+1. Run the prepared checks against current macOS and real-Wayland Linux development builds and record
+   visual, functional, accessibility and platform-integration issues with reproducible evidence.
+2. Implement every agreed MVP-blocking fix and add automated regression coverage wherever the
+   behavior can be pinned without human judgment.
+3. Rerun the complete Phase 8a gate, refresh the development builds and repeat every affected human
+   check. Continue this loop until no agreed MVP-blocking issue remains.
+
+The human checks cover:
+
+- Refine hierarchy, proportions, density, alignment, labels, sidebar disclosure, toolbar grouping,
+  empty/loading/error states, diff readability and commit/history details on macOS and real Wayland
+  Linux at normal and compact sizes in Light, Dark and System themes. Validate against Desktop Plus's
+  successful visual principles and native platform conventions without copying its layout or values.
+- Settle the final MVP icon, bundle identifier and preview presentation before packaging.
+- Run the complete repository, commit, branch and local-bare-remote journey in both development
+  builds. On macOS also exercise the native menu, dialogs, window drag/double-click, close/relaunch,
+  editor/shell launch, persisted state and keyboard/accessibility checklist. WKWebView has no
+  `tauri-driver` backend, so the recorded checklist is real evidence rather than nominal automation.
+- Run the Linux development build in a real Ubuntu 26.04 Wayland session to qualify rendering,
+  native dialogs/integrations and the `WEBKIT_DISABLE_COMPOSITING_MODE=1` mitigation outside the
+  Xvfb driver harness.
+- **Package last:** only after the development-build QA loop has no agreed blocker, produce the local
+  macOS `.app` and installable Linux bundles. Run automated metadata/resource/package smoke checks,
+  then a focused installed-artifact pass for clean launch, configuration/log locations, persistence,
+  relaunch and platform integration. A packaging-only defect returns through its fix, the complete
+  8a gate, repackaging and the affected installed-artifact checks.
+
+Record before/after evidence, accepted non-blocking deviations and the final results for both
+platforms. Phase 8b closes only after the last fix has passed 8a again, its affected human checks
+have been repeated, and the final packages pass their focused acceptance pass. Signing,
+notarization and public release credentials remain post-MVP Phase 9 work.
+
+### Phase 9 — public release engineering (post-MVP)
 
 - Produce signed/notarized Tauri bundles and update metadata; configure the updater public key and
   endpoint and decide whether the release service needs an install-ID rollout equivalent.
@@ -2981,7 +3210,8 @@ The milestone closes only when both target platforms expose the same supported w
    unimplemented parity actions are not presented as working.
 6. Phase 5a's CSP/capability audit and Phase 6a's recovery path are complete.
 7. All repository quality gates pass, every 7a–7d Linux E2E journey is green in the container,
-   the Ubuntu 26.04/Wayland full journey is green, and the named packaged-macOS checklist is recorded.
+   Phase 8a's automated-qualification gate is green, and Phase 8b's iterative QA cycle and final
+   packaging pass are closed with recorded packaged-macOS and real-Wayland Linux results.
 
 Signing, notarization, automatic updates, GitHub accounts/collaboration, enterprise proxy/certificate
 management, telemetry, the standalone CLI, complete upstream UI parity and Windows are explicitly not
@@ -2995,7 +3225,7 @@ removed from Phase 4's critical path: `shells/win32.ts`, `editors/win32.ts`,
 and the Windows arms of custom integrations and hooks. The Phase 4 reevaluation adds the adjacent
 target seams that the line count did not: Credential Manager, notification identity/clicks,
 trampoline/askpass packaging, native-plugin runtime qualification, Windows CLI/protocol registration,
-and signed installer/updater behavior. Phase 9b still owns the cross-platform release,
+and signed installer/updater behavior. Phase 9 still owns the cross-platform release,
 single-instance/deep-link and signing design; Phase 10 makes those designs work on Windows.
 
 Shell support begins from the contract already pinned in Phase 4: Command Prompt, PowerShell,
@@ -3031,7 +3261,7 @@ The work is grouped so a feature cannot disappear behind “Windows later”:
    dialogs, opener/reveal, recoverable Recycle Bin trash, log path and process relaunch on WebView2.
    Add WOW64/ARM64 translation detection and preserve the unsafe-directory trailing-backslash guard
    that prevents `C:\\path\\foo.exe` being opened when the caller intended `C:\\path\\foo`.
-6. **Packaging, CLI, protocols and updater.** Against Phase 9b's shared controller, choose and sign the
+6. **Packaging, CLI, protocols and updater.** Against Phase 9's shared controller, choose and sign the
    supported Tauri Windows bundle target(s); implement rdc-owned `.bat` and POSIX/WSL CLI shims in a
    stable per-user location; update the user PATH without losing value type/order; uninstall only
    rdc-owned entries; register deep-link protocols with the required launcher argument; and verify
@@ -3056,17 +3286,25 @@ Phases 0–4, 5a and 6a are closed. The shortest path to the agreed macOS/Linux 
              ↓
 7d remote synchronization
              ↓
-7e hardening + 9a local packages
+7e autonomous hardening
              ↓
-8 macOS/Linux MVP acceptance
+8a automated qualification + QA preparation
+             ↓
+8b human-assisted QA and fix cycles
+             ↓
+final packaging + focused artifact acceptance
+             ↓
+macOS/Linux MVP
 ```
 
-The Linux E2E for each slice lands with that slice; Phase 8 runs the complete acceptance set. Phase 5b
+The Linux E2E for each slice lands with that slice; Phase 8a runs the complete automated set and
+prepares the development builds before Phase 8b spends human attention on them. Packaging happens
+only after that QA loop settles, followed by a focused artifact pass. Phase 5b
 joins the post-MVP GitHub-collaboration work. Phase 5c can be prototyped independently because it is
 still the highest architectural risk, but proxy/PAC and application-managed certificate trust do not
-block the MVP unless the initial-user profile changes. Phase 6b and 9b follow the MVP. Phase 7f is the
+block the MVP unless the initial-user profile changes. Phases 6b and 9 follow the MVP. Phase 7f is the
 remaining UI/parity backlog. Phase 10 owns the complete Windows target and consumes shared public-release
-infrastructure from Phase 9b where appropriate.
+infrastructure from Phase 9 where appropriate.
 
 ## Weak points in the current codebase worth calling out (summary)
 
@@ -3079,7 +3317,7 @@ infrastructure from Phase 9b where appropriate.
 | `webRequest`-based auth header injection | Imperative, hard to audit, no Tauri equivalent anyway | Rust-side authenticated fetch → data URL to webview |
 | Crash window + custom exception reporting | Two bespoke reporting paths | Unify behind one Rust+JS crash/error pipeline |
 | Node built-in test runner | Works, but weaker DX than Vitest for the Vite-based frontend | Vitest for TS/React tests |
-| WebKitGTK native-Wayland rendering (new, not in the old app) | Unresolved upstream crash/render bugs on the only session type the primary target now has | Force `WEBKIT_DISABLE_COMPOSITING_MODE=1` on Linux (see Phase 3.5); no automated CI coverage yet, compensate with manual pre-release testing |
+| WebKitGTK native-Wayland rendering (new, not in the old app) | Unresolved upstream crash/render bugs on the only session type the primary target now has | Force `WEBKIT_DISABLE_COMPOSITING_MODE=1` on Linux (see Phase 3.5); no automated CI coverage yet, qualify it explicitly in the Phase 8b real-Wayland QA cycle |
 | **`lib/api.ts` imports a React UI component** (found in Phase 1) | A lib module importing `ui/secret-scanning/bypass-push-protection-dialog` for one type; transitively pulled the whole UI tree into the API client and its tests | **Fixed**: type moved to `models/secret-scanning.ts` |
 | **`lib/http.ts` reaches Electron for a build constant** (found in Phase 1) | `ui/lib/app-proxy` → `ui/main-process-proxy` → `lib/ipc-renderer` → `electron`, all to read `__APP_VERSION__` | **Fixed**: uses the `__APP_VERSION__` define directly |
 | **`ui/lib/round.ts` misfiled** (found in Phase 1) | Dependency-free pure math helper under `ui/`, imported by `lib/format-number.ts` | **Fixed**: moved to `lib/round.ts` |

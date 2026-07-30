@@ -3,6 +3,7 @@ import {
   DiffSelectionType,
   DiffType,
   type IDiff,
+  type ITextDiff,
 } from '../../models/diff'
 import {
   AppFileStatusKind,
@@ -50,6 +51,13 @@ export type DiscardFileResult =
   | 'discarded'
   | 'trash-failed'
   | 'failed'
+
+export type SelectedLinesDiscard = {
+  readonly repositoryPath: string
+  readonly filePath: string
+  readonly diff: ITextDiff
+  readonly selectedLines: ReadonlyArray<number>
+}
 
 type WorkingTreeStoreDependencies = {
   readonly getStatus: typeof getStatus
@@ -375,7 +383,7 @@ export class WorkingTreeStore {
     }
   }
 
-  public async discardSelectedLines(): Promise<boolean> {
+  public getSelectedLinesDiscard(): SelectedLinesDiscard | null {
     const state = this.currentState
     const file =
       state.workingDirectory?.findFileWithID(
@@ -386,21 +394,36 @@ export class WorkingTreeStore {
       file === null ||
       state.diff?.kind !== DiffType.Text
     ) {
-      return false
+      return null
     }
     const selectedLines = file.selection.getSelectedLines()
     if (selectedLines.length === 0) {
+      return null
+    }
+
+    return {
+      repositoryPath: state.repositoryPath,
+      filePath: file.path,
+      diff: state.diff,
+      selectedLines,
+    }
+  }
+
+  public async discardSelectedLines(
+    discard = this.getSelectedLinesDiscard()
+  ): Promise<boolean> {
+    if (discard === null) {
       return false
     }
 
     try {
       await this.dependencies.discardChangesFromSelection(
-        state.repositoryPath,
-        file.path,
-        state.diff,
-        selectedLines
+        discard.repositoryPath,
+        discard.filePath,
+        discard.diff,
+        discard.selectedLines
       )
-      await this.load(state.repositoryPath)
+      await this.load(discard.repositoryPath)
       return true
     } catch (error) {
       this.update({

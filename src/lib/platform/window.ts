@@ -56,6 +56,10 @@ export function isWindowMaximized(): Promise<boolean> {
   return getCurrentWindow().isMaximized()
 }
 
+export function startWindowDragging(): Promise<void> {
+  return getCurrentWindow().startDragging()
+}
+
 export function setWindowTitle(title: string): Promise<void> {
   return getCurrentWindow().setTitle(title)
 }

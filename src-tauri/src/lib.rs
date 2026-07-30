@@ -357,6 +357,12 @@ mod tests {
                 .any(|permission| permission == "core:window:allow-hide"),
             "the macOS close handler calls window.hide()"
         );
+        assert!(
+            permissions
+                .iter()
+                .any(|permission| permission == "core:window:allow-start-dragging"),
+            "overlay and frameless windows delegate their drag region to the webview"
+        );
         for required in [
             "updater:allow-check",
             "updater:allow-download",

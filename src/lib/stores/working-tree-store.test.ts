@@ -591,8 +591,12 @@ describe('WorkingTreeStore', () => {
     })
     await store.load('/repo')
     store.setLineIncluded(2, false)
+    const discard = store.getSelectedLinesDiscard()
+    store.setLineIncluded(1, false)
 
-    await expect(store.discardSelectedLines()).resolves.toBe(true)
+    await expect(
+      store.discardSelectedLines(discard)
+    ).resolves.toBe(true)
 
     expect(discardChangesFromSelection).toHaveBeenCalledWith(
       '/repo',

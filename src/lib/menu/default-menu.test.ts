@@ -100,9 +100,13 @@ describe('platform and state-derived menu structure', () => {
     const mac = buildDefaultMenu(baseParams, 'macos')
 
     expect(windows.items[0]).toMatchObject({ label: '&File' })
-    expect(mac.items[0]).toMatchObject({ label: 'Desktop Plus' })
+    expect(mac.items[0]).toMatchObject({ label: 'rdc' })
 
     const macItems = allItems(mac.items)
+    expect(macItems.find(item => item.id === 'about')).toMatchObject({
+      label: 'About rdc',
+      action: { type: 'menu-event', event: 'show-about' },
+    })
     expect(macItems.find(item => item.id === 'preferences')).toMatchObject({
       label: 'Settings…',
       action: { type: 'menu-event', event: 'show-preferences' },
@@ -110,6 +114,36 @@ describe('platform and state-derived menu structure', () => {
     expect(macItems.find(item => item.id === 'quit')).toMatchObject({
       role: 'quit',
     })
+  })
+
+  it('uses only rdc-owned Help destinations and product identity', () => {
+    for (const platform of ['macos', 'windows', 'linux'] as const) {
+      const items = allItems(buildDefaultMenu(baseParams, platform).items)
+      const urls = items.flatMap(item =>
+        item.type !== 'separator' &&
+        item.type !== 'submenuItem' &&
+        item.action?.type === 'open-external'
+          ? [item.action.url]
+          : []
+      )
+
+      expect(urls).toEqual([
+        'https://github.com/jabelardo/rdc/issues/new',
+        'https://github.com/jabelardo/rdc',
+      ])
+      expect(
+        items.some(
+          item =>
+            item.type !== 'separator' &&
+            item.label.includes('Keyboard Shortcuts')
+        )
+      ).toBe(false)
+      if (platform !== 'macos') {
+        expect(items.find(item => item.id === 'about')).toMatchObject({
+          label: '&About rdc',
+        })
+      }
+    }
   })
 
   it('truncates the contribution target and derives repository labels', () => {

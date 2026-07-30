@@ -17,6 +17,7 @@
     "test:e2e": "docker compose -f docker-compose.e2e.yml run --rm --build e2e"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "^3.14.9",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-log": "^2.9.0",

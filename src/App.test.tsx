@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -9,8 +9,19 @@ const replaceApplicationMenu = vi.hoisted(() => vi.fn())
 const showContextualMenu = vi.hoisted(() => vi.fn())
 const showOpenDialog = vi.hoisted(() => vi.fn())
 const showFolderContents = vi.hoisted(() => vi.fn())
+const getMainProcessConfig = vi.hoisted(() => vi.fn())
+const launchExternalEditor = vi.hoisted(() => vi.fn())
+const launchShell = vi.hoisted(() => vi.fn())
+const onNativeThemeUpdated = vi.hoisted(() => vi.fn())
 const sendReady = vi.hoisted(() => vi.fn())
+const setWindowTitle = vi.hoisted(() => vi.fn())
 const openRepositoryInNewWindow = vi.hoisted(() => vi.fn())
+const startWindowDragging = vi.hoisted(() => vi.fn())
+const maximizeWindow = vi.hoisted(() => vi.fn())
+const minimizeWindow = vi.hoisted(() => vi.fn())
+const restoreWindow = vi.hoisted(() => vi.fn())
+const isWindowMaximized = vi.hoisted(() => vi.fn())
+const getAppleActionOnDoubleClick = vi.hoisted(() => vi.fn())
 const installDefaultCloseRequestHandler = vi.hoisted(() => vi.fn())
 const appStore = vi.hoisted(() => ({
   state: {
@@ -48,6 +59,7 @@ const workingTreeStore = vi.hoisted(() => ({
             unifiedDiffStart: number
             lines: ReadonlyArray<{
               text: string
+              type?: number
               content: string
               oldLineNumber: number | null
               newLineNumber: number | null
@@ -72,6 +84,7 @@ const workingTreeStore = vi.hoisted(() => ({
   setFileIncluded: vi.fn(),
   setLineIncluded: vi.fn(),
   discardFile: vi.fn(),
+  getSelectedLinesDiscard: vi.fn(),
   discardSelectedLines: vi.fn(),
   commit: vi.fn(),
   resolveHookFailure: vi.fn(),
@@ -116,6 +129,7 @@ const historyStore = vi.hoisted(() => ({
             unifiedDiffStart: number
             lines: ReadonlyArray<{
               text: string
+              type?: number
               oldLineNumber: number | null
               newLineNumber: number | null
             }>
@@ -174,18 +188,60 @@ const conflictStore = vi.hoisted(() => ({
   clear: vi.fn(),
   onDidUpdate: vi.fn(),
 }))
+const preferencesStore = vi.hoisted(() => ({
+  state: {
+    theme: 'system' as 'light' | 'dark' | 'system',
+    confirmRepositoryRemoval: true,
+    confirmDiscardChanges: true,
+    confirmDiscardChangesPermanently: true,
+    selectedExternalEditor: 'Zed' as string | null,
+    selectedShell: 'Ghostty' as string | null,
+    editors: [{ editor: 'Zed', path: '/applications/zed' }],
+    shells: [{ shell: 'Ghostty', path: '/applications/ghostty' }],
+    loading: false,
+    error: null as string | null,
+  },
+  selectedEditor: {
+    editor: 'Zed',
+    path: '/applications/zed',
+  } as { editor: string; path: string } | null,
+  selectedShell: {
+    shell: 'Ghostty',
+    path: '/applications/ghostty',
+  } as { shell: string; path: string } | null,
+  load: vi.fn(),
+  refreshTheme: vi.fn(),
+  setTheme: vi.fn(),
+  setConfirmRepositoryRemoval: vi.fn(),
+  setConfirmDiscardChanges: vi.fn(),
+  setConfirmDiscardChangesPermanently: vi.fn(),
+  setSelectedExternalEditor: vi.fn(),
+  setSelectedShell: vi.fn(),
+  onDidUpdate: vi.fn(),
+}))
 
 vi.mock('./lib/menu/application-menu', () => ({ installApplicationMenu }))
 vi.mock('./lib/menu/context-menu', () => ({ showContextualMenu }))
 vi.mock('./lib/platform/dialogs', () => ({ showOpenDialog }))
+vi.mock('./lib/platform/config', () => ({ getMainProcessConfig }))
 vi.mock('./lib/platform/files', () => ({ showFolderContents }))
+vi.mock('./lib/platform/editors', () => ({ launchExternalEditor }))
+vi.mock('./lib/platform/shells', () => ({ launchShell }))
+vi.mock('./lib/platform/theme', () => ({ onNativeThemeUpdated }))
 vi.mock('./lib/platform/lifetime', () => ({
   installDefaultCloseRequestHandler,
 }))
 vi.mock('./lib/platform/window', () => ({
   openRepositoryInNewWindow,
   sendReady,
+  setWindowTitle,
+  startWindowDragging,
+  maximizeWindow,
+  minimizeWindow,
+  restoreWindow,
+  isWindowMaximized,
 }))
+vi.mock('./lib/platform/system', () => ({ getAppleActionOnDoubleClick }))
 vi.mock('./lib/stores/default-app-store', () => ({
   getDefaultAppStore: () => appStore,
 }))
@@ -200,6 +256,9 @@ vi.mock('./lib/stores/default-branch-store', () => ({
 }))
 vi.mock('./lib/stores/default-conflict-store', () => ({
   getDefaultConflictStore: () => conflictStore,
+}))
+vi.mock('./lib/stores/default-preferences-store', () => ({
+  getDefaultPreferencesStore: () => preferencesStore,
 }))
 
 const repository = {
@@ -223,10 +282,35 @@ describe('App', () => {
     showOpenDialog.mockResolvedValue(null)
     showFolderContents.mockReset()
     showFolderContents.mockResolvedValue(undefined)
+    getMainProcessConfig.mockReset()
+    getMainProcessConfig.mockResolvedValue({
+      titleBarStyle: 'native',
+      hideWindowOnQuit: false,
+    })
+    launchExternalEditor.mockReset()
+    launchExternalEditor.mockResolvedValue(undefined)
+    launchShell.mockReset()
+    launchShell.mockResolvedValue(undefined)
+    onNativeThemeUpdated.mockReset()
+    onNativeThemeUpdated.mockResolvedValue(vi.fn())
     sendReady.mockReset()
     sendReady.mockResolvedValue(null)
+    setWindowTitle.mockReset()
+    setWindowTitle.mockResolvedValue(undefined)
     openRepositoryInNewWindow.mockReset()
     openRepositoryInNewWindow.mockResolvedValue(undefined)
+    startWindowDragging.mockReset()
+    startWindowDragging.mockResolvedValue(undefined)
+    maximizeWindow.mockReset()
+    maximizeWindow.mockResolvedValue(undefined)
+    minimizeWindow.mockReset()
+    minimizeWindow.mockResolvedValue(undefined)
+    restoreWindow.mockReset()
+    restoreWindow.mockResolvedValue(undefined)
+    isWindowMaximized.mockReset()
+    isWindowMaximized.mockResolvedValue(false)
+    getAppleActionOnDoubleClick.mockReset()
+    getAppleActionOnDoubleClick.mockResolvedValue('Maximize')
     installDefaultCloseRequestHandler.mockReset()
     installDefaultCloseRequestHandler.mockResolvedValue(vi.fn())
     appStore.state = {
@@ -264,6 +348,13 @@ describe('App', () => {
     workingTreeStore.setLineIncluded.mockReset()
     workingTreeStore.discardFile.mockReset()
     workingTreeStore.discardFile.mockResolvedValue('discarded')
+    workingTreeStore.getSelectedLinesDiscard.mockReset()
+    workingTreeStore.getSelectedLinesDiscard.mockReturnValue({
+      repositoryPath: repository.path,
+      filePath: 'Alpha.ts',
+      diff: {},
+      selectedLines: [1],
+    })
     workingTreeStore.discardSelectedLines.mockReset()
     workingTreeStore.discardSelectedLines.mockResolvedValue(true)
     workingTreeStore.commit.mockReset()
@@ -332,6 +423,39 @@ describe('App', () => {
     conflictStore.clear.mockReset()
     conflictStore.onDidUpdate.mockReset()
     conflictStore.onDidUpdate.mockReturnValue(vi.fn())
+    preferencesStore.state = {
+      theme: 'system',
+      confirmRepositoryRemoval: true,
+      confirmDiscardChanges: true,
+      confirmDiscardChangesPermanently: true,
+      selectedExternalEditor: 'Zed',
+      selectedShell: 'Ghostty',
+      editors: [{ editor: 'Zed', path: '/applications/zed' }],
+      shells: [{ shell: 'Ghostty', path: '/applications/ghostty' }],
+      loading: false,
+      error: null,
+    }
+    preferencesStore.selectedEditor = {
+      editor: 'Zed',
+      path: '/applications/zed',
+    }
+    preferencesStore.selectedShell = {
+      shell: 'Ghostty',
+      path: '/applications/ghostty',
+    }
+    preferencesStore.load.mockReset()
+    preferencesStore.load.mockResolvedValue(undefined)
+    preferencesStore.refreshTheme.mockReset()
+    preferencesStore.refreshTheme.mockResolvedValue(undefined)
+    preferencesStore.setTheme.mockReset()
+    preferencesStore.setTheme.mockResolvedValue(undefined)
+    preferencesStore.setConfirmRepositoryRemoval.mockReset()
+    preferencesStore.setConfirmDiscardChanges.mockReset()
+    preferencesStore.setConfirmDiscardChangesPermanently.mockReset()
+    preferencesStore.setSelectedExternalEditor.mockReset()
+    preferencesStore.setSelectedShell.mockReset()
+    preferencesStore.onDidUpdate.mockReset()
+    preferencesStore.onDidUpdate.mockReturnValue(vi.fn())
   })
 
   it('reports readiness and installs native lifetime handling', () => {
@@ -339,6 +463,26 @@ describe('App', () => {
 
     expect(sendReady).toHaveBeenCalledWith(expect.any(Number))
     expect(installDefaultCloseRequestHandler).toHaveBeenCalledOnce()
+  })
+
+  it('provides caught drag and double-click chrome when the native frame is overlaid', async () => {
+    render(<App />)
+
+    await vi.waitFor(() => {
+      expect(
+        document.querySelector('.window-drag-region') !== null
+      ).toBe(!__LINUX__)
+    })
+    const dragRegion = document.querySelector('.window-drag-region')
+    expect(dragRegion?.querySelector('button')).toBeFalsy()
+    if (dragRegion !== null) {
+      fireEvent.mouseDown(dragRegion, { button: 0, detail: 1 })
+      fireEvent.doubleClick(dragRegion)
+      await vi.waitFor(() => {
+        expect(startWindowDragging).toHaveBeenCalledOnce()
+        expect(maximizeWindow).toHaveBeenCalledOnce()
+      })
+    }
   })
 
   it('installs the repository-derived application menu', () => {
@@ -355,6 +499,120 @@ describe('App', () => {
     expect(items.find(item => item.id === 'remove-repository')).toMatchObject({
       enabled: false,
     })
+    expect(items.find(item => item.id === 'preferences')).toMatchObject({
+      enabled: true,
+    })
+  })
+
+  it('opens preferences from the native menu and updates MVP settings', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0]
+
+    await act(() => executeMenuEvent('show-preferences'))
+
+    expect(
+      screen.getByRole('dialog', { name: 'Preferences' })
+    ).toBeInTheDocument()
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Theme' }),
+      'dark'
+    )
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'External editor' }),
+      'Zed'
+    )
+    await user.selectOptions(
+      screen.getByRole('combobox', { name: 'Shell' }),
+      'Ghostty'
+    )
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'Removing a repository from rdc',
+      })
+    )
+
+    expect(preferencesStore.setTheme).toHaveBeenCalledWith('dark')
+    expect(
+      preferencesStore.setSelectedExternalEditor
+    ).toHaveBeenCalledWith('Zed')
+    expect(preferencesStore.setSelectedShell).toHaveBeenCalledWith(
+      'Ghostty'
+    )
+    expect(
+      preferencesStore.setConfirmRepositoryRemoval
+    ).toHaveBeenCalledWith(false)
+  })
+
+  it('dismisses a safe modal with Escape and restores focus', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const [opener] = screen.getAllByRole('button', {
+      name: 'Clone repository',
+    })
+
+    await user.click(opener)
+    expect(
+      screen.getByRole('textbox', { name: 'Repository URL' })
+    ).toHaveFocus()
+
+    await user.keyboard('{Escape}')
+    expect(
+      screen.queryByRole('dialog', { name: 'Clone a repository' })
+    ).not.toBeInTheDocument()
+    expect(opener).toHaveFocus()
+  })
+
+  it('opens an rdc About surface from the native menu', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0]
+
+    await act(() => executeMenuEvent('show-about'))
+
+    expect(
+      screen.getByRole('dialog', { name: 'About rdc' })
+    ).toHaveTextContent(`Version ${__APP_VERSION__}`)
+    expect(screen.getByText('A Tauri port of Desktop Plus.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    expect(
+      screen.queryByRole('dialog', { name: 'About rdc' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('launches the preferred editor and shell from native menu actions', async () => {
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    }
+    const user = userEvent.setup()
+    render(<App />)
+    const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0]
+
+    await executeMenuEvent('open-in-shell')
+    await executeMenuEvent('open-external-editor')
+
+    expect(launchShell).toHaveBeenCalledWith(
+      preferencesStore.selectedShell,
+      repository.path
+    )
+    expect(launchExternalEditor).toHaveBeenCalledWith(
+      repository.path,
+      preferencesStore.selectedEditor
+    )
+
+    await user.click(
+      screen.getByRole('button', { name: 'Open in terminal' })
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Open in editor' })
+    )
+    await user.click(screen.getByRole('button', { name: 'Show files' }))
+
+    expect(launchShell).toHaveBeenCalledTimes(2)
+    expect(launchExternalEditor).toHaveBeenCalledTimes(2)
+    expect(showFolderContents).toHaveBeenCalledWith(repository.path)
   })
 
   it('shows a product empty state instead of the integration harness', () => {
@@ -369,6 +627,103 @@ describe('App', () => {
     expect(
       screen.queryByPlaceholderText(/path\/to\/a\/git\/repository/i)
     ).not.toBeInTheDocument()
+  })
+
+  it('renders only backed sidebar panels and collapses them independently', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+
+    expect(
+      screen.getByRole('button', { name: 'Repositories' })
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      screen.getByRole('button', { name: 'Branches' })
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(
+      screen.queryByRole('button', { name: 'Tags' })
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Stashes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Submodules')).not.toBeInTheDocument()
+    expect(screen.queryByText('Subtrees')).not.toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Repositories' })
+    )
+    expect(
+      screen.getByRole('button', { name: 'Repositories' })
+    ).toHaveAttribute('aria-expanded', 'false')
+    expect(
+      screen.queryByRole('region', { name: 'Repositories' })
+    ).not.toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: 'Collapse sidebar' })
+    )
+    expect(
+      screen.getByRole('button', { name: 'Expand sidebar' })
+    ).toHaveAttribute('aria-expanded', 'false')
+    expect(
+      screen.queryByRole('button', { name: 'Branches' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('places live branch selection in the Branches sidebar panel', () => {
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    }
+    branchStore.state = {
+      repositoryPath: repository.path,
+      branches: [
+        {
+          name: 'main',
+          type: 0,
+          tip: { sha: 'a'.repeat(40) },
+        },
+      ],
+      currentBranch: 'main',
+      loading: false,
+      error: null,
+      operation: null,
+      progress: null,
+      operationError: null,
+    }
+
+    render(<App />)
+
+    const panel = screen.getByRole('region', { name: 'Branches' })
+    expect(panel).toContainElement(
+      screen.getByRole('combobox', { name: 'Current branch' })
+    )
+    expect(
+      screen.getByRole('form', { name: 'Create branch' })
+    ).toBeInTheDocument()
+    expect(setWindowTitle).toHaveBeenLastCalledWith(
+      'rdc — rdc — main'
+    )
+    const toolbar = screen.getByRole('toolbar', {
+      name: 'Repository actions',
+    })
+    expect(toolbar).toContainElement(
+      screen.getByRole('button', { name: 'Open in new window' })
+    )
+    expect(toolbar).toContainElement(
+      screen.getByRole('button', { name: 'Show files' })
+    )
+    expect(toolbar).toContainElement(
+      screen.getByRole('button', { name: 'Open in editor' })
+    )
+    expect(toolbar).toContainElement(
+      screen.getByRole('button', { name: 'Open in terminal' })
+    )
+    expect(toolbar).toContainElement(
+      screen.getByRole('region', {
+        name: 'Remote synchronization',
+      })
+    )
+    expect(toolbar).not.toContainElement(
+      screen.getByRole('combobox', { name: 'Current branch' })
+    )
   })
 
   it('adds the directory selected by the native dialog', async () => {
@@ -438,6 +793,41 @@ describe('App', () => {
 
     expect(screen.getByText('/projects/rdc')).toBeInTheDocument()
     expect(appStore.selectRepository).toHaveBeenCalledWith(repository)
+  })
+
+  it('navigates repository selection with arrows, Home and End', async () => {
+    const secondRepository = {
+      id: 8,
+      name: 'desktop-plus',
+      path: '/projects/desktop-plus',
+    }
+    appStore.state = {
+      repositories: [repository, secondRepository],
+      selectedRepository: repository,
+    }
+    const user = userEvent.setup()
+    render(<App />)
+    const first = screen.getByRole('button', { name: 'Select rdc' })
+    const second = screen.getByRole('button', {
+      name: 'Select desktop-plus',
+    })
+
+    first.focus()
+    await user.keyboard('{ArrowDown}')
+    expect(appStore.selectRepository).toHaveBeenLastCalledWith(
+      secondRepository
+    )
+    expect(second).toHaveFocus()
+
+    await user.keyboard('{Home}')
+    expect(appStore.selectRepository).toHaveBeenLastCalledWith(repository)
+    expect(first).toHaveFocus()
+
+    await user.keyboard('{End}')
+    expect(appStore.selectRepository).toHaveBeenLastCalledWith(
+      secondRepository
+    )
+    expect(second).toHaveFocus()
   })
 
   it('renders a selected-repository workspace with a window action', async () => {
@@ -639,6 +1029,7 @@ describe('App', () => {
             lines: [
               {
                 text: '+selected commit diff',
+                type: 1,
                 oldLineNumber: null,
                 newLineNumber: 12,
               },
@@ -658,6 +1049,12 @@ describe('App', () => {
 
     expect(historyStore.load).toHaveBeenCalledWith(repository.path)
     const history = screen.getByRole('region', { name: 'History' })
+    expect(history.querySelector('.history-list-pane')).not.toBeNull()
+    expect(
+      screen
+        .getByRole('region', { name: 'Selected commit details' })
+        .closest('.history')
+    ).toBe(history)
     expect(history).toHaveTextContent('aaaaaaaStart Phase 7cMona Lisa')
     expect(history).toHaveTextContent('Render selected commit details.')
     expect(history).toHaveTextContent('1 changed file+7−2')
@@ -790,6 +1187,61 @@ describe('App', () => {
     )
   })
 
+  it('navigates changed files with the same keyboard contract', async () => {
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    }
+    workingTreeStore.state = {
+      repositoryPath: repository.path,
+      workingDirectory: {
+        files: [
+          {
+            id: 'Modified+Alpha.ts',
+            path: 'Alpha.ts',
+            status: { kind: 'Modified' },
+            isIncludedInCommit: () => true,
+          },
+          {
+            id: 'Untracked+Beta.ts',
+            path: 'Beta.ts',
+            status: { kind: 'Untracked' },
+            isIncludedInCommit: () => true,
+          },
+        ],
+      },
+      selectedFileID: 'Modified+Alpha.ts',
+      diff: null,
+      diffLoading: false,
+      diffError: null,
+      commitLoading: false,
+      commitError: null,
+      hookFailure: null,
+      loading: false,
+      error: null,
+    }
+    const user = userEvent.setup()
+    render(<App />)
+    const first = screen.getByRole('button', {
+      name: 'Alpha.tsModified',
+    })
+    const second = screen.getByRole('button', {
+      name: 'Beta.tsNew',
+    })
+
+    first.focus()
+    await user.keyboard('{ArrowDown}')
+    expect(workingTreeStore.selectFile).toHaveBeenLastCalledWith(
+      'Untracked+Beta.ts'
+    )
+    expect(second).toHaveFocus()
+    await user.keyboard('{ArrowUp}')
+    expect(workingTreeStore.selectFile).toHaveBeenLastCalledWith(
+      'Modified+Alpha.ts'
+    )
+    expect(first).toHaveFocus()
+  })
+
   it('changes inclusion using the displayed unified-diff index', async () => {
     appStore.state = {
       repositories: [repository],
@@ -818,6 +1270,7 @@ describe('App', () => {
             lines: [
               {
                 text: '@@ -0,0 +1,2 @@',
+                type: 3,
                 content: '@ -0,0 +1,2 @@',
                 oldLineNumber: null,
                 newLineNumber: null,
@@ -825,6 +1278,7 @@ describe('App', () => {
               },
               {
                 text: '+first',
+                type: 1,
                 content: 'first',
                 oldLineNumber: null,
                 newLineNumber: 1,
@@ -832,6 +1286,7 @@ describe('App', () => {
               },
               {
                 text: '+second',
+                type: 1,
                 content: 'second',
                 oldLineNumber: null,
                 newLineNumber: 2,
@@ -860,6 +1315,21 @@ describe('App', () => {
     })
     expect(first).toBeChecked()
     expect(second).not.toBeChecked()
+    const changes = screen
+      .getByRole('region', { name: 'Changes' })
+      .closest('.changes-workspace')
+    expect(changes).toContainElement(
+      screen.getByRole('region', { name: 'File diff' })
+    )
+    expect(changes).toContainElement(
+      screen.getByRole('form', { name: 'Commit changes' })
+    )
+    expect(
+      document.querySelectorAll('.diff-line-add')
+    ).toHaveLength(2)
+    expect(
+      document.querySelectorAll('.diff-line-hunk')
+    ).toHaveLength(1)
 
     await user.click(second)
 
@@ -881,7 +1351,9 @@ describe('App', () => {
     )
     expect(
       workingTreeStore.discardSelectedLines
-    ).toHaveBeenCalledOnce()
+    ).toHaveBeenCalledWith(
+      workingTreeStore.getSelectedLinesDiscard.mock.results[0].value
+    )
   })
 
   it('updates whole-file inclusion without staging eagerly', async () => {
@@ -978,6 +1450,48 @@ describe('App', () => {
       expect(
         screen.queryByRole('alertdialog')
       ).not.toBeInTheDocument()
+    )
+  })
+
+  it('discards immediately when file confirmation is disabled', async () => {
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    }
+    preferencesStore.state.confirmDiscardChanges = false
+    workingTreeStore.state = {
+      repositoryPath: repository.path,
+      workingDirectory: {
+        files: [
+          {
+            id: 'Modified+Alpha.ts',
+            path: 'Alpha.ts',
+            status: { kind: 'Modified' },
+            isIncludedInCommit: () => true,
+          },
+        ],
+      },
+      selectedFileID: 'Modified+Alpha.ts',
+      diff: null,
+      diffLoading: false,
+      diffError: null,
+      commitLoading: false,
+      commitError: null,
+      hookFailure: null,
+      loading: false,
+      error: null,
+    }
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'Discard Alpha.ts' })
+    )
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(workingTreeStore.discardFile).toHaveBeenCalledWith(
+      'Modified+Alpha.ts',
+      false
     )
   })
 
@@ -1253,6 +1767,12 @@ describe('App', () => {
 
     expect(openRepositoryInNewWindow).toHaveBeenCalledWith(repository.path)
     expect(showFolderContents).toHaveBeenCalledWith(repository.path)
+    expect(
+      screen.getByRole('alertdialog', { name: 'Remove repository' })
+    ).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'Remove repository' })
+    )
     expect(appStore.removeRepository).toHaveBeenCalledWith(repository)
   })
 })

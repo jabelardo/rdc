@@ -18,6 +18,7 @@ const currentWindow = vi.hoisted(() => ({
   requestUserAttention: vi.fn(),
   setFocus: vi.fn(),
   setTitle: vi.fn(),
+  startDragging: vi.fn(),
   unmaximize: vi.fn(),
 }))
 const getCurrentWindow = vi.hoisted(() => vi.fn(() => currentWindow))
@@ -44,6 +45,7 @@ const {
   onWindowZoomFactorChanged,
   onLaunchTimingStats,
   restoreWindow,
+  startWindowDragging,
   sendDialogDidOpen,
   sendReady,
   setWindowSelectedRepository,
@@ -72,6 +74,7 @@ describe('current window controls', () => {
     ['maximizeWindow', maximizeWindow, 'maximize'],
     ['restoreWindow', restoreWindow, 'unmaximize'],
     ['closeWindow', closeWindow, 'close'],
+    ['startWindowDragging', startWindowDragging, 'startDragging'],
   ] as const)('%s delegates to the current Tauri window', async (_, action, method) => {
     await action()
 

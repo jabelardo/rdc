@@ -1,4 +1,5 @@
 import type { IMenu, MenuAction, MenuItem } from '../../models/app-menu'
+import type { MenuLabelsEvent } from '../../models/menu-labels'
 import {
   buildDefaultMenu,
   currentMenuPlatform,
@@ -51,9 +52,10 @@ function withHonestStartupEnablement(item: MenuItem): MenuItem {
  * dispatcher or later platform integration does not exist yet.
  */
 export function buildStartupMenu(
-  platform: MenuPlatform = currentMenuPlatform()
+  platform: MenuPlatform = currentMenuPlatform(),
+  labels: Partial<MenuLabelsEvent> = {}
 ): IMenu {
-  const menu = buildDefaultMenu(initialLabels, platform)
+  const menu = buildDefaultMenu({ ...initialLabels, ...labels }, platform)
   return { ...menu, items: menu.items.map(withHonestStartupEnablement) }
 }
 

@@ -120,6 +120,58 @@ describe('native integration', () => {
     )
   })
 
+  it('opens MVP preferences from the native menu and applies theme changes', async () => {
+    sendNativeKeys('ctrl+comma')
+    const preferences = await driver.wait(
+      until.elementLocated(
+        By.css('[role="dialog"][aria-labelledby="preferences-dialog-title"]')
+      ),
+      5_000
+    )
+    const theme = await preferences.findElement(
+      By.css('#theme-preference')
+    )
+    await driver.wait(
+      async () =>
+        (await driver.switchTo().activeElement().getAttribute('id')) ===
+        'theme-preference',
+      5_000,
+      'preferences did not place focus on its first control'
+    )
+    await theme.sendKeys(Key.chord(Key.SHIFT, Key.TAB))
+    assert.equal(
+      await driver.switchTo().activeElement().getText(),
+      'Close'
+    )
+    await driver.switchTo().activeElement().sendKeys(Key.TAB)
+    assert.equal(
+      await driver.switchTo().activeElement().getAttribute('id'),
+      'theme-preference'
+    )
+    await driver.executeScript(select => {
+      select.value = 'dark'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    }, theme)
+    await driver.wait(
+      async () =>
+        (await driver
+          .findElement(By.css('html'))
+          .getAttribute('data-theme')) === 'dark',
+      5_000,
+      'dark theme preference was not applied'
+    )
+    await driver.executeScript(select => {
+      select.value = 'system'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    }, theme)
+    await theme.sendKeys(Key.ESCAPE)
+    await driver.wait(
+      until.stalenessOf(preferences),
+      5_000,
+      'preferences dialog did not close'
+    )
+  })
+
   it('loads the persisted repository fixture into the real shell', async () => {
     const seeded = await seedRepositoryFixture()
     assert.deepEqual(seeded, { count: 1 })
@@ -429,6 +481,28 @@ describe('native integration', () => {
     await driver.wait(
       async () => {
         try {
+          const remainingLine = await driver.findElement(
+            By.css('[aria-label$="left for partial discard"]')
+          )
+          if (!(await remainingLine.isSelected())) {
+            await driver.executeScript(
+              element => element.click(),
+              remainingLine
+            )
+          }
+          return await remainingLine.isSelected()
+        } catch {
+          // Checkout refreshes replace the diff. Select the line only on
+          // the live diff that will be sent to the discard command.
+          return false
+        }
+      },
+      5_000,
+      'remaining diff line did not become selected for discard'
+    )
+    await driver.wait(
+      async () => {
+        try {
           const discardSelectedLines = await driver.findElement(
             By.xpath(
               "//button[normalize-space()='Discard selected lines']"
@@ -475,19 +549,44 @@ describe('native integration', () => {
       5_000,
       'discard confirmation did not accept the click'
     )
-    await driver.wait(
-      () =>
-        String(
-          execFileSync('git', [
-            '-C',
-            repositoryFixture.canonical,
-            'status',
-            '--porcelain',
-          ])
-        ).trim() === '',
-      10_000,
-      'discarded selection remained in the working tree'
-    )
+    try {
+      await driver.wait(
+        () =>
+          String(
+            execFileSync('git', [
+              '-C',
+              repositoryFixture.canonical,
+              'status',
+              '--porcelain',
+            ])
+          ).trim() === '',
+        10_000,
+        'discarded selection remained in the working tree'
+      )
+    } catch (error) {
+      const body = await driver.findElement(By.css('body')).getText()
+      const gitStatus = String(
+        execFileSync('git', [
+          '-C',
+          repositoryFixture.canonical,
+          'status',
+          '--short',
+        ])
+      )
+      const workingTreeContents = String(
+        execFileSync('git', [
+          '-C',
+          repositoryFixture.canonical,
+          'diff',
+          '--',
+          'working-tree.txt',
+        ])
+      )
+      throw new Error(
+        `discarded selection remained in the working tree; git status:\n${gitStatus}\ndiff:\n${workingTreeContents}\napplication:\n${body}`,
+        { cause: error }
+      )
+    }
     await driver.navigate().refresh()
     await driver.wait(
       until.elementLocated(
@@ -644,8 +743,16 @@ describe('native integration', () => {
     )
     const stageResolution = await driver.wait(
       async () => {
-        const button = await driver.findElement(stageResolutionSelector)
-        return (await button.isEnabled()) ? button : false
+        try {
+          const button = await driver.findElement(
+            stageResolutionSelector
+          )
+          return (await button.isEnabled()) ? button : false
+        } catch {
+          // The independent conflict and working-tree refreshes can replace
+          // the row once. Reacquire the live button on the next poll.
+          return false
+        }
       },
       10_000,
       'resolved conflict did not become stageable'
@@ -686,6 +793,168 @@ describe('native integration', () => {
       'merge',
       '--abort',
     ])
+  })
+
+  it('applies the visual tokens and compact workspace breakpoint', async () => {
+    const normal = await driver.executeScript(() => {
+      const root = getComputedStyle(document.documentElement)
+      const toolbar = getComputedStyle(
+        document.querySelector('.repository-toolbar')
+      )
+      return {
+        fontSize: root.fontSize,
+        fontFamily: root.fontFamily,
+        canvas: root.getPropertyValue('--color-canvas').trim(),
+        toolbar: toolbar.backgroundColor,
+      }
+    })
+    assert.equal(normal.fontSize, '13px')
+    assert.match(normal.fontFamily, /system-ui/)
+    assert.notEqual(normal.toolbar, normal.canvas)
+
+    const originalRect = await driver.manage().window().getRect()
+    try {
+      await driver.manage().window().setRect({
+        width: 620,
+        height: 720,
+      })
+      await driver.wait(
+        async () =>
+          await driver.executeScript(
+            () => matchMedia('(max-width: 52rem)').matches
+          ),
+        5_000,
+        'compact workspace breakpoint did not activate'
+      )
+      const compact = await driver.executeScript(() => ({
+        shellColumns: getComputedStyle(
+          document.querySelector('.application-shell')
+        ).gridTemplateColumns.split(' ').length,
+        workspaceColumns: getComputedStyle(
+          document.querySelector('.changes-workspace')
+        ).gridTemplateColumns.split(' ').length,
+      }))
+      assert.deepEqual(compact, {
+        shellColumns: 1,
+        workspaceColumns: 1,
+      })
+    } finally {
+      await driver.manage().window().setRect(originalRect)
+    }
+  })
+
+  it('completes a local repository journey using only the keyboard', async () => {
+    const keyboardPath = path.join(
+      repositoryFixture.canonical,
+      'keyboard-only.txt'
+    )
+    writeFileSync(keyboardPath, 'committed without pointer input\n')
+    await driver.navigate().refresh()
+
+    const changedFile = await driver.wait(
+      until.elementLocated(
+        By.css('[data-changed-file-path="keyboard-only.txt"]')
+      ),
+      5_000
+    )
+    const selection = await changedFile.findElement(
+      By.css('[data-keyboard-list-item]')
+    )
+    await selection.sendKeys(Key.ENTER)
+    await driver.wait(
+      until.elementLocated(
+        By.css(
+          '[aria-label="Diff for keyboard-only.txt"], [aria-label="File diff"] [role="table"]'
+        )
+      ),
+      5_000
+    )
+
+    const include = await changedFile.findElement(
+      By.css('[aria-label="Include keyboard-only.txt"]')
+    )
+    assert.equal(await include.isSelected(), true)
+    await include.sendKeys(Key.SPACE)
+    await driver.wait(
+      async () => !(await include.isSelected()),
+      5_000,
+      'Space did not exclude the changed file'
+    )
+    await include.sendKeys(Key.SPACE)
+    await driver.wait(
+      async () => await include.isSelected(),
+      5_000,
+      'Space did not include the changed file'
+    )
+
+    const message = 'Keyboard-only MVP journey'
+    const commitMessage = await driver.findElement(
+      By.css('#commit-message')
+    )
+    await commitMessage.sendKeys(message)
+    const interceptHooks = await driver.findElement(
+      By.xpath(
+        "//label[contains(normalize-space(.), 'Run hooks with the shell environment')]//input"
+      )
+    )
+    await interceptHooks.sendKeys(Key.SPACE)
+    await driver.wait(
+      async () => await interceptHooks.isSelected(),
+      5_000,
+      'Space did not enable hook interception'
+    )
+    await driver
+      .findElement(
+        By.xpath("//button[normalize-space()='Commit included files']")
+      )
+      .sendKeys(Key.ENTER)
+    const hookDialog = await driver.wait(
+      until.elementLocated(By.css('[role="alertdialog"]')),
+      10_000
+    )
+    assert.match(await hookDialog.getText(), /pre-commit.*hook says no/s)
+
+    await driver.switchTo().activeElement().sendKeys(Key.ESCAPE)
+    assert.equal(await hookDialog.isDisplayed(), true)
+    assert.equal(
+      await driver.switchTo().activeElement().getText(),
+      'Abort commit'
+    )
+    await driver.switchTo().activeElement().sendKeys(Key.TAB)
+    assert.equal(
+      await driver.switchTo().activeElement().getText(),
+      'Ignore hook failure'
+    )
+    await driver.switchTo().activeElement().sendKeys(Key.ENTER)
+
+    await driver.wait(
+      () =>
+        String(
+          execFileSync('git', [
+            '-C',
+            repositoryFixture.canonical,
+            'log',
+            '-1',
+            '--pretty=%s',
+          ])
+        ).trim() === message,
+      10_000,
+      'keyboard-submitted commit did not complete'
+    )
+    const history = await driver.findElement(
+      By.xpath(
+        "//nav[@aria-label='Repository views']//button[normalize-space()='History']"
+      )
+    )
+    await history.sendKeys(Key.ENTER)
+    await driver.wait(
+      until.elementLocated(
+        By.xpath(
+          `//section[@aria-label='History']//strong[normalize-space()='${message}']`
+        )
+      ),
+      10_000
+    )
   })
 
   it('fetches an updated branch from a local bare remote', async () => {
@@ -1103,6 +1372,73 @@ describe('native integration', () => {
       5_000
     )
   })
+
+  it('bounds representative large repository and change lists while preserving End navigation', async () => {
+    const largeFileCount = 1_000
+    for (let index = 0; index < largeFileCount; index++) {
+      writeFileSync(
+        path.join(
+          repositoryFixture.clone,
+          `large-${String(index).padStart(4, '0')}.txt`
+        ),
+        `large fixture ${index}\n`
+      )
+    }
+    await seedRepositoryScaleFixture(250)
+
+    const loadStarted = Date.now()
+    await driver.navigate().refresh()
+    const changedList = await driver.wait(
+      until.elementLocated(
+        By.css('[aria-label="Changed files"][data-virtualized="true"]')
+      ),
+      10_000,
+      'the thousand-file fixture did not reach the virtualized list'
+    )
+    const repositoryList = await driver.wait(
+      until.elementLocated(
+        By.css('[aria-label="Repositories"][data-virtualized="true"]')
+      ),
+      10_000,
+      'the repository fixture did not reach the virtualized list'
+    )
+    assert.ok(
+      Date.now() - loadStarted < 10_000,
+      'representative large-list load exceeded ten seconds'
+    )
+    assert.ok(
+      (await changedList.findElements(
+        By.css('[data-changed-file-path]')
+      )).length < 40,
+      'the thousand-file fixture rendered an unbounded DOM list'
+    )
+    assert.ok(
+      (await repositoryList.findElements(
+        By.css('.repository-list-item')
+      )).length < 40,
+      'the repository fixture rendered an unbounded DOM list'
+    )
+
+    const selectedFile = await changedList.findElement(
+      By.css('[data-keyboard-list-item][tabindex="0"]')
+    )
+    const navigationStarted = Date.now()
+    await selectedFile.sendKeys(Key.END)
+    const lastPath = 'large-0999.txt'
+    await driver.wait(
+      until.elementLocated(
+        By.css(
+          `[data-changed-file-path="${lastPath}"] [aria-current="true"]`
+        )
+      ),
+      5_000,
+      'End did not select and reveal the final virtualized file'
+    )
+    assert.ok(
+      Date.now() - navigationStarted < 5_000,
+      'virtualized End navigation exceeded five seconds'
+    )
+  })
 })
 
 async function startApplication() {
@@ -1209,4 +1545,40 @@ async function readRepositoryFixtures() {
       }
     }
   })
+}
+
+async function seedRepositoryScaleFixture(count) {
+  const records = Array.from({ length: count }, (_, index) => {
+    const repositoryPath = `/tmp/rdc-scale-repository-${String(
+      index
+    ).padStart(4, '0')}`
+    return {
+      path: repositoryPath,
+      gitDir: path.join(repositoryPath, '.git'),
+      missing: true,
+      alias: null,
+      groupName: null,
+      defaultBranch: null,
+    }
+  })
+  return driver.executeAsyncScript((fixtures, done) => {
+    const request = indexedDB.open('rdc-repositories')
+    request.onerror = () => done({ error: String(request.error) })
+    request.onsuccess = () => {
+      const transaction = request.result.transaction(
+        'repositories',
+        'readwrite'
+      )
+      const store = transaction.objectStore('repositories')
+      for (const fixture of fixtures) {
+        store.put(fixture)
+      }
+      transaction.onerror = () =>
+        done({ error: String(transaction.error) })
+      transaction.oncomplete = () => {
+        request.result.close()
+        done({ count: fixtures.length })
+      }
+    }
+  }, records)
 }

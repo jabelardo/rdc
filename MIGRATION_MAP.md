@@ -102,7 +102,7 @@ Directory-level breakdown (file counts exclude `*-test.ts`):
 | `lib/hooks/` | 7 | minus 4 files in §3 (only 3 stay: check each — likely thin wrappers) | `rdc/src/lib/hooks/` | not-started |
 | `lib/logging/` | 6 | minus `get-log-path.ts` (§3) | `rdc/src/lib/logging/` | not-started |
 | `lib/markdown-filters/` | 14 | minus `emoji-filter.ts` (§3, but see improvement note) | `rdc/src/lib/markdown-filters/` | not-started |
-| `lib/notifications/` | 2 | callback cache and display facade; native OS notification call is Rust-owned | `rdc/src/lib/notifications/` | **Phase 4b complete** — bounded callback ownership and unmatched-click fallback are tested; native evidence follows an exposed Phase 8 MVP consumer or the Phase 9b/10 release targets |
+| `lib/notifications/` | 2 | callback cache and display facade; native OS notification call is Rust-owned | `rdc/src/lib/notifications/` | **Phase 4b complete** — bounded callback ownership and unmatched-click fallback are tested; native evidence follows an exposed Phase 8b MVP consumer or the Phase 9/10 release targets |
 | `lib/process/` | 1 | `win32.ts` — entirely backend, see §3 | — | n/a, moved to §3 |
 | `lib/progress/` | 10 | minus `from-process.ts`, `lfs.ts` (§3) | `rdc/src/lib/progress/` | not-started |
 | `lib/shells/` | 6 | **all** backend (external process launch) — see §3 | — | n/a, moved to §3 |
@@ -182,12 +182,12 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/path.ts` **(tentative — verify)** | likely `src-tauri/src/platform/fs_utils.rs`, but confirm it's not pure string manipulation that could stay TS | 1 |
 | `lib/process/win32.ts` | native registry/process responsibilities split across planned `src-tauri/src/platform/windows/{registry,process,cli}.rs` | **Phase 10** — PATH registry value/type preservation, process output/errors and CLI support; no shared Phase 4 module |
 | `lib/custom-integration.ts` | model → `src/models/custom-integration.ts`; stored-format migration and the frontend-facing validation facade → `src/lib/custom-integration.ts`; parsing, validation, placeholder expansion and process launch → `src-tauri/src/platform/custom_integration.rs` + `editors.rs` | **Phase 4 complete on Linux/macOS** — the pure migration preserves the upstream no-update `null` contract, while POSIX parsing, executable/symlink validation, macOS bundle validation, and launch are native; Windows parsing is Phase 10 |
-| `lib/stores/token-store.ts` | `src-tauri/src/platform/credential_store.rs` + credential commands + `src/lib/stores/token-store.ts` | **Phase 4b complete** — `keytar` becomes pinned `keyring` 3.6.3; Apple Keychain / persistent Linux Secret Service are explicit and the mock pins the contract. Native evidence follows an exposed Phase 8 MVP consumer or the Phase 9b/10 release targets |
-| `ui/lib/install-cli.ts` + `static/darwin/desktop-plus-cli.sh` | `src-tauri/src/platform/cli_installer.rs` + `resources/rdc-cli` + `src/lib/platform/cli.ts` | **Phase 4b implementation complete** — the rdc-owned `/usr/local/bin/rdc` symlink is installed directly or through an escaped macOS authorization request; packaged prompt and argument routing remain Phase 9b evidence |
+| `lib/stores/token-store.ts` | `src-tauri/src/platform/credential_store.rs` + credential commands + `src/lib/stores/token-store.ts` | **Phase 4b complete** — `keytar` becomes pinned `keyring` 3.6.3; Apple Keychain / persistent Linux Secret Service are explicit and the mock pins the contract. Native evidence follows an exposed Phase 8b MVP consumer or the Phase 9/10 release targets |
+| `ui/lib/install-cli.ts` + `static/darwin/desktop-plus-cli.sh` | `src-tauri/src/platform/cli_installer.rs` + `resources/rdc-cli` + `src/lib/platform/cli.ts` | **Phase 4b implementation complete** — the rdc-owned `/usr/local/bin/rdc` symlink is installed directly or through an escaped macOS authorization request; packaged prompt and argument routing remain Phase 9 evidence |
 | `lib/copilot/byok.ts` | stays TypeScript; secret calls use `src/lib/stores/token-store.ts` → Phase 4 credential commands | **Phase 7 consumer over the Phase 4-complete TokenStore** — no separate `copilot_byok.rs` command or duplicate keychain API |
 | `lib/copilot-conflict-context.ts` **(tentative)** | `src-tauri/src/commands/copilot_conflict_context.rs` | 2 |
 | `lib/get-architecture.ts`, `get-os.ts` | `src/lib/platform/paths.ts` + `src/lib/platform/system.ts` + `src-tauri/src/platform/system.rs` | **Phase 4 complete on Linux/macOS** — Tauri OS/architecture plus Rosetta detection; Windows version/support policy and WOW64 are Phase 10 |
-| `lib/get-main-guid.ts`, `get-updater-guid.ts` | main/stats ID → `src-tauri/src/platform/install_id.rs` + `src/lib/platform/install-id.ts`; updater rollout identity → Phase 9b release-channel design | **Phase 4 stats install ID complete**; the Squirrel `guid` query parameter is not sent to Tauri's configured signed endpoint, so Phase 9b decides whether rdc's release service needs an equivalent rollout identity |
+| `lib/get-main-guid.ts`, `get-updater-guid.ts` | main/stats ID → `src-tauri/src/platform/install_id.rs` + `src/lib/platform/install-id.ts`; updater rollout identity → Phase 9 release-channel design | **Phase 4 stats install ID complete**; the Squirrel `guid` query parameter is not sent to Tauri's configured signed endpoint, so Phase 9 decides whether rdc's release service needs an equivalent rollout identity |
 | `lib/find-toast-activator-clsid.ts` | Phase 10 Windows notification packaging/runtime investigation — current `notify-rust` candidate removes the manual activator lookup from shared Phase 4 code, but Windows evidence decides whether packaged identity still needs it | 10 |
 | `lib/main-process-config.ts` | `src-tauri/src/config.rs` + `src-tauri/src/commands/config.rs` + `src/lib/platform/config.ts` | **Phase 4 complete** — startup `titleBarStyle`, typed get/serialized partial update, and live `hideWindowOnQuit` close policy |
 | `lib/logging/get-log-path.ts` | `tauri-plugin-log` path configuration, with crash-log discovery/retention in Phase 6 | **Phase 4 logging mechanism complete / Phase 6 crash consumer** |
@@ -243,8 +243,9 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/ipc-shared.ts` | `rdc/MIGRATION_MAP.md` §7 channel table; hand-written `src/lib/*-ipc.ts` wrappers over native `invoke` (**no** codegen — see §8) | 3 |
 | `lib/app-shell.ts` | facade over `src/lib/platform/files.ts`, `system.ts`, recoverable trash and repository-scoped permanent-delete commands | **Phase 4 mechanism complete; Phase 7b discard facade complete** with a path-validated Rust replacement for Node `fs.rm`; Phase 10 validates Windows opener/Recycle Bin/beep behavior |
 | `lib/stores/app-store.ts` | `rdc/src/lib/stores/app-store.ts` | **Phase 7a MVP implementation complete:** durable repository ownership, selected-ID restoration, native per-window metadata and repository-derived menu updates are live; macOS acceptance remains pending, and later slices extend this store rather than replace it | **7a MVP implementation complete / macOS acceptance pending** |
+| `lib/stores/app-store.ts` preference fields + `ui/preferences/{appearance,integrations,prompts}.tsx` MVP subset | `rdc/src/lib/stores/preferences-store.ts` + the focused Preferences surface in `src/App.tsx` | **Phase 7e MVP subset complete:** validated/versioned renderer persistence; Light/Dark/System native + document application; upstream-safe repository-removal, recoverable-discard and permanent-discard confirmation defaults; installed editor/shell discovery, stable-identifier fallback, dynamic menu labels and preferred launch actions. Machine paths are rediscovered rather than persisted. Custom integrations and advanced preferences remain 7f. | **7e preferences complete** |
 | `lib/stores/repositories-store.ts` + `lib/databases/repositories-database.ts` | same paths in `rdc/src/lib/**` | **Phase 7a local subset complete:** add/get/deduplicate/remove and local repository fields; GitHub association and its schema migrations remain with the post-MVP account consumer | **7a local complete / 7f accounts** |
-| `lib/stores/git-store.ts` | incremental state slices under `rdc/src/lib/stores/`; **Phase 7b MVP working tree, whole-file and partial-line inclusion, partial commit, recoverable whole-file discard with explicit permanent retry, partial-line discard, selected-file diff, minimum commit form, bounded/replaying commit-terminal history and hook-failure Abort/Ignore are live** in `working-tree-store.ts` plus `discard-changes.ts`. **Phase 7c MVP is live** across three focused stores: `history-store.ts` owns the first 100 hydrated `HEAD` commits, stable selection, hydrated selected-commit changesets, changed-file selection and read-only first-parent/root-commit diffs; `branch-store.ts` owns hydrated local/remote listing, explicit current-branch state, create-from-HEAD plus checkout, local checkout progress and post-checkout fact refresh; `conflict-store.ts` owns merge visibility and safe staging only after Git reports a marker-free external-editor resolution. **Phase 7d MVP is live** across `remote-store.ts` and `clone-store.ts`: tracked/default-remote choice, serialized fetch/push/pull, aggregate progress, first-publish upstream setup, post-operation fetch, best-effort inactive-branch fast-forward, actionable transport/non-fast-forward/merge errors and stale-operation rejection, plus generic URL/path clone followed by durable repository registration and selection. Failed pulls still refresh conflict and working-tree state. Each focused store converts raw Git facts into view state rather than expanding the IPC contract. Remote checkout naming and advanced history/conflict/account operations remain post-MVP. | **7b / 7c / 7d MVP complete** |
+| `lib/stores/git-store.ts` | incremental state slices under `rdc/src/lib/stores/`; **Phase 7b MVP working tree, whole-file and partial-line inclusion, partial commit, recoverable whole-file discard with explicit permanent retry, partial-line discard, selected-file diff, minimum commit form, bounded/replaying commit-terminal history and hook-failure Abort/Ignore are live** in `working-tree-store.ts` plus `discard-changes.ts`. Partial discard snapshots the exact displayed diff and selected indices before confirmation, so a concurrent status refresh cannot change the action while the user decides. **Phase 7c MVP is live** across three focused stores: `history-store.ts` owns the first 100 hydrated `HEAD` commits, stable selection, hydrated selected-commit changesets, changed-file selection and read-only first-parent/root-commit diffs; `branch-store.ts` owns hydrated local/remote listing, explicit current-branch state, create-from-HEAD plus checkout, local checkout progress and post-checkout fact refresh; `conflict-store.ts` owns merge visibility and safe staging only after Git reports a marker-free external-editor resolution. **Phase 7d MVP is live** across `remote-store.ts` and `clone-store.ts`: tracked/default-remote choice, serialized fetch/push/pull, aggregate progress, first-publish upstream setup, post-operation fetch, best-effort inactive-branch fast-forward, actionable transport/non-fast-forward/merge errors and stale-operation rejection, plus generic URL/path clone followed by durable repository registration and selection. Failed pulls still refresh conflict and working-tree state. Each focused store converts raw Git facts into view state rather than expanding the IPC contract. Remote checkout naming and advanced history/conflict/account operations remain post-MVP. | **7b / 7c / 7d MVP complete** |
 | `lib/stores/helpers/create-tutorial-repository.ts` | `rdc/src/lib/stores/helpers/create-tutorial-repository.ts` | same | 7 |
 | `lib/source-map-support.ts` | *(dropped)* | Node-specific stack-trace remapping for the Electron main process; superseded by Rust panic hook + Sentry (Phase 6) | 6 |
 | `lib/release-notes.ts` | `rdc/src/lib/release-notes.ts` **(tentative)** | see improvement flag in §2 — may not need a Rust command at all if changelog data becomes a bundled asset | 1 |
@@ -355,16 +356,16 @@ Everything else in `lib/**` not listed above → §2 (portable, stays TS as-is).
 
 | Old path | Target | Phase |
 |---|---|---|
-| `main.ts` | `src-tauri/src/lib.rs` + platform action routing | **Phase 4 lifecycle/startup complete**; single-instance/deep-link routing is Phase 9b, and Windows protocol-launcher/AppUserModelID/runtime arms are Phase 10 |
-| `app-window.ts` | `src-tauri/src/lib.rs` + `src-tauri/src/platform/window.rs` + `src/lib/platform/lifetime.ts` + `tauri-plugin-window-state` (replaces `electron-window-state`) | **Phase 4a done** — startup `titleBarStyle`, direct state/zoom wrappers, the `renderer-ready` restore/show gate, frontend-owned preventable close flow, per-window selected-repository metadata, fresh repository-window creation and non-last-window destruction are implemented; persisted geometry/maximization restores before the first visible frame |
+| `main.ts` | `src-tauri/src/lib.rs` + platform action routing | **Phase 4 lifecycle/startup complete**; single-instance/deep-link routing is Phase 9, and Windows protocol-launcher/AppUserModelID/runtime arms are Phase 10 |
+| `app-window.ts` | `src-tauri/src/lib.rs` + `src-tauri/src/platform/window.rs` + `src/lib/platform/lifetime.ts` + `src/lib/platform/window-drag-region.ts` + `tauri-plugin-window-state` (replaces `electron-window-state`) | **Phase 4a mechanism done; Phase 7e shell correction done and manually accepted on macOS 2026-07-30** — startup `titleBarStyle`, direct state/zoom wrappers, the `renderer-ready` restore/show gate, frontend-owned preventable close flow, per-window selected-repository metadata, fresh repository-window creation and non-last-window destruction are implemented; persisted geometry/maximization restores before the first visible frame. macOS overlay/future frameless Windows and explicit Linux custom chrome receive a non-interactive Tauri drag strip with only the scoped start-dragging capability, and double-click follows the native macOS policy. |
 | `ipc-main.ts` | *(deleted)* — superseded by `#[tauri::command]` registration | 3 |
 | `ipc-webcontents.ts` | *(deleted)* — superseded by `app.emit()` | 3 |
 | `trusted-ipc-sender.ts` | *(deleted)* — Tauri's IPC has no equivalent "trusted sender" gap to guard against in the same way; confirm no replacement needed | 3 |
 | `crash-window.ts`, `show-uncaught-exception.ts`, `exception-reporting.ts` | **Phase 6a local recovery complete:** an in-window React fatal boundary, global renderer-error logging, a chained Rust panic hook and bounded/revealable logs replace the crash process; unified consent-aware external reporting remains Phase 6b | **6a complete** / 6b |
-| `menu/build-context-menu.ts`, `build-default-menu.ts`, `build-test-menu.ts`, `crash-menu.ts`, `ensure-item-ids.ts`, `get-all-menu-items.ts`, `index.ts`, `menu-event.ts` | structure/model → `src/lib/menu/**` + `src/models/app-menu.ts` (**default/test tree and Linux/Windows dispatcher done**); bindings/persistence → `src-tauri/src/platform/keybindings.rs` (**done**); native macOS → `src-tauri/src/platform/menu.rs` (**mechanism done and manually validated; automation is Linux-only**); general/nested contextual menus → `src-tauri/src/platform/context_menu.rs` + `src/lib/menu/context-menu.ts` (**done; edit placeholder deferred below**). **Phase 7e owns rdc Help/About identity; final public-release URLs may follow in Phase 9b.** | 4 / 7e / 9b |
+| `menu/build-context-menu.ts`, `build-default-menu.ts`, `build-test-menu.ts`, `crash-menu.ts`, `ensure-item-ids.ts`, `get-all-menu-items.ts`, `index.ts`, `menu-event.ts` | structure/model → `src/lib/menu/**` + `src/models/app-menu.ts` (**default/test tree and Linux/Windows dispatcher done**); bindings/persistence → `src-tauri/src/platform/keybindings.rs` (**done**); native macOS → `src-tauri/src/platform/menu.rs` (**mechanism done and manually validated; automation is Linux-only**); general/nested contextual menus → `src-tauri/src/platform/context_menu.rs` + `src/lib/menu/context-menu.ts` (**done; edit placeholder deferred below**). **Phase 7e rdc Help/About identity is complete:** active links target only rdc, About exposes the installed version, and a recursive three-platform executor audit keeps unsupported commands fail-closed. Final public-release URLs may follow in Phase 9. | 4 / **7e identity complete** / 9 |
 | `menu/build-spell-check-menu.ts` + contextual `editMenu` expansion | WebKitGTK suggestions and Wayland-safe edit actions, ported with their text-input consumers | 7 |
-| `notifications.ts` | `src-tauri/src/platform/notification.rs` + `src-tauri/src/commands/notification.rs` + `src/lib/platform/notifications.ts` — **Phase 4b complete** with one Rust click router and a retained `notify-rust` handle; native evidence follows an exposed Phase 8 MVP consumer or the Phase 9b/10 release targets | 4 / 8 / 9b / 10 |
-| `squirrel-updater.ts` | *(deleted)* — **Phase 4b complete** via `tauri-plugin-updater` + `src/lib/platform/updater.ts`; signed endpoint/key/mock-server evidence is Phase 9b and Windows installer/apply/relaunch evidence is Phase 10 | 4 / 9b / 10 |
+| `notifications.ts` | `src-tauri/src/platform/notification.rs` + `src-tauri/src/commands/notification.rs` + `src/lib/platform/notifications.ts` — **Phase 4b complete** with one Rust click router and a retained `notify-rust` handle; native evidence follows an exposed Phase 8b MVP consumer or the Phase 9/10 release targets | 4 / 8b / 9 / 10 |
+| `squirrel-updater.ts` | *(deleted)* — **Phase 4b complete** via `tauri-plugin-updater` + `src/lib/platform/updater.ts`; signed endpoint/key/mock-server evidence is Phase 9 and Windows installer/apply/relaunch evidence is Phase 10 | 4 / 9 / 10 |
 | `shell.ts` | folded into `src/lib/platform/files.ts` + native opener plugin (merge with `lib/shell.ts`, §3) | **Phase 4 complete on Linux/macOS; Windows safety/runtime Phase 10** |
 | `migrate-config-dir.ts` | *(dropped, not ported)* — the "confirm relevance" question has an answer: rdc owes `desktop-plus` no configuration compatibility, per `MIGRATION_PLAN.md` guiding principle 6. Settings formats are rdc's own | 4 |
 | `desktop-console-transport.ts`, `desktop-file-transport.ts`, `log.ts` | **complete for local recovery:** `tauri-plugin-log` writes renderer and Rust records to stdout plus a launch-rotated application log, retaining fourteen sessions at up to 10 MiB each; Phase 6b may add a consent-aware reporting sink | **6a complete** / 6b |
@@ -383,10 +384,28 @@ row since the mapping is mechanical; flagging only what's non-mechanical:
   add/select/remove, accessible contextual actions and open-in-new-window routing are implemented.
   Phase 7d now adds generic Clone plus remote discovery, user-initiated Fetch, normal Push and
   tracked-branch Pull, shared progress and actionable errors through `CloneStore` and `RemoteStore`;
-  the remaining feature-specific component tree stays a component-by-component Phase 7e–7f port.
+  Phase 7e adds the focused MVP Preferences surface, explicit theme application, destructive-action
+  confirmation policy and preferred editor/shell launches through `PreferencesStore`. The remaining
+  feature-specific component tree stays a component-by-component Phase 7e–7f port.
 - `ui/lib/` (104 files) — shared UI helpers/components (list virtualization, filter-list,
-  dialog helpers, etc.). This is where `react-virtualized` usage concentrates — audit this
-  directory first when starting Phase 7's replacement with `@tanstack/react-virtual`.
+  dialog helpers, etc.). Phase 7e's MVP shell now owns focused replacements in
+  `src/lib/ui/modal.tsx` and `list-navigation.ts`; they provide common focus trapping/restoration and
+  Arrow/Home/End routing without pulling in the upstream component graph. React tests and a
+  keyboard-only Linux WebKit repository/commit/history journey cover the implementation; macOS
+  manual acceptance remains Phase 8b. The same focused UI layer now includes a typed sidebar
+  capability registry; its live Repositories/Branches panels, whole-sidebar collapse, native
+  repository/branch title, backed-action toolbar, paired Changes/History list-detail workspaces,
+  compact breakpoint and shared light/dark visual tokens form the Phase 7e visual-layout slice,
+  while deferred panels remain hidden. Desktop Plus's system typography, compact density, semantic
+  color roles and toolbar separation were validation evidence rather than a palette/layout copied
+  into rdc. Human-assisted refinement of the running macOS/Linux UI is consolidated in Phase 8b
+  before MVP visual sign-off; it is explicitly an iterative QA/fix cycle and may tune this baseline
+  while preserving its tested structure and interactions.
+  Phase 7e's measured large-list pass is also complete: a focused `@tanstack/react-virtual` adapter
+  windows only the unbounded repository and changed-file lists above 100 items, while the
+  already-100-commit-bounded History list stays direct. Extracted rows preserve selection and
+  screen-reader semantics. The Ubuntu WebKit contract holds 1,000 changed files and 250 additional
+  repositories below 40 live DOM rows per list and proves `End` can reveal/select the final file.
 - `ui/main-process-proxy.ts`, `ui/install-globals.ts` — these are the renderer-side IPC
   centralization points; become the primary callers of `invoke`/`listen`, everything else in
   `ui/` should keep going through the dispatcher rather than calling `invoke` directly.
@@ -492,10 +511,10 @@ cross is a platform integration.
 | Phase 4 — native platform integrations | 69 |
 | Phase 6a/6b — resilience and external reporting | 5 |
 | Phase 5b/5c — authenticated media and enterprise networking | 4 |
-| Phase 9b — packaging, deep links and the CLI | 4 |
+| Phase 9 — public release engineering, deep links and the CLI | 4 |
 
 Phase 4 was 71 and Phase 5 was 3 until `resolve-proxy` moved between them; it became 69 when
-`url-action` joined Phase 9b's single-instance/deep-link seam.
+`url-action` joined Phase 9's single-instance/deep-link seam.
 
 Phase 4's frontend-facing audit is `scripts/measure-platform-surface.mjs`. Its kickoff baseline parses
 67 callable exports from `ui/main-process-proxy.ts` and **19** distinct `ipcRenderer.on(...)` channels
@@ -507,8 +526,8 @@ their later phase or deliberate deletion.
 zero pending, and the repository-wide reverse audit reports zero registered commands without a named
 consumer. The proxy inventory did not include Phase 2's `getGlobalConfigPath` handoff; that command,
 its typed wrapper and fresh-file test now land explicitly. Config/install-ID fresh-owner reads close
-their persistence criterion. Native-session checks follow the product consumer: Phase 8 for behavior
-exposed by the macOS/Linux MVP, Phase 9b for post-MVP packaged release behavior, and Phase 10 for
+their persistence criterion. Native-session checks follow the product consumer: Phase 8b for behavior
+exposed by the macOS/Linux MVP, Phase 9 for post-MVP packaged release behavior, and Phase 10 for
 Windows.
 
 **37 of the 82 need no IPC at all.** A Tauri plugin API is callable straight from the frontend, so
@@ -630,7 +649,7 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 | `show-save-dialog` | request/response | **implemented, no IPC** — `tauri-plugin-dialog`; returns one path or `null` | 4 |
 | `show-open-dialog` | request/response | **implemented, no IPC** — Electron property flags translate to Tauri options and multiple results collapse to the first | 4 |
 | `is-in-application-folder` | request/response | **implemented command** — macOS bundle ancestry plus system/per-user Applications-folder detection; `null` elsewhere | 4 |
-| `move-to-applications-folder` | request/response | **implemented command** — Finder relocation and relaunch on macOS; signed packaged `.app` evidence remains Phase 9b | 4 |
+| `move-to-applications-folder` | request/response | **implemented command** — Finder relocation and relaunch on macOS; signed packaged `.app` evidence remains Phase 9 | 4 |
 
 **Updater and process lifetime** (13)
 
@@ -834,16 +853,21 @@ The revised plan preserves the phase numbers but splits them by consumer:
   collaboration in 5b, and proxy/PAC plus certificate-trust work is the 5c enterprise track.
 - Phase 6a supplies local resilience; external reporting is 6b.
 - Phase 7a–7e delivers repository ownership, local changes/commit, history/branches, remote
-  synchronization and hardening as tested vertical slices. Phase 7f retains post-MVP UI/parity.
-- Phase 8 is continuous Linux E2E plus final Ubuntu and packaged-macOS acceptance, not a late test
-  implementation phase.
-- Phase 9a produces local macOS/Linux preview artifacts; signing, notarization, updater, deep links
-  and the standalone CLI remain the 9b public-release track.
+  synchronization and autonomous hardening as tested vertical slices. Phase 7f retains post-MVP
+  UI/parity.
+- Phase 8a exhausts automated qualification and prepares deterministic development builds, fixtures
+  and checklists. Phase 8b is the one human-assisted pre-MVP phase: an iterative visual and
+  platform-QA cycle expected to reveal defects, require fixes and send each fix back through 8a.
+- Local macOS/Linux packages are produced only after the 8b development-build QA loop settles, then
+  receive a focused installed-artifact pass. Signing, notarization, updater, deep links and the
+  standalone CLI remain the Phase 9 public-release track.
 
 The exposed MVP workflow is the same on macOS and Linux. Linux is the automated `tauri-driver`
-environment; native macOS is a named packaged-`.app` manual acceptance surface because WKWebView has no
-WebDriver backend. Windows remains the complete Phase 10 target. This is sequencing, not permission to
-silently drop upstream behavior: deferred features retain a named owner in the plan and this map.
+environment; native macOS development-build QA and the final packaged-`.app` smoke pass are named
+manual surfaces because WKWebView has no WebDriver backend. Real Wayland rendering is also checked in
+8b rather than inferred from the Xvfb harness. Windows remains the complete Phase 10 target. This is
+sequencing, not permission to silently drop upstream behavior: deferred features retain a named owner
+in the plan and this map.
 
 ### Repository persistence follows product consumers, not Desktop Plus configuration history
 
@@ -980,7 +1004,7 @@ notification, while a hide-only close preserves the renderer and remains allowed
 only the retained update and relaunches through `tauri-plugin-process`.
 
 **Consequence:** the old `checkForUpdates(url)` argument is source compatibility only. Tauri verifies
-updates against a signed endpoint and public key from package configuration, so Phase 9b owns those
+updates against a signed endpoint and public key from package configuration, so Phase 9 owns those
 values and any replacement for Squirrel's per-install `guid` rollout query. Until they land, the real
 plugin compiles and the complete lifecycle is fake-backend tested, but a live check/install is not
 claimed.
@@ -988,7 +1012,7 @@ claimed.
 ### Windows target inventory is Phase 10, not a Phase 4 tail
 
 Phase 4 closes the shared and Linux/macOS implementation without calling Windows supported. Phase 10
-owns every native Windows implementation and runtime check below; Phase 9b supplies the shared signed
+owns every native Windows implementation and runtime check below; Phase 9 supplies the shared signed
 package, single-instance and deep-link infrastructure it consumes.
 
 | Upstream seam | Phase 10 destination / acceptance |
@@ -1035,7 +1059,7 @@ rdc creates a uniquely labelled webview from the same hidden `main` template and
 startup action in Rust under that label. The target renderer's existing `renderer-ready` command takes
 and returns it exactly once, after restoring and showing the window. **Consequence:** the path and
 `persistSelection: false` semantics are unchanged, but delivery is a command response instead of a
-post-load push event. This removes the emit-before-listener race and keeps Phase 9b's external
+post-load push event. This removes the emit-before-listener race and keeps Phase 9's external
 `cli-action` stream out of the Phase 4a boundary. Destroying a window discards any unclaimed action.
 
 When more than one application window exists, the preventable close decision destroys only the

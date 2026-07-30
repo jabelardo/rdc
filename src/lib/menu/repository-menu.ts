@@ -3,6 +3,7 @@ import type { MenuEvent } from '../../models/menu-event'
 import type { Repository } from '../../models/repository'
 import type { AppStoreState } from '../stores/app-store'
 import type { RemoteState } from '../stores/remote-store'
+import type { PreferencesState } from '../stores/preferences-store'
 import { buildStartupMenu } from './startup'
 import type { MenuPlatform } from './default-menu'
 
@@ -24,6 +25,11 @@ type RepositoryMenuEnvironment = {
   readonly push: () => void | Promise<void>
   readonly pull: () => void | Promise<void>
   readonly showClone: () => void
+  readonly showAbout?: () => void
+  readonly showPreferences?: () => void
+  readonly removeRepository?: (repository: Repository) => void | Promise<void>
+  readonly openInShell?: (path: string) => void | Promise<void>
+  readonly openInExternalEditor?: (path: string) => void | Promise<void>
 }
 
 function withEnablement(
@@ -59,7 +65,8 @@ function withEnablement(
 export function buildRepositoryMenu(
   state: AppStoreState,
   platform: MenuPlatform,
-  remoteState?: RemoteState
+  remoteState?: RemoteState,
+  preferencesState?: PreferencesState
 ): IMenu {
   const hasRepositories = state.repositories.length > 0
   const hasSelection = state.selectedRepository !== null
@@ -76,18 +83,45 @@ export function buildRepositoryMenu(
   const enabledByID = new Map<string, boolean>([
     ['add-local-repository', true],
     ['clone-repository', true],
+    ['about', true],
+    ['preferences', preferencesState !== undefined],
     ['new-window', hasSelection],
     ['show-repository-list', hasRepositories],
     ['repository', hasSelection],
     ['remove-repository', hasSelection],
     ['open-working-directory', hasSelection],
+    [
+      'open-in-shell',
+      hasSelection &&
+        !preferencesState?.loading &&
+        preferencesState?.selectedShell !== null &&
+        preferencesState?.selectedShell !== undefined,
+    ],
+    [
+      'open-external-editor',
+      hasSelection &&
+        !preferencesState?.loading &&
+        preferencesState?.selectedExternalEditor !== null &&
+        preferencesState?.selectedExternalEditor !== undefined,
+    ],
     ['show-changes', hasSelection],
     ['show-history', hasSelection],
     ['fetch', canFetch],
     ['push', canPush],
     ['pull', canPull],
   ])
-  const menu = buildStartupMenu(platform)
+  const menu = buildStartupMenu(
+    platform,
+    preferencesState === undefined
+      ? {}
+      : {
+          selectedShell: preferencesState.selectedShell,
+          selectedExternalEditor:
+            preferencesState.selectedExternalEditor,
+          askForConfirmationOnRepositoryRemoval:
+            preferencesState.confirmRepositoryRemoval,
+        }
+  )
 
   return {
     ...menu,
@@ -111,6 +145,18 @@ export function createRepositoryMenuEventExecutor(
       case 'clone-repository':
         environment.showClone()
         return true
+      case 'show-about':
+        if (environment.showAbout === undefined) {
+          return false
+        }
+        environment.showAbout()
+        return true
+      case 'show-preferences':
+        if (environment.showPreferences === undefined) {
+          return false
+        }
+        environment.showPreferences()
+        return true
       case 'open-new-window': {
         const repository = store.state.selectedRepository
         if (repository === null) {
@@ -124,7 +170,11 @@ export function createRepositoryMenuEventExecutor(
         if (repository === null) {
           return false
         }
-        await store.removeRepository(repository)
+        if (environment.removeRepository === undefined) {
+          await store.removeRepository(repository)
+        } else {
+          await environment.removeRepository(repository)
+        }
         return true
       }
       case 'open-working-directory': {
@@ -133,6 +183,19 @@ export function createRepositoryMenuEventExecutor(
           return false
         }
         await environment.showFolderContents(repository.path)
+        return true
+      }
+      case 'open-in-shell':
+      case 'open-external-editor': {
+        const repository = store.state.selectedRepository
+        const action =
+          event === 'open-in-shell'
+            ? environment.openInShell
+            : environment.openInExternalEditor
+        if (repository === null || action === undefined) {
+          return false
+        }
+        await action(repository.path)
         return true
       }
       case 'show-changes':
