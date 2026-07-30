@@ -1,5 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import {
+  getCurrentWindow,
+  UserAttentionType,
+} from '@tauri-apps/api/window'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import type { ILaunchStats } from '../../models/launch-stats'
 import type { OpenRepositoryAction } from '../../models/cli-action'
@@ -55,6 +58,18 @@ export function isWindowMaximized(): Promise<boolean> {
 
 export function setWindowTitle(title: string): Promise<void> {
   return getCurrentWindow().setTitle(title)
+}
+
+/** Match native modal behavior without notifying an already-focused app. */
+export async function sendDialogDidOpen(): Promise<void> {
+  const window = getCurrentWindow()
+  if (await window.isFocused()) {
+    return
+  }
+  if (__DARWIN__) {
+    await invoke('beep')
+  }
+  await window.requestUserAttention(UserAttentionType.Critical)
 }
 
 /**

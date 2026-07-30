@@ -186,6 +186,18 @@ pub async fn get_config_value(
         .map_err(CommandError::from)
 }
 
+/// Returns the user's global git config path, creating the file if necessary.
+///
+/// Git resolves the real path before invoking its editor, so this respects its platform and
+/// environment rules instead of assuming the file is always `~/.gitconfig`.
+#[tauri::command]
+pub async fn get_global_config_path() -> Result<std::path::PathBuf, CommandError> {
+    git_ops::config::GlobalConfig::new()
+        .path()
+        .await
+        .map_err(CommandError::from)
+}
+
 // --- .gitignore ---
 
 /// Reads the repository's root `.gitignore`, or `null` if there isn't one.

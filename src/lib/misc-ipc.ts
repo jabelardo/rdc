@@ -196,6 +196,11 @@ export async function getConfigValue(
   })
 }
 
+/** Returns the user's global git config path, creating the file if necessary. */
+export async function getGlobalConfigPath(): Promise<string> {
+  return invoke<string>('get_global_config_path')
+}
+
 // --- .gitignore ---
 
 /** The repository's root `.gitignore`, or `null` if there isn't one. */

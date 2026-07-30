@@ -9,8 +9,10 @@
     "core:webview:allow-set-webview-zoom",
     "core:window:allow-close",
     "core:window:allow-destroy",
+    "core:window:allow-hide",
     "core:window:allow-maximize",
     "core:window:allow-minimize",
+    "core:window:allow-request-user-attention",
     "core:window:allow-set-focus",
     "core:window:allow-set-background-color",
     "core:window:allow-set-title",
@@ -24,6 +26,7 @@
       "allow": [{ "path": "**" }]
     },
     "process:default",
+    "updater:default",
     "window-state:default"
   ]
 }

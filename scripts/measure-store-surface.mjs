@@ -73,7 +73,6 @@ const IN_TYPESCRIPT = new Map([
 /** Functions a later phase owns, with that phase. */
 const LATER_PHASES = new Map([
   ['envForRemoteOperation', 'Phase 5 — proxy support; Phase 7 — account state'],
-  ['getGlobalConfigPath', 'Phase 4'],
   ['getConfigValueWithOrigin', 'Phase 7'],
   ['getFilesDiffText', 'Phase 7'],
 ])
@@ -149,6 +148,54 @@ const CONSUMER_OUTSIDE_STORES = new Map([
   ['launch_custom_external_editor', 'Phase 4 platform integration — lib/stores/app-store.ts'],
   ['launch_shell', 'Phase 4 platform integration — lib/stores/app-store.ts'],
   ['launch_custom_shell', 'Phase 4 platform integration — lib/stores/app-store.ts'],
+  ['beep', 'Phase 4 platform adapter — lib/platform/system.ts'],
+  ['classify_folder_open', 'Phase 4 platform adapter — lib/platform/files.ts'],
+  ['delete_credential', 'Phase 4 TokenStore facade — lib/stores/token-store.ts'],
+  [
+    'get_apple_action_on_double_click',
+    'Phase 4 platform adapter — lib/platform/system.ts and window-title-bar consumers',
+  ],
+  ['get_credential', 'Phase 4 TokenStore facade — lib/stores/token-store.ts'],
+  ['get_current_window_zoom_factor', 'Phase 4 platform adapter — lib/platform/window.ts'],
+  ['get_exec_path', 'Phase 4 platform adapter — lib/platform/files.ts'],
+  ['get_guid', 'Phase 4 install-ID adapter — lib/platform/install-id.ts'],
+  ['get_main_process_config', 'Phase 4 config adapter — lib/platform/config.ts'],
+  [
+    'get_notifications_permission',
+    'Phase 4 notification facade — lib/platform/notifications.ts',
+  ],
+  ['install_darwin_cli', 'Phase 4 CLI adapter — lib/platform/cli.ts'],
+  [
+    'is_in_application_folder',
+    'Phase 4 application-folder adapter — lib/platform/application-folder.ts',
+  ],
+  [
+    'is_running_under_arm64_translation',
+    'Phase 4 platform adapter — lib/platform/system.ts',
+  ],
+  ['move_item_to_trash', 'Phase 4 platform adapter — lib/platform/files.ts'],
+  [
+    'move_to_applications_folder',
+    'Phase 4 application-folder adapter — lib/platform/application-folder.ts',
+  ],
+  [
+    'open_repository_in_new_window',
+    'Phase 4 window adapter — lib/platform/window.ts',
+  ],
+  ['renderer_ready', 'Phase 4 startup adapter — lib/platform/window.ts'],
+  [
+    'request_notifications_permission',
+    'Phase 4 notification facade — lib/platform/notifications.ts',
+  ],
+  ['save_guid', 'Phase 4 install-ID adapter — lib/platform/install-id.ts'],
+  ['set_credential', 'Phase 4 TokenStore facade — lib/stores/token-store.ts'],
+  [
+    'set_window_selected_repository',
+    'Phase 4 window adapter — lib/platform/window.ts',
+  ],
+  ['set_window_zoom_factor', 'Phase 4 platform adapter — lib/platform/window.ts'],
+  ['show_notification', 'Phase 4 notification facade — lib/platform/notifications.ts'],
+  ['update_main_process_config', 'Phase 4 config adapter — lib/platform/config.ts'],
   ['write_description', 'ui/add-repository/create-repository.tsx'],
   ['read_gitignore_at_root', 'ui/repository-settings/repository-settings.tsx'],
   ['checkout_remote_branch', 'ours — the half of upstream checkoutBranch that creates a local ref'],

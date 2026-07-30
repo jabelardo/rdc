@@ -15,6 +15,7 @@ const currentWindow = vi.hoisted(() => ({
   minimize: vi.fn(),
   onFocusChanged: vi.fn(),
   onResized: vi.fn(),
+  requestUserAttention: vi.fn(),
   setFocus: vi.fn(),
   setTitle: vi.fn(),
   unmaximize: vi.fn(),
@@ -22,7 +23,10 @@ const currentWindow = vi.hoisted(() => ({
 const getCurrentWindow = vi.hoisted(() => vi.fn(() => currentWindow))
 const invoke = vi.hoisted(() => vi.fn())
 
-vi.mock('@tauri-apps/api/window', () => ({ getCurrentWindow }))
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow,
+  UserAttentionType: { Critical: 1 },
+}))
 vi.mock('@tauri-apps/api/core', () => ({ invoke }))
 
 const {
@@ -40,6 +44,7 @@ const {
   onWindowZoomFactorChanged,
   onLaunchTimingStats,
   restoreWindow,
+  sendDialogDidOpen,
   sendReady,
   setWindowSelectedRepository,
   setWindowTitle,
@@ -101,6 +106,19 @@ describe('current window controls', () => {
     await setWindowTitle('Repository — rdc')
 
     expect(currentWindow.setTitle).toHaveBeenCalledWith('Repository — rdc')
+  })
+
+  it('requests critical attention only when a dialog opens unfocused', async () => {
+    await sendDialogDidOpen()
+    expect(invoke).toHaveBeenCalledWith('beep')
+    expect(currentWindow.requestUserAttention).toHaveBeenCalledWith(1)
+
+    invoke.mockClear()
+    currentWindow.requestUserAttention.mockClear()
+    currentWindow.isFocused.mockResolvedValue(true)
+    await sendDialogDidOpen()
+    expect(invoke).not.toHaveBeenCalled()
+    expect(currentWindow.requestUserAttention).not.toHaveBeenCalled()
   })
 
   it('stores and clears the selected repository through the window-scoped command', async () => {

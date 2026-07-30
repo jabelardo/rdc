@@ -12,7 +12,7 @@ import {
 describe('measure-platform-surface', () => {
   it('pins the independent Phase 4b surface', () => {
     assert.equal(PHASE_4B_PROXY_EXPORTS.size, 19)
-    assert.equal(PHASE_4B_SUBSCRIPTIONS.size, 8)
+    assert.equal(PHASE_4B_SUBSCRIPTIONS.size, 7)
     assert.equal(PHASE_4B_PROXY_EXPORTS.has('openRepositoryInNewWindow'), false)
     assert.equal(PHASE_4B_SUBSCRIPTIONS.has('app-menu'), false)
   })

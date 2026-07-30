@@ -102,7 +102,7 @@ Directory-level breakdown (file counts exclude `*-test.ts`):
 | `lib/hooks/` | 7 | minus 4 files in §3 (only 3 stay: check each — likely thin wrappers) | `rdc/src/lib/hooks/` | not-started |
 | `lib/logging/` | 6 | minus `get-log-path.ts` (§3) | `rdc/src/lib/logging/` | not-started |
 | `lib/markdown-filters/` | 14 | minus `emoji-filter.ts` (§3, but see improvement note) | `rdc/src/lib/markdown-filters/` | not-started |
-| `lib/notifications/` | 2 | pure formatting; actual OS notification call is Phase 4 | `rdc/src/lib/notifications/` | not-started |
+| `lib/notifications/` | 2 | callback cache and display facade; native OS notification call is Rust-owned | `rdc/src/lib/notifications/` | **Phase 4b complete** — bounded callback ownership and unmatched-click fallback are tested; Linux, packaged macOS and Windows target evidence is assigned to Phases 8/9/10 |
 | `lib/process/` | 1 | `win32.ts` — entirely backend, see §3 | — | n/a, moved to §3 |
 | `lib/progress/` | 10 | minus `from-process.ts`, `lfs.ts` (§3) | `rdc/src/lib/progress/` | not-started |
 | `lib/shells/` | 6 | **all** backend (external process launch) — see §3 | — | n/a, moved to §3 |
@@ -145,7 +145,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/interpret-trailers.ts` | **split**: git-invoking half → `crates/git-ops/src/interpret_trailers.rs` (**done**); the `ITrailer` type + `isCoAuthoredByTrailer` predicate → `rdc/src/models/trailer.ts` (**done**), because neither needs git. See §8. | 2 |
 | `lib/git/init.ts` | `crates/git-ops/src/init.rs` — **done**. `init_repository(path, default_branch)` takes the branch as a **parameter**; see §8 for why the original's internal `getDefaultBranch()` call was not reproduced. | 2 |
 | `lib/git/add.ts` | `crates/git-ops/src/add.rs` — **done**. Takes plain paths rather than the `Repository`/`WorkingDirectoryFileChange` models, which are frontend concerns. | 2 |
-| `lib/git/config.ts` | `crates/git-ops/src/config.rs` — **partially done**: repository get/set/remove + boolean, a `GlobalConfig` type for the global scope, and `addSafeDirectory`/`addGlobalConfigValueIfMissing` (**contains an upstream bug fix — see §8**). Deferred: `getGlobalConfigPath` (needs the `git config --edit` + `GIT_EDITOR=printf` trick; a Phase 4 editor concern) and `getConfigValueWithOrigin` + `formatConfigScope`/`formatConfigPath`/`isConditionalInclude`/`getOriginFilePath` (display strings like `"global, via [includeIf]"` → frontend, same reasoning as `getDescriptionForError`). | 2 / 4 |
+| `lib/git/config.ts` | `crates/git-ops/src/config.rs` — repository/global get/set/remove + boolean, `addSafeDirectory`/`addGlobalConfigValueIfMissing` (**contains an upstream bug fix — see §8**), and **Phase 4's complete** `GlobalConfig::path` + `get_global_config_path` wrapper, which asks `git config --edit --global` under `GIT_EDITOR=printf %s`. Deferred only: `getConfigValueWithOrigin` + `formatConfigScope`/`formatConfigPath`/`isConditionalInclude`/`getOriginFilePath` (display strings like `"global, via [includeIf]"` → frontend, same reasoning as `getDescriptionForError`). | 2 / 4 / 7 |
 | `lib/git/rev-parse.ts` | `crates/git-ops/src/rev_parse.rs` — **done**: `RepositoryType` (`Regular`/`Bare`/`Missing`/`Unsafe`), `get_repository_type`, and the upstream-ref helpers. | 2 |
 | `lib/git/rev-list.ts` | `crates/git-ops/src/rev_list.rs` — commit lists in replay order and `getAheadBehind`. Split deliberately: the **range builders** (`revRange`, `revRangeInclusive`, `revSymmetricDifference`) are string concatenation, so they are `src/lib/rev-range.ts`; `getBranchAheadBehind` is `src/lib/rev-list-ipc.ts`, because every branch-specific decision in it is one the frontend can make from data it holds; and `doMergeCommitsExistAfterCommit` has no consumer outside `ui/history/**`. | 3 / 7 |
 | `lib/helpers/default-branch.ts` (`getDefaultBranch`/`setDefaultBranch`) | **now unblocked** by `config.rs`'s `GlobalConfig`, but still outstanding: the `"main"` fallback is app policy that belongs above the git layer. It lands with its preference/tutorial consumers rather than expanding Phase 3 with an unused command. | 7 |
@@ -175,20 +175,22 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/shells/darwin.ts`, `linux.ts`, `shared.ts` | `src-tauri/src/platform/shells.rs` + `shell_model.rs`; typed wrapper at `src/lib/platform/shells.ts` | **Phase 4 complete on Linux/macOS** — discovery, exact terminal launch arguments/cwd behavior, custom launch and selected-shell fallback are done |
 | `lib/shells/win32.ts` | `src-tauri/src/platform/shells_windows.rs` (planned); shared labels/order already pinned in `shells.rs` + `src/models/shell.ts` | **Phase 10** — registry/PATH discovery, WSL detection, Windows parsing and `cmd.exe / START` launch; requires Windows CI |
 | `lib/editors/**` | `src-tauri/src/platform/editors.rs` + `commands/editor.rs`; typed wrapper at `src/lib/platform/editors.ts` | **Phase 4 complete on Linux/macOS** — discovery, path validation, and normal/custom launch landed test-first; Windows is Phase 10 |
-| `lib/helpers/linux.ts` | `src-tauri/src/platform/linux_helpers.rs` (xdg-open etc.) | 4 |
-| `lib/shell.ts` | `src-tauri/src/commands/shell.rs` (reveal-in-file-manager, open-external) | 4 |
+| `lib/helpers/linux.ts` | behavior folded into `src-tauri/src/platform/{editors,shells}.rs` | **Phase 4 complete** — Flatpak host-path conversion, existence checks and `flatpak-spawn --host` live beside their native consumers; no orphan `linux_helpers.rs` |
+| `lib/shell.ts` | `src/lib/platform/files.ts` + `src-tauri/src/platform/files.rs` | **Phase 4 complete on Linux/macOS** — opener/reveal and macOS bundle safety landed; the Windows trailing-backslash executable-name guard is Phase 10 |
 | `lib/exec-file.ts` | `src-tauri/src/platform/exec.rs` (generic subprocess helper other modules call) | 2 |
 | `lib/file-system.ts`, `path-exists.ts`, `directory-exists.ts`, `large-files.ts`, `get-file-hash.ts`, `compute-bundle-hash.ts` | `src-tauri/src/platform/fs_utils.rs` | 1/2 |
 | `lib/path.ts` **(tentative — verify)** | likely `src-tauri/src/platform/fs_utils.rs`, but confirm it's not pure string manipulation that could stay TS | 1 |
-| `lib/process/win32.ts` | `src-tauri/src/platform/win32/process.rs` | 4 |
+| `lib/process/win32.ts` | native registry/process responsibilities split across planned `src-tauri/src/platform/windows/{registry,process,cli}.rs` | **Phase 10** — PATH registry value/type preservation, process output/errors and CLI support; no shared Phase 4 module |
 | `lib/custom-integration.ts` | model → `src/models/custom-integration.ts`; stored-format migration and the frontend-facing validation facade → `src/lib/custom-integration.ts`; parsing, validation, placeholder expansion and process launch → `src-tauri/src/platform/custom_integration.rs` + `editors.rs` | **Phase 4 complete on Linux/macOS** — the pure migration preserves the upstream no-update `null` contract, while POSIX parsing, executable/symlink validation, macOS bundle validation, and launch are native; Windows parsing is Phase 10 |
-| `lib/copilot/byok.ts` | `src-tauri/src/commands/copilot_byok.rs` (uses the same `keyring` crate as token storage) | 4 |
+| `lib/stores/token-store.ts` | `src-tauri/src/platform/credential_store.rs` + credential commands + `src/lib/stores/token-store.ts` | **Phase 4b complete** — `keytar` becomes pinned `keyring` 3.6.3; Apple Keychain / persistent Linux Secret Service are explicit and the mock pins the contract. Linux real-session, packaged macOS and Windows Credential Manager evidence is assigned to Phases 8/9/10 |
+| `ui/lib/install-cli.ts` + `static/darwin/desktop-plus-cli.sh` | `src-tauri/src/platform/cli_installer.rs` + `resources/rdc-cli` + `src/lib/platform/cli.ts` | **Phase 4b implementation complete** — the rdc-owned `/usr/local/bin/rdc` symlink is installed directly or through an escaped macOS authorization request; packaged prompt and argument routing remain Phase 9 evidence |
+| `lib/copilot/byok.ts` | stays TypeScript; secret calls use `src/lib/stores/token-store.ts` → Phase 4 credential commands | **Phase 7 consumer over the Phase 4-complete TokenStore** — no separate `copilot_byok.rs` command or duplicate keychain API |
 | `lib/copilot-conflict-context.ts` **(tentative)** | `src-tauri/src/commands/copilot_conflict_context.rs` | 2 |
-| `lib/get-architecture.ts`, `get-os.ts` | `src-tauri/src/platform/system_info.rs` | 4 |
-| `lib/get-main-guid.ts`, `get-updater-guid.ts` | `src-tauri/src/platform/install_id.rs` | 4 |
-| `lib/find-toast-activator-clsid.ts` | `src-tauri/src/platform/notifications/windows.rs` — superseded by `tauri-plugin-notification`, confirm still needed at all | 4 |
-| `lib/main-process-config.ts` | `src-tauri/src/config.rs` | **Phase 4a startup read done** for `titleBarStyle`; Phase 4b adds the typed frontend get/update surface and `hideWindowOnQuit` |
-| `lib/logging/get-log-path.ts` | `src-tauri/src/platform/log_path.rs` | 4/6 |
+| `lib/get-architecture.ts`, `get-os.ts` | `src/lib/platform/paths.ts` + `src/lib/platform/system.ts` + `src-tauri/src/platform/system.rs` | **Phase 4 complete on Linux/macOS** — Tauri OS/architecture plus Rosetta detection; Windows version/support policy and WOW64 are Phase 10 |
+| `lib/get-main-guid.ts`, `get-updater-guid.ts` | main/stats ID → `src-tauri/src/platform/install_id.rs` + `src/lib/platform/install-id.ts`; updater rollout identity → Phase 9 release-channel design | **Phase 4 stats install ID complete**; the Squirrel `guid` query parameter is not sent to Tauri's configured signed endpoint, so Phase 9 decides whether rdc's release service needs an equivalent rollout identity |
+| `lib/find-toast-activator-clsid.ts` | Phase 10 Windows notification packaging/runtime investigation — current `notify-rust` candidate removes the manual activator lookup from shared Phase 4 code, but Windows evidence decides whether packaged identity still needs it | 10 |
+| `lib/main-process-config.ts` | `src-tauri/src/config.rs` + `src-tauri/src/commands/config.rs` + `src/lib/platform/config.ts` | **Phase 4 complete** — startup `titleBarStyle`, typed get/serialized partial update, and live `hideWindowOnQuit` close policy |
+| `lib/logging/get-log-path.ts` | `tauri-plugin-log` path configuration, with crash-log discovery/retention in Phase 6 | **Phase 4 logging mechanism complete / Phase 6 crash consumer** |
 
 **(b) File stays TypeScript; only its internal Node/Electron touch-points get swapped for
 `invoke`/`@tauri-apps/api` calls** — the surrounding business logic doesn't move:
@@ -239,7 +241,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/reset.ts` | `crates/git-ops/src/reset.rs` — **complete**: `unstageAll`, `reset` and `resetPaths`, with `ResetMode` → **`src/models/git-reset-mode.ts`** (an enum crossing IPC is a domain type, as `IndexStatus` was). Paths reach `resetPaths` through `--pathspec-from-file` rather than the original's Windows-only `--stdin` — see §8. | 3 |
 | `lib/git/rm.ts` | `crates/git-ops/src/rm.rs` — **complete**: `removeConflictedFile` and `unstageAllFiles`. The latter is `rm --cached -r -f .`, which is *not* `reset.ts`'s `unstageAll`; upstream keeps them in different files for that reason. | 3 |
 | `lib/ipc-shared.ts` | `rdc/MIGRATION_MAP.md` §7 channel table; hand-written `src/lib/*-ipc.ts` wrappers over native `invoke` (**no** codegen — see §8) | 3 |
-| `lib/app-shell.ts` | `rdc/src/lib/app-shell.ts` | thin wrapper over native opener/shell commands | 4 |
+| `lib/app-shell.ts` | facade over `src/lib/platform/files.ts`, `system.ts` and trash command | **Phase 4 mechanism complete**; Phase 7 ports the repository-shaped facade, Phase 10 validates Windows opener/Recycle Bin/beep behavior |
 | `lib/stores/app-store.ts` | `rdc/src/lib/stores/app-store.ts` | **keep this file and its shape** (Phase 7 principle) — only its direct OS-touching calls change to `invoke` | 7 |
 | `lib/stores/git-store.ts` | `rdc/src/lib/stores/git-store.ts` | same | 7 |
 | `lib/stores/helpers/create-tutorial-repository.ts` | `rdc/src/lib/stores/helpers/create-tutorial-repository.ts` | same | 7 |
@@ -327,9 +329,9 @@ operation that consumes them rather than counted as separate backend behavior.
 | `config.ts` | hook enable/cache/shell preferences are frontend `localStorage` state | **deferred Phase 7** |
 | `get-repo-hooks.ts` | hook discovery → `hooks/discovery.rs` | **complete** |
 | `get-shell-env.ts` | login-shell environment loading → `hooks/shell_env.rs` + `rdc-printenvz` | **complete** |
-| `get-shell.ts` | Unix shell selection → `hooks/shell.rs`; Git Bash/Windows selection remains platform work | Unix **complete**; Windows **Phase 4** |
+| `get-shell.ts` | Unix shell selection → `hooks/shell.rs`; Git Bash/Windows selection remains platform work | Unix **complete**; Windows **Phase 10** |
 | `hooks-proxy.ts` | proxy transport/runner/server → `hooks/{protocol,client,server,runner}.rs` + `rdc-hook-proxy` | backend and Phase 3 command Channel handoff **complete**; failure UI **Phase 7** |
-| `shell-escape.ts` | POSIX shell escaping → `hooks/shell.rs`; cmd/PowerShell escaping remains Windows platform work | Unix **complete**; Windows **Phase 4** |
+| `shell-escape.ts` | POSIX shell escaping → `hooks/shell.rs`; cmd/PowerShell escaping remains Windows platform work | Unix **complete**; Windows **Phase 10** |
 | `with-hooks-env.ts` | stand-ins, server lifetime and environment injection → `hooks/with_env.rs`; four upstream operations opt in through their commands | backend and Phase 3 command handoff **complete**; enable state **Phase 7** |
 
 #### Adjacent Phase 2 handoffs
@@ -339,7 +341,7 @@ operation that consumes them rather than counted as separate backend behavior.
   consumerless commands for them.
 - `crates/trampoline`: Linux and macOS credential/askpass transport is complete. Windows token
   generation requires `BCryptGenRandom`, and Windows shell selection/escaping is likewise absent;
-  the Windows port is explicitly owned by **Phase 4**. Until then, Windows is not a supported rdc
+  the Windows port is explicitly owned by **Phase 10**. Until then, Windows is not a supported rdc
   target.
 - The acceptance suite count is **51 recursively**, not 45: 45 files at `test/unit/git/` plus four
   under `git/pull/` and two under `git/rebase/`.
@@ -352,7 +354,7 @@ Everything else in `lib/**` not listed above → §2 (portable, stays TS as-is).
 
 | Old path | Target | Phase |
 |---|---|---|
-| `main.ts` | `src-tauri/src/lib.rs` (app entry/lifecycle, single-instance, protocol registration) | 4 |
+| `main.ts` | `src-tauri/src/lib.rs` + platform action routing | **Phase 4 lifecycle/startup complete**; single-instance/deep-link routing is Phase 9, and Windows protocol-launcher/AppUserModelID/runtime arms are Phase 10 |
 | `app-window.ts` | `src-tauri/src/lib.rs` + `src-tauri/src/platform/window.rs` + `src/lib/platform/lifetime.ts` + `tauri-plugin-window-state` (replaces `electron-window-state`) | **Phase 4a done** — startup `titleBarStyle`, direct state/zoom wrappers, the `renderer-ready` restore/show gate, frontend-owned preventable close flow, per-window selected-repository metadata, fresh repository-window creation and non-last-window destruction are implemented; persisted geometry/maximization restores before the first visible frame |
 | `ipc-main.ts` | *(deleted)* — superseded by `#[tauri::command]` registration | 3 |
 | `ipc-webcontents.ts` | *(deleted)* — superseded by `app.emit()` | 3 |
@@ -360,9 +362,9 @@ Everything else in `lib/**` not listed above → §2 (portable, stays TS as-is).
 | `crash-window.ts`, `show-uncaught-exception.ts`, `exception-reporting.ts` | Rust panic hook + unified Sentry integration (see Phase 6) | 6 |
 | `menu/build-context-menu.ts`, `build-default-menu.ts`, `build-test-menu.ts`, `crash-menu.ts`, `ensure-item-ids.ts`, `get-all-menu-items.ts`, `index.ts`, `menu-event.ts` | structure/model → `src/lib/menu/**` + `src/models/app-menu.ts` (**default/test tree and Linux/Windows dispatcher done**); bindings/persistence → `src-tauri/src/platform/keybindings.rs` (**done**); native macOS → `src-tauri/src/platform/menu.rs` (**mechanism done and manually validated; automation is Linux-only**); general/nested contextual menus → `src-tauri/src/platform/context_menu.rs` + `src/lib/menu/context-menu.ts` (**done; edit placeholder deferred below**). **Phase 9 owns the inherited Help destinations and `About Desktop Plus` label as product identity, after rdc's URLs are final.** | 4 / 9 |
 | `menu/build-spell-check-menu.ts` + contextual `editMenu` expansion | WebKitGTK suggestions and Wayland-safe edit actions, ported with their text-input consumers | 7 |
-| `notifications.ts` | `tauri-plugin-notification` (cross-platform, replaces vendored `desktop-notifications`) | 4 |
-| `squirrel-updater.ts` | *(deleted)* — replaced by `tauri-plugin-updater` | 4 |
-| `shell.ts` | `src-tauri/src/commands/shell.rs` (merge with `lib/shell.ts`, §3) | 4 |
+| `notifications.ts` | `src-tauri/src/platform/notification.rs` + `src-tauri/src/commands/notification.rs` + `src/lib/platform/notifications.ts` — **Phase 4b complete** with one Rust click router and a retained `notify-rust` handle; Linux daemon, packaged macOS identity and Windows toast evidence are Phase 8/9/10 gates | 4 / 8 / 9 / 10 |
+| `squirrel-updater.ts` | *(deleted)* — **Phase 4b complete** via `tauri-plugin-updater` + `src/lib/platform/updater.ts`; signed endpoint/key/mock-server evidence remains Phase 9/8 and Windows installer/apply/relaunch evidence is Phase 10 | 4 / 8 / 9 / 10 |
+| `shell.ts` | folded into `src/lib/platform/files.ts` + native opener plugin (merge with `lib/shell.ts`, §3) | **Phase 4 complete on Linux/macOS; Windows safety/runtime Phase 10** |
 | `migrate-config-dir.ts` | *(dropped, not ported)* — the "confirm relevance" question has an answer: rdc owes `desktop-plus` no configuration compatibility, per `MIGRATION_PLAN.md` guiding principle 6. Settings formats are rdc's own | 4 |
 | `desktop-console-transport.ts`, `desktop-file-transport.ts`, `log.ts` | Rust `tracing` + file appender, replacing Winston | 6 |
 | `alive-origin-filter.ts`, `same-origin-filter.ts`, `ordered-webrequest.ts`, `authenticated-image-filter.ts` | **Phase 5 redesign, not a port** — see `MIGRATION_PLAN.md` Phase 5 | 5 |
@@ -481,18 +483,26 @@ cross is a platform integration.
 
 | | Count |
 |---|---|
-| Phase 4 — native platform integrations | 70 |
+| Phase 4 — native platform integrations | 69 |
 | Phase 6 — crash and exception reporting | 5 |
 | Phase 5 — session-level network behaviour | 4 |
-| Phase 9 — packaging and the CLI | 3 |
+| Phase 9 — packaging, deep links and the CLI | 4 |
 
-Phase 4 was 71 and Phase 5 was 3 until `resolve-proxy` moved between them; see its row.
+Phase 4 was 71 and Phase 5 was 3 until `resolve-proxy` moved between them; it became 69 when
+`url-action` joined Phase 9's single-instance/deep-link seam.
 
 Phase 4's frontend-facing audit is `scripts/measure-platform-surface.mjs`. Its kickoff baseline parses
 67 callable exports from `ui/main-process-proxy.ts` and **19** distinct `ipcRenderer.on(...)` channels
 across upstream `ui/` and `lib/` (the plan originally said 18 because it omitted `app-menu` from that
-count). All 86 names are classified; Phase 4 owns 58 exports and 16 subscriptions, while the rest name
+count). All 86 names are classified; Phase 4 owns 58 exports and 15 subscriptions, while the rest name
 their later phase or deliberate deletion.
+
+**Phase 4 closure (2026-07-30):** the audit now reports **58/58 exports and 15/15 subscriptions** with
+zero pending, and the repository-wide reverse audit reports zero registered commands without a named
+consumer. The proxy inventory did not include Phase 2's `getGlobalConfigPath` handoff; that command,
+its typed wrapper and fresh-file test now land explicitly. Config/install-ID fresh-owner reads close
+their persistence criterion. Native-session checks retain target owners: Linux Phase 8, packaged macOS
+Phase 9 and Windows Phase 10.
 
 **37 of the 82 need no IPC at all.** A Tauri plugin API is callable straight from the frontend, so
 `minimize-window` becomes `getCurrentWindow().minimize()` and the channel simply disappears — which is
@@ -508,8 +518,9 @@ matches upstream's 82 exactly; "deleted" is a routing outcome, not a gap.
 
 Two shapes changed rather than moved, and both are cheaper than a port:
 
-- **Five auto-updater push channels collapse into one plugin call.** They were separate only because
-  Squirrel reported its progress as a state machine; `tauri-plugin-updater` returns a promise.
+- **Five auto-updater push channels collapse into one frontend controller.** They were separate only
+  because Squirrel reported its progress from another process; `tauri-plugin-updater` returns a
+  retained resource whose promises and download callback already describe the state machine.
 - **The three quit channels reverse direction.** Electron's main process asked the renderer for
   permission to quit; Tauri hands the frontend a preventable `onCloseRequested`, so the frontend decides
   in place instead of answering a question.
@@ -526,8 +537,8 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 | `menu-event` | main→renderer | **implemented and narrowed to macOS** — `on_menu_event` emits the typed action; Linux/Windows execute locally | 4 |
 | `show-contextual-menu` | request/response | command building a `Menu` and popping it up | 4 |
 | `select-all-window-contents` | renderer→main | **implemented with no IPC** — `document.execCommand('selectAll')` in the frontend | 4 |
-| `dialog-did-open` | renderer→main | command → `request_user_attention` — beeps on macOS and bounces the dock; nothing to route if that is dropped | 4 |
-| `get-apple-action-on-double-click` | request/response | command reading the macOS preference — macOS only; no plugin, so a `plist` read | 4 |
+| `dialog-did-open` | renderer→main | **implemented adapter** — focused-window guard + critical `requestUserAttention`; macOS additionally calls native `NSBeep` because Tauri/tao's attention implementation only requests AppKit attention | 4 |
+| `get-apple-action-on-double-click` | request/response | **implemented command** reading the macOS global preference with the upstream `Maximize` fallback | 4 |
 
 > **Phase 4a revises these rows: the menu splits in two, and the split is not down platform lines.**
 > The mechanisms above assume Rust owns the menu the way Electron's main process did. It won't.
@@ -611,21 +622,21 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 | `unsafe-open-directory` | renderer→main | **implemented, no IPC** — direct `openPath`, kept private behind the safe classifier in normal use | 4 |
 | `show-save-dialog` | request/response | **implemented, no IPC** — `tauri-plugin-dialog`; returns one path or `null` | 4 |
 | `show-open-dialog` | request/response | **implemented, no IPC** — Electron property flags translate to Tauri options and multiple results collapse to the first | 4 |
-| `is-in-application-folder` | request/response | command — macOS only | 4 |
-| `move-to-applications-folder` | request/response | command — macOS only | 4 |
+| `is-in-application-folder` | request/response | **implemented command** — macOS bundle ancestry plus system/per-user Applications-folder detection; `null` elsewhere | 4 |
+| `move-to-applications-folder` | request/response | **implemented command** — Finder relocation and relaunch on macOS; packaged `.app` evidence remains Phase 9 | 4 |
 
 **Updater and process lifetime** (13)
 
 | Channel | Direction | Tauri mechanism | Phase |
 |---|---|---|---|
-| `check-for-updates` | request/response | **no IPC** — `tauri-plugin-updater` | 4 |
-| `quit-and-install-updates` | renderer→main | **no IPC** — `tauri-plugin-updater` | 4 |
-| `show-installing-update` | main→renderer | `emit` from Rust | 4 |
-| `auto-updater-checking-for-update` | main→renderer | **no IPC** — the plugin's own promise | 4 |
-| `auto-updater-update-available` | main→renderer | **no IPC** — the plugin's own promise | 4 |
-| `auto-updater-update-not-available` | main→renderer | **no IPC** — the plugin's own promise | 4 |
-| `auto-updater-update-downloaded` | main→renderer | **no IPC** — the plugin's download progress | 4 |
-| `auto-updater-error` | main→renderer | **no IPC** — a rejected promise — five push channels collapse into one plugin call, since Squirrel's state machine was the only reason they were separate | 4 |
+| `check-for-updates` | request/response | **implemented, no IPC** — one `UpdateController` coalesces checks, retains the returned resource and downloads an available update | 4 |
+| `quit-and-install-updates` | renderer→main | **implemented, no IPC** — installs only the retained ready update, then calls the process plugin's `relaunch()` | 4 |
+| `show-installing-update` | main→renderer | **implemented in-process** — destructive close consults controller state and notifies the existing popup adapter; hide-only close remains allowed | 4 |
+| `auto-updater-checking-for-update` | main→renderer | **implemented in-process** from the controller's `checking` transition | 4 |
+| `auto-updater-update-available` | main→renderer | **implemented in-process** from the retained non-null update | 4 |
+| `auto-updater-update-not-available` | main→renderer | **implemented in-process** from a null check result | 4 |
+| `auto-updater-update-downloaded` | main→renderer | **implemented in-process** after `Update.download()` completes | 4 |
+| `auto-updater-error` | main→renderer | **implemented in-process** for check, download and install rejection | 4 |
 | `restart-app` | renderer→main | **implemented, no IPC** — `tauri-plugin-process` `relaunch()` | 4 |
 | `quit-app` | renderer→main | **implemented, no IPC** — `exit(0)` after the frontend has resolved application-state policy | 4 |
 | `will-quit` | renderer→main | **implemented with direction reversed** — one `onCloseRequested` handler synchronously prevents close, then the frontend decides `quit` / `hide` / `cancel` | 4 |
@@ -636,16 +647,16 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 
 | Channel | Direction | Tauri mechanism | Phase |
 |---|---|---|---|
-| `show-notification` | request/response | **no IPC** — `tauri-plugin-notification` | 4 |
-| `get-notifications-permission` | request/response | **no IPC** — the plugin | 4 |
-| `request-notifications-permission` | request/response | **no IPC** — the plugin | 4 |
-| `notification-event` | main→renderer | the plugin's action listener — the vendored `desktop-notifications` addon goes away, and macOS and Linux gain notifications they never had | 4 |
+| `show-notification` | request/response | **implemented** — Rust validates object-shaped user info, allocates the ID and retains the native response handle | 4 |
+| `get-notifications-permission` | request/response | **implemented** — real macOS authorization state; upstream-compatible granted result elsewhere | 4 |
+| `request-notifications-permission` | request/response | **implemented** — real macOS authorization request; upstream-compatible granted result elsewhere | 4 |
+| `notification-event` | main→renderer | **implemented** — one Rust router consumes a click once and targets owner, focused, `main`, then deterministic live-window fallback | 4 |
 
 **Deep links and the CLI** (4)
 
 | Channel | Direction | Tauri mechanism | Phase |
 |---|---|---|---|
-| `url-action` | main→renderer | `tauri-plugin-deep-link` → `emit` | 4 |
+| `url-action` | main→renderer | `tauri-plugin-deep-link` + `tauri-plugin-single-instance`; packaged scheme/OAuth callback registration and external-action routing are one seam | 9 |
 | `cli-action` | main→renderer | `tauri-plugin-single-instance` → `emit` | 9 |
 | `install-windows-cli` | renderer→main | command | 9 |
 | `uninstall-windows-cli` | renderer→main | command | 9 |
@@ -654,11 +665,11 @@ Two shapes changed rather than moved, and both are cheaper than a port:
 
 | Channel | Direction | Tauri mechanism | Phase |
 |---|---|---|---|
-| `get-main-process-config` | request/response | command | 4 |
-| `update-main-process-config` | request/response | command | 4 |
+| `get-main-process-config` | request/response | **implemented command** | 4 |
+| `update-main-process-config` | request/response | **implemented command** | 4 |
 | `get-config-migration-result` | request/response | **deleted, not ported** — guiding principle 6; there is no config migration to report | 4 |
-| `save-guid` | request/response | command | 4 |
-| `get-guid` | request/response | command | 4 |
+| `save-guid` | request/response | **implemented command** | 4 |
+| `get-guid` | request/response | **implemented command** | 4 |
 
 **Logging, crashes and errors** (6)
 
@@ -850,6 +861,76 @@ directory-creation behavior. **Consequence:** the macOS clone chooser uses the n
 button/name-field presentation rather than `Select` / `Clone As:`; the selected path and cancellation
 contract are unchanged.
 
+### Credential storage selects persistence explicitly
+
+`keytar` becomes a Rust-owned store behind the unchanged TypeScript `TokenStore` contract. rdc pins
+`keyring` 3.6.3 because that API permits compile-time store selection and supplies an injectable mock:
+macOS enables Apple Keychain, Linux enables synchronous Secret Service, and the ephemeral
+`linux-native` kernel-keyring feature is deliberately absent. Windows stays in Phase 10. Every native
+call runs on the blocking pool and through one serialization gate; errors may name the backend
+operation but never include the secret value. **Consequence:** service/login pairs and missing/delete
+semantics remain compatible with `keytar`, while Linux credentials survive logout/reboot according to
+the desktop Secret Service rather than the kernel keyring's lifetime.
+
+### Desktop notification clicks bypass Tauri's notification plugin
+
+The planned `tauri-plugin-notification` adapter did not survive its implementation spike. Its desktop
+path displays through `notify-rust` but discards the returned handle and caller payload, its permission
+query always reports granted, and its action API is mobile-only. Those are structural mismatches with
+upstream's ID-keyed click callbacks rather than missing wrapper code.
+
+rdc pins `notify-rust` 4.18.0 directly, including its preview macOS
+`UNUserNotificationCenter` backend, and retains each response handle in Rust. One allocator supplies
+positive 32-bit IDs; one router consumes each response before targeting its live owner, the focused
+window, `main`, or a deterministic final live window. The frontend keeps the bounded callback cache
+and applies the payload fallback when no current callback matches. **Consequence:** Linux gains native
+notifications, while the macOS development binary cannot prove the backend because Apple notification
+delivery requires a bundled application identity. Packaged macOS display/permission/click, an isolated
+Linux notification-daemon click, Windows runtime/identity behavior, and delivery after a complete
+process relaunch remain explicit platform evidence rather than claimed parity.
+
+### The updater is one retained frontend resource, not six Rust events
+
+Squirrel owned update state in Electron's main process and exposed five lifecycle pushes plus a
+separate “show installing update” event. Tauri's updater returns an `Update` resource directly to the
+frontend, with check/download/install promises and download progress. `UpdateController` therefore
+owns that resource and its `checking` / `available` / `downloading` / `ready` / `installing` / error
+transitions in one place. Compatibility subscription functions observe those transitions in-process;
+no Rust event bus is recreated.
+
+Concurrent checks coalesce, a ready update cannot be replaced, failed downloads close their native
+resource, install failure returns to ready for retry, and disposal closes a late or retained resource.
+Destructive close is cancelled during download/install and emits the existing installing-update
+notification, while a hide-only close preserves the renderer and remains allowed. Installation uses
+only the retained update and relaunches through `tauri-plugin-process`.
+
+**Consequence:** the old `checkForUpdates(url)` argument is source compatibility only. Tauri verifies
+updates against a signed endpoint and public key from package configuration, so Phase 9 owns those
+values and any replacement for Squirrel's per-install `guid` rollout query. Until they land, the real
+plugin compiles and the complete lifecycle is fake-backend tested, but a live check/install is not
+claimed.
+
+### Windows target inventory is Phase 10, not a Phase 4 tail
+
+Phase 4 closes the shared and Linux/macOS implementation without calling Windows supported. Phase 10
+owns every native Windows implementation and runtime check below; Phase 9 supplies the shared signed
+package, single-instance and deep-link infrastructure it consumes.
+
+| Upstream seam | Phase 10 destination / acceptance |
+|---|---|
+| `lib/editors/win32.ts`, `lib/shells/win32.ts`, Windows `lib/custom-integration.ts` | Native registry/PATH/WSL discovery, Windows argv parsing, placeholder expansion and launch. Preserve the 11 shell labels/order already pinned in shared tests; prove discovery and launch on Windows CI. |
+| `lib/process/win32.ts`, `main-process/squirrel-updater.ts` CLI helpers | Native process capture plus HKCU `Environment\\Path` editing that preserves registry value type/order. Install rdc-owned `.bat` and POSIX/WSL shims in a stable per-user location and remove only rdc-owned entries. |
+| `lib/hooks/{get-shell,shell-escape,get-shell-env,with-hooks-env}.ts`, `lib/trampoline/**`, `lib/ssh/ssh.ts` | `BCryptGenRandom` tokens, packaged `.exe` sidecars, loopback/cancellation cleanup, privileged-symlink copy fallback, Git Bash/MSYS2/PowerShell/cmd quoting, `/c/...` key conversion and Windows OpenSSH/Git-for-Windows smoke tests. |
+| `lib/stores/token-store.ts` | Enable and prove keyring's Windows Credential Manager backend, including missing/overwrite/delete and persistence without secret-bearing errors. |
+| `main-process/notifications.ts`, `lib/find-toast-activator-clsid.ts` | Packaged AppUserModelID display/click/relaunch evidence. Determine whether Tauri supplies toast activation identity or whether rdc must register a CLSID/shortcut explicitly. |
+| `lib/get-architecture.ts` | Real WOW64/ARM64 translation detection, not the current false non-macOS fallback. |
+| `main-process/app-window.ts`, `main-process/shell.ts`, Phase 4 plugins | WebView2 qualification of custom title bar, menu/context/keybindings, zoom/window-state/focus/close, dialogs, opener/reveal, Recycle Bin trash, logging and relaunch. Preserve the trailing-backslash directory-open guard against same-name `.exe` launch. |
+| `main-process/main.ts`, `cli/**`, updater package | Windows protocol launcher argument, case-insensitive most-specific repository routing, first/second-instance delivery, selected signed installer target(s), install/update/uninstall and updater close/install/relaunch. |
+| System Git boundary | Pin supported Windows and Git-for-Windows versions (or record a bundling decision), test `git.exe`/`ssh.exe` discovery and `GlobalConfig::path` under `HOME`/`USERPROFILE`/`GIT_CONFIG_GLOBAL`, plus spaces, Unicode, UNC and long paths. |
+
+Portable Windows presentation such as labels, focus workarounds and preferences remains Phase 7 UI
+work; Phase 10 supplies and proves the native behavior those consumers call.
+
 ### Application close is one frontend decision, not three renderer-to-main flags
 
 Electron set `quitting` and `quittingEvenIfUpdating` flags synchronously in the main process, then
@@ -861,9 +942,12 @@ resolved the same application-state policy.
 
 **Consequence:** `will-quit`, `will-quit-even-if-updating` and `cancel-quitting` disappear together
 instead of becoming commands, so there is no cross-process state to race or reset. macOS keeps
-upstream's hide-on-close default. Linux and Windows default to quitting until Phase 4b's
-`hideWindowOnQuit` config is available, at which point the same decision function can return `hide`
-without changing the native boundary.
+upstream's hide-on-close default; Linux and Windows consult the persisted `hideWindowOnQuit`
+configuration. The same decision now cancels destructive close while the updater owns an active
+download/install, but permits hide because it preserves the renderer and native update resource. The
+default Tauri window capability includes enumeration but not mutation through `hide()`, so rdc grants
+`core:window:allow-hide` explicitly; a Rust test keeps that runtime permission adjacent to the
+frontend close contract.
 
 ### A new repository window receives its startup action through readiness
 

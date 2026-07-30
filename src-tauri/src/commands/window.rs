@@ -15,6 +15,25 @@ const ZOOM_FACTOR_CHANGED_EVENT: &str = "zoom-factor-changed";
 const LAUNCH_TIMING_STATS_EVENT: &str = "launch-timing-stats";
 
 #[tauri::command]
+pub fn beep() -> Result<(), CommandError> {
+    #[cfg(target_os = "macos")]
+    {
+        crate::platform::system::beep();
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err(CommandError::message("beep is only supported on macOS"))
+    }
+}
+
+#[tauri::command]
+pub async fn get_apple_action_on_double_click(
+) -> Result<crate::platform::system::AppleActionOnDoubleClick, CommandError> {
+    Ok(crate::platform::system::get_apple_action_on_double_click().await)
+}
+
+#[tauri::command]
 pub fn set_window_selected_repository(
     window: WebviewWindow,
     state: State<'_, WindowRoutingState>,

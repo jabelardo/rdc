@@ -9,12 +9,19 @@ const currentWindow = vi.hoisted(() => ({
 }))
 const getCurrentWindow = vi.hoisted(() => vi.fn(() => currentWindow))
 const getAllWindows = vi.hoisted(() => vi.fn())
+const getMainProcessConfig = vi.hoisted(() => vi.fn())
+const applicationUpdateController = vi.hoisted(() => ({
+  isCloseBlocked: false,
+  notifyCloseBlocked: vi.fn(),
+}))
 
 vi.mock('@tauri-apps/plugin-process', () => ({ exit, relaunch }))
 vi.mock('@tauri-apps/api/window', () => ({
   getAllWindows,
   getCurrentWindow,
 }))
+vi.mock('./config', () => ({ getMainProcessConfig }))
+vi.mock('./updater', () => ({ applicationUpdateController }))
 
 const {
   installCloseRequestHandler,
@@ -32,6 +39,13 @@ describe('application lifetime', () => {
     getCurrentWindow.mockClear()
     getAllWindows.mockReset()
     getAllWindows.mockResolvedValue([currentWindow])
+    getMainProcessConfig.mockReset()
+    getMainProcessConfig.mockResolvedValue({
+      titleBarStyle: 'native',
+      hideWindowOnQuit: false,
+    })
+    applicationUpdateController.isCloseBlocked = false
+    applicationUpdateController.notifyCloseBlocked.mockReset()
     currentWindow.destroy.mockReset()
     currentWindow.destroy.mockResolvedValue(undefined)
     currentWindow.hide.mockReset()
@@ -94,6 +108,30 @@ describe('application lifetime', () => {
     expect(currentWindow.hide).not.toHaveBeenCalled()
   })
 
+  it('preserves a useful error when a native close operation rejects without one', async () => {
+    const loggedError = vi.spyOn(log, 'error')
+    let closeHandler:
+      | ((event: { preventDefault: () => void }) => void)
+      | undefined
+    currentWindow.hide.mockRejectedValue(undefined)
+    currentWindow.onCloseRequested.mockImplementation(async handler => {
+      closeHandler = handler
+      return vi.fn()
+    })
+
+    await installCloseRequestHandler(() => 'hide')
+    closeHandler?.({ preventDefault: vi.fn() })
+
+    await vi.waitFor(() =>
+      expect(loggedError).toHaveBeenCalledWith(
+        'Failed to resolve native close request',
+        expect.objectContaining({
+          message: 'Unknown native close error',
+        })
+      )
+    )
+  })
+
   it('coalesces repeated close events while a decision is pending', async () => {
     const preventDefault = vi.fn()
     let closeHandler:
@@ -138,6 +176,72 @@ describe('application lifetime', () => {
 
     const action = expected === 'hide' ? currentWindow.hide : exit
     await vi.waitFor(() => expect(action).toHaveBeenCalledOnce())
+  })
+
+  it('hides the last non-macOS window when configured', async () => {
+    let closeHandler:
+      | ((event: { preventDefault: () => void }) => void)
+      | undefined
+    getMainProcessConfig.mockResolvedValue({
+      titleBarStyle: 'native',
+      hideWindowOnQuit: true,
+    })
+    currentWindow.onCloseRequested.mockImplementation(async handler => {
+      closeHandler = handler
+      return vi.fn()
+    })
+
+    await installDefaultCloseRequestHandler(false)
+    closeHandler?.({ preventDefault: vi.fn() })
+
+    await vi.waitFor(() =>
+      expect(currentWindow.hide).toHaveBeenCalledOnce()
+    )
+    expect(exit).not.toHaveBeenCalled()
+  })
+
+  it('cancels destructive close while an update is downloading or installing', async () => {
+    let closeHandler:
+      | ((event: { preventDefault: () => void }) => void)
+      | undefined
+    applicationUpdateController.isCloseBlocked = true
+    currentWindow.onCloseRequested.mockImplementation(async handler => {
+      closeHandler = handler
+      return vi.fn()
+    })
+
+    await installDefaultCloseRequestHandler(false)
+    closeHandler?.({ preventDefault: vi.fn() })
+    await vi.waitFor(() =>
+      expect(
+        applicationUpdateController.notifyCloseBlocked
+      ).toHaveBeenCalledOnce()
+    )
+
+    expect(exit).not.toHaveBeenCalled()
+    expect(currentWindow.destroy).not.toHaveBeenCalled()
+    expect(currentWindow.hide).not.toHaveBeenCalled()
+  })
+
+  it('still allows a hide-only close while an update is active', async () => {
+    let closeHandler:
+      | ((event: { preventDefault: () => void }) => void)
+      | undefined
+    applicationUpdateController.isCloseBlocked = true
+    currentWindow.onCloseRequested.mockImplementation(async handler => {
+      closeHandler = handler
+      return vi.fn()
+    })
+
+    await installDefaultCloseRequestHandler(true)
+    closeHandler?.({ preventDefault: vi.fn() })
+
+    await vi.waitFor(() =>
+      expect(currentWindow.hide).toHaveBeenCalledOnce()
+    )
+    expect(
+      applicationUpdateController.notifyCloseBlocked
+    ).not.toHaveBeenCalled()
   })
 
   it.each([true, false])(

@@ -13,15 +13,21 @@
 //!   a panic must never cross the boundary.
 //! - Commands doing IO are `async`, so they run off the main thread and can't freeze the UI.
 
+pub mod application_folder;
 pub mod branch;
+pub mod cli_installer;
+pub mod config;
+pub mod credential_store;
 pub mod editor;
 pub mod error;
 pub mod files;
 pub mod git;
+pub mod install_id;
 pub mod keybindings;
 pub mod log;
 pub mod menu;
 pub mod misc;
+pub mod notification;
 pub mod remote;
 pub mod shell;
 pub mod stash;

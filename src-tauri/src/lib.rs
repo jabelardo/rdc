@@ -69,6 +69,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
+        // Phase 4 owns the update mechanism and frontend state machine.
+        // Signed endpoints and the public key remain Phase 9 packaging data.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Persist geometry now, but do not let the plugin's automatic restore
         // show the main window before Phase 4a's renderer-ready handshake.
         .plugin(
@@ -84,7 +87,11 @@ pub fn run() {
         // Serializes keybinding config updates so two renderer windows cannot lose each other's
         // edits while performing the read/merge/write sequence.
         .manage(commands::keybindings::KeybindingState::new())
+        .manage(commands::config::MainProcessConfigState::new())
+        .manage(commands::credential_store::CredentialStoreState::new())
         .manage(platform::menu::NativeMenuState::new())
+        .manage(platform::install_id::InstallIdState::new())
+        .manage(platform::notification::NotificationState::new())
         .manage(platform::context_menu::ContextMenuState::new())
         .manage(platform::window::WindowRoutingState::default())
         .manage(platform::window::WindowZoomState::default())
@@ -128,6 +135,9 @@ pub fn run() {
                 window
                     .state::<platform::window::WindowRoutingState>()
                     .remove(window.label());
+                window
+                    .state::<platform::notification::NotificationState>()
+                    .remove_window(window.label());
             }
         })
         .on_menu_event(|app, event| {
@@ -164,9 +174,24 @@ pub fn run() {
             commands::keybindings::get_keybindings,
             commands::keybindings::set_keybinding,
             commands::keybindings::reset_keybindings,
+            commands::config::get_main_process_config,
+            commands::config::update_main_process_config,
+            commands::credential_store::set_credential,
+            commands::credential_store::get_credential,
+            commands::credential_store::delete_credential,
+            commands::application_folder::is_in_application_folder,
+            commands::application_folder::move_to_applications_folder,
+            commands::cli_installer::install_darwin_cli,
+            commands::install_id::get_guid,
+            commands::install_id::save_guid,
             commands::menu::set_native_menu,
             commands::menu::show_contextual_menu,
+            commands::notification::show_notification,
+            commands::notification::get_notifications_permission,
+            commands::notification::request_notifications_permission,
             commands::window::set_window_selected_repository,
+            commands::window::beep,
+            commands::window::get_apple_action_on_double_click,
             commands::window::open_repository_in_new_window,
             commands::window::get_current_window_zoom_factor,
             commands::window::set_window_zoom_factor,
@@ -265,6 +290,7 @@ pub fn run() {
             commands::worktree::remove_worktree,
             commands::worktree::move_worktree,
             commands::misc::get_config_value,
+            commands::misc::get_global_config_path,
             commands::misc::read_gitignore_at_root,
             commands::misc::save_gitignore,
             commands::misc::append_ignore_rules,
@@ -282,4 +308,30 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn desktop_capability_allows_lifetime_and_updater_operations() {
+        let capability: serde_json::Value =
+            serde_json::from_str(include_str!("../capabilities/default.json"))
+                .expect("default capability should be valid JSON");
+        let permissions = capability["permissions"]
+            .as_array()
+            .expect("default capability should list permissions");
+
+        assert!(
+            permissions
+                .iter()
+                .any(|permission| permission == "core:window:allow-hide"),
+            "the macOS close handler calls window.hide()"
+        );
+        assert!(
+            permissions
+                .iter()
+                .any(|permission| permission == "updater:default"),
+            "the frontend updater needs check, download and install permission"
+        );
+    }
 }

@@ -4,6 +4,8 @@ import {
   getCurrentWindow,
 } from '@tauri-apps/api/window'
 import { exit, relaunch } from '@tauri-apps/plugin-process'
+import { getMainProcessConfig } from './config'
+import { applicationUpdateController } from './updater'
 
 export type CloseRequestDecision = 'quit' | 'hide' | 'close' | 'cancel'
 
@@ -63,7 +65,15 @@ export function installCloseRequestHandler(
         }
       })
       .catch(error => {
-        log.error('Failed to resolve native close request', error)
+        const cause =
+          error instanceof Error
+            ? error
+            : new Error(
+                error === undefined
+                  ? 'Unknown native close error'
+                  : String(error)
+              )
+        log.error('Failed to resolve native close request', cause)
       })
       .finally(() => {
         decisionPending = false
@@ -72,16 +82,34 @@ export function installCloseRequestHandler(
 }
 
 /**
- * Preserve upstream's current platform default until Phase 4b supplies the
- * non-macOS hideWindowOnQuit preference: macOS hides, other platforms quit.
+ * Preserve upstream's platform close behavior: macOS always hides the last
+ * window, while Linux/Windows follow the persisted preference.
  */
 export function installDefaultCloseRequestHandler(
   isMacOS = __DARWIN__
 ): Promise<UnlistenFn> {
   return installCloseRequestHandler(async () => {
+    let decision: CloseRequestDecision
     if ((await getAllWindows()).length > 1) {
-      return 'close'
+      decision = 'close'
+    } else if (isMacOS) {
+      decision = 'hide'
+    } else {
+      decision = (await getMainProcessConfig()).hideWindowOnQuit
+        ? 'hide'
+        : 'quit'
     }
-    return isMacOS ? 'hide' : 'quit'
+
+    // Hiding preserves the renderer and its native Update resource. An actual
+    // close/quit would destroy the owner while transfer or installation is in
+    // progress, so preserve upstream's installing-update warning instead.
+    if (
+      decision !== 'hide' &&
+      applicationUpdateController.isCloseBlocked
+    ) {
+      applicationUpdateController.notifyCloseBlocked()
+      return 'cancel'
+    }
+    return decision
   })
 }

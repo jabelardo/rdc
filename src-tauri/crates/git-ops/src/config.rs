@@ -3,9 +3,6 @@
 //! Ported from `desktop-plus/app/src/lib/git/config.ts`.
 //!
 //! Not ported (tracked in MIGRATION_MAP.md):
-//! - `getGlobalConfigPath` — relies on `git config --edit` with `GIT_EDITOR=printf %s` to make git
-//!   print the path it *would* edit, creating the file as a side effect. Only needed for "open my
-//!   global config in an editor", which is a Phase 4 shell/editor concern.
 //! - `getConfigValueWithOrigin` and the `formatConfigScope`/`formatConfigPath`/
 //!   `isConditionalInclude`/`getOriginFilePath` helpers — the latter produce display strings such
 //!   as `"global, via [includeIf]"` and `"<repo>/.git/config"`, which are frontend presentation,
@@ -298,6 +295,36 @@ impl GlobalConfig {
         remove_value(Location::Global, name, self.env()).await
     }
 
+    /// Returns the global config file git would open, creating it if necessary.
+    ///
+    /// Asking git rather than assuming `~/.gitconfig` matters: `GIT_CONFIG_GLOBAL` can redirect the
+    /// file, and git owns the platform-specific path rules. The editor prints its argument instead
+    /// of opening an interactive process, preserving the original's observable side effect.
+    pub async fn path(&self) -> Result<PathBuf, GitError> {
+        let mut env = self.env();
+        // `echo` may interpret backslash escapes in a Windows path; `printf %s` prints the argument
+        // byte-for-byte. This is the same deliberately small editor command upstream used.
+        env.insert("GIT_EDITOR".to_owned(), "printf %s".to_owned());
+        let output = git(
+            &["config", "--edit", "--global"],
+            std::env::temp_dir(),
+            "getGlobalConfigPath",
+            GitOptions {
+                env,
+                ..GitOptions::default()
+            },
+        )
+        .await?;
+        let path = output.stdout_lossy();
+        if path.is_empty() {
+            return Err(GitError::Parse {
+                context: "getGlobalConfigPath".to_owned(),
+                message: "git's editor did not receive a config path".to_owned(),
+            });
+        }
+        Ok(PathBuf::from(path.into_owned()))
+    }
+
     /// Adds `path` to `safe.directory`, so git stops refusing to work in it.
     ///
     /// git rejects a repository owned by another user — "dubious ownership" — and
@@ -552,6 +579,29 @@ mod tests {
                 .await
                 .expect("an unset key is not an error"),
             None
+        );
+    }
+
+    #[tokio::test]
+    async fn global_path_is_the_file_git_would_edit_and_creates_it() {
+        let home = tempfile::tempdir().expect("failed to create a temporary HOME");
+        let global = GlobalConfig::with_home(home.path());
+        let expected = home.path().join(".gitconfig");
+
+        assert!(!expected.exists());
+        let actual = global
+            .path()
+            .await
+            .expect("finding the global config path should succeed");
+        assert!(
+            expected.is_file(),
+            "git config --edit creates the file before invoking the editor"
+        );
+        assert_eq!(
+            actual,
+            expected
+                .canonicalize()
+                .expect("the created config path should canonicalize")
         );
     }
 

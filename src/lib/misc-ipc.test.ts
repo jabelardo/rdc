@@ -40,6 +40,7 @@ const {
   getAuthorIdentity,
   cleanUntrackedFiles,
   addSafeDirectory,
+  getGlobalConfigPath,
   getConfigValue,
   appendIgnoreRules,
   appendIgnoreFiles,
@@ -301,6 +302,13 @@ describe('the expose-only commands', () => {
       name: 'core.autocrlf',
       onlyLocal: false,
     })
+  })
+
+  it('getGlobalConfigPath has no renderer-supplied filesystem input', async () => {
+    invoke.mockResolvedValue('/home/me/.gitconfig')
+
+    await expect(getGlobalConfigPath()).resolves.toBe('/home/me/.gitconfig')
+    expect(invoke).toHaveBeenCalledWith('get_global_config_path')
   })
 
   it('getConfigValue passes null through for an unset key', async () => {

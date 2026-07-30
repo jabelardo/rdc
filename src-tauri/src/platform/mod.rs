@@ -1,14 +1,20 @@
+pub mod application_folder;
+#[cfg(any(target_os = "macos", test))]
+pub mod cli_installer;
 pub mod context_menu;
 pub mod context_menu_model;
+pub mod credential_store;
 pub mod custom_integration;
 pub mod custom_integration_model;
 pub mod editor_model;
 pub mod editors;
 pub mod files;
+pub mod install_id;
 pub mod keybinding_model;
 pub mod keybindings;
 pub mod menu;
 pub mod menu_model;
+pub mod notification;
 pub mod shell_model;
 pub mod shells;
 pub mod system;

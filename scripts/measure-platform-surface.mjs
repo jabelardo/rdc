@@ -25,6 +25,7 @@ const PLATFORM_SOURCE = 'src/lib/platform'
 const PLATFORM_ADAPTER_FILES = [
   'src/lib/custom-integration.ts',
   'src/lib/menu/application-menu.ts',
+  'src/lib/stores/token-store.ts',
 ]
 
 const PROXY_FACTORIES = new Set(['invokeProxy', 'sendProxy'])
@@ -56,7 +57,6 @@ export const PHASE_4B_PROXY_EXPORTS = new Set([
 
 export const PHASE_4B_SUBSCRIPTIONS = new Set([
   'notification-event',
-  'url-action',
   'auto-updater-error',
   'auto-updater-checking-for-update',
   'auto-updater-update-available',
@@ -86,11 +86,18 @@ const DELETED_EXPORTS = new Map([
 // adapters necessarily have frontend-friendly names rather than channel names.
 const SUBSCRIPTION_ADAPTERS = new Map([
   ['app-menu', 'ApplicationMenuController'],
+  ['auto-updater-checking-for-update', 'onAutoUpdaterCheckingForUpdate'],
+  ['auto-updater-error', 'onAutoUpdaterError'],
+  ['auto-updater-update-available', 'onAutoUpdaterUpdateAvailable'],
+  ['auto-updater-update-downloaded', 'onAutoUpdaterUpdateDownloaded'],
+  ['auto-updater-update-not-available', 'onAutoUpdaterUpdateNotAvailable'],
   ['blur', 'onWindowFocusChanged'],
   ['focus', 'onWindowFocusChanged'],
   ['menu-event', 'onNativeMenuAction'],
   ['launch-timing-stats', 'onLaunchTimingStats'],
+  ['notification-event', 'onNotificationEvent'],
   ['native-theme-updated', 'onNativeThemeUpdated'],
+  ['show-installing-update', 'onShowInstallingUpdate'],
   ['window-state-changed', 'onWindowStateChanged'],
   ['zoom-factor-changed', 'onWindowZoomFactorChanged'],
 ])
@@ -163,6 +170,17 @@ const CONSUMER_OUTSIDE_PROXY = new Map([
     'installDefaultCloseRequestHandler',
     'the current React harness supplies Phase 4a platform-default close policy',
   ],
+  [
+    'UpdateController',
+    'fake-backend lifecycle tests now and the Phase 7 update store when its UI is ported',
+  ],
+  [
+    'applicationUpdateController',
+    'platform/lifetime.ts consults the retained update before destructive close',
+  ],
+  ['TokenStore', 'account and BYOK credential persistence; direct replacement for keytar'],
+  ['InstalledCLIPath', 'the Phase 7 CLI-installed dialog displays the installed launcher path'],
+  ['installCLI', 'the Phase 7 dispatcher invokes the direct macOS CLI installer'],
 ])
 
 function walk(dir) {

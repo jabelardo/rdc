@@ -59,8 +59,21 @@ tauri-plugin-window-state = "2.4.1"
 tauri-plugin-dialog = "2"
 tauri-plugin-os = "2"
 tauri-plugin-process = "2"
+tauri-plugin-updater = "=2.10.1"
 tauri-plugin-log = "2"
 trash = "5"
+# v3 lets rdc select one persistent store per supported host explicitly:
+# Apple Keychain on macOS and Secret Service on Linux. Deliberately omit
+# `linux-native` (ephemeral kernel keyring) and Windows until Phase 10.
+keyring = { version = "=3.6.3", default-features = false, features = ["apple-native", "sync-secret-service"] }
+# Tauri's notification plugin deliberately drops desktop click responses and
+# reports every desktop permission as granted. Keep the native handle instead:
+# Linux needs its D-Bus response and macOS needs the UNUserNotificationCenter
+# preview backend for real permission state and click delivery.
+notify-rust = { version = "=4.18.0", features = ["preview-macos-un"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+mac-usernotifications = "=0.3.1"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

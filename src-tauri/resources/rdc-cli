@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# Resolve through /usr/local/bin/rdc back into the application bundle.
+SCRIPT_PATH=$(/usr/bin/perl -MCwd=abs_path -e 'print abs_path($ARGV[0])' "$0")
+CONTENTS=$(/usr/bin/dirname "$(/usr/bin/dirname "$SCRIPT_PATH")")
+
+exec "$CONTENTS/MacOS/rdc" "$@"

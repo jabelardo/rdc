@@ -1,4 +1,7 @@
-use std::{fs, io, path::Path};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -15,9 +18,18 @@ pub enum TitleBarStyle {
     NativeWithoutMenuBar,
 }
 
-#[derive(Debug, Clone, Copy, Default, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MainProcessConfig {
     pub title_bar_style: TitleBarStyle,
+    pub hide_window_on_quit: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MainProcessConfigUpdate {
+    pub title_bar_style: Option<TitleBarStyle>,
+    pub hide_window_on_quit: Option<bool>,
 }
 
 #[derive(Debug, Error)]
@@ -30,6 +42,12 @@ pub enum ConfigError {
     },
     #[error("main-process config is not valid JSON: {0}")]
     Parse(#[from] serde_json::Error),
+    #[error("could not write main-process config at {path}: {source}")]
+    Write {
+        path: String,
+        #[source]
+        source: io::Error,
+    },
 }
 
 pub fn parse_main_process_config(source: &str) -> Result<MainProcessConfig, ConfigError> {
@@ -40,7 +58,44 @@ pub fn parse_main_process_config(source: &str) -> Result<MainProcessConfig, Conf
         .and_then(|value| serde_json::from_value(Value::String(value.to_owned())).ok())
         .unwrap_or_default();
 
-    Ok(MainProcessConfig { title_bar_style })
+    let hide_window_on_quit = value
+        .get("hideWindowOnQuit")
+        .and_then(Value::as_bool)
+        .unwrap_or_default();
+
+    Ok(MainProcessConfig {
+        title_bar_style,
+        hide_window_on_quit,
+    })
+}
+
+pub async fn update_main_process_config(
+    directory: PathBuf,
+    update: MainProcessConfigUpdate,
+) -> Result<MainProcessConfig, ConfigError> {
+    let mut config = read_main_process_config(&directory)?;
+    if let Some(title_bar_style) = update.title_bar_style {
+        config.title_bar_style = title_bar_style;
+    }
+    if let Some(hide_window_on_quit) = update.hide_window_on_quit {
+        config.hide_window_on_quit = hide_window_on_quit;
+    }
+
+    tokio::fs::create_dir_all(&directory)
+        .await
+        .map_err(|source| ConfigError::Write {
+            path: directory.display().to_string(),
+            source,
+        })?;
+    let path = directory.join(CONFIG_FILE_NAME);
+    let contents = serde_json::to_vec(&config)?;
+    tokio::fs::write(&path, contents)
+        .await
+        .map_err(|source| ConfigError::Write {
+            path: path.display().to_string(),
+            source,
+        })?;
+    Ok(config)
 }
 
 pub fn read_main_process_config(directory: &Path) -> Result<MainProcessConfig, ConfigError> {
@@ -106,9 +161,12 @@ pub fn title_bar_decision(platform: HostPlatform, style: TitleBarStyle) -> Title
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::{
-        parse_main_process_config, read_main_process_config, title_bar_decision, HostPlatform,
-        TitleBarStyle, CONFIG_FILE_NAME,
+        parse_main_process_config, read_main_process_config, title_bar_decision,
+        update_main_process_config, HostPlatform, MainProcessConfigUpdate, TitleBarStyle,
+        CONFIG_FILE_NAME,
     };
 
     #[test]
@@ -151,7 +209,85 @@ mod tests {
         let config = read_main_process_config(directory.path()).expect("missing config is valid");
 
         assert_eq!(config.title_bar_style, TitleBarStyle::Native);
+        assert!(!config.hide_window_on_quit);
         assert!(!directory.path().join(CONFIG_FILE_NAME).exists());
+    }
+
+    #[tokio::test]
+    async fn partial_updates_preserve_the_other_field_and_use_camel_case() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        update_main_process_config(
+            directory.path().to_owned(),
+            MainProcessConfigUpdate {
+                title_bar_style: Some(TitleBarStyle::Custom),
+                hide_window_on_quit: None,
+            },
+        )
+        .await
+        .expect("first update");
+        let config = update_main_process_config(
+            directory.path().to_owned(),
+            MainProcessConfigUpdate {
+                title_bar_style: None,
+                hide_window_on_quit: Some(true),
+            },
+        )
+        .await
+        .expect("second update");
+
+        assert_eq!(config.title_bar_style, TitleBarStyle::Custom);
+        assert!(config.hide_window_on_quit);
+        assert_eq!(
+            fs::read_to_string(directory.path().join(CONFIG_FILE_NAME)).expect("saved config"),
+            r#"{"titleBarStyle":"custom","hideWindowOnQuit":true}"#
+        );
+    }
+
+    #[tokio::test]
+    async fn an_update_survives_a_fresh_config_read() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        update_main_process_config(
+            directory.path().to_owned(),
+            MainProcessConfigUpdate {
+                title_bar_style: Some(TitleBarStyle::NativeWithoutMenuBar),
+                hide_window_on_quit: Some(true),
+            },
+        )
+        .await
+        .expect("update");
+
+        let reloaded =
+            read_main_process_config(directory.path()).expect("a fresh owner should read the file");
+
+        assert_eq!(
+            reloaded.title_bar_style,
+            TitleBarStyle::NativeWithoutMenuBar
+        );
+        assert!(reloaded.hide_window_on_quit);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn failed_writes_are_reported() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = tempfile::tempdir().expect("temp dir");
+        fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o500))
+            .expect("read-only directory");
+
+        let error = update_main_process_config(
+            directory.path().to_owned(),
+            MainProcessConfigUpdate {
+                hide_window_on_quit: Some(true),
+                ..MainProcessConfigUpdate::default()
+            },
+        )
+        .await
+        .expect_err("write should fail");
+
+        fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700))
+            .expect("restore directory permissions");
+        assert!(error.to_string().contains("could not write"));
     }
 
     #[test]
