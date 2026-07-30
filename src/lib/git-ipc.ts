@@ -17,7 +17,11 @@
  */
 
 import { Channel, invoke } from '@tauri-apps/api/core'
-import type { IHookProgress } from './hook-ipc'
+import {
+  hookFailureChannel,
+  type HookFailureCallback,
+  type IHookProgress,
+} from './hook-ipc'
 import { GitResetMode } from '../models/git-reset-mode'
 import type { AppFileStatus, GitStatusEntry } from '../models/status'
 import type { ManualConflictResolution } from '../models/manual-conflict-resolution'
@@ -144,6 +148,7 @@ export interface IFileToStage {
 export interface IHookOptions {
   readonly interceptHooks: boolean
   readonly onHookProgress?: (progress: IHookProgress) => void
+  readonly onHookFailure?: HookFailureCallback
 }
 
 /** A chunk of combined stdout/stderr from the Git commit process. */
@@ -159,6 +164,7 @@ function hookArgs(hooks: IHookOptions | undefined) {
   return {
     interceptHooks: hooks?.interceptHooks ?? false,
     onHookProgress: new Channel<IHookProgress>(hooks?.onHookProgress),
+    onHookFailure: hookFailureChannel(hooks?.onHookFailure),
   }
 }
 
@@ -226,13 +232,19 @@ export async function createCommit(
   hooks?: IHookOptions,
   onTerminalOutput?: TerminalOutputCallback
 ): Promise<string> {
-  return invoke<string>('create_commit', {
+  const hooksArguments = hookArgs(hooks)
+  const terminalOutputChannel = new Channel<string>(onTerminalOutput)
+
+  // Await here rather than returning invoke's promise directly. These locals keep all three Channel
+  // handlers alive until the native operation settles; a hook may not fail until minutes after commit
+  // starts, by which point a temporary Channel argument is eligible for collection.
+  return await invoke<string>('create_commit', {
     repositoryPath,
     message,
     files,
     options,
-    ...hookArgs(hooks),
-    onTerminalOutput: new Channel<string>(onTerminalOutput),
+    ...hooksArguments,
+    onTerminalOutput: terminalOutputChannel,
   })
 }
 
@@ -323,11 +335,12 @@ export async function mergeBranch(
   options?: IMergeOptions,
   hooks?: IHookOptions
 ): Promise<MergeResult> {
-  return invoke<MergeResult>('merge_branch', {
+  const hooksArguments = hookArgs(hooks)
+  return await invoke<MergeResult>('merge_branch', {
     repositoryPath,
     branch,
     options,
-    ...hookArgs(hooks),
+    ...hooksArguments,
   })
 }
 

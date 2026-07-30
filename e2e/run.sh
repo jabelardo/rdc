@@ -26,6 +26,7 @@ if ! kill -0 "${XVFB_PID}" 2>/dev/null; then
 fi
 
 echo "==> Building the debug application exercised by WebDriver..."
+cargo build --manifest-path src-tauri/Cargo.toml -p git-ops --bins
 pnpm tauri build --debug --no-bundle
 
 echo "==> Starting tauri-driver..."

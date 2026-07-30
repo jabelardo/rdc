@@ -15,6 +15,7 @@ vi.mock('@tauri-apps/plugin-opener', () => ({
 const {
   moveItemToTrash,
   openExternal,
+  permanentlyDeleteRepositoryPath,
   showFolderContents,
   showItemInFolder,
   unsafeOpenDirectory,
@@ -101,5 +102,19 @@ describe('native file operations', () => {
     expect(invoke).toHaveBeenCalledWith('move_item_to_trash', {
       path: '/tmp/old',
     })
+  })
+
+  it('permanently deletes only through the repository-relative command', async () => {
+    invoke.mockResolvedValue(undefined)
+
+    await permanentlyDeleteRepositoryPath('/repo', 'untracked/file.txt')
+
+    expect(invoke).toHaveBeenCalledWith(
+      'permanently_delete_repository_path',
+      {
+        repositoryPath: '/repo',
+        relativePath: 'untracked/file.txt',
+      }
+    )
   })
 })

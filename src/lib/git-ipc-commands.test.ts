@@ -74,6 +74,7 @@ describe('the git commands', () => {
       // side takes one unconditionally. Covered in hook-ipc.test.ts.
       interceptHooks: false,
       onHookProgress: expect.anything(),
+      onHookFailure: expect.anything(),
       onTerminalOutput: expect.any(Channel),
     })
     expect(sha).toHaveLength(40)
@@ -277,6 +278,7 @@ describe('the git commands', () => {
       options: { squash: true, noVerify: true },
       interceptHooks: false,
       onHookProgress: expect.anything(),
+      onHookFailure: expect.anything(),
     })
   })
 

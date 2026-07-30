@@ -307,6 +307,20 @@ export class DiffSelection {
   }
 
   /**
+   * Returns the selected absolute unified-diff indices for the native partial
+   * patch boundary.
+   */
+  public getSelectedLines(): ReadonlyArray<number> {
+    if (this.selectableLines === null) {
+      throw new Error('Selectable diff lines have not been loaded.')
+    }
+
+    return [...this.selectableLines]
+      .filter(line => this.isSelected(line))
+      .sort((left, right) => left - right)
+  }
+
+  /**
    * Returns a copy of this selection instance with a specified set of
    * selectable lines. By default a DiffSelection instance allows selecting
    * all lines (in fact, it has no notion of how many lines exists or what

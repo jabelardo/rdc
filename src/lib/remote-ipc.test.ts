@@ -131,6 +131,7 @@ describe('the remote commands', () => {
       // Hook interception is off unless asked for; covered in hook-ipc.test.ts.
       interceptHooks: false,
       onHookProgress: expect.anything(),
+      onHookFailure: expect.anything(),
     })
   })
 
@@ -245,6 +246,7 @@ describe('the remote commands', () => {
       onProgress: expect.anything(),
       interceptHooks: false,
       onHookProgress: expect.anything(),
+      onHookFailure: expect.anything(),
     })
   })
 

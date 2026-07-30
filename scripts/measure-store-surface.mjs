@@ -105,6 +105,10 @@ const RENAMED = new Map([
  */
 const CONSUMER_OUTSIDE_STORES = new Map([
   ['abort_hook', 'ours — the abort side of hook interception, consumed by the Phase 7 hook prompt'],
+  [
+    'resolve_hook_failure',
+    'ours — answers the Phase 7 failed-hook prompt through lib/hook-ipc.ts',
+  ],
   ['add_safe_directory', 'ui/missing-repository.tsx, ui/add-repository/add-existing-repository.tsx'],
   ['add_worktree', 'ui/worktrees/add-worktree-dialog.tsx'],
   ['get_description', 'ui/publish-repository/publish.tsx (upstream getGitDescription)'],
@@ -174,6 +178,10 @@ const CONSUMER_OUTSIDE_STORES = new Map([
     'Phase 4 platform adapter — lib/platform/system.ts',
   ],
   ['move_item_to_trash', 'Phase 4 platform adapter — lib/platform/files.ts'],
+  [
+    'permanently_delete_repository_path',
+    'Phase 7b discard recovery — lib/discard-changes.ts through lib/platform/files.ts',
+  ],
   [
     'move_to_applications_folder',
     'Phase 4 application-folder adapter — lib/platform/application-folder.ts',

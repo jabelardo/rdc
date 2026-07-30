@@ -64,3 +64,13 @@ function fileUrlToPath(target: string): string {
 export function moveItemToTrash(path: string): Promise<void> {
   return invoke('move_item_to_trash', { path })
 }
+
+export function permanentlyDeleteRepositoryPath(
+  repositoryPath: string,
+  relativePath: string
+): Promise<void> {
+  return invoke('permanently_delete_repository_path', {
+    repositoryPath,
+    relativePath,
+  })
+}

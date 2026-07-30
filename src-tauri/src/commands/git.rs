@@ -23,7 +23,7 @@ use git_ops::update_index::FileToStage;
 
 use super::CommandError;
 use crate::blob_protocol::BlobRegistry;
-use crate::hook_state::{support_for, HookRegistry};
+use crate::hook_state::{support_for, HookFailurePrompt, HookFailureResolution, HookRegistry};
 use git_ops::hooks::runner::HookProgressUpdate;
 use git_ops::MultiOperationTerminalOutput;
 use tauri::ipc::Channel;
@@ -91,10 +91,16 @@ pub async fn create_commit(
     options: Option<CommitOptions>,
     intercept_hooks: Option<bool>,
     on_hook_progress: Channel<HookProgressUpdate>,
+    on_hook_failure: Channel<HookFailurePrompt>,
     on_terminal_output: Channel<String>,
 ) -> Result<String, CommandError> {
-    let support = support_for(intercept_hooks.unwrap_or(false), &hooks, on_hook_progress)
-        .map_err(CommandError::message)?;
+    let support = support_for(
+        intercept_hooks.unwrap_or(false),
+        &hooks,
+        on_hook_progress,
+        on_hook_failure,
+    )
+    .map_err(CommandError::message)?;
     let terminal_output = MultiOperationTerminalOutput::default();
     let _terminal_subscription = terminal_output.subscribe(move |chunk| {
         // Losing the webview must not cancel a commit and leave the index in an unexpected state.
@@ -127,6 +133,16 @@ pub async fn create_commit(
 #[tauri::command]
 pub fn abort_hook(hooks: State<'_, HookRegistry>, id: u64) -> bool {
     hooks.abort(id)
+}
+
+/// Answers the prompt for a failed hook. A stale id is harmless and returns `false`.
+#[tauri::command]
+pub fn resolve_hook_failure(
+    hooks: State<'_, HookRegistry>,
+    id: u64,
+    resolution: HookFailureResolution,
+) -> bool {
+    hooks.resolve_failure(id, resolution)
 }
 
 /// Creates the commit that concludes an in-progress merge, and returns its full SHA.
@@ -264,9 +280,15 @@ pub async fn merge_branch(
     options: Option<MergeOptions>,
     intercept_hooks: Option<bool>,
     on_hook_progress: Channel<HookProgressUpdate>,
+    on_hook_failure: Channel<HookFailurePrompt>,
 ) -> Result<MergeResult, CommandError> {
-    let support = support_for(intercept_hooks.unwrap_or(false), &hooks, on_hook_progress)
-        .map_err(CommandError::message)?;
+    let support = support_for(
+        intercept_hooks.unwrap_or(false),
+        &hooks,
+        on_hook_progress,
+        on_hook_failure,
+    )
+    .map_err(CommandError::message)?;
 
     git_ops::merge::merge(
         &repository_path,

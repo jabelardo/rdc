@@ -15,7 +15,7 @@
  * something git will never run — or, worse, forget one it will.
  */
 
-import { invoke } from '@tauri-apps/api/core'
+import { Channel, invoke } from '@tauri-apps/api/core'
 
 /** Where a hook is in its life. Matches the original's `onHookProgress` status strings. */
 export type HookStatus = 'started' | 'finished' | 'failed'
@@ -36,6 +36,20 @@ export interface IHookProgress {
   readonly status: HookStatus
 }
 
+export type HookFailureResolution = 'abort' | 'ignore'
+
+/** A failed hook waiting for the user's decision. */
+export interface IHookFailurePrompt {
+  readonly id: number
+  readonly hook: string
+  readonly terminalOutput: string
+}
+
+export type HookFailureCallback = (
+  hook: string,
+  terminalOutput: string
+) => Promise<HookFailureResolution>
+
 /**
  * Stops a hook that is still running.
  *
@@ -47,4 +61,32 @@ export interface IHookProgress {
  */
 export async function abortHook(id: number): Promise<boolean> {
   return invoke<boolean>('abort_hook', { id })
+}
+
+/** Answers a failed-hook prompt. A stale prompt resolves to `false`. */
+export async function resolveHookFailure(
+  id: number,
+  resolution: HookFailureResolution
+): Promise<boolean> {
+  return invoke<boolean>('resolve_hook_failure', { id, resolution })
+}
+
+/**
+ * Creates the response Channel used by every hook-capable operation.
+ *
+ * Missing callbacks and callback failures abort conservatively. In particular, Rust must never wait
+ * forever merely because a caller enabled interception but forgot to install a prompt.
+ */
+export function hookFailureChannel(
+  onFailure?: HookFailureCallback
+): Channel<IHookFailurePrompt> {
+  return new Channel<IHookFailurePrompt>(prompt => {
+    void Promise.resolve<HookFailureResolution>(
+      onFailure?.(prompt.hook, prompt.terminalOutput) ?? 'abort'
+    )
+      .catch((): HookFailureResolution => 'abort')
+      .then(resolution =>
+        resolveHookFailure(prompt.id, resolution)
+      )
+  })
 }

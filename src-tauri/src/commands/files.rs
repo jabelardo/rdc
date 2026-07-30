@@ -23,6 +23,16 @@ pub async fn move_item_to_trash(path: PathBuf) -> Result<(), CommandError> {
 }
 
 #[tauri::command]
+pub async fn permanently_delete_repository_path(
+    repository_path: PathBuf,
+    relative_path: PathBuf,
+) -> Result<(), CommandError> {
+    files::permanently_delete_repository_path(&repository_path, &relative_path)
+        .await
+        .map_err(|error| CommandError::message(error.to_string()))
+}
+
+#[tauri::command]
 pub fn get_exec_path() -> Result<String, CommandError> {
     std::env::current_exe()
         .map_err(|error| CommandError::message(error.to_string()))?

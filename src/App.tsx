@@ -17,15 +17,32 @@ import {
   type AppStoreState,
 } from './lib/stores/app-store'
 import { getDefaultAppStore } from './lib/stores/default-app-store'
+import { getDefaultWorkingTreeStore } from './lib/stores/default-working-tree-store'
+import type { WorkingTreeState } from './lib/stores/working-tree-store'
+import { mapStatus } from './lib/status'
 import type { Repository } from './models/repository'
+import { DiffType } from './models/diff'
 import './App.css'
 
 const rendererStartTime = performance.now()
 
 function App() {
   const [appStore] = useState(getDefaultAppStore)
+  const [workingTreeStore] = useState(getDefaultWorkingTreeStore)
   const [appState, setAppState] = useState<AppStoreState>(appStore.state)
+  const [workingTreeState, setWorkingTreeState] =
+    useState<WorkingTreeState>(workingTreeStore.state)
   const [error, setError] = useState<string | null>(null)
+  const [commitMessage, setCommitMessage] = useState('')
+  const [useShellHookEnvironment, setUseShellHookEnvironment] =
+    useState(false)
+  const [commitTerminalOutput, setCommitTerminalOutput] = useState('')
+  const [discardFileID, setDiscardFileID] = useState<string | null>(
+    null
+  )
+  const [discarding, setDiscarding] = useState(false)
+  const [permanentlyDiscard, setPermanentlyDiscard] = useState(false)
+  const [discardSelection, setDiscardSelection] = useState(false)
 
   useEffect(() => {
     let disposed = false
@@ -108,6 +125,29 @@ function App() {
       controller?.dispose()
     }
   }, [appStore])
+
+  useEffect(() => {
+    const unsubscribe = workingTreeStore.onDidUpdate(setWorkingTreeState)
+    const repository = appState.selectedRepository
+    setDiscardFileID(null)
+    setDiscarding(false)
+    setPermanentlyDiscard(false)
+    setDiscardSelection(false)
+    if (repository === null) {
+      workingTreeStore.clear()
+    } else {
+      void workingTreeStore.load(repository.path)
+    }
+    return unsubscribe
+  }, [appState.selectedRepository, workingTreeStore])
+
+  useEffect(
+    () =>
+      workingTreeStore.onCommitTerminalOutput(
+        setCommitTerminalOutput
+      ),
+    [workingTreeStore]
+  )
 
   useEffect(() => {
     let disposed = false
@@ -211,6 +251,54 @@ function App() {
     }
   }
 
+  const discardFile =
+    workingTreeState.workingDirectory?.files.find(
+      file => file.id === discardFileID
+    ) ?? null
+  const selectedWorkingTreeFile =
+    workingTreeState.workingDirectory?.files.find(
+      file => file.id === workingTreeState.selectedFileID
+    ) ?? null
+  const hasSelectedDiffLines =
+    workingTreeState.diff?.kind === DiffType.Text &&
+    selectedWorkingTreeFile !== null &&
+    workingTreeState.diff.hunks.some(hunk =>
+      hunk.lines.some(
+        (line, index) =>
+          line.isIncludeableLine() &&
+          selectedWorkingTreeFile.selection.isSelected(
+            hunk.unifiedDiffStart + index
+          )
+      )
+    )
+
+  async function confirmDiscard() {
+    if (discardFile === null) {
+      return
+    }
+    setDiscarding(true)
+    if (discardSelection) {
+      const discarded = await workingTreeStore.discardSelectedLines()
+      setDiscarding(false)
+      if (discarded) {
+        setDiscardFileID(null)
+        setDiscardSelection(false)
+      }
+      return
+    }
+    const result = await workingTreeStore.discardFile(
+      discardFile.id,
+      permanentlyDiscard
+    )
+    setDiscarding(false)
+    if (result === 'discarded') {
+      setDiscardFileID(null)
+      setPermanentlyDiscard(false)
+    } else if (result === 'trash-failed') {
+      setPermanentlyDiscard(true)
+    }
+  }
+
   return (
     <main className="application-shell">
       <aside className="repository-sidebar" aria-label="Repositories">
@@ -300,6 +388,223 @@ function App() {
             >
               Open in new window
             </button>
+            <section
+              className="working-tree"
+              aria-label="Changes"
+            >
+              <h3>Changes</h3>
+              {workingTreeState.loading ? (
+                <p>Loading changes…</p>
+              ) : workingTreeState.error !== null ? (
+                <p className="application-error" role="alert">
+                  {workingTreeState.error}
+                </p>
+              ) : workingTreeState.workingDirectory === null ||
+                workingTreeState.workingDirectory.files.length === 0 ? (
+                <p>No local changes.</p>
+              ) : (
+                <ul className="working-tree-files">
+                  {workingTreeState.workingDirectory.files.map(file => (
+                    <li
+                      key={file.id}
+                      data-changed-file-path={file.path}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={`Include ${file.path}`}
+                        checked={file.isIncludedInCommit()}
+                        onChange={event =>
+                          workingTreeStore.setFileIncluded(
+                            file.id,
+                            event.currentTarget.checked
+                          )
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="working-tree-file-selection"
+                        aria-current={
+                          workingTreeState.selectedFileID === file.id
+                            ? 'true'
+                            : undefined
+                        }
+                        onClick={() =>
+                          void workingTreeStore.selectFile(file.id)
+                        }
+                      >
+                        <span>{file.path}</span>
+                        <small>{mapStatus(file.status)}</small>
+                      </button>
+                      <button
+                        type="button"
+                        className="working-tree-file-discard"
+                        aria-label={`Discard ${file.path}`}
+                        onClick={() => {
+                          setDiscardFileID(file.id)
+                          setPermanentlyDiscard(false)
+                          setDiscardSelection(false)
+                        }}
+                      >
+                        Discard
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            <section
+              className="working-tree-diff"
+              aria-label="File diff"
+            >
+              {workingTreeState.diffLoading ? (
+                <p>Loading diff…</p>
+              ) : workingTreeState.diffError !== null ? (
+                <p className="application-error" role="alert">
+                  {workingTreeState.diffError}
+                </p>
+              ) : workingTreeState.diff === null ? null : workingTreeState
+                  .diff.kind === DiffType.Text ? (
+                <>
+                  <div
+                    className="working-tree-diff-lines"
+                    role="table"
+                    aria-label="Selectable diff lines"
+                  >
+                    {workingTreeState.diff.hunks.flatMap(
+                      (hunk, hunkIndex) =>
+                        hunk.lines.map((line, lineIndex) => {
+                          const absoluteIndex =
+                            hunk.unifiedDiffStart + lineIndex
+                          const includeable = line.isIncludeableLine()
+                          return (
+                            <div
+                              className="working-tree-diff-line"
+                              role="row"
+                              key={`${hunkIndex}-${absoluteIndex}`}
+                              data-diff-line-index={absoluteIndex}
+                            >
+                              {includeable &&
+                              selectedWorkingTreeFile !== null ? (
+                                <input
+                                  type="checkbox"
+                                  aria-label={`Include diff line ${absoluteIndex}: ${line.content}`}
+                                  checked={selectedWorkingTreeFile.selection.isSelected(
+                                    absoluteIndex
+                                  )}
+                                  disabled={
+                                    workingTreeState.commitLoading
+                                  }
+                                  onChange={event =>
+                                    workingTreeStore.setLineIncluded(
+                                      absoluteIndex,
+                                      event.currentTarget.checked
+                                    )
+                                  }
+                                />
+                              ) : (
+                                <span aria-hidden="true" />
+                              )}
+                              <span className="diff-line-number">
+                                {line.oldLineNumber ?? ''}
+                              </span>
+                              <span className="diff-line-number">
+                                {line.newLineNumber ?? ''}
+                              </span>
+                              <code>{line.text}</code>
+                            </div>
+                          )
+                        })
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="discard-selected-lines"
+                    disabled={!hasSelectedDiffLines}
+                    onClick={() => {
+                      if (selectedWorkingTreeFile !== null) {
+                        setDiscardFileID(selectedWorkingTreeFile.id)
+                        setDiscardSelection(true)
+                        setPermanentlyDiscard(false)
+                      }
+                    }}
+                  >
+                    Discard selected lines
+                  </button>
+                </>
+              ) : workingTreeState.diff.kind === DiffType.LargeText ? (
+                <pre>{workingTreeState.diff.text}</pre>
+              ) : workingTreeState.diff.kind === DiffType.Binary ? (
+                <p>Binary file cannot be displayed.</p>
+              ) : workingTreeState.diff.kind === DiffType.Image ? (
+                <p>Image preview is not available yet.</p>
+              ) : workingTreeState.diff.kind === DiffType.Submodule ? (
+                <p>Submodule change.</p>
+              ) : (
+                <p>Diff cannot be displayed.</p>
+              )}
+            </section>
+            {workingTreeState.workingDirectory !== null &&
+              workingTreeState.workingDirectory.files.length > 0 && (
+                <form
+                  className="commit-form"
+                  aria-label="Commit changes"
+                  onSubmit={event => {
+                    event.preventDefault()
+                    void workingTreeStore
+                      .commit(commitMessage, useShellHookEnvironment)
+                      .then(sha => {
+                        if (sha !== null) {
+                          setCommitMessage('')
+                        }
+                      })
+                  }}
+                >
+                  <label htmlFor="commit-message">
+                    Commit message
+                  </label>
+                  <input
+                    id="commit-message"
+                    value={commitMessage}
+                    onChange={event =>
+                      setCommitMessage(event.currentTarget.value)
+                    }
+                  />
+                  <label className="commit-option">
+                    <input
+                      type="checkbox"
+                      checked={useShellHookEnvironment}
+                      disabled={workingTreeState.commitLoading}
+                      onChange={event =>
+                        setUseShellHookEnvironment(
+                          event.currentTarget.checked
+                        )
+                      }
+                    />
+                    Run hooks with the shell environment
+                  </label>
+                  <button
+                    type="submit"
+                    disabled={workingTreeState.commitLoading}
+                  >
+                    {workingTreeState.commitLoading
+                      ? 'Committing…'
+                      : 'Commit included files'}
+                  </button>
+                  {workingTreeState.commitError !== null && (
+                    <p className="application-error" role="alert">
+                      {workingTreeState.commitError}
+                    </p>
+                  )}
+                  {commitTerminalOutput.length > 0 && (
+                    <pre
+                      className="commit-terminal-output"
+                      aria-label="Commit terminal output"
+                    >
+                      {commitTerminalOutput}
+                    </pre>
+                  )}
+                </form>
+              )}
           </div>
         )}
 
@@ -309,6 +614,105 @@ function App() {
           </p>
         )}
       </section>
+      {discardFile !== null && (
+        <div className="dialog-backdrop">
+          <section
+            className="confirmation-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="discard-dialog-title"
+            aria-describedby="discard-dialog-message"
+          >
+            <h2 id="discard-dialog-title">
+              {permanentlyDiscard
+                ? 'Permanently discard changes'
+                : 'Confirm discard changes'}
+            </h2>
+            <p>
+              Are you sure you want to discard{' '}
+              {discardSelection ? 'the selected changes to ' : 'all changes to '}
+              <strong>{discardFile.path}</strong>?
+            </p>
+            <p id="discard-dialog-message">
+              {discardSelection
+                ? 'Selected changes cannot be restored from the operating system trash.'
+                : permanentlyDiscard
+                ? 'Changes cannot be restored after deletion.'
+                : 'Changes can be restored from the operating system trash.'}
+            </p>
+            {workingTreeState.error !== null && (
+              <p className="application-error" role="alert">
+                {workingTreeState.error}
+              </p>
+            )}
+            <div className="confirmation-dialog-actions">
+              <button
+                type="button"
+                disabled={discarding}
+                onClick={() => {
+                  setDiscardFileID(null)
+                  setPermanentlyDiscard(false)
+                  setDiscardSelection(false)
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="destructive-button"
+                disabled={discarding}
+                onClick={() => void confirmDiscard()}
+              >
+                {discarding
+                  ? 'Discarding…'
+                  : permanentlyDiscard
+                    ? 'Permanently discard changes'
+                    : 'Discard changes'}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+      {workingTreeState.hookFailure !== null && (
+        <div className="dialog-backdrop">
+          <section
+            className="confirmation-dialog"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="hook-failure-title"
+            aria-describedby="hook-failure-message"
+          >
+            <h2 id="hook-failure-title">Git hook failed</h2>
+            <p id="hook-failure-message">
+              The{' '}
+              <strong>{workingTreeState.hookFailure.hook}</strong> hook
+              failed. Abort the commit, or ignore this failure and
+              continue?
+            </p>
+            <pre className="commit-terminal-output">
+              {workingTreeState.hookFailure.terminalOutput}
+            </pre>
+            <div className="confirmation-dialog-actions">
+              <button
+                type="button"
+                onClick={() =>
+                  workingTreeStore.resolveHookFailure('abort')
+                }
+              >
+                Abort commit
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  workingTreeStore.resolveHookFailure('ignore')
+                }
+              >
+                Ignore hook failure
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   )
 }

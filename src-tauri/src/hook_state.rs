@@ -10,9 +10,13 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
-use git_ops::hooks::runner::{HookAbort, HookProgress, HookProgressUpdate, HookStatus};
+use git_ops::hooks::runner::{
+    FailureDecision, HookAbort, HookProgress, HookProgressUpdate, HookStatus,
+};
 use git_ops::hooks::with_env::HookSupport;
+use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
+use tokio::sync::oneshot;
 
 /// The hooks currently running, so a cancel from the UI can reach one.
 ///
@@ -21,6 +25,7 @@ use tauri::ipc::Channel;
 #[derive(Debug, Clone, Default)]
 pub struct HookRegistry {
     running: Arc<Mutex<HashMap<u64, Running>>>,
+    pending_failures: Arc<Mutex<HashMap<u64, oneshot::Sender<FailureDecision>>>>,
     next_id: Arc<AtomicU64>,
 }
 
@@ -42,7 +47,7 @@ impl HookRegistry {
     fn record(&self, hook: &str, abort: HookAbort) -> u64 {
         // Relaxed is enough: the value only has to be unique, and nothing orders against it.
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        self.lock().insert(
+        self.lock_running().insert(
             id,
             Running {
                 hook: hook.to_owned(),
@@ -58,7 +63,7 @@ impl HookRegistry {
     /// the name identifies the run; if two operations somehow overlap on the same hook, the earlier entry
     /// is retired first, which is the order they started in.
     fn finish(&self, hook: &str) -> Option<u64> {
-        let mut running = self.lock();
+        let mut running = self.lock_running();
         let id = running
             .iter()
             .filter(|(_, entry)| entry.hook == hook)
@@ -71,7 +76,7 @@ impl HookRegistry {
     /// Stops a running hook. `false` when it had already ended, which is not an error — the user simply
     /// cancelled a moment too late.
     pub fn abort(&self, id: u64) -> bool {
-        match self.lock().remove(&id) {
+        match self.lock_running().remove(&id) {
             Some(entry) => {
                 entry.abort.abort();
                 true
@@ -80,13 +85,58 @@ impl HookRegistry {
         }
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<u64, Running>> {
+    fn ask_about_failure(&self) -> (u64, oneshot::Receiver<FailureDecision>) {
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        let (sender, receiver) = oneshot::channel();
+        self.lock_pending_failures().insert(id, sender);
+        (id, receiver)
+    }
+
+    pub fn resolve_failure(&self, id: u64, resolution: HookFailureResolution) -> bool {
+        let decision = match resolution {
+            HookFailureResolution::Abort => FailureDecision::Fail,
+            HookFailureResolution::Ignore => FailureDecision::Ignore,
+        };
+
+        self.lock_pending_failures()
+            .remove(&id)
+            .is_some_and(|sender| sender.send(decision).is_ok())
+    }
+
+    fn cancel_failure(&self, id: u64) {
+        self.lock_pending_failures().remove(&id);
+    }
+
+    fn lock_running(&self) -> std::sync::MutexGuard<'_, HashMap<u64, Running>> {
         // A poisoned mutex would mean a panic while holding it, which these small critical sections cannot
         // do. Recovering keeps a panic elsewhere from disabling cancellation.
         self.running
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
+
+    fn lock_pending_failures(
+        &self,
+    ) -> std::sync::MutexGuard<'_, HashMap<u64, oneshot::Sender<FailureDecision>>> {
+        self.pending_failures
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HookFailureResolution {
+    Abort,
+    Ignore,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HookFailurePrompt {
+    pub id: u64,
+    pub hook: String,
+    pub terminal_output: String,
 }
 
 /// Where the helper binaries live.
@@ -117,23 +167,18 @@ pub fn helper_binary(name: &str) -> Result<PathBuf, String> {
 /// `None` when the caller didn't ask to intercept, which is the default: whether to intercept is a user
 /// setting, and until the preferences UI exists (Phase 7) nothing turns it on.
 ///
-/// # The failure prompt is deliberately not wired
-///
-/// A failing hook can be *ignored* by the user, which needs a question answered by the UI. That seam is
-/// [`HookSupport::with_failure_prompt`], and it is left at its conservative default here: a failure is a
-/// failure, so git aborts the operation exactly as it would without rdc involved. The same choice as the
-/// trampoline's `Decline` for credentials — declining is correct behaviour, not a stub — and Phase 7
-/// supplies the dialog by filling in that seam rather than by changing anything here.
 pub fn support_for(
     intercept: bool,
     registry: &HookRegistry,
     on_progress: Channel<HookProgressUpdate>,
+    on_failure: Channel<HookFailurePrompt>,
 ) -> Result<Option<HookSupport>, String> {
     if !intercept {
         return Ok(None);
     }
 
-    let registry = registry.clone();
+    let progress_registry = registry.clone();
+    let failure_registry = registry.clone();
 
     Ok(Some(
         HookSupport::new(
@@ -142,11 +187,13 @@ pub fn support_for(
         )
         .with_progress(move |progress: HookProgress| {
             let id = match progress.status {
-                HookStatus::Started => registry.record(&progress.hook, progress.abort.clone()),
+                HookStatus::Started => {
+                    progress_registry.record(&progress.hook, progress.abort.clone())
+                }
                 // Retired here rather than left to accumulate: an ended hook cannot be aborted, and the
                 // table should hold only what can be.
                 HookStatus::Finished | HookStatus::Failed => {
-                    registry.finish(&progress.hook).unwrap_or_default()
+                    progress_registry.finish(&progress.hook).unwrap_or_default()
                 }
             };
 
@@ -157,6 +204,60 @@ pub fn support_for(
                 hook: progress.hook,
                 status: progress.status,
             });
+        })
+        .with_failure_prompt(move |hook, output| {
+            let registry = failure_registry.clone();
+            let on_failure = on_failure.clone();
+            async move {
+                let (id, resolution) = registry.ask_about_failure();
+                if on_failure
+                    .send(HookFailurePrompt {
+                        id,
+                        hook,
+                        terminal_output: String::from_utf8_lossy(&output).into_owned(),
+                    })
+                    .is_err()
+                {
+                    registry.cancel_failure(id);
+                    return FailureDecision::Fail;
+                }
+
+                resolution.await.unwrap_or(FailureDecision::Fail)
+            }
         }),
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn resolves_a_pending_failure_once() {
+        let registry = HookRegistry::new();
+        let (id, receiver) = registry.ask_about_failure();
+
+        assert!(registry.resolve_failure(id, HookFailureResolution::Ignore));
+        assert_eq!(
+            receiver.await.expect("the decision should arrive"),
+            FailureDecision::Ignore
+        );
+        assert!(
+            !registry.resolve_failure(id, HookFailureResolution::Abort),
+            "a stale UI response must be harmless"
+        );
+    }
+
+    #[tokio::test]
+    async fn cancelling_a_prompt_fails_closed() {
+        let registry = HookRegistry::new();
+        let (id, receiver) = registry.ask_about_failure();
+
+        registry.cancel_failure(id);
+
+        assert!(
+            receiver.await.is_err(),
+            "dropping the response sender makes the caller use its abort fallback"
+        );
+    }
 }

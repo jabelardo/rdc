@@ -37,6 +37,52 @@ pub fn move_to_trash(path: &Path) -> Result<(), trash::Error> {
     trash::delete(path)
 }
 
+pub async fn permanently_delete_repository_path(
+    repository: &Path,
+    relative_path: &Path,
+) -> io::Result<()> {
+    use std::path::Component;
+
+    let mut components = relative_path.components();
+    let Some(Component::Normal(first)) = components.next() else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "repository path must be a non-empty relative path",
+        ));
+    };
+    if first
+        .to_str()
+        .is_some_and(|component| component.eq_ignore_ascii_case(".git"))
+        || components.any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "repository path may not target .git or escape the repository",
+        ));
+    }
+
+    let target = repository.join(relative_path);
+    let canonical_repository = tokio::fs::canonicalize(repository).await?;
+    let canonical_parent = tokio::fs::canonicalize(
+        target
+            .parent()
+            .ok_or_else(|| io::Error::other("repository path has no parent"))?,
+    )
+    .await?;
+    if !canonical_parent.starts_with(&canonical_repository) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "repository path escapes through a symbolic link",
+        ));
+    }
+    let metadata = tokio::fs::symlink_metadata(&target).await?;
+    if metadata.is_dir() && !metadata.file_type().is_symlink() {
+        tokio::fs::remove_dir_all(target).await
+    } else {
+        tokio::fs::remove_file(target).await
+    }
+}
+
 #[cfg(target_os = "macos")]
 async fn is_macos_application_bundle(path: &Path) -> io::Result<bool> {
     let output = tokio::process::Command::new("/usr/bin/mdls")
@@ -73,8 +119,10 @@ fn parse_macos_bundle_metadata(output: &[u8]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        classify_folder_open, move_to_trash, parse_macos_bundle_metadata, FolderOpenAction,
+        classify_folder_open, move_to_trash, parse_macos_bundle_metadata,
+        permanently_delete_repository_path, FolderOpenAction,
     };
+    use std::path::Path;
     use tempfile::tempdir;
 
     #[tokio::test]
@@ -136,5 +184,57 @@ mod tests {
 
         assert!(move_to_trash(&directory.path().join("missing")).is_err());
         assert!(directory.path().exists());
+    }
+
+    #[tokio::test]
+    async fn permanently_deletes_only_relative_repository_contents() {
+        let directory = tempdir().expect("temporary directory");
+        let nested = directory.path().join("nested");
+        std::fs::create_dir(&nested).expect("create nested directory");
+        std::fs::write(nested.join("file.txt"), "content").expect("write file");
+
+        permanently_delete_repository_path(directory.path(), Path::new("nested"))
+            .await
+            .expect("delete nested directory");
+
+        assert!(!nested.exists());
+        assert!(directory.path().exists());
+    }
+
+    #[tokio::test]
+    async fn permanent_delete_rejects_repository_escape_and_git_metadata() {
+        let directory = tempdir().expect("temporary directory");
+        let git = directory.path().join(".git");
+        std::fs::create_dir(&git).expect("create git directory");
+        std::fs::write(git.join("sentinel"), "keep").expect("write sentinel");
+
+        for unsafe_path in ["", "..", "../outside", "/tmp/outside", ".git/sentinel"] {
+            assert!(
+                permanently_delete_repository_path(directory.path(), Path::new(unsafe_path))
+                    .await
+                    .is_err(),
+                "{unsafe_path:?} should be rejected"
+            );
+        }
+
+        assert!(git.join("sentinel").exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn permanent_delete_rejects_a_symlinked_parent_escape() {
+        let directory = tempdir().expect("temporary directory");
+        let outside = tempdir().expect("outside directory");
+        let sentinel = outside.path().join("sentinel");
+        std::fs::write(&sentinel, "keep").expect("write sentinel");
+        std::os::unix::fs::symlink(outside.path(), directory.path().join("link"))
+            .expect("create symlink");
+
+        assert!(
+            permanently_delete_repository_path(directory.path(), Path::new("link/sentinel"))
+                .await
+                .is_err()
+        );
+        assert!(sentinel.exists());
     }
 }

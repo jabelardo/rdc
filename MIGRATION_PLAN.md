@@ -2702,16 +2702,93 @@ native chooser is likewise not used as proof of close-request behavior; its focu
 and the manual macOS close gesture own that evidence. Keep these automation gaps explicit until a
 product-level driver signal replaces timing and X11 input injection.
 
-#### Phase 7b — working tree, diff and commit
+#### Phase 7b — working tree, diff and commit — **MVP COMPLETE**
 
 - Port the changes list, text diff, selection, stage/unstage, discard confirmation and commit form.
 - Consume Phase 3's commit terminal Channel: subscribe before invoking, retain at most 256 KiB,
   replay to late progress-dialog subscribers and clear it when the operation ends.
-- Connect hook failure to its abort/ignore response seam. The complete xterm presentation may
-  fast-follow if a bounded textual progress view is sufficient for the first slice.
-- Move `app/src/highlighter/**` here as a Vite `?worker` import if syntax-highlighted diffs are part
-  of the exposed MVP.
+- Connect hook failure to its abort/ignore response seam.
+- Rich xterm presentation and syntax-highlighted diffs are explicitly Phase 7f parity work; the
+  bounded textual surfaces are sufficient for the MVP.
 - E2E: edit a file, inspect its diff, stage it and commit it.
+
+**Read-only working-tree slice complete:** `WorkingTreeStore` converts Phase 3's raw status facts
+into the upstream `WorkingDirectoryFileChange` model, keeping inclusion/partial-diff selection in
+TypeScript, honoring `startsUnselected`, and sorting paths case-insensitively. Repository switches
+discard stale status responses. The harness-free shell exposes honest loading, empty, error and
+changed-file states without stage controls yet; the Linux journey opens a genuinely dirty repository
+and observes its untracked file in the Changes surface before proving process-restart persistence.
+
+**Selected-file diff slice complete:** status refresh preserves the selected file and frontend-owned
+inclusion selection when its stable file ID remains, otherwise selecting the first sorted file.
+Diff loading uses Phase 3's hydrated `getWorkingDirectoryDiff` boundary and rejects a response if
+the repository or selected file changed while Git was running. The shell renders text/large-text
+content and honest binary/image/submodule/unrenderable placeholders. The same Linux dirty-repository
+journey now asserts the untracked file's real unified diff reaches the product surface.
+
+**Whole-file inclusion slice complete:** each changed-file row now exposes the upstream checkbox
+semantics. Toggling it changes only frontend `DiffSelection` state—Git's index is deliberately not
+mutated eagerly—and recalculates the aggregate include-all value. A subsequent status refresh
+preserves that selection by stable file ID. The Linux journey checks the real file begins included
+and can be excluded through the product surface; the commit-form slice will translate included files
+into Phase 3's `IFileToStage` contract.
+
+**Minimum commit-form slice complete:** the shell accepts a commit message and sends only included
+whole files through Phase 3's `createCommit`. The frontend translation preserves rename/copy source
+paths and deletion facts; empty messages, empty inclusion, unresolved conflicts and not-yet-exposed
+partial selections fail closed. Success reloads status and clears the form. The Linux journey now
+configures repository-local identity, excludes and re-includes its real file, creates the repository's
+first commit through the product surface, verifies Git's commit subject and observes a clean tree.
+
+**Commit terminal-history slice complete:** `WorkingTreeStore` subscribes a bounded replay buffer to
+Phase 3's command-scoped terminal Channel before invoking `createCommit`. It retains the latest 256 KiB
+using upstream's JavaScript character-count semantics, streams snapshots to the shell's textual progress
+view, replays the current snapshot to late subscribers and clears it when the operation finishes or the
+repository is torn down. Full xterm presentation is deferred to Phase 7f.
+
+**Recoverable whole-file discard slice complete:** each changed file exposes an accessible warning
+dialog before destructive work begins. The frontend preserves upstream's split: modified, new, untracked,
+copy and rename destinations move through the native OS trash command; deleted paths are restored from
+Git; rename sources are restored; and submodules are reset without moving their repository directories
+to trash. Index inspection limits resets to paths that actually differ from `HEAD`, then the selected
+paths are checked out and status is refreshed. A trash failure is surfaced and leaves the confirmation
+open—there is deliberately no silent permanent-delete fallback. The Ubuntu 26.04 journey creates and
+discards a real untracked file through this product surface and observes the clean tree.
+
+**Trash-failure recovery slice complete:** only a typed trash failure advances the dialog to a second,
+explicit irreversible warning; Git/reset errors remain ordinary failures. Confirming that warning uses
+a new repository-scoped Rust command for the one case upstream removed with Node's `fs.rm`: a selected
+untracked path. The native boundary accepts a repository root and relative path rather than an arbitrary
+absolute deletion target, rejects empty/absolute/parent paths and `.git`, and rejects a symlinked parent
+that escapes the canonical repository before recursively deleting. Modified tracked files are overwritten
+by the subsequent index checkout exactly as upstream did. The IPC measurement is green at 144 registered
+commands: 98 store imports, 46 named consumers elsewhere, zero consumerless commands and 144 typed
+wrappers.
+
+**Partial-line selection, commit and discard slice complete:** the exact absolute unified-diff indices
+from each hydrated text hunk now become the file's selectable-line set. Additions and deletions are
+selectable; context and hunk headers are not. A partial commit sends Phase 3's existing
+`IFileToStage.partial` shape with the domain status and sorted selected indices, while a partial discard
+sends the exact displayed `ITextDiff` with those indices so Git rejects a stale patch instead of
+discarding different content. The shell exposes a minimal accessible unified-line surface; large-text
+diffs remain whole-file-only rather than pretending they can be partially selected. The Ubuntu 26.04
+journey commits one selected line from a real two-line untracked file, verifies the committed blob,
+discards the remaining working-tree line through the confirmation surface and observes a clean tree.
+
+**Hook-failure decision slice complete:** commits can explicitly opt into Phase 3's login-shell hook
+interception through the temporary minimum commit-form checkbox. Progress, terminal output and an
+ID-scoped failure prompt cross command Channels; the prompt resolves exactly once through
+`resolve_hook_failure`, with Abort and Ignore choices and conservative abort when the callback or
+webview disappears. The Ubuntu 26.04 journey installs a real failing `pre-commit` hook, observes its
+name and output, ignores the failure, and verifies the intended partial commit. Persisted hook
+preferences, shell selection, richer progress presentation and syntax highlighting remain Phase 7f
+parity work rather than MVP blockers.
+
+**Closed 2026-07-30:** the Phase 7b MVP workflow is complete: status, selected-file text diff,
+whole-file and partial-line inclusion, commit, bounded terminal history, hook-failure resolution,
+recoverable/permanent whole-file discard and partial-line discard all run through the product shell.
+The real Linux journey covers the complete dirty-repository path and all repository quality gates
+remain the closure standard.
 
 #### Phase 7c — history, branches and minimum conflict recovery
 
@@ -2744,6 +2821,8 @@ product-level driver signal replaces timing and X11 input injection.
 
 - GitHub accounts/collaboration, stashes, tags, advanced merge/rebase flows, worktrees, LFS,
   submodules, advanced preferences, keybinding preferences and other surfaces not required above.
+- Add syntax-highlighted diffs through the Vite worker and the full xterm hook/operation progress
+  presentation; move the temporary commit-form hook toggle into persisted hook preferences.
 - Finish webview-native edit context menus and spell checking with their text-input consumers.
   WebKitGTK suggestions and the Wayland-safe replacement for Electron's synthetic `editMenu` remain
   an explicit investigation, not an MVP blocker.

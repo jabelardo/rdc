@@ -24,7 +24,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   },
 }))
 
-const { abortHook } = await import('./hook-ipc')
+const { abortHook, resolveHookFailure } = await import('./hook-ipc')
 const { createCommit, mergeBranch } = await import('./git-ipc')
 const { push, pull } = await import('./remote-ipc')
 
@@ -73,9 +73,10 @@ describe('asking for interception', () => {
     // than quietly unreported progress.
     await createCommit(REPO, 'message', [])
 
-    expect(channelInstances).toHaveLength(2)
+    expect(channelInstances).toHaveLength(3)
     expect(channelInstances[0].handler).toBeUndefined()
-    expect(channelInstances[1].handler).toBeUndefined()
+    expect(channelInstances[1].handler).toBeTypeOf('function')
+    expect(channelInstances[2].handler).toBeUndefined()
   })
 
   it('createCommit forwards the progress callback when interception is on', async () => {
@@ -91,6 +92,63 @@ describe('asking for interception', () => {
       expect.objectContaining({ interceptHooks: true })
     )
     expect(channelInstances[0].handler).toBe(onHookProgress)
+  })
+
+  it('answers a failed hook with the callback decision', async () => {
+    const onHookFailure = vi.fn(async () => 'ignore' as const)
+
+    await createCommit(REPO, 'message', [], undefined, {
+      interceptHooks: true,
+      onHookFailure,
+    })
+    const handler = channelInstances[1].handler as (
+      prompt: {
+        id: number
+        hook: string
+        terminalOutput: string
+      }
+    ) => void
+    handler({
+      id: 17,
+      hook: 'pre-commit',
+      terminalOutput: 'lint failed',
+    })
+
+    await vi.waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('resolve_hook_failure', {
+        id: 17,
+        resolution: 'ignore',
+      })
+    )
+    expect(onHookFailure).toHaveBeenCalledWith(
+      'pre-commit',
+      'lint failed'
+    )
+  })
+
+  it('aborts conservatively when no failure callback is installed', async () => {
+    await createCommit(REPO, 'message', [], undefined, {
+      interceptHooks: true,
+    })
+    const handler = channelInstances[1].handler as (
+      prompt: {
+        id: number
+        hook: string
+        terminalOutput: string
+      }
+    ) => void
+    handler({
+      id: 18,
+      hook: 'commit-msg',
+      terminalOutput: 'invalid message',
+    })
+
+    await vi.waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith('resolve_hook_failure', {
+        id: 18,
+        resolution: 'abort',
+      })
+    )
   })
 
   it('does not take a list of hooks from the caller', async () => {
@@ -132,5 +190,15 @@ describe('asking for interception', () => {
 
     await expect(abortHook(7)).resolves.toBe(false)
     expect(invoke).toHaveBeenCalledWith('abort_hook', { id: 7 })
+  })
+
+  it('resolveHookFailure sends the id and resolution', async () => {
+    invoke.mockResolvedValue(true)
+
+    await expect(resolveHookFailure(12, 'abort')).resolves.toBe(true)
+    expect(invoke).toHaveBeenCalledWith('resolve_hook_failure', {
+      id: 12,
+      resolution: 'abort',
+    })
   })
 })

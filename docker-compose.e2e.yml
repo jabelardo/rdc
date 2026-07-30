@@ -6,5 +6,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.e2e
+    volumes:
+      - e2e-cargo-target:/app/src-tauri/target
+      - e2e-cargo-registry:/usr/local/cargo/registry
     # run.sh starts Xvfb itself (see its comments for why xvfb-run's
     # SIGUSR1 handshake doesn't work with this process as container PID 1).
+
+volumes:
+  e2e-cargo-target:
+  e2e-cargo-registry:

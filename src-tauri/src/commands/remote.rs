@@ -18,7 +18,7 @@ use git_ops::push::{PushOptions, PushProgress, PushTarget};
 use git_ops::remote::Remote;
 
 use super::CommandError;
-use crate::hook_state::{support_for, HookRegistry};
+use crate::hook_state::{support_for, HookFailurePrompt, HookRegistry};
 use crate::trampoline_state::{RemoteSession, TrampolineState};
 use git_ops::hooks::runner::HookProgressUpdate;
 
@@ -92,13 +92,19 @@ pub async fn push(
     on_progress: Channel<PushProgress>,
     intercept_hooks: Option<bool>,
     on_hook_progress: Channel<HookProgressUpdate>,
+    on_hook_failure: Channel<HookFailurePrompt>,
 ) -> Result<(), CommandError> {
     let remote = state
         .session_for(&repository_path, is_background_task.unwrap_or(false))
         .await
         .map_err(bind_error)?;
-    let support = support_for(intercept_hooks.unwrap_or(false), &hooks, on_hook_progress)
-        .map_err(CommandError::message)?;
+    let support = support_for(
+        intercept_hooks.unwrap_or(false),
+        &hooks,
+        on_hook_progress,
+        on_hook_failure,
+    )
+    .map_err(CommandError::message)?;
 
     let tags = tags.unwrap_or_default();
 
@@ -252,13 +258,19 @@ pub async fn pull(
     on_progress: Channel<PullProgress>,
     intercept_hooks: Option<bool>,
     on_hook_progress: Channel<HookProgressUpdate>,
+    on_hook_failure: Channel<HookFailurePrompt>,
 ) -> Result<(), CommandError> {
     let remote = state
         .session_for(&repository_path, is_background_task.unwrap_or(false))
         .await
         .map_err(bind_error)?;
-    let support = support_for(intercept_hooks.unwrap_or(false), &hooks, on_hook_progress)
-        .map_err(CommandError::message)?;
+    let support = support_for(
+        intercept_hooks.unwrap_or(false),
+        &hooks,
+        on_hook_progress,
+        on_hook_failure,
+    )
+    .map_err(CommandError::message)?;
 
     git_ops::pull::pull(
         &repository_path,
