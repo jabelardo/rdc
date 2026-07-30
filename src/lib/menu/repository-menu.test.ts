@@ -54,7 +54,8 @@ describe('repository application menu', () => {
       enabled: true,
     })
     expect(byId('pull')).toMatchObject({ enabled: false })
-    expect(byId('show-changes')).toMatchObject({ enabled: false })
+    expect(byId('show-changes')).toMatchObject({ enabled: true })
+    expect(byId('show-history')).toMatchObject({ enabled: true })
   })
 })
 
@@ -72,6 +73,8 @@ describe('repository application menu actions', () => {
     const environment = {
       addLocalRepository: vi.fn(async () => undefined),
       chooseRepository: vi.fn(),
+      showChanges: vi.fn(),
+      showHistory: vi.fn(),
       openRepositoryInNewWindow: vi.fn(async () => undefined),
       showFolderContents: vi.fn(async () => undefined),
     }
@@ -82,9 +85,13 @@ describe('repository application menu actions', () => {
     await expect(execute('open-new-window')).resolves.toBe(true)
     await expect(execute('remove-repository')).resolves.toBe(true)
     await expect(execute('open-working-directory')).resolves.toBe(true)
+    await expect(execute('show-changes')).resolves.toBe(true)
+    await expect(execute('show-history')).resolves.toBe(true)
 
     expect(environment.addLocalRepository).toHaveBeenCalledOnce()
     expect(environment.chooseRepository).toHaveBeenCalledOnce()
+    expect(environment.showChanges).toHaveBeenCalledOnce()
+    expect(environment.showHistory).toHaveBeenCalledOnce()
     expect(environment.openRepositoryInNewWindow).toHaveBeenCalledWith(
       repository.path
     )
@@ -102,6 +109,8 @@ describe('repository application menu actions', () => {
     const environment = {
       addLocalRepository: vi.fn(async () => undefined),
       chooseRepository: vi.fn(),
+      showChanges: vi.fn(),
+      showHistory: vi.fn(),
       openRepositoryInNewWindow: vi.fn(async () => undefined),
       showFolderContents: vi.fn(async () => undefined),
     }
@@ -110,6 +119,8 @@ describe('repository application menu actions', () => {
     await expect(execute('remove-repository')).resolves.toBe(false)
     await expect(execute('open-new-window')).resolves.toBe(false)
     await expect(execute('open-working-directory')).resolves.toBe(false)
+    await expect(execute('show-changes')).resolves.toBe(false)
+    await expect(execute('show-history')).resolves.toBe(false)
     await expect(execute('pull')).resolves.toBe(false)
 
     expect(store.removeRepository).not.toHaveBeenCalled()

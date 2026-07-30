@@ -2665,7 +2665,7 @@ that facade as each slice needs behavior; do not copy its 12,310 lines in one ba
 the state architecture merely to make the phases smaller. Consumer-bound portable `lib/**` files land
 with the slice that first imports them.
 
-#### Phase 7a — application shell and repository ownership — **IN PROGRESS**
+#### Phase 7a — application shell and repository ownership — **MVP IMPLEMENTATION COMPLETE — macOS acceptance pending**
 
 - Replace the current React integration harness with the first real application shell.
 - Port the minimum dispatcher, repository store, selected-repository state and persistence.
@@ -2790,12 +2790,57 @@ recoverable/permanent whole-file discard and partial-line discard all run throug
 The real Linux journey covers the complete dirty-repository path and all repository quality gates
 remain the closure standard.
 
-#### Phase 7c — history, branches and minimum conflict recovery
+#### Phase 7c — history, branches and minimum conflict recovery — **MVP COMPLETE**
 
 - Port commit history, commit details/diffs, branch listing, create and checkout.
 - Show merge/conflict state and allow a user-resolved file to be staged. Rebase editing, reorder,
   squash and other advanced history operations remain parity work.
 - E2E: create a branch, commit, switch branches and inspect history.
+
+**Read-only history slice complete:** `HistoryStore` loads upstream's first 100 commits reachable
+from `HEAD`, most recent first, through Phase 3's hydrated `getCommits` boundary. It preserves a
+still-present selected SHA across refreshes, chooses the newest commit otherwise, represents an
+unborn branch as an empty history and rejects stale responses after a repository switch. The
+product shell now has Changes/History navigation, the native View menu enables and routes both
+actions only with a selected repository, and the Ubuntu journey opens History after its real
+partial commit and verifies that commit's SHA, summary and author.
+
+**Selected-commit details/diff slice complete:** selecting a commit now loads its hydrated
+`CommittedFileChange` changeset, line totals and first changed file through the existing
+`getChangedFiles` boundary, then loads that file's first-parent (including root-commit)
+`getCommitDiff`. The store independently rejects stale history, details and file-diff responses;
+selecting another changed file cannot be overwritten by the previous file's slower diff. The
+history surface shows the full SHA, author identity, body, changed-file list and read-only diff,
+with explicit loading/error/empty and non-text fallbacks. The Ubuntu journey verifies the real
+partial commit's changed file and added line.
+
+**Branch list/create/local-checkout slice complete:** `BranchStore` loads hydrated local and remote
+branches together with `getStatus`'s explicit current-branch fact; it never guesses `HEAD` from ref
+order. The shell lists both kinds, creates a trimmed user branch from `HEAD`, checks it out as the
+same user action, and checks out an existing local branch with native progress surfaced. A
+successful move refreshes working-tree and visible-history state, while failures preserve the
+loaded branch list. Repository and operation generations reject stale loads/progress. Remote refs
+are visible but disabled: `checkoutRemoteBranch` also requires a local-name collision policy, so it
+is post-MVP parity rather than silently treating a remote ref as a local branch. The Ubuntu journey
+creates and enters `phase-7c-e2e`, returns to the original branch and verifies the created ref.
+
+**Minimum merge-conflict recovery slice complete:** `ConflictStore` retains `mergeHeadFound` and
+the conflicted paths from status, separately from working-tree selection state. A general Changes
+refresh discovers merges or external edits. Text conflicts remain unstageable while Git reports
+any marker lines; after the user resolves the file in an editor and refreshes to a zero count, the
+store sends the exact path, `(us, them)` index entries and marker count through the existing
+`stageResolvedConflictFiles` boundary, then re-reads status. Branch creation and checkout are
+disabled during a merge. In-app ours/theirs choices for manual/binary conflicts, merge completion
+and abort controls remain advanced parity; this MVP surface deliberately does not pretend those
+operations are available. The Ubuntu journey creates a real divergent content conflict, proves
+staging is initially disabled, writes a marker-free resolution, stages it through rdc and verifies
+Git has no unmerged index entry.
+
+**Closed 2026-07-30:** the Phase 7c MVP workflow is complete: bounded read-only history,
+selected-commit metadata and first-parent/root diffs, local/remote branch visibility,
+create-from-HEAD plus local checkout, and safe external-editor merge-conflict staging all run
+through the product shell. Pagination, search, commit graph, remote checkout naming and advanced
+history/conflict operations remain Phase 7f parity rather than MVP blockers.
 
 #### Phase 7d — remote synchronization without built-in accounts
 

@@ -13,6 +13,8 @@ type RepositoryMenuStore = {
 type RepositoryMenuEnvironment = {
   readonly addLocalRepository: () => void | Promise<void>
   readonly chooseRepository: () => void
+  readonly showChanges: () => void
+  readonly showHistory: () => void
   readonly openRepositoryInNewWindow: (
     path: string
   ) => void | Promise<void>
@@ -43,7 +45,7 @@ function withEnablement(
 }
 
 /**
- * Apply the Phase 7a subset of upstream's repository menu policy.
+ * Apply the repository-shell subset of upstream's menu policy.
  *
  * Later vertical slices enable their own commands when their backing state
  * and action handlers land; a selected repository alone must not make an
@@ -62,6 +64,8 @@ export function buildRepositoryMenu(
     ['repository', hasSelection],
     ['remove-repository', hasSelection],
     ['open-working-directory', hasSelection],
+    ['show-changes', hasSelection],
+    ['show-history', hasSelection],
   ])
   const menu = buildStartupMenu(platform)
 
@@ -71,7 +75,7 @@ export function buildRepositoryMenu(
   }
 }
 
-/** Execute only menu events whose Phase 7a application-shell behavior exists. */
+/** Execute only menu events whose current application-shell behavior exists. */
 export function createRepositoryMenuEventExecutor(
   store: RepositoryMenuStore,
   environment: RepositoryMenuEnvironment
@@ -106,6 +110,18 @@ export function createRepositoryMenuEventExecutor(
           return false
         }
         await environment.showFolderContents(repository.path)
+        return true
+      }
+      case 'show-changes':
+      case 'show-history': {
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        if (event === 'show-changes') {
+          environment.showChanges()
+        } else {
+          environment.showHistory()
+        }
         return true
       }
       default:

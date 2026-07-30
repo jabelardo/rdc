@@ -17,23 +17,43 @@ import {
   type AppStoreState,
 } from './lib/stores/app-store'
 import { getDefaultAppStore } from './lib/stores/default-app-store'
+import { getDefaultBranchStore } from './lib/stores/default-branch-store'
+import { getDefaultConflictStore } from './lib/stores/default-conflict-store'
+import { getDefaultHistoryStore } from './lib/stores/default-history-store'
 import { getDefaultWorkingTreeStore } from './lib/stores/default-working-tree-store'
+import type { BranchState } from './lib/stores/branch-store'
+import type { ConflictState } from './lib/stores/conflict-store'
+import type { HistoryState } from './lib/stores/history-store'
 import type { WorkingTreeState } from './lib/stores/working-tree-store'
 import { mapStatus } from './lib/status'
+import { BranchType } from './models/branch'
 import type { Repository } from './models/repository'
 import { DiffType } from './models/diff'
 import './App.css'
 
 const rendererStartTime = performance.now()
+type RepositoryView = 'changes' | 'history'
 
 function App() {
   const [appStore] = useState(getDefaultAppStore)
+  const [branchStore] = useState(getDefaultBranchStore)
+  const [conflictStore] = useState(getDefaultConflictStore)
+  const [historyStore] = useState(getDefaultHistoryStore)
   const [workingTreeStore] = useState(getDefaultWorkingTreeStore)
   const [appState, setAppState] = useState<AppStoreState>(appStore.state)
   const [workingTreeState, setWorkingTreeState] =
     useState<WorkingTreeState>(workingTreeStore.state)
+  const [historyState, setHistoryState] =
+    useState<HistoryState>(historyStore.state)
+  const [branchState, setBranchState] =
+    useState<BranchState>(branchStore.state)
+  const [conflictState, setConflictState] =
+    useState<ConflictState>(conflictStore.state)
+  const [repositoryView, setRepositoryView] =
+    useState<RepositoryView>('changes')
   const [error, setError] = useState<string | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
+  const [newBranchName, setNewBranchName] = useState('')
   const [useShellHookEnvironment, setUseShellHookEnvironment] =
     useState(false)
   const [commitTerminalOutput, setCommitTerminalOutput] = useState('')
@@ -82,6 +102,8 @@ function App() {
           )
           ?.focus()
       },
+      showChanges: () => setRepositoryView('changes'),
+      showHistory: () => setRepositoryView('history'),
       openRepositoryInNewWindow,
       showFolderContents,
     })
@@ -133,13 +155,24 @@ function App() {
     setDiscarding(false)
     setPermanentlyDiscard(false)
     setDiscardSelection(false)
+    historyStore.clear()
     if (repository === null) {
+      branchStore.clear()
+      conflictStore.clear()
       workingTreeStore.clear()
     } else {
+      void branchStore.load(repository.path)
+      void conflictStore.load(repository.path)
       void workingTreeStore.load(repository.path)
     }
     return unsubscribe
-  }, [appState.selectedRepository, workingTreeStore])
+  }, [
+    appState.selectedRepository,
+    branchStore,
+    conflictStore,
+    historyStore,
+    workingTreeStore,
+  ])
 
   useEffect(
     () =>
@@ -148,6 +181,30 @@ function App() {
       ),
     [workingTreeStore]
   )
+
+  useEffect(
+    () => historyStore.onDidUpdate(setHistoryState),
+    [historyStore]
+  )
+
+  useEffect(
+    () => branchStore.onDidUpdate(setBranchState),
+    [branchStore]
+  )
+
+  useEffect(
+    () => conflictStore.onDidUpdate(setConflictState),
+    [conflictStore]
+  )
+
+  useEffect(() => {
+    const repository = appState.selectedRepository
+    if (repository === null) {
+      historyStore.clear()
+    } else if (repositoryView === 'history') {
+      void historyStore.load(repository.path)
+    }
+  }, [appState.selectedRepository, historyStore, repositoryView])
 
   useEffect(() => {
     let disposed = false
@@ -251,6 +308,30 @@ function App() {
     }
   }
 
+  async function refreshAfterBranchChange(
+    operation: () => Promise<boolean>
+  ): Promise<void> {
+    const repository = appState.selectedRepository
+    if (repository === null || !(await operation())) {
+      return
+    }
+    await workingTreeStore.load(repository.path)
+    await conflictStore.load(repository.path)
+    if (repositoryView === 'history') {
+      await historyStore.load(repository.path)
+    }
+  }
+
+  async function stageResolvedConflict(path: string): Promise<void> {
+    const repository = appState.selectedRepository
+    if (
+      repository !== null &&
+      (await conflictStore.stageResolvedFile(path))
+    ) {
+      await workingTreeStore.load(repository.path)
+    }
+  }
+
   const discardFile =
     workingTreeState.workingDirectory?.files.find(
       file => file.id === discardFileID
@@ -271,6 +352,14 @@ function App() {
           )
       )
     )
+  const selectedHistoryCommit =
+    historyState.commits.find(
+      commit => commit.sha === historyState.selectedCommitSHA
+    ) ?? null
+  const selectedHistoryFile =
+    historyState.changeset?.files.find(
+      file => file.id === historyState.selectedFileID
+    ) ?? null
 
   async function confirmDiscard() {
     if (discardFile === null) {
@@ -389,10 +478,240 @@ function App() {
               Open in new window
             </button>
             <section
+              className="branch-controls"
+              aria-label="Branches"
+            >
+              {branchState.loading ? (
+                <p>Loading branches…</p>
+              ) : branchState.error !== null ? (
+                <p className="application-error" role="alert">
+                  {branchState.error}
+                </p>
+              ) : (
+                <label>
+                  Current branch
+                  <select
+                    aria-label="Current branch"
+                    value={branchState.currentBranch ?? ''}
+                    disabled={
+                      branchState.operation !== null ||
+                      conflictState.mergeInProgress
+                    }
+                    onChange={event =>
+                      void refreshAfterBranchChange(() =>
+                        branchStore.checkout(
+                          event.currentTarget.value
+                        )
+                      )
+                    }
+                  >
+                    {branchState.currentBranch === null && (
+                      <option value="">Detached or unborn HEAD</option>
+                    )}
+                    {branchState.branches.map(branch => (
+                      <option
+                        key={branch.ref}
+                        value={branch.name}
+                        disabled={branch.type === BranchType.Remote}
+                      >
+                        {branch.name}
+                        {branch.type === BranchType.Remote
+                          ? ' (remote)'
+                          : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <form
+                aria-label="Create branch"
+                onSubmit={event => {
+                  event.preventDefault()
+                  void refreshAfterBranchChange(() =>
+                    branchStore.createAndCheckout(newBranchName)
+                  ).then(() => {
+                    if (branchStore.state.operationError === null) {
+                      setNewBranchName('')
+                    }
+                  })
+                }}
+              >
+                <label htmlFor="new-branch-name">
+                  New branch name
+                </label>
+                <input
+                  id="new-branch-name"
+                  value={newBranchName}
+                  disabled={
+                    branchState.operation !== null ||
+                    conflictState.mergeInProgress
+                  }
+                  onChange={event =>
+                    setNewBranchName(event.currentTarget.value)
+                  }
+                />
+                <button
+                  type="submit"
+                  disabled={
+                    branchState.operation !== null ||
+                    conflictState.mergeInProgress
+                  }
+                >
+                  {branchState.operation === 'creating'
+                    ? 'Creating…'
+                    : branchState.operation === 'checking-out'
+                    ? 'Checking out…'
+                    : 'Create branch'}
+                </button>
+              </form>
+              {branchState.progress !== null && (
+                <p>{branchState.progress.description}</p>
+              )}
+              {branchState.operationError !== null && (
+                <p className="application-error" role="alert">
+                  {branchState.operationError}
+                </p>
+              )}
+            </section>
+            <nav
+              className="repository-view-navigation"
+              aria-label="Repository views"
+            >
+              <button
+                type="button"
+                aria-current={
+                  repositoryView === 'changes' ? 'page' : undefined
+                }
+                onClick={() => setRepositoryView('changes')}
+              >
+                Changes
+              </button>
+              <button
+                type="button"
+                aria-current={
+                  repositoryView === 'history' ? 'page' : undefined
+                }
+                onClick={() => setRepositoryView('history')}
+              >
+                History
+              </button>
+            </nav>
+            {repositoryView === 'changes' &&
+              (conflictState.mergeInProgress ||
+                conflictState.files.length > 0 ||
+                conflictState.error !== null) && (
+                <section
+                  className="merge-conflicts"
+                  aria-label={
+                    conflictState.mergeInProgress
+                      ? 'Merge conflicts'
+                      : 'Repository conflicts'
+                  }
+                >
+                  <header>
+                    <div>
+                      <h3>
+                        {conflictState.mergeInProgress
+                          ? 'Merge in progress'
+                          : 'Repository conflicts'}
+                      </h3>
+                      <p>
+                        Resolve files in your editor, then refresh and
+                        stage each resolution.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={
+                        conflictState.loading ||
+                        conflictState.stagingPath !== null
+                      }
+                      onClick={() => {
+                        const repository =
+                          appState.selectedRepository
+                        if (repository !== null) {
+                          void conflictStore.load(repository.path)
+                        }
+                      }}
+                    >
+                      Refresh conflict state
+                    </button>
+                  </header>
+                  {conflictState.loading ? (
+                    <p>Loading conflict state…</p>
+                  ) : conflictState.error !== null ? (
+                    <p className="application-error" role="alert">
+                      {conflictState.error}
+                    </p>
+                  ) : conflictState.files.length === 0 ? (
+                    <p>All conflict resolutions are staged.</p>
+                  ) : (
+                    <ul>
+                      {conflictState.files.map(file => (
+                        <li key={file.path}>
+                          <span>{file.path}</span>
+                          <small>
+                            {file.resolvedInWorkingTree
+                              ? 'Resolved'
+                              : 'conflictMarkerCount' in file.status
+                              ? `${
+                                  file.status.conflictMarkerCount
+                                } ${
+                                  file.status.conflictMarkerCount === 1
+                                    ? 'conflict marker'
+                                    : 'conflict markers'
+                                }`
+                              : 'Choose a side outside rdc'}
+                          </small>
+                          <button
+                            type="button"
+                            aria-label={`Stage resolution for ${file.path}`}
+                            disabled={
+                              !file.resolvedInWorkingTree ||
+                              conflictState.stagingPath !== null
+                            }
+                            onClick={() =>
+                              void stageResolvedConflict(file.path)
+                            }
+                          >
+                            {conflictState.stagingPath === file.path
+                              ? 'Staging…'
+                              : 'Stage resolution'}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {conflictState.operationError !== null && (
+                    <p className="application-error" role="alert">
+                      {conflictState.operationError}
+                    </p>
+                  )}
+                </section>
+              )}
+            <section
               className="working-tree"
               aria-label="Changes"
+              hidden={repositoryView !== 'changes'}
             >
-              <h3>Changes</h3>
+              <header>
+                <h3>Changes</h3>
+                <button
+                  type="button"
+                  disabled={workingTreeState.loading}
+                  onClick={() => {
+                    const repository = appState.selectedRepository
+                    if (repository !== null) {
+                      void Promise.all([
+                        workingTreeStore.load(repository.path),
+                        conflictStore.load(repository.path),
+                      ])
+                    }
+                  }}
+                >
+                  Refresh changes
+                </button>
+              </header>
               {workingTreeState.loading ? (
                 <p>Loading changes…</p>
               ) : workingTreeState.error !== null ? (
@@ -455,6 +774,7 @@ function App() {
             <section
               className="working-tree-diff"
               aria-label="File diff"
+              hidden={repositoryView !== 'changes'}
             >
               {workingTreeState.diffLoading ? (
                 <p>Loading diff…</p>
@@ -543,7 +863,8 @@ function App() {
                 <p>Diff cannot be displayed.</p>
               )}
             </section>
-            {workingTreeState.workingDirectory !== null &&
+            {repositoryView === 'changes' &&
+              workingTreeState.workingDirectory !== null &&
               workingTreeState.workingDirectory.files.length > 0 && (
                 <form
                   className="commit-form"
@@ -605,6 +926,173 @@ function App() {
                   )}
                 </form>
               )}
+            <section
+              className="history"
+              aria-label="History"
+              hidden={repositoryView !== 'history'}
+            >
+              <h3>History</h3>
+              {historyState.loading ? (
+                <p>Loading history…</p>
+              ) : historyState.error !== null ? (
+                <p className="application-error" role="alert">
+                  {historyState.error}
+                </p>
+              ) : historyState.commits.length === 0 ? (
+                <p>No commits yet.</p>
+              ) : (
+                <ul className="history-commits">
+                  {historyState.commits.map(commit => (
+                    <li key={commit.sha}>
+                      <button
+                        type="button"
+                        data-commit-sha={commit.sha}
+                        aria-current={
+                          historyState.selectedCommitSHA === commit.sha
+                            ? 'true'
+                            : undefined
+                        }
+                        onClick={() =>
+                          void historyStore.selectCommit(commit.sha)
+                        }
+                      >
+                        <code>{commit.shortSha}</code>
+                        <strong>{commit.summary}</strong>
+                        <small>{commit.author.name}</small>
+                        <time dateTime={commit.author.date.toISOString()}>
+                          {commit.author.date.toLocaleDateString()}
+                        </time>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {selectedHistoryCommit !== null && (
+                <section
+                  className="history-details"
+                  aria-label="Selected commit details"
+                >
+                  <header>
+                    <div>
+                      <h4>{selectedHistoryCommit.summary}</h4>
+                      <code>{selectedHistoryCommit.sha}</code>
+                    </div>
+                    <p>
+                      {selectedHistoryCommit.author.name}{' '}
+                      &lt;{selectedHistoryCommit.author.email}&gt;
+                    </p>
+                  </header>
+                  {selectedHistoryCommit.bodyNoCoAuthors.trim()
+                    .length > 0 && (
+                    <pre className="history-commit-body">
+                      {selectedHistoryCommit.bodyNoCoAuthors}
+                    </pre>
+                  )}
+                  {historyState.detailsLoading ? (
+                    <p>Loading commit details…</p>
+                  ) : historyState.detailsError !== null ? (
+                    <p className="application-error" role="alert">
+                      {historyState.detailsError}
+                    </p>
+                  ) : historyState.changeset === null ? null : (
+                    <>
+                      <p className="history-change-summary">
+                        {historyState.changeset.files.length}{' '}
+                        {historyState.changeset.files.length === 1
+                          ? 'changed file'
+                          : 'changed files'}
+                        <span>
+                          +{historyState.changeset.linesAdded}
+                        </span>
+                        <span>
+                          −{historyState.changeset.linesDeleted}
+                        </span>
+                      </p>
+                      {historyState.changeset.files.length === 0 ? (
+                        <p>No files in commit.</p>
+                      ) : (
+                        <ul className="history-files">
+                          {historyState.changeset.files.map(file => (
+                            <li key={file.id}>
+                              <button
+                                type="button"
+                                aria-label={file.path}
+                                aria-current={
+                                  historyState.selectedFileID ===
+                                  file.id
+                                    ? 'true'
+                                    : undefined
+                                }
+                                onClick={() =>
+                                  void historyStore.selectFile(file.id)
+                                }
+                              >
+                                <span>{file.path}</span>
+                                <small>{mapStatus(file.status)}</small>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  )}
+                  <section
+                    className="history-diff"
+                    aria-label="Commit file diff"
+                  >
+                    {historyState.diffLoading ? (
+                      <p>Loading diff…</p>
+                    ) : historyState.diffError !== null ? (
+                      <p className="application-error" role="alert">
+                        {historyState.diffError}
+                      </p>
+                    ) : historyState.diff === null ||
+                      selectedHistoryFile === null ? null : historyState
+                        .diff.kind === DiffType.Text ? (
+                      <div
+                        className="working-tree-diff-lines"
+                        role="table"
+                        aria-label={`Diff for ${selectedHistoryFile.path}`}
+                      >
+                        {historyState.diff.hunks.flatMap(
+                          (hunk, hunkIndex) =>
+                            hunk.lines.map((line, lineIndex) => (
+                              <div
+                                className="working-tree-diff-line"
+                                role="row"
+                                key={`${hunkIndex}-${
+                                  hunk.unifiedDiffStart + lineIndex
+                                }`}
+                              >
+                                <span aria-hidden="true" />
+                                <span className="diff-line-number">
+                                  {line.oldLineNumber ?? ''}
+                                </span>
+                                <span className="diff-line-number">
+                                  {line.newLineNumber ?? ''}
+                                </span>
+                                <code>{line.text}</code>
+                              </div>
+                            ))
+                        )}
+                      </div>
+                    ) : historyState.diff.kind ===
+                      DiffType.LargeText ? (
+                      <pre>{historyState.diff.text}</pre>
+                    ) : historyState.diff.kind === DiffType.Binary ? (
+                      <p>Binary file cannot be displayed.</p>
+                    ) : historyState.diff.kind === DiffType.Image ? (
+                      <p>Image preview is not available yet.</p>
+                    ) : historyState.diff.kind ===
+                      DiffType.Submodule ? (
+                      <p>Submodule change.</p>
+                    ) : (
+                      <p>Diff cannot be displayed.</p>
+                    )}
+                  </section>
+                </section>
+              )}
+            </section>
           </div>
         )}
 

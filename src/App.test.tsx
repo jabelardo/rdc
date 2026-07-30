@@ -79,6 +79,101 @@ const workingTreeStore = vi.hoisted(() => ({
   onDidUpdate: vi.fn(),
   onCommitTerminalOutput: vi.fn(),
 }))
+const historyStore = vi.hoisted(() => ({
+  state: {
+    repositoryPath: null as string | null,
+    commits: [] as ReadonlyArray<{
+      sha: string
+      shortSha: string
+      summary: string
+      body: string
+      bodyNoCoAuthors: string
+      author: { name: string; email: string; date: Date }
+      committer: { name: string; email: string; date: Date }
+      parentSHAs: ReadonlyArray<string>
+      tags: ReadonlyArray<string>
+    }>,
+    selectedCommitSHA: null as string | null,
+    changeset: null as {
+      files: ReadonlyArray<{
+        id: string
+        path: string
+        status: { kind: string }
+      }>
+      linesAdded: number
+      linesDeleted: number
+    } | null,
+    selectedFileID: null as string | null,
+    loading: false,
+    error: null as string | null,
+    detailsLoading: false,
+    detailsError: null as string | null,
+    diff: null as
+      | {
+          kind: number
+          text?: string
+          hunks?: ReadonlyArray<{
+            unifiedDiffStart: number
+            lines: ReadonlyArray<{
+              text: string
+              oldLineNumber: number | null
+              newLineNumber: number | null
+            }>
+          }>
+        }
+      | null,
+    diffLoading: false,
+    diffError: null as string | null,
+  },
+  load: vi.fn(),
+  selectCommit: vi.fn(),
+  selectFile: vi.fn(),
+  clear: vi.fn(),
+  onDidUpdate: vi.fn(),
+}))
+const branchStore = vi.hoisted(() => ({
+  state: {
+    repositoryPath: null as string | null,
+    branches: [] as ReadonlyArray<{
+      name: string
+      type: number
+      tip: { sha: string }
+    }>,
+    currentBranch: null as string | null,
+    loading: false,
+    error: null as string | null,
+    operation: null as 'creating' | 'checking-out' | null,
+    progress: null as {
+      description: string
+      value: number
+    } | null,
+    operationError: null as string | null,
+  },
+  load: vi.fn(),
+  createAndCheckout: vi.fn(),
+  checkout: vi.fn(),
+  clear: vi.fn(),
+  onDidUpdate: vi.fn(),
+}))
+const conflictStore = vi.hoisted(() => ({
+  state: {
+    repositoryPath: null as string | null,
+    mergeInProgress: false,
+    files: [] as ReadonlyArray<{
+      path: string
+      status: { kind: string; conflictMarkerCount?: number }
+      resolvedInWorkingTree: boolean
+    }>,
+    loading: false,
+    error: null as string | null,
+    stagingPath: null as string | null,
+    operationError: null as string | null,
+  },
+  load: vi.fn(),
+  stageResolvedFile: vi.fn(),
+  clear: vi.fn(),
+  onDidUpdate: vi.fn(),
+}))
 
 vi.mock('./lib/menu/application-menu', () => ({ installApplicationMenu }))
 vi.mock('./lib/menu/context-menu', () => ({ showContextualMenu }))
@@ -96,6 +191,15 @@ vi.mock('./lib/stores/default-app-store', () => ({
 }))
 vi.mock('./lib/stores/default-working-tree-store', () => ({
   getDefaultWorkingTreeStore: () => workingTreeStore,
+}))
+vi.mock('./lib/stores/default-history-store', () => ({
+  getDefaultHistoryStore: () => historyStore,
+}))
+vi.mock('./lib/stores/default-branch-store', () => ({
+  getDefaultBranchStore: () => branchStore,
+}))
+vi.mock('./lib/stores/default-conflict-store', () => ({
+  getDefaultConflictStore: () => conflictStore,
 }))
 
 const repository = {
@@ -170,6 +274,64 @@ describe('App', () => {
     workingTreeStore.onDidUpdate.mockReturnValue(vi.fn())
     workingTreeStore.onCommitTerminalOutput.mockReset()
     workingTreeStore.onCommitTerminalOutput.mockReturnValue(vi.fn())
+    historyStore.state = {
+      repositoryPath: null,
+      commits: [],
+      selectedCommitSHA: null,
+      changeset: null,
+      selectedFileID: null,
+      loading: false,
+      error: null,
+      detailsLoading: false,
+      detailsError: null,
+      diff: null,
+      diffLoading: false,
+      diffError: null,
+    }
+    historyStore.load.mockReset()
+    historyStore.load.mockResolvedValue(undefined)
+    historyStore.selectCommit.mockReset()
+    historyStore.selectCommit.mockResolvedValue(undefined)
+    historyStore.selectFile.mockReset()
+    historyStore.selectFile.mockResolvedValue(undefined)
+    historyStore.clear.mockReset()
+    historyStore.onDidUpdate.mockReset()
+    historyStore.onDidUpdate.mockReturnValue(vi.fn())
+    branchStore.state = {
+      repositoryPath: null,
+      branches: [],
+      currentBranch: null,
+      loading: false,
+      error: null,
+      operation: null,
+      progress: null,
+      operationError: null,
+    }
+    branchStore.load.mockReset()
+    branchStore.load.mockResolvedValue(undefined)
+    branchStore.createAndCheckout.mockReset()
+    branchStore.createAndCheckout.mockResolvedValue(false)
+    branchStore.checkout.mockReset()
+    branchStore.checkout.mockResolvedValue(false)
+    branchStore.clear.mockReset()
+    branchStore.onDidUpdate.mockReset()
+    branchStore.onDidUpdate.mockReturnValue(vi.fn())
+    conflictStore.state = {
+      repositoryPath: null,
+      mergeInProgress: false,
+      files: [],
+      loading: false,
+      error: null,
+      stagingPath: null,
+      operationError: null,
+    }
+    conflictStore.load.mockReset()
+    conflictStore.load.mockResolvedValue(undefined)
+    conflictStore.stageResolvedFile.mockReset()
+    conflictStore.stageResolvedFile.mockResolvedValue(false)
+    conflictStore.clear.mockReset()
+    conflictStore.onDidUpdate.mockReset()
+    conflictStore.onDidUpdate.mockReturnValue(vi.fn())
   })
 
   it('reports readiness and installs native lifetime handling', () => {
@@ -298,6 +460,212 @@ describe('App', () => {
     )
     expect(openRepositoryInNewWindow).toHaveBeenCalledWith(repository.path)
     expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path)
+    expect(branchStore.load).toHaveBeenCalledWith(repository.path)
+    expect(conflictStore.load).toHaveBeenCalledWith(repository.path)
+  })
+
+  it('lists branches, checks out a local branch, and creates from HEAD', async () => {
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    }
+    branchStore.state = {
+      repositoryPath: repository.path,
+      branches: [
+        {
+          name: 'main',
+          type: 0,
+          tip: { sha: 'a'.repeat(40) },
+        },
+        {
+          name: 'topic',
+          type: 0,
+          tip: { sha: 'b'.repeat(40) },
+        },
+        {
+          name: 'origin/main',
+          type: 1,
+          tip: { sha: 'a'.repeat(40) },
+        },
+      ],
+      currentBranch: 'main',
+      loading: false,
+      error: null,
+      operation: null,
+      progress: null,
+      operationError: null,
+    }
+    branchStore.checkout.mockResolvedValue(true)
+    branchStore.createAndCheckout.mockResolvedValue(true)
+    const user = userEvent.setup()
+    render(<App />)
+
+    const selector = screen.getByRole('combobox', {
+      name: 'Current branch',
+    })
+    expect(selector).toHaveTextContent('main')
+    expect(selector).toHaveTextContent('topic')
+    expect(selector).toHaveTextContent('origin/main (remote)')
+    await user.selectOptions(selector, 'topic')
+
+    expect(branchStore.checkout).toHaveBeenCalledWith('topic')
+    expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path)
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'New branch name' }),
+      'feature'
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Create branch' })
+    )
+
+    expect(branchStore.createAndCheckout).toHaveBeenCalledWith(
+      'feature'
+    )
+  })
+
+  it('shows merge conflicts and stages an externally resolved file', async () => {
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    }
+    conflictStore.state = {
+      repositoryPath: repository.path,
+      mergeInProgress: true,
+      files: [
+        {
+          path: 'resolved.txt',
+          status: { kind: 'Conflicted', conflictMarkerCount: 0 },
+          resolvedInWorkingTree: true,
+        },
+        {
+          path: 'unresolved.txt',
+          status: { kind: 'Conflicted', conflictMarkerCount: 2 },
+          resolvedInWorkingTree: false,
+        },
+      ],
+      loading: false,
+      error: null,
+      stagingPath: null,
+      operationError: null,
+    }
+    conflictStore.stageResolvedFile.mockResolvedValue(true)
+    const user = userEvent.setup()
+    render(<App />)
+
+    const conflicts = screen.getByRole('region', {
+      name: 'Merge conflicts',
+    })
+    expect(conflicts).toHaveTextContent('Merge in progress')
+    expect(conflicts).toHaveTextContent('resolved.txtResolved')
+    expect(conflicts).toHaveTextContent(
+      'unresolved.txt2 conflict markers'
+    )
+    expect(
+      screen.getByRole('button', {
+        name: 'Stage resolution for unresolved.txt',
+      })
+    ).toBeDisabled()
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Stage resolution for resolved.txt',
+      })
+    )
+    expect(conflictStore.stageResolvedFile).toHaveBeenCalledWith(
+      'resolved.txt'
+    )
+    expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path)
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Refresh conflict state',
+      })
+    )
+    expect(conflictStore.load).toHaveBeenCalledWith(repository.path)
+  })
+
+  it('loads and renders the selected repository history on demand', async () => {
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    }
+    historyStore.state = {
+      repositoryPath: repository.path,
+      commits: [
+        {
+          sha: 'a'.repeat(40),
+          shortSha: 'aaaaaaa',
+          summary: 'Start Phase 7c',
+          body: 'Render selected commit details.',
+          bodyNoCoAuthors: 'Render selected commit details.',
+          author: {
+            name: 'Mona Lisa',
+            email: 'mona@example.com',
+            date: new Date('2026-07-30T12:00:00Z'),
+          },
+          committer: {
+            name: 'Mona Lisa',
+            email: 'mona@example.com',
+            date: new Date('2026-07-30T12:00:00Z'),
+          },
+          parentSHAs: ['b'.repeat(40)],
+          tags: ['phase-7c'],
+        },
+      ],
+      selectedCommitSHA: 'a'.repeat(40),
+      changeset: {
+        files: [
+          {
+            id: 'Modified+src/App.tsx',
+            path: 'src/App.tsx',
+            status: { kind: 'Modified' },
+          },
+        ],
+        linesAdded: 7,
+        linesDeleted: 2,
+      },
+      selectedFileID: 'Modified+src/App.tsx',
+      loading: false,
+      error: null,
+      detailsLoading: false,
+      detailsError: null,
+      diff: {
+        kind: 0,
+        text: 'diff',
+        hunks: [
+          {
+            unifiedDiffStart: 4,
+            lines: [
+              {
+                text: '+selected commit diff',
+                oldLineNumber: null,
+                newLineNumber: 12,
+              },
+            ],
+          },
+        ],
+      },
+      diffLoading: false,
+      diffError: null,
+    }
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(
+      screen.getByRole('button', { name: 'History' })
+    )
+
+    expect(historyStore.load).toHaveBeenCalledWith(repository.path)
+    const history = screen.getByRole('region', { name: 'History' })
+    expect(history).toHaveTextContent('aaaaaaaStart Phase 7cMona Lisa')
+    expect(history).toHaveTextContent('Render selected commit details.')
+    expect(history).toHaveTextContent('1 changed file+7−2')
+    expect(history).toHaveTextContent('src/App.tsxModified')
+    expect(history).toHaveTextContent('+selected commit diff')
+    expect(
+      screen.getByRole('button', { name: 'src/App.tsx' })
+    ).toHaveAttribute('aria-current', 'true')
   })
 
   it('renders working-tree updates in frontend-owned order', () => {

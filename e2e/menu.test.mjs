@@ -144,12 +144,14 @@ describe('native integration', () => {
     await includeFile.click()
     await driver.wait(
       async () => !(await includeFile.isSelected()),
-      5_000
+      5_000,
+      'working-tree file did not become excluded'
     )
     await includeFile.click()
     await driver.wait(
       async () => await includeFile.isSelected(),
-      5_000
+      5_000,
+      'working-tree file did not become included'
     )
     const secondLine = await driver.findElement(
       By.css(
@@ -157,10 +159,15 @@ describe('native integration', () => {
       )
     )
     assert.equal(await secondLine.isSelected(), true)
-    await secondLine.click()
+    // WebKitGTK occasionally accepts WebDriver's synthetic pointer click
+    // without dispatching the checkbox change event while branch facts finish
+    // their independent initial load. DOM click exercises the same product
+    // handler deterministically.
+    await driver.executeScript(element => element.click(), secondLine)
     await driver.wait(
       async () => !(await secondLine.isSelected()),
-      5_000
+      5_000,
+      'second diff line did not become excluded'
     )
     const commitMessage = await driver.findElement(
       By.css('#commit-message')
@@ -171,10 +178,11 @@ describe('native integration', () => {
         "//label[contains(normalize-space(.), 'Run hooks with the shell environment')]//input"
       )
     )
-    await useShellHooks.click()
+    await driver.executeScript(element => element.click(), useShellHooks)
     await driver.wait(
       async () => await useShellHooks.isSelected(),
-      5_000
+      5_000,
+      'shell hook option did not become selected'
     )
     const commitButton = await driver.findElement(
       By.xpath(
@@ -270,6 +278,131 @@ describe('native integration', () => {
       ),
       'committed line\n'
     )
+    const historyView = await driver.findElement(
+      By.xpath(
+        "//nav[@aria-label='Repository views']//button[normalize-space()='History']"
+      )
+    )
+    await driver.executeScript(element => element.click(), historyView)
+    const committedHistoryItem = await driver.wait(
+      until.elementLocated(
+        By.css(`[data-commit-sha="${String(
+          execFileSync('git', [
+            '-C',
+            repositoryFixture.canonical,
+            'rev-parse',
+            'HEAD',
+          ])
+        ).trim()}"]`)
+      ),
+      10_000
+    )
+    assert.match(
+      await driver.executeScript(
+        element => element.textContent,
+        committedHistoryItem
+      ),
+      /Commit from the real shell.*rdc E2E/s
+    )
+    const selectedCommitDetails = await driver.wait(
+      until.elementLocated(
+        By.css('[aria-label="Selected commit details"]')
+      ),
+      10_000
+    )
+    assert.match(
+      await driver.executeScript(
+        element => element.textContent,
+        selectedCommitDetails
+      ),
+      /Commit from the real shell.*1 changed file.*working-tree\.txt/s
+    )
+    const commitDiff = await driver.wait(
+      until.elementLocated(
+        By.css('[aria-label="Diff for working-tree.txt"]')
+      ),
+      10_000
+    )
+    assert.match(
+      await driver.executeScript(
+        element => element.textContent,
+        commitDiff
+      ),
+      /\+committed line/
+    )
+    const initialBranch = String(
+      execFileSync('git', [
+        '-C',
+        repositoryFixture.canonical,
+        'branch',
+        '--show-current',
+      ])
+    ).trim()
+    const newBranchName = 'phase-7c-e2e'
+    const newBranchInput = await driver.findElement(
+      By.css('#new-branch-name')
+    )
+    await newBranchInput.sendKeys(newBranchName)
+    await driver
+      .findElement(
+        By.xpath("//button[normalize-space()='Create branch']")
+      )
+      .click()
+    await driver.wait(
+      async () =>
+        String(
+          execFileSync('git', [
+            '-C',
+            repositoryFixture.canonical,
+            'branch',
+            '--show-current',
+          ])
+        ).trim() === newBranchName,
+      10_000,
+      'new branch was not created and checked out'
+    )
+    const branchSelector = await driver.findElement(
+      By.css('select[aria-label="Current branch"]')
+    )
+    await driver.executeScript(
+      (select, branchName) => {
+        select.value = branchName
+        select.dispatchEvent(new Event('change', { bubbles: true }))
+      },
+      branchSelector,
+      initialBranch
+    )
+    await driver.wait(
+      async () =>
+        String(
+          execFileSync('git', [
+            '-C',
+            repositoryFixture.canonical,
+            'branch',
+            '--show-current',
+          ])
+        ).trim() === initialBranch,
+      10_000,
+      'existing branch was not checked out'
+    )
+    assert.match(
+      String(
+        execFileSync('git', [
+          '-C',
+          repositoryFixture.canonical,
+          'branch',
+          '--list',
+          newBranchName,
+        ])
+      ),
+      new RegExp(newBranchName)
+    )
+    const changesView = await driver.findElement(
+      By.xpath(
+        "//nav[@aria-label='Repository views']//button[normalize-space()='Changes']"
+      )
+    )
+    await driver.executeScript(element => element.click(), changesView)
     await driver.wait(
       until.elementLocated(
         By.css('[data-changed-file-path="working-tree.txt"]')
@@ -291,11 +424,26 @@ describe('native integration', () => {
       until.elementLocated(By.css('[role="alertdialog"]')),
       5_000
     )
-    await driver
-      .findElement(
-        By.xpath("//button[normalize-space()='Discard changes']")
-      )
-      .click()
+    await driver.wait(
+      async () => {
+        try {
+          const discardChanges = await driver.findElement(
+            By.xpath("//button[normalize-space()='Discard changes']")
+          )
+          await driver.executeScript(
+            element => element.click(),
+            discardChanges
+          )
+          return true
+        } catch {
+          // React may replace the dialog once while the checkout-triggered
+          // working-tree refresh settles. Reacquire the live button.
+          return false
+        }
+      },
+      5_000,
+      'discard confirmation did not accept the click'
+    )
     await driver.wait(
       until.elementLocated(
         By.xpath("//p[normalize-space()='No local changes.']")
@@ -335,6 +483,158 @@ describe('native integration', () => {
       10_000
     )
     assert.equal(existsSync(discardedPath), false)
+
+    const conflictPath = path.join(
+      repositoryFixture.canonical,
+      'merge-conflict.txt'
+    )
+    writeFileSync(conflictPath, 'base\n')
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'add',
+      'merge-conflict.txt',
+    ])
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'commit',
+      '--quiet',
+      '--no-verify',
+      '-m',
+      'Add conflict base',
+    ])
+    const conflictBranch = 'phase-7c-conflict'
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'branch',
+      conflictBranch,
+    ])
+    writeFileSync(conflictPath, 'ours\n')
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'commit',
+      '--quiet',
+      '--no-verify',
+      '-am',
+      'Change conflict on current branch',
+    ])
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'checkout',
+      '--quiet',
+      conflictBranch,
+    ])
+    writeFileSync(conflictPath, 'theirs\n')
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'commit',
+      '--quiet',
+      '--no-verify',
+      '-am',
+      'Change conflict on other branch',
+    ])
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'checkout',
+      '--quiet',
+      initialBranch,
+    ])
+    assert.throws(() =>
+      execFileSync('git', [
+        '-C',
+        repositoryFixture.canonical,
+        'merge',
+        '--no-edit',
+        conflictBranch,
+      ])
+    )
+    const refreshChanges = await driver.findElement(
+      By.xpath("//button[normalize-space()='Refresh changes']")
+    )
+    await driver.executeScript(
+      element => element.click(),
+      refreshChanges
+    )
+    const mergeConflicts = await driver.wait(
+      until.elementLocated(
+        By.css('[aria-label="Merge conflicts"]')
+      ),
+      10_000
+    )
+    assert.match(
+      await driver.executeScript(
+        element => element.textContent,
+        mergeConflicts
+      ),
+      /Merge in progress.*merge-conflict\.txt.*[1-9]\d* conflict markers?/s
+    )
+    const stageResolutionSelector = By.css(
+      '[aria-label="Stage resolution for merge-conflict.txt"]'
+    )
+    assert.equal(
+      await driver.findElement(stageResolutionSelector).isEnabled(),
+      false
+    )
+    writeFileSync(conflictPath, 'resolved by rdc e2e\n')
+    const refreshConflicts = await driver.findElement(
+      By.xpath(
+        "//button[normalize-space()='Refresh conflict state']"
+      )
+    )
+    await driver.executeScript(
+      element => element.click(),
+      refreshConflicts
+    )
+    const stageResolution = await driver.wait(
+      async () => {
+        const button = await driver.findElement(stageResolutionSelector)
+        return (await button.isEnabled()) ? button : false
+      },
+      10_000,
+      'resolved conflict did not become stageable'
+    )
+    await driver.executeScript(
+      element => element.click(),
+      stageResolution
+    )
+    await driver.wait(
+      () =>
+        String(
+          execFileSync('git', [
+            '-C',
+            repositoryFixture.canonical,
+            'diff',
+            '--name-only',
+            '--diff-filter=U',
+          ])
+        ).trim() === '',
+      10_000,
+      'resolved conflict remained unmerged'
+    )
+    assert.match(
+      String(
+        execFileSync('git', [
+          '-C',
+          repositoryFixture.canonical,
+          'diff',
+          '--cached',
+          '--name-only',
+        ])
+      ),
+      /merge-conflict\.txt/
+    )
+    execFileSync('git', [
+      '-C',
+      repositoryFixture.canonical,
+      'merge',
+      '--abort',
+    ])
   })
 
   it('restores a repository after the application process restarts', async () => {
