@@ -26,6 +26,10 @@ full-window before/after image for every structural revision.
   an unrelated strip of generic buttons.
 - Verify toolbar semantics, tab order, focus indication, labels/tooltips and grouping without
   requiring pointer hover to understand an action.
+- Prefer stable, recognizable icon-only toolbar controls where the action has an established visual
+  metaphor. This keeps translated visible labels from changing command-bar geometry or creating
+  locale-specific breakpoints. It does not remove localized text: every icon retains a localized
+  accessible name and contextual tooltip, and an action without a clear icon keeps a visible label.
 - Base compact behavior on the space actually available to the repository workspace. Verify normal,
   800×600 and 620×720 widths with both sidebar widths; controls may condense or move to overflow but
   must not clip, create accidental horizontal scrolling or wrap unpredictably.
