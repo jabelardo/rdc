@@ -51,20 +51,32 @@ describe('application shell', () => {
     const measure = () =>
       driver.executeScript(() => {
         const sidebar = document.querySelector('.repository-sidebar')
+        const commandBar = document.querySelector('.sidebar-command-bar')
         const collapse = document.querySelector('.sidebar-collapse')
         const railSection = document.querySelector('.sidebar-icon-rail button')
         const workspace = document.querySelector('.repository-workspace')
         const actions = document.querySelector('.repository-empty-actions')
         const sidebarRect = sidebar.getBoundingClientRect()
         const collapseRect = collapse.getBoundingClientRect()
+        const collapseStyle = getComputedStyle(collapse)
         const workspaceRect = workspace.getBoundingClientRect()
         const actionsRect = actions.getBoundingClientRect()
         return {
           sidebarBottom: sidebarRect.bottom,
           viewportBottom: window.innerHeight,
           collapseLeft: collapseRect.left,
+          collapseRightGap: sidebarRect.right - collapseRect.right,
+          commandBarRightPadding: Number.parseFloat(
+            getComputedStyle(commandBar).paddingRight
+          ),
+          collapseCenterOffset:
+            collapseRect.left +
+            collapseRect.width / 2 -
+            (sidebarRect.left + sidebarRect.width / 2),
           collapseWidth: collapseRect.width,
           collapseHeight: collapseRect.height,
+          collapseBorderColor: collapseStyle.borderColor,
+          collapseBackgroundColor: collapseStyle.backgroundColor,
           railSectionWidth: railSection?.getBoundingClientRect().width ?? null,
           railSectionHeight:
             railSection?.getBoundingClientRect().height ?? null,
@@ -81,6 +93,13 @@ describe('application shell', () => {
       expanded.actionTopOffset <= 48,
       'the empty-state actions sit too far below the workspace top'
     )
+    assert.ok(
+      Math.abs(expanded.collapseRightGap - expanded.commandBarRightPadding) <=
+        1,
+      'the expanded sidebar control is not right-aligned'
+    )
+    assert.equal(expanded.collapseBorderColor, 'rgba(0, 0, 0, 0)')
+    assert.equal(expanded.collapseBackgroundColor, 'rgba(0, 0, 0, 0)')
 
     await driver
       .findElement(By.css('button[aria-label="Collapse sidebar"]'))
@@ -91,8 +110,8 @@ describe('application shell', () => {
     )
     const collapsed = await measure()
     assert.ok(
-      Math.abs(collapsed.collapseLeft - expanded.collapseLeft) <= 1,
-      'the sidebar control moved horizontally when the rail collapsed'
+      Math.abs(collapsed.collapseCenterOffset) <= 1,
+      'the collapsed sidebar control is not centered in the rail'
     )
     assert.equal(collapsed.collapseWidth, collapsed.railSectionWidth)
     assert.equal(collapsed.collapseHeight, collapsed.railSectionHeight)

@@ -170,7 +170,7 @@ export function AppShell({ controller }: AppShellProps) {
               onPush={() => void refreshAfterPush()}
             />
             <nav
-              className="repository-view-navigation flex gap-2 border-b border-[var(--color-border)] bg-[var(--color-canvas)] px-4 py-[0.45rem]"
+              className="repository-view-navigation flex border-b border-[var(--color-border)] bg-[var(--color-canvas)] px-4"
               aria-label="Repository views"
             >
               <button

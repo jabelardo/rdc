@@ -1,3 +1,13 @@
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faArrowUpRightFromSquare,
+  faArrowsRotate,
+  faCloudArrowDown,
+  faCloudArrowUp,
+  faCode,
+  faFolderOpen,
+  faTerminal,
+} from '@fortawesome/free-solid-svg-icons'
 import type { Repository } from '../../../models/repository'
 import type { RemoteState } from '../../stores/remote-store'
 
@@ -29,49 +39,80 @@ export function RepositoryToolbar({
   onPull,
   onPush,
 }: RepositoryToolbarProps) {
+  const remoteName = remoteState.currentRemote?.name ?? 'the remote'
+  const branchName = remoteState.currentBranch?.name ?? 'the current branch'
+  const progress =
+    remoteState.progress === null
+      ? null
+      : `${remoteState.progress.title ?? 'Fetching'}${
+          remoteState.progress.description
+            ? ` — ${remoteState.progress.description}`
+            : ''
+        } (${Math.round(remoteState.progress.value * 100)}%)`
+  const status = remoteState.operationError ?? remoteState.error ?? progress
+  const statusIsError =
+    remoteState.operationError !== null || remoteState.error !== null
+
   return (
     <header
-      className="repository-toolbar grid min-w-0 items-center gap-x-4 gap-y-3 border-b border-[var(--color-toolbar-border)] bg-[var(--color-toolbar)] px-4 py-[0.65rem] text-[var(--color-toolbar-text)]"
+      className="repository-toolbar flex min-w-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface-subtle)] px-3"
       role="toolbar"
       aria-label="Repository actions"
     >
-      <div className="repository-toolbar-identity min-w-0">
-        <p className="selected-repository-eyebrow">Repository</p>
-        <h2>{repository.name}</h2>
-        <p>{repository.path}</p>
-      </div>
-      <div className="repository-toolbar-actions flex flex-wrap justify-end gap-2">
-        <button type="button" onClick={onShowFiles}>
-          Show files
+      <div
+        className="repository-toolbar-actions flex items-center gap-1.5"
+        role="group"
+        aria-label="Repository tools"
+      >
+        <button
+          type="button"
+          aria-label="Show files"
+          title={`Show ${repository.name} in the file manager`}
+          onClick={onShowFiles}
+        >
+          <FontAwesomeIcon icon={faFolderOpen} aria-hidden="true" />
+          <span className="sr-only">Show files</span>
         </button>
-        <button type="button" disabled={!hasEditor} onClick={onOpenEditor}>
-          Open in editor
+        <button
+          type="button"
+          aria-label="Open in editor"
+          title={`Open ${repository.name} in the configured editor`}
+          disabled={!hasEditor}
+          onClick={onOpenEditor}
+        >
+          <FontAwesomeIcon icon={faCode} aria-hidden="true" />
+          <span className="sr-only">Open in editor</span>
         </button>
-        <button type="button" disabled={!hasShell} onClick={onOpenShell}>
-          Open in terminal
+        <button
+          type="button"
+          aria-label="Open in terminal"
+          title={`Open a terminal at ${repository.name}`}
+          disabled={!hasShell}
+          onClick={onOpenShell}
+        >
+          <FontAwesomeIcon icon={faTerminal} aria-hidden="true" />
+          <span className="sr-only">Open in terminal</span>
         </button>
-        <button type="button" onClick={onOpenNewWindow}>
-          Open in new window
+        <button
+          type="button"
+          aria-label="Open in new window"
+          title={`Open ${repository.name} in a new window`}
+          onClick={onOpenNewWindow}
+        >
+          <FontAwesomeIcon icon={faArrowUpRightFromSquare} aria-hidden="true" />
+          <span className="sr-only">Open in new window</span>
         </button>
       </div>
       <section
-        className="remote-controls grid min-w-0 items-center gap-x-4 gap-y-2"
+        className="remote-controls flex items-center gap-1.5"
         aria-label="Remote synchronization"
         aria-busy={remoteState.loading || remoteState.operation !== null}
       >
-        <div>
-          <h3>Remote</h3>
-          <p>
-            {remoteState.loading
-              ? 'Loading remotes…'
-              : remoteState.currentRemote === null
-                ? 'No remote configured.'
-                : `${remoteState.currentRemote.name} — ${remoteState.currentRemote.url}`}
-          </p>
-        </div>
-        <div className="remote-actions flex flex-wrap justify-end gap-2">
+        <div className="remote-actions flex items-center gap-1.5">
           <button
             type="button"
+            aria-label="Fetch"
+            title={`Fetch from ${remoteName}`}
             disabled={
               remoteState.loading ||
               remoteState.currentRemote === null ||
@@ -79,10 +120,19 @@ export function RepositoryToolbar({
             }
             onClick={onFetch}
           >
-            {remoteState.operation === 'fetch' ? 'Fetching…' : 'Fetch'}
+            <FontAwesomeIcon
+              icon={faArrowsRotate}
+              spin={remoteState.operation === 'fetch'}
+              aria-hidden="true"
+            />
+            <span className="sr-only">
+              {remoteState.operation === 'fetch' ? 'Fetching…' : 'Fetch'}
+            </span>
           </button>
           <button
             type="button"
+            aria-label="Pull"
+            title={`Pull ${remoteName} into ${branchName}`}
             disabled={
               remoteState.loading ||
               remoteState.currentRemote === null ||
@@ -92,10 +142,19 @@ export function RepositoryToolbar({
             }
             onClick={onPull}
           >
-            {remoteState.operation === 'pull' ? 'Pulling…' : 'Pull'}
+            <FontAwesomeIcon
+              icon={faCloudArrowDown}
+              bounce={remoteState.operation === 'pull'}
+              aria-hidden="true"
+            />
+            <span className="sr-only">
+              {remoteState.operation === 'pull' ? 'Pulling…' : 'Pull'}
+            </span>
           </button>
           <button
             type="button"
+            aria-label="Push"
+            title={`Push ${branchName} to ${remoteName}`}
             disabled={
               remoteState.loading ||
               remoteState.currentRemote === null ||
@@ -104,29 +163,24 @@ export function RepositoryToolbar({
             }
             onClick={onPush}
           >
-            {remoteState.operation === 'push' ? 'Pushing…' : 'Push'}
+            <FontAwesomeIcon
+              icon={faCloudArrowUp}
+              bounce={remoteState.operation === 'push'}
+              aria-hidden="true"
+            />
+            <span className="sr-only">
+              {remoteState.operation === 'push' ? 'Pushing…' : 'Push'}
+            </span>
           </button>
         </div>
-        {remoteState.progress !== null && (
-          <p className="remote-progress" role="status">
-            {remoteState.progress.title ?? 'Fetching'}
-            {remoteState.progress.description
-              ? ` — ${remoteState.progress.description}`
-              : ''}
-            {` (${Math.round(remoteState.progress.value * 100)}%)`}
-          </p>
-        )}
-        {remoteState.error !== null && (
-          <p className="application-error" role="alert">
-            {remoteState.error}
-          </p>
-        )}
-        {remoteState.operationError !== null && (
-          <p className="application-error" role="alert">
-            {remoteState.operationError}
-          </p>
-        )}
       </section>
+      <p
+        className={`repository-toolbar-status${statusIsError ? ' is-error' : ''}`}
+        role={statusIsError ? 'alert' : 'status'}
+        title={status ?? undefined}
+      >
+        {status}
+      </p>
     </header>
   )
 }

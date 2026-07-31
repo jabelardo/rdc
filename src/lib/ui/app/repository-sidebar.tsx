@@ -73,24 +73,26 @@ export function RepositorySidebar({
 
   return (
     <aside
-      className={`repository-sidebar box-border min-w-0 overflow-auto border-r border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4${
+      className={`repository-sidebar box-border grid min-w-0 bg-[var(--color-surface-subtle)]${
         collapsed ? ' repository-sidebar-collapsed' : ''
       }`}
       aria-label="Navigation"
     >
-      <button
-        type="button"
-        className="sidebar-collapse"
-        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        aria-expanded={!collapsed}
-        onClick={onToggleCollapsed}
-      >
-        <FontAwesomeIcon
-          icon={collapsed ? faChevronRight : faChevronLeft}
-          aria-hidden="true"
-        />
-      </button>
+      <div className="sidebar-command-bar flex items-center border-b border-[var(--color-border)]">
+        <button
+          type="button"
+          className="sidebar-collapse"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-expanded={!collapsed}
+          onClick={onToggleCollapsed}
+        >
+          <FontAwesomeIcon
+            icon={collapsed ? faChevronRight : faChevronLeft}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
       {collapsed ? (
         <nav className="sidebar-icon-rail" aria-label="Navigation sections">
           {mvpSidebarSections.map(section => {
@@ -123,7 +125,11 @@ export function RepositorySidebar({
             const icon = sidebarIcons[section.id]
             return (
               <section
-                className="sidebar-panel min-w-0 border-t border-[var(--color-border)]"
+                className={`sidebar-panel min-w-0${
+                  section.id === 'repositories'
+                    ? ''
+                    : ' border-t border-[var(--color-border)]'
+                }`}
                 key={section.id}
               >
                 <h2>

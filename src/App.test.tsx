@@ -904,13 +904,23 @@ describe('App', () => {
 
     render(<App />)
 
-    expect(
-      screen.getByRole('heading', { name: repository.name, level: 2 })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('region', { name: 'Selected repository' })
-    ).toHaveTextContent(repository.path)
-    await user.click(screen.getByRole('button', { name: 'Open in new window' }))
+    const toolbar = screen.getByRole('toolbar', {
+      name: 'Repository actions',
+    })
+    expect(toolbar).not.toHaveTextContent(repository.name)
+    expect(toolbar).not.toHaveTextContent(repository.path)
+    const openInNewWindow = screen.getByRole('button', {
+      name: 'Open in new window',
+    })
+    expect(openInNewWindow).toHaveAttribute(
+      'title',
+      `Open ${repository.name} in a new window`
+    )
+    expect(openInNewWindow.querySelector('svg')).toHaveAttribute(
+      'data-icon',
+      'arrow-up-right-from-square'
+    )
+    await user.click(openInNewWindow)
     expect(openRepositoryInNewWindow).toHaveBeenCalledWith(repository.path)
     expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path)
     expect(branchStore.load).toHaveBeenCalledWith(repository.path)

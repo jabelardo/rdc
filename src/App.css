@@ -36,6 +36,7 @@
   --shadow-dialog: 0 1rem 3rem rgb(0 0 0 / 30%);
   --radius-small: 5px;
   --radius-medium: 8px;
+  --command-bar-height: 3.25rem;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -114,14 +115,17 @@ button:disabled {
   -webkit-app-region: drag;
 }
 
-.repository-sidebar-collapsed {
-  padding-inline: 0.5rem;
-}
-
 .repository-sidebar {
   height: 100%;
   min-height: 0;
   align-self: stretch;
+  grid-template-rows: var(--command-bar-height) minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.sidebar-command-bar {
+  min-width: 0;
+  padding-inline: 0.5rem;
 }
 
 .sidebar-collapse {
@@ -130,10 +134,18 @@ button:disabled {
   min-width: 2.25rem;
   height: 2.25rem;
   place-items: center;
-  margin: 0 auto 0.75rem -0.5rem;
+  margin: 0 0 0 auto;
   padding: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
   font-size: 1.15rem;
   line-height: 1;
+}
+
+.sidebar-collapse:hover {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 
 .repository-sidebar-collapsed .sidebar-collapse {
@@ -142,8 +154,12 @@ button:disabled {
 
 .sidebar-icon-rail {
   display: grid;
+  align-content: start;
   gap: 0.5rem;
   justify-items: center;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  padding: 0.75rem 0.5rem;
 }
 
 .sidebar-icon-rail button {
@@ -155,21 +171,26 @@ button:disabled {
   padding: 0;
 }
 
-.repository-sidebar-collapsed
-  :is(.sidebar-collapse, .sidebar-icon-rail button) {
+.repository-sidebar-collapsed .sidebar-icon-rail button {
   border-color: transparent;
   background: transparent;
   box-shadow: none;
 }
 
-.repository-sidebar-collapsed
-  :is(.sidebar-collapse, .sidebar-icon-rail button):hover {
+.repository-sidebar-collapsed .sidebar-icon-rail button:hover {
   color: var(--color-accent);
   background: var(--color-accent-soft);
 }
 
 .sidebar-panel h2 {
   margin: 0;
+}
+
+.sidebar-panels {
+  align-content: start;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  padding: 0.75rem 1rem 1rem;
 }
 
 .sidebar-panel h2 > button {
@@ -258,43 +279,59 @@ button:disabled {
 }
 
 .repository-toolbar {
-  grid-template-columns: minmax(12rem, 1fr) auto minmax(20rem, auto);
+  position: relative;
+  height: var(--command-bar-height);
+  box-sizing: border-box;
+  gap: 0.75rem;
 }
 
-.repository-toolbar-identity h2,
-.repository-toolbar-identity p {
+.repository-toolbar::before {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 1px;
+  height: 2.25rem;
+  background: var(--color-border);
+  content: '';
+  transform: translateY(-50%);
+}
+
+.repository-toolbar :is(.repository-toolbar-actions, .remote-actions) button {
+  display: grid;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.repository-toolbar
+  :is(.repository-toolbar-actions, .remote-actions)
+  button:hover {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.remote-controls {
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--color-border);
+}
+
+.repository-toolbar-status {
+  min-width: 0;
+  margin: 0 0 0 auto;
   overflow: hidden;
-  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.repository-toolbar-actions button {
-  padding-block: 0.4rem;
-  border-color: rgb(255 255 255 / 22%);
-  color: var(--color-toolbar-text);
-  background: transparent;
-  box-shadow: none;
-  white-space: nowrap;
-}
-
-.repository-toolbar-actions button:hover {
-  border-color: rgb(255 255 255 / 45%);
-  background: rgb(255 255 255 / 10%);
-}
-
-.selected-repository-eyebrow {
-  margin: 0 0 0.25rem;
-  color: var(--color-toolbar-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.selected-repository p:last-child {
-  overflow-wrap: anywhere;
-  color: var(--color-toolbar-muted);
+.repository-toolbar-status.is-error {
+  color: var(--color-error-text);
 }
 
 .branch-controls {
@@ -335,39 +372,6 @@ button:disabled {
   margin: 0;
 }
 
-.remote-controls {
-  grid-template-columns: minmax(0, 1fr) auto;
-  text-align: left;
-}
-
-.remote-controls h3,
-.remote-controls p {
-  margin: 0;
-}
-
-.remote-controls > div p {
-  overflow-wrap: anywhere;
-  color: var(--color-toolbar-muted);
-  font-size: 0.85rem;
-}
-
-.remote-actions button {
-  border-color: rgb(255 255 255 / 22%);
-  color: var(--color-toolbar-text);
-  background: transparent;
-  box-shadow: none;
-}
-
-.remote-actions button:hover {
-  border-color: rgb(255 255 255 / 45%);
-  background: rgb(255 255 255 / 10%);
-}
-
-.remote-controls .remote-progress,
-.remote-controls .application-error {
-  grid-column: 1 / -1;
-}
-
 .clone-dialog form {
   display: grid;
   gap: 0.65rem;
@@ -394,16 +398,19 @@ button:disabled {
 }
 
 .repository-view-navigation button {
-  min-width: 6rem;
-  padding-block: 0.4rem;
-  border-color: transparent;
+  min-width: 5.5rem;
+  margin-bottom: -1px;
+  padding: 0.65rem 0.8rem 0.55rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   background: transparent;
   box-shadow: none;
 }
 
 .repository-view-navigation button[aria-current='page'] {
-  border-color: var(--color-accent);
-  background: var(--color-accent-soft);
+  border-bottom-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .merge-conflicts h3,
@@ -908,31 +915,7 @@ button:disabled {
   gap: 0.75rem;
 }
 
-@media (max-width: 70rem) {
-  .repository-toolbar {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .remote-controls {
-    grid-column: 1 / -1;
-  }
-}
-
 @media (max-width: 52rem) {
-  .repository-toolbar {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .repository-toolbar-actions {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 0.15rem;
-  }
-
-  .remote-controls {
-    grid-column: auto;
-  }
-
   .changes-workspace {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(12rem, 34vh) minmax(18rem, 1fr) auto;
@@ -1035,13 +1018,13 @@ button:disabled {
 }
 
 :root[data-theme='dark'] .sidebar-panel,
-:root[data-theme='dark'] .repository-toolbar,
 :root[data-theme='dark'] .repository-view-navigation {
   border-color: #414858;
 }
 
 :root[data-theme='dark'] .repository-toolbar {
-  background: var(--color-toolbar);
+  border-color: var(--color-border);
+  background: var(--color-surface-subtle);
 }
 
 :root[data-theme='dark'] .repository-view-navigation {
@@ -1070,22 +1053,12 @@ button:disabled {
   background: #a82231;
 }
 
-:root[data-theme='dark']
-  :is(.repository-toolbar-actions, .remote-actions)
-  button {
-  border-color: rgb(255 255 255 / 22%);
-  color: var(--color-toolbar-text);
-  background: transparent;
-}
-
 :root[data-theme='dark'] .repository-list-selection[aria-current='true'] {
   background: var(--color-accent-soft);
 }
 
 :root[data-theme='dark'] .repository-list-selection span,
 :root[data-theme='dark'] .repository-list-empty,
-:root[data-theme='dark'] .selected-repository p:last-child,
-:root[data-theme='dark'] .selected-repository-eyebrow,
 :root[data-theme='dark'] .working-tree-files small,
 :root[data-theme='dark'] .history-commits small,
 :root[data-theme='dark'] .history-commits time,

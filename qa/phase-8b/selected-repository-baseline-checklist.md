@@ -36,12 +36,15 @@ full-window before/after image for every structural revision.
 
 Gate A passes only when:
 
-- [ ] Repository and branch context have one persistent, unambiguous home.
-- [ ] Identity, local shortcuts, remote state/actions and Changes/History navigation have distinct
+- [x] Repository and branch context have one persistent, unambiguous home.
+- [x] Identity, local shortcuts, remote state/actions and Changes/History navigation have distinct
       visual jobs and hierarchy.
-- [ ] Remote progress/errors and long identity values do not change the workspace's top edge.
-- [ ] Toolbar controls have intentional priority, grouping, overflow, focus and accessible names.
-- [ ] Expanded/collapsed and normal/default/compact widths preserve the same information architecture.
+- [x] Remote progress/errors and long identity values do not change the workspace's top edge.
+- [x] Toolbar controls have intentional priority, grouping, overflow, focus and accessible names.
+- [x] Expanded/collapsed and normal/default/compact widths preserve the same information architecture.
+
+Accepted as the macOS baseline by Jose Gutierrez on 2026-07-31. Linux and Windows must repeat this
+gate independently; this approval does not prescribe their native window-chrome details.
 
 ## Gate B — Changes and History workspace frame
 
