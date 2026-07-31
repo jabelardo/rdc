@@ -82,7 +82,7 @@ export function useAppController() {
   const [error, setError] = useState<string | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
   const [newBranchName, setNewBranchName] = useState('')
-  const [useShellHookEnvironment, setUseShellHookEnvironment] = useState(false)
+  const [bypassHooks, setBypassHooks] = useState(false)
   const [commitTerminalOutput, setCommitTerminalOutput] = useState('')
   const [discardFileID, setDiscardFileID] = useState<string | null>(null)
   const [discarding, setDiscarding] = useState(false)
@@ -729,8 +729,8 @@ export function useAppController() {
     error,
     commitMessage,
     setCommitMessage,
-    useShellHookEnvironment,
-    setUseShellHookEnvironment,
+    bypassHooks,
+    setBypassHooks,
     commitTerminalOutput,
     showWindowDragRegion,
     newBranchName,

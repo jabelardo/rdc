@@ -149,9 +149,11 @@ export interface IFileToStage {
 /**
  * Whether to run the repository's hooks with the user's shell environment, and where to report them.
  *
- * Omitting this leaves interception **off**, which is the conservative default: git still runs the hooks
- * itself, exactly as it would without rdc involved. Turning it on is a user setting, so the preferences UI
- * decides — see `src/lib/hook-ipc.ts` for why the list of hooks is not a parameter.
+ * Omitting this leaves interception **off** and Git still runs the hooks itself. The working-tree
+ * commit flow deliberately supplies this by default so hooks receive the user's shell environment
+ * and failures can be resolved in the UI; its explicit **Bypass hooks** option instead sends
+ * `CommitOptions.noVerify`. Other operations choose interception at their own product boundary — see
+ * `src/lib/hook-ipc.ts` for why the list of hooks is not a parameter.
  */
 export interface IHookOptions {
   readonly interceptHooks: boolean

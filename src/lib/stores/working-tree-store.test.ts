@@ -259,6 +259,40 @@ describe('WorkingTreeStore', () => {
     expect(store.state.workingDirectory?.includeAll).toBe(false)
   })
 
+  it('includes or excludes every file from the Changes summary control', async () => {
+    const store = createStore(
+      vi.fn(async () =>
+        status([
+          {
+            path: 'first.ts',
+            status: { kind: AppFileStatusKind.Modified },
+            startsUnselected: false,
+          },
+          {
+            path: 'second.ts',
+            status: { kind: AppFileStatusKind.Untracked },
+            startsUnselected: true,
+          },
+        ])
+      )
+    )
+    await store.load('/repo')
+
+    store.setAllFilesIncluded(false)
+    expect(
+      store.state.workingDirectory?.files.map(file =>
+        file.selection.getSelectionType()
+      )
+    ).toEqual([DiffSelectionType.None, DiffSelectionType.None])
+
+    store.setAllFilesIncluded(true)
+    expect(
+      store.state.workingDirectory?.files.map(file =>
+        file.selection.getSelectionType()
+      )
+    ).toEqual([DiffSelectionType.All, DiffSelectionType.All])
+  })
+
   it('tracks only includeable diff lines in frontend selection state', async () => {
     const store = createStore(
       vi.fn(async () =>
@@ -323,7 +357,10 @@ describe('WorkingTreeStore', () => {
         },
       ],
       undefined,
-      undefined,
+      expect.objectContaining({
+        interceptHooks: true,
+        onHookFailure: expect.any(Function),
+      }),
       expect.any(Function)
     )
   })
@@ -375,7 +412,10 @@ describe('WorkingTreeStore', () => {
         { path: 'deleted.ts', deleted: true },
       ],
       undefined,
-      undefined,
+      expect.objectContaining({
+        interceptHooks: true,
+        onHookFailure: expect.any(Function),
+      }),
       expect.any(Function)
     )
     expect(store.state.workingDirectory?.files).toEqual([])
@@ -442,7 +482,7 @@ describe('WorkingTreeStore', () => {
     })
     await store.load('/repo')
 
-    const committing = store.commit('message', true)
+    const committing = store.commit('message')
     await vi.waitFor(() =>
       expect(store.state.hookFailure).toEqual({
         hook: 'pre-commit',
@@ -464,6 +504,39 @@ describe('WorkingTreeStore', () => {
         interceptHooks: true,
         onHookFailure: expect.any(Function),
       }),
+      expect.any(Function)
+    )
+  })
+
+  it('bypasses hooks with noVerify instead of changing their environment', async () => {
+    const getStatus = vi
+      .fn()
+      .mockResolvedValueOnce(
+        status([
+          {
+            path: 'file.ts',
+            status: { kind: AppFileStatusKind.Modified },
+            startsUnselected: false,
+          },
+        ])
+      )
+      .mockResolvedValueOnce(status([]))
+    const createCommit = vi.fn(async () => 'a'.repeat(40))
+    const store = new WorkingTreeStore({
+      getStatus,
+      getWorkingDirectoryDiff: vi.fn(async () => binaryDiff),
+      createCommit,
+    })
+    await store.load('/repo')
+
+    await store.commit('message', true)
+
+    expect(createCommit).toHaveBeenCalledWith(
+      '/repo',
+      'message',
+      [{ path: 'file.ts' }],
+      { noVerify: true },
+      undefined,
       expect.any(Function)
     )
   })

@@ -55,7 +55,13 @@ describe('working tree', () => {
     )
     assert.match(
       await driver.executeScript(element => element.textContent, changedFile),
-      /working-tree\.txtNew/
+      /working-tree\.txt\+/
+    )
+    assert.equal(
+      await changedFile
+        .findElement(By.css('[role="img"][aria-label="New"]'))
+        .getAttribute('title'),
+      'New'
     )
     const diff = await driver.wait(
       until.elementLocated(By.css('[aria-label="File diff"] [role="table"]')),
@@ -103,19 +109,8 @@ describe('working tree', () => {
   it('commits the included selection after ignoring a failing pre-commit hook', async () => {
     const commitMessage = await driver.findElement(By.css('#commit-message'))
     await commitMessage.sendKeys('Commit from the real shell')
-    const useShellHooks = await driver.findElement(
-      By.xpath(
-        "//label[contains(normalize-space(.), 'Run hooks with the shell environment')]//input"
-      )
-    )
-    await driver.executeScript(element => element.click(), useShellHooks)
-    await driver.wait(
-      async () => await useShellHooks.isSelected(),
-      5_000,
-      'shell hook option did not become selected'
-    )
     const commitButton = await driver.findElement(
-      By.xpath("//button[normalize-space()='Commit included files']")
+      By.css('.commit-form button[type="submit"]')
     )
     await commitMessage.sendKeys(Key.ENTER)
     await driver.wait(until.elementTextIs(commitButton, 'Committing…'), 5_000)

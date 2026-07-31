@@ -82,6 +82,7 @@ const workingTreeStore = vi.hoisted(() => ({
   load: vi.fn(),
   selectFile: vi.fn(),
   setFileIncluded: vi.fn(),
+  setAllFilesIncluded: vi.fn(),
   setLineIncluded: vi.fn(),
   discardFile: vi.fn(),
   getSelectedLinesDiscard: vi.fn(),
@@ -354,6 +355,7 @@ describe('App', () => {
     workingTreeStore.selectFile.mockReset()
     workingTreeStore.selectFile.mockResolvedValue(undefined)
     workingTreeStore.setFileIncluded.mockReset()
+    workingTreeStore.setAllFilesIncluded.mockReset()
     workingTreeStore.setLineIncluded.mockReset()
     workingTreeStore.discardFile.mockReset()
     workingTreeStore.discardFile.mockResolvedValue('discarded')
@@ -1281,8 +1283,10 @@ describe('App', () => {
     })
 
     expect(screen.getByRole('region', { name: 'Changes' })).toHaveTextContent(
-      'Alpha.tsModifiedDiscardzeta.tsNewDiscard'
+      /2 changed files.*Alpha\.ts.*zeta\.ts/
     )
+    expect(screen.getByRole('img', { name: 'Modified' })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'New' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'File diff' })).toHaveTextContent(
       /-before.*\+after/
     )
@@ -1318,7 +1322,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(screen.getByRole('button', { name: 'Alpha.tsModified' }))
+    await user.click(screen.getByRole('button', { name: 'Alpha.ts' }))
 
     expect(workingTreeStore.selectFile).toHaveBeenCalledWith(
       'Modified+Alpha.ts'
@@ -1361,10 +1365,10 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
     const first = screen.getByRole('button', {
-      name: 'Alpha.tsModified',
+      name: 'Alpha.ts',
     })
     const second = screen.getByRole('button', {
-      name: 'Beta.tsNew',
+      name: 'Beta.ts',
     })
 
     first.focus()
@@ -1736,17 +1740,16 @@ describe('App', () => {
     render(<App />)
 
     const message = screen.getByRole('textbox', {
-      name: 'Commit message',
+      name: 'Commit summary',
     })
     await user.type(message, 'Commit from rdc')
+    await user.click(screen.getByText('Commit options'))
     await user.click(
       screen.getByRole('checkbox', {
-        name: 'Run hooks with the shell environment',
+        name: 'Bypass hooks',
       })
     )
-    await user.click(
-      screen.getByRole('button', { name: 'Commit included files' })
-    )
+    await user.click(screen.getByRole('button', { name: /Commit 1 file to/ }))
 
     expect(workingTreeStore.commit).toHaveBeenCalledWith(
       'Commit from rdc',

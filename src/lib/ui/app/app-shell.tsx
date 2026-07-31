@@ -37,8 +37,8 @@ export function AppShell({ controller }: AppShellProps) {
     error,
     commitMessage,
     setCommitMessage,
-    useShellHookEnvironment,
-    setUseShellHookEnvironment,
+    bypassHooks,
+    setBypassHooks,
     commitTerminalOutput,
     showWindowDragRegion,
     newBranchName,
@@ -145,6 +145,7 @@ export function AppShell({ controller }: AppShellProps) {
               remoteState={remoteState}
               hasEditor={preferencesStore.selectedEditor !== null}
               hasShell={preferencesStore.selectedShell !== null}
+              repositoryView={repositoryView}
               onShowFiles={() =>
                 void runRepositoryAction(() =>
                   showFolderContents(appState.selectedRepository!.path)
@@ -168,26 +169,8 @@ export function AppShell({ controller }: AppShellProps) {
               onFetch={() => void refreshAfterFetch()}
               onPull={() => void refreshAfterPull()}
               onPush={() => void refreshAfterPush()}
+              onSelectView={setRepositoryView}
             />
-            <nav
-              className="repository-view-navigation flex border-b border-[var(--color-border)] bg-[var(--color-canvas)] px-4"
-              aria-label="Repository views"
-            >
-              <button
-                type="button"
-                aria-current={repositoryView === 'changes' ? 'page' : undefined}
-                onClick={() => setRepositoryView('changes')}
-              >
-                Changes
-              </button>
-              <button
-                type="button"
-                aria-current={repositoryView === 'history' ? 'page' : undefined}
-                onClick={() => setRepositoryView('history')}
-              >
-                History
-              </button>
-            </nav>
             {repositoryView === 'changes' && (
               <MergeConflicts
                 repositoryPath={appState.selectedRepository.path}
@@ -203,10 +186,11 @@ export function AppShell({ controller }: AppShellProps) {
               store={workingTreeStore}
               conflictStore={conflictStore}
               commitMessage={commitMessage}
-              useShellHookEnvironment={useShellHookEnvironment}
+              branchName={branchState.currentBranch}
+              bypassHooks={bypassHooks}
               commitTerminalOutput={commitTerminalOutput}
               onCommitMessageChange={setCommitMessage}
-              onUseShellHookEnvironmentChange={setUseShellHookEnvironment}
+              onBypassHooksChange={setBypassHooks}
               onDiscard={requestDiscard}
             />
             <HistoryWorkspace

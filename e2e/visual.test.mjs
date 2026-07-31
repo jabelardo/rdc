@@ -1,5 +1,7 @@
 // Visual layer: the shared typography/colour tokens and the compact workspace breakpoint.
 import assert from 'node:assert/strict'
+import { writeFileSync } from 'node:fs'
+import path from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import {
   commitWorkingTreeBaseline,
@@ -18,6 +20,10 @@ describe('visual layout', () => {
     fixture = createFixtureRoot()
     initCanonicalRepository(fixture)
     commitWorkingTreeBaseline(fixture)
+    writeFileSync(
+      path.join(fixture.canonical, 'gate-c-layout.txt'),
+      'Gate C layout fixture\n'
+    )
     driver = await startApplication()
     // The toolbar and workspace grids only exist once a repository is selected.
     await openSeededRepository(driver, fixture.canonical)
@@ -36,6 +42,9 @@ describe('visual layout', () => {
       const sidebarCommandBar = document.querySelector('.sidebar-command-bar')
       const collapseButton = document.querySelector('.sidebar-collapse')
       const remoteControls = document.querySelector('.remote-controls')
+      const selectedView = document.querySelector(
+        '.repository-view-navigation [aria-current="page"]'
+      )
       const toolbar = getComputedStyle(toolbarElement)
       const seam = getComputedStyle(toolbarElement, '::before')
       return {
@@ -53,6 +62,10 @@ describe('visual layout', () => {
         seamWidth: Number.parseFloat(seam.width),
         seamColor: seam.backgroundColor,
         toolbarButtons: toolbarElement.querySelectorAll('button').length,
+        selectedView: selectedView.getAttribute('aria-label'),
+        selectedViewHasTreatment:
+          getComputedStyle(selectedView).backgroundColor !==
+          'rgba(0, 0, 0, 0)',
       }
     })
     assert.equal(normal.fontSize, '13px')
@@ -64,7 +77,9 @@ describe('visual layout', () => {
     assert.equal(normal.seamHeight, normal.remoteControlsHeight)
     assert.equal(normal.seamWidth, 1)
     assert.notEqual(normal.seamColor, 'rgba(0, 0, 0, 0)')
-    assert.equal(normal.toolbarButtons, 7)
+    assert.equal(normal.toolbarButtons, 9)
+    assert.equal(normal.selectedView, 'Changes')
+    assert.equal(normal.selectedViewHasTreatment, true)
 
     const originalRect = await driver.manage().window().getRect()
     try {
@@ -81,6 +96,9 @@ describe('visual layout', () => {
         await driver.executeScript(() => {
           const shell = document.querySelector('.application-shell')
           const toolbar = document.querySelector('.repository-toolbar')
+          const viewLabels = [
+            ...document.querySelectorAll('.repository-view-label'),
+          ]
           return {
             shellColumns:
               getComputedStyle(shell).gridTemplateColumns.split(' ').length,
@@ -88,6 +106,9 @@ describe('visual layout', () => {
               document.querySelector('.changes-workspace')
             ).gridTemplateColumns.split(' ').length,
             toolbarFits: toolbar.scrollWidth <= toolbar.clientWidth,
+            viewLabelsHidden: viewLabels.every(
+              label => getComputedStyle(label).display === 'none'
+            ),
           }
         })
       const expanded = await compactSnapshot()
@@ -109,13 +130,15 @@ describe('visual layout', () => {
       assert.deepEqual(compact, {
         expanded: {
           shellColumns: 2,
-          workspaceColumns: 1,
+          workspaceColumns: 2,
           toolbarFits: true,
+          viewLabelsHidden: true,
         },
         collapsed: {
           shellColumns: 2,
-          workspaceColumns: 1,
+          workspaceColumns: 2,
           toolbarFits: true,
+          viewLabelsHidden: true,
         },
       })
     } finally {
@@ -125,6 +148,72 @@ describe('visual layout', () => {
           document.querySelector('.sidebar-collapse').click()
         }
       })
+      await driver.manage().window().setRect(originalRect)
+    }
+  })
+
+  it('keeps every Changes region bounded and reachable at compact width', async () => {
+    const originalRect = await driver.manage().window().getRect()
+    try {
+      await driver.manage().window().setRect({ width: 620, height: 600 })
+      await driver.wait(
+        async () =>
+          await driver.executeScript(
+            () => matchMedia('(max-width: 52rem)').matches
+          ),
+        5_000,
+        'compact Changes breakpoint did not activate'
+      )
+      const layout = await driver.executeScript(() => {
+        const workspace = document.querySelector('.changes-workspace')
+        const files = document.querySelector('.working-tree')
+        const diff = document.querySelector('.working-tree-diff')
+        const commit = document.querySelector('.commit-form')
+        const workspaceRect = workspace.getBoundingClientRect()
+        const regions = [files, diff, commit].map(element => {
+          const rect = element.getBoundingClientRect()
+          return {
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            left: rect.left,
+          }
+        })
+        return {
+          workspaceOwnsOverflow:
+            getComputedStyle(workspace).overflowY === 'hidden',
+          workspaceFits: workspace.scrollHeight <= workspace.clientHeight,
+          regionsFit: regions.every(
+            rect =>
+              rect.top >= workspaceRect.top - 1 &&
+              rect.right <= workspaceRect.right + 1 &&
+              rect.bottom <= workspaceRect.bottom + 1 &&
+              rect.left >= workspaceRect.left - 1
+          ),
+          filesStayLeftOfDiff: regions[0].right <= regions[1].left + 1,
+          commitStaysLeftOfDiff: regions[2].right <= regions[1].left + 1,
+          commitStaysBelowFiles: regions[0].bottom <= regions[2].top + 1,
+          filesScrollIndependently:
+            getComputedStyle(files.querySelector('.virtual-list-viewport'))
+              .overflowY === 'auto',
+          diffScrollsIndependently:
+            getComputedStyle(diff.querySelector('.working-tree-diff-content'))
+              .overflowY === 'auto',
+          commitPresent: commit !== null,
+        }
+      })
+      assert.deepEqual(layout, {
+        workspaceOwnsOverflow: true,
+        workspaceFits: true,
+        regionsFit: true,
+        filesStayLeftOfDiff: true,
+        commitStaysLeftOfDiff: true,
+        commitStaysBelowFiles: true,
+        filesScrollIndependently: true,
+        diffScrollsIndependently: true,
+        commitPresent: true,
+      })
+    } finally {
       await driver.manage().window().setRect(originalRect)
     }
   })

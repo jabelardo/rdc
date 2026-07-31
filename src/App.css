@@ -357,7 +357,7 @@ button:disabled {
 }
 
 .selected-repository {
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .repository-empty-state h2,
@@ -405,6 +405,36 @@ button:disabled {
 .remote-controls {
   padding-left: 0.75rem;
   border-left: 1px solid var(--color-border);
+}
+
+.repository-view-navigation {
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--color-border);
+}
+
+.repository-view-navigation button {
+  display: flex;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0 0.65rem;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.repository-view-navigation button:hover {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.repository-view-navigation button[aria-current='page'] {
+  border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
 }
 
 .repository-toolbar-status {
@@ -605,22 +635,6 @@ button:disabled {
   width: 100%;
 }
 
-.repository-view-navigation button {
-  min-width: 5.5rem;
-  margin-bottom: -1px;
-  padding: 0.65rem 0.8rem 0.55rem;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-
-.repository-view-navigation button[aria-current='page'] {
-  border-bottom-color: var(--color-accent);
-  color: var(--color-accent);
-}
-
 .merge-conflicts h3,
 .merge-conflicts header p {
   margin: 0;
@@ -655,21 +669,90 @@ button:disabled {
 }
 
 .working-tree {
+  display: flex;
+  flex-direction: column;
   grid-area: files;
   margin: 0;
 }
 
-.working-tree h3 {
+.working-tree-diff-header {
+  min-width: 0;
+  min-height: 2.5rem;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  padding: 0.4rem 0.65rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-subtle);
+}
+
+.working-tree-header {
+  flex: 0 0 auto;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-subtle);
+}
+
+.working-tree-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  padding: 0.4rem 0.5rem;
+}
+
+.working-tree-filter {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.working-tree-filter svg {
+  position: absolute;
+  top: 50%;
+  left: 0.6rem;
+  color: var(--color-text-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.working-tree-filter input {
+  box-sizing: border-box;
+  width: 100%;
+  height: 2.25rem;
+  min-width: 0;
+  padding: 0.45rem 0.6rem 0.45rem 2rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-small);
+  color: inherit;
+  background: var(--color-surface);
+  font: inherit;
+}
+
+.working-tree-summary {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.2rem 0.65rem;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.85rem;
+}
+
+.working-tree-summary input {
+  width: 1rem;
+  height: 1rem;
   margin: 0;
 }
 
-.working-tree > header {
-  margin-bottom: 0.5rem;
+.working-tree-filter-empty {
+  margin: 0;
+  padding: 0.75rem;
+  color: var(--color-text-muted);
 }
 
 .working-tree .virtual-list-viewport {
-  height: calc(100% - 2.75rem);
-  min-height: 8rem;
+  height: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: 0;
 }
 
 .virtual-list-viewport {
@@ -679,7 +762,7 @@ button:disabled {
 
 .working-tree-files {
   display: grid;
-  gap: 0.35rem;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -689,8 +772,10 @@ button:disabled {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.5rem;
-  padding-block: 0.15rem;
+  min-height: 2.25rem;
+  gap: 0.35rem;
+  padding: 0 0.4rem;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .working-tree-files input {
@@ -701,10 +786,10 @@ button:disabled {
 
 .working-tree-file-selection {
   display: flex;
+  min-width: 0;
   width: 100%;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.45rem 0.55rem;
+  justify-content: flex-start;
+  padding: 0.35rem 0.25rem;
   border-color: transparent;
   background: transparent;
   box-shadow: none;
@@ -712,8 +797,7 @@ button:disabled {
 }
 
 .working-tree-file-selection[aria-current='true'] {
-  border-color: var(--color-accent);
-  background: var(--color-accent-soft);
+  background: var(--color-surface-subtle);
 }
 
 .working-tree-file-selection span {
@@ -722,30 +806,104 @@ button:disabled {
   white-space: nowrap;
 }
 
-.working-tree-files small {
+.working-tree-file-actions {
+  position: relative;
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+}
+
+.working-tree-file-status,
+.working-tree-file-discard {
+  position: absolute;
+  inset: 0;
+}
+
+.working-tree-file-status {
+  display: grid;
+  width: 1rem;
+  height: 1rem;
+  place-self: center;
+  place-items: center;
+  box-sizing: border-box;
+  border: 1px solid currentColor;
+  border-radius: 2px;
   color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.working-tree-file-status:is(.status-new, .status-untracked, .status-copied) {
+  color: var(--color-success);
+}
+
+.working-tree-file-status:is(.status-deleted, .status-conflicted) {
+  color: var(--color-danger);
+}
+
+.working-tree-file-status.status-modified {
+  color: #b07800;
 }
 
 .working-tree-diff {
+  display: flex;
+  flex-direction: column;
   grid-area: diff;
   margin: 0;
 }
 
-.working-tree-diff:empty::before {
-  display: block;
+.working-tree-diff-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background: var(--color-canvas);
+}
+
+.working-tree-diff-header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.working-tree-refresh,
+.discard-selected-lines {
+  display: grid;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.discard-selected-lines {
+  color: var(--color-danger);
+}
+
+.working-tree-diff-content {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 0;
+}
+
+.working-tree-diff-empty {
   max-width: 24rem;
   margin: 18vh auto 0;
   color: var(--color-text-muted);
-  content: 'Select a changed file to inspect its diff.';
   text-align: center;
 }
 
 .working-tree-diff pre {
   margin: 0;
   overflow: auto;
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-medium);
+  padding: 0.75rem;
+  border: 0;
   background: var(--color-surface);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 0.8rem;
@@ -754,8 +912,7 @@ button:disabled {
 
 .working-tree-diff-lines {
   overflow: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-medium);
+  border: 0;
   background: var(--color-surface);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   font-size: 0.8rem;
@@ -814,13 +971,13 @@ button:disabled {
   user-select: none;
 }
 
-.discard-selected-lines {
-  margin-top: 0.75rem;
-}
-
 .commit-form {
   grid-area: commit;
+  gap: 0.55rem;
+  max-height: min(20rem, 50vh);
   margin: 0;
+  overflow: auto;
+  padding: 0.5rem;
 }
 
 .commit-form label {
@@ -839,7 +996,8 @@ button:disabled {
   padding: 0;
 }
 
-.commit-form input {
+.commit-form input,
+.commit-form textarea {
   box-sizing: border-box;
   width: 100%;
   padding: 0.55rem 0.7rem;
@@ -850,8 +1008,70 @@ button:disabled {
   font: inherit;
 }
 
+.commit-form textarea {
+  min-height: 5rem;
+  resize: none;
+}
+
+.commit-form-options {
+  min-height: 2.25rem;
+}
+
+.commit-form-footer {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.commit-form-footer .commit-form-options {
+  flex: 0 0 auto;
+}
+
+.commit-form-footer button[type='submit'] {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.commit-form-options details {
+  position: relative;
+  width: max-content;
+}
+
+.commit-form-options summary {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border-radius: var(--radius-small);
+  cursor: pointer;
+  list-style: none;
+}
+
+.commit-form-options summary::-webkit-details-marker {
+  display: none;
+}
+
+.commit-form-options summary:hover {
+  background: var(--color-surface-raised);
+}
+
+.commit-options-panel {
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 3;
+  width: max-content;
+  max-width: 16rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-small);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-dialog);
+}
+
 .commit-form button {
-  justify-self: start;
+  width: 100%;
 }
 
 .commit-form button[type='submit'] {
@@ -879,11 +1099,27 @@ button:disabled {
 }
 
 .working-tree-file-discard {
-  padding: 0.45rem 0.6rem;
+  display: grid;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  padding: 0;
   border-color: transparent;
   color: var(--color-danger);
   background: transparent;
   box-shadow: none;
+  opacity: 0;
+}
+
+.working-tree-files li:hover .working-tree-file-status,
+.working-tree-files li:focus-within .working-tree-file-status {
+  opacity: 0;
+}
+
+.working-tree-files li:hover .working-tree-file-discard,
+.working-tree-files li:focus-within .working-tree-file-discard {
+  opacity: 1;
 }
 
 .history {
@@ -1125,22 +1361,29 @@ button:disabled {
 
 @media (max-width: 52rem) {
   .changes-workspace {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(12rem, 34vh) minmax(18rem, 1fr) auto;
+    grid-template-columns: minmax(11rem, 42%) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, auto);
     grid-template-areas:
-      'files'
-      'diff'
-      'commit';
-    overflow: visible;
+      'files diff'
+      'commit diff';
+    overflow: hidden;
   }
 
-  .working-tree,
+  .repository-view-navigation button {
+    width: 2.25rem;
+    padding: 0;
+  }
+
+  .repository-view-label {
+    display: none;
+  }
+
   .commit-form {
-    border-right: 0;
+    max-height: 13.5rem;
   }
 
-  .working-tree {
-    border-bottom: 1px solid var(--color-border);
+  .working-tree-diff-empty {
+    margin-top: 4rem;
   }
 
   .history {
@@ -1235,10 +1478,6 @@ button:disabled {
   background: var(--color-surface-subtle);
 }
 
-:root[data-theme='dark'] .repository-view-navigation {
-  background: var(--color-canvas);
-}
-
 :root[data-theme='dark'] .window-drag-region {
   background: var(--color-surface-subtle);
 }
@@ -1247,6 +1486,19 @@ button:disabled {
   border-color: var(--color-border-strong);
   color: var(--color-text);
   background: var(--color-surface-raised);
+}
+
+:root[data-theme='dark'] .repository-view-navigation button {
+  border-color: transparent;
+  background: transparent;
+}
+
+:root[data-theme='dark']
+  .repository-view-navigation
+  button[aria-current='page'] {
+  border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 
 :root[data-theme='dark'] .commit-form button[type='submit'] {
@@ -1283,6 +1535,8 @@ button:disabled {
 :root[data-theme='dark'] .history-diff pre,
 :root[data-theme='dark'] .commit-terminal-output,
 :root[data-theme='dark'] .commit-form input,
+:root[data-theme='dark'] .commit-form textarea,
+:root[data-theme='dark'] .working-tree-filter input,
 :root[data-theme='dark'] .repository-filter input,
 :root[data-theme='dark'] .branch-filter input,
 :root[data-theme='dark'] .new-branch-form input {

@@ -110,15 +110,23 @@ grouping semantics are shared, but this approval does not prescribe platform-spe
   pushing the primary workspace unpredictably.
 - Leave and re-enter Changes without moving its outer top edge, changing its pane proportions or
   losing a still-valid file selection.
-- At compact width, define one deliberate Changes stacking order. Avoid nested page scrolling,
-  unreachable commit controls and oversized fixed-height gutters.
+- At compact width, preserve the file-navigation pane on the left and the selected diff on the
+  right; do not move the diff below the file list. Keep both useful through deliberate proportions,
+  independent scrolling and a bounded commit dock without introducing page scrolling.
+- Keep secondary commit behavior behind a quiet options disclosure. Hooks run through RDC's
+  shell-environment interception by default; the explicit override is named **Bypass hooks** and
+  means `--no-verify`, not “run hooks” or “change the hook environment.”
 
 Gate C passes only when:
 
-- [ ] Changes has deliberate file/diff/commit proportions and clear scroll ownership.
-- [ ] Merge-conflict, empty-selection, long-content and commit-form states preserve the outer frame.
-- [ ] Re-entering Changes preserves its geometry and every still-valid selection.
-- [ ] Normal/default/compact Changes layouts remain usable with the sidebar expanded and collapsed.
+- [x] Changes has deliberate file/diff/commit proportions and clear scroll ownership.
+- [x] Merge-conflict, empty-selection, long-content and commit-form states preserve the outer frame.
+- [x] Re-entering Changes preserves its geometry and every still-valid selection.
+- [x] Normal/default/compact Changes layouts remain usable with the sidebar expanded and collapsed.
+
+Accepted as the macOS baseline by Jose Gutierrez on 2026-07-31 after three assisted visual
+iterations. Linux and Windows must repeat Gate C independently; the permanent file-left/diff-right
+relationship is shared, but this approval does not prescribe platform-specific rendering.
 
 ## Gate D — History workspace frame
 

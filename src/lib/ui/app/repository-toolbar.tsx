@@ -5,7 +5,9 @@ import {
   faCloudArrowDown,
   faCloudArrowUp,
   faCode,
+  faClockRotateLeft,
   faFolderOpen,
+  faListCheck,
   faTerminal,
 } from '@fortawesome/free-solid-svg-icons'
 import type { Repository } from '../../../models/repository'
@@ -16,6 +18,7 @@ type RepositoryToolbarProps = {
   readonly remoteState: RemoteState
   readonly hasEditor: boolean
   readonly hasShell: boolean
+  readonly repositoryView: 'changes' | 'history'
   readonly onShowFiles: () => void
   readonly onOpenEditor: () => void
   readonly onOpenShell: () => void
@@ -23,6 +26,7 @@ type RepositoryToolbarProps = {
   readonly onFetch: () => void
   readonly onPull: () => void
   readonly onPush: () => void
+  readonly onSelectView: (view: 'changes' | 'history') => void
 }
 
 /** Current-repository identity, local shortcuts, and remote synchronization actions. */
@@ -31,6 +35,7 @@ export function RepositoryToolbar({
   remoteState,
   hasEditor,
   hasShell,
+  repositoryView,
   onShowFiles,
   onOpenEditor,
   onOpenShell,
@@ -38,6 +43,7 @@ export function RepositoryToolbar({
   onFetch,
   onPull,
   onPush,
+  onSelectView,
 }: RepositoryToolbarProps) {
   const remoteName = remoteState.currentRemote?.name ?? 'the remote'
   const branchName = remoteState.currentBranch?.name ?? 'the current branch'
@@ -174,6 +180,31 @@ export function RepositoryToolbar({
           </button>
         </div>
       </section>
+      <nav
+        className="repository-view-navigation flex items-center gap-1.5"
+        aria-label="Repository views"
+      >
+        <button
+          type="button"
+          aria-current={repositoryView === 'changes' ? 'page' : undefined}
+          aria-label="Changes"
+          title="Show changes"
+          onClick={() => onSelectView('changes')}
+        >
+          <FontAwesomeIcon icon={faListCheck} aria-hidden="true" />
+          <span className="repository-view-label">Changes</span>
+        </button>
+        <button
+          type="button"
+          aria-current={repositoryView === 'history' ? 'page' : undefined}
+          aria-label="History"
+          title="Show history"
+          onClick={() => onSelectView('history')}
+        >
+          <FontAwesomeIcon icon={faClockRotateLeft} aria-hidden="true" />
+          <span className="repository-view-label">History</span>
+        </button>
+      </nav>
       <p
         className={`repository-toolbar-status${statusIsError ? ' is-error' : ''}`}
         role={statusIsError ? 'alert' : 'status'}

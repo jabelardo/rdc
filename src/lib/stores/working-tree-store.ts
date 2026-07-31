@@ -303,6 +303,19 @@ export class WorkingTreeStore {
     })
   }
 
+  public setAllFilesIncluded(include: boolean): void {
+    const workingDirectory = this.currentState.workingDirectory
+    if (workingDirectory === null) {
+      return
+    }
+    this.update({
+      ...this.currentState,
+      workingDirectory: WorkingDirectoryStatus.fromFiles(
+        workingDirectory.files.map(file => file.withIncludeAll(include))
+      ),
+    })
+  }
+
   public setLineIncluded(lineIndex: number, include: boolean): void {
     const state = this.currentState
     const workingDirectory = state.workingDirectory
@@ -422,7 +435,7 @@ export class WorkingTreeStore {
 
   public async commit(
     message: string,
-    interceptHooks = false
+    bypassHooks = false
   ): Promise<string | null> {
     const state = this.currentState
     if (state.repositoryPath === null || state.workingDirectory === null) {
@@ -462,9 +475,10 @@ export class WorkingTreeStore {
         state.repositoryPath,
         trimmedMessage,
         files,
-        undefined,
-        interceptHooks
-          ? {
+        bypassHooks ? { noVerify: true } : undefined,
+        bypassHooks
+          ? undefined
+          : {
               interceptHooks: true,
               onHookFailure: (hook, terminalOutput) =>
                 new Promise<HookFailureResolution>(resolve => {
@@ -474,8 +488,7 @@ export class WorkingTreeStore {
                     hookFailure: { hook, terminalOutput },
                   })
                 }),
-            }
-          : undefined,
+            },
         chunk => this.commitTerminalOutput.push(chunk)
       )
       await this.load(state.repositoryPath)

@@ -3,11 +3,15 @@ import {
   faCodeBranch,
   faEllipsisVertical,
   faFolder,
+  faRotateLeft,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { Branch } from '../../models/branch'
 import type { Repository } from '../../models/repository'
-import type { WorkingDirectoryFileChange } from '../../models/status'
+import {
+  AppFileStatusKind,
+  type WorkingDirectoryFileChange,
+} from '../../models/status'
 import { mapStatus } from '../status'
 import { handleListNavigation } from './list-navigation'
 import type { VirtualListRow } from './virtual-list'
@@ -176,6 +180,23 @@ type WorkingTreeFileRowProps = {
   readonly onSetIncluded: (fileID: string, included: boolean) => void
 }
 
+function workingTreeStatusGlyph(kind: AppFileStatusKind): string {
+  switch (kind) {
+    case AppFileStatusKind.New:
+    case AppFileStatusKind.Untracked:
+    case AppFileStatusKind.Copied:
+      return '+'
+    case AppFileStatusKind.Deleted:
+      return '−'
+    case AppFileStatusKind.Renamed:
+      return '→'
+    case AppFileStatusKind.Conflicted:
+      return '!'
+    case AppFileStatusKind.Modified:
+      return '•'
+  }
+}
+
 export function WorkingTreeFileRow({
   file,
   files,
@@ -219,16 +240,27 @@ export function WorkingTreeFileRow({
         }
       >
         <span>{file.path}</span>
-        <small>{mapStatus(file.status)}</small>
       </button>
-      <button
-        type="button"
-        className="working-tree-file-discard"
-        aria-label={`Discard ${file.path}`}
-        onClick={() => onDiscard(file.id)}
-      >
-        Discard
-      </button>
+      <span className="working-tree-file-actions">
+        <small
+          className={`working-tree-file-status status-${file.status.kind.toLowerCase()}`}
+          role="img"
+          aria-label={mapStatus(file.status)}
+          title={mapStatus(file.status)}
+        >
+          {workingTreeStatusGlyph(file.status.kind)}
+        </small>
+        <button
+          type="button"
+          className="working-tree-file-discard"
+          aria-label={`Discard ${file.path}`}
+          title={`Discard changes to ${file.path}`}
+          onClick={() => onDiscard(file.id)}
+        >
+          <FontAwesomeIcon icon={faRotateLeft} aria-hidden="true" />
+          <span className="sr-only">Discard {file.path}</span>
+        </button>
+      </span>
     </li>
   )
 }

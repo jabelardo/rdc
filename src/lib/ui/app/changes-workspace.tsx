@@ -1,3 +1,11 @@
+import {
+  faGear,
+  faMagnifyingGlass,
+  faRotate,
+  faRotateLeft,
+} from '@fortawesome/free-solid-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { useState } from 'react'
 import { DiffLineType, DiffType } from '../../../models/diff'
 import type { ConflictStore } from '../../stores/conflict-store'
 import type {
@@ -26,12 +34,31 @@ type ChangesWorkspaceProps = {
   readonly state: WorkingTreeState
   readonly store: WorkingTreeStore
   readonly conflictStore: ConflictStore
+  readonly branchName: string | null
   readonly commitMessage: string
-  readonly useShellHookEnvironment: boolean
+  readonly bypassHooks: boolean
   readonly commitTerminalOutput: string
   readonly onCommitMessageChange: (message: string) => void
-  readonly onUseShellHookEnvironmentChange: (enabled: boolean) => void
+  readonly onBypassHooksChange: (enabled: boolean) => void
   readonly onDiscard: (fileID: string, selection: boolean) => void
+}
+
+function splitCommitMessage(message: string): {
+  readonly summary: string
+  readonly description: string
+} {
+  const newline = message.indexOf('\n')
+  if (newline === -1) {
+    return { summary: message, description: '' }
+  }
+  return {
+    summary: message.slice(0, newline),
+    description: message.slice(newline + 1).replace(/^\n/, ''),
+  }
+}
+
+function joinCommitMessage(summary: string, description: string): string {
+  return description.length === 0 ? summary : `${summary}\n\n${description}`
 }
 
 /** Changed-file list, selectable diff, and commit form for the active repository. */
@@ -41,17 +68,25 @@ export function ChangesWorkspace({
   state,
   store,
   conflictStore,
+  branchName,
   commitMessage,
-  useShellHookEnvironment,
+  bypassHooks,
   commitTerminalOutput,
   onCommitMessageChange,
-  onUseShellHookEnvironmentChange,
+  onBypassHooksChange,
   onDiscard,
 }: ChangesWorkspaceProps) {
+  const [fileFilter, setFileFilter] = useState('')
+  const files = state.workingDirectory?.files ?? []
+  const normalizedFilter = fileFilter.trim().toLocaleLowerCase()
+  const filteredFiles =
+    normalizedFilter.length === 0
+      ? files
+      : files.filter(file =>
+          file.path.toLocaleLowerCase().includes(normalizedFilter)
+        )
   const selectedFile =
-    state.workingDirectory?.files.find(
-      file => file.id === state.selectedFileID
-    ) ?? null
+    files.find(file => file.id === state.selectedFileID) ?? null
   const hasSelectedDiffLines =
     state.diff?.kind === DiffType.Text &&
     selectedFile !== null &&
@@ -62,6 +97,14 @@ export function ChangesWorkspace({
           selectedFile.selection.isSelected(hunk.unifiedDiffStart + index)
       )
     )
+  const changedFileCount = files.length
+  const includedFileCount = files.filter(file =>
+    file.isIncludedInCommit()
+  ).length
+  const allFilesIncluded =
+    changedFileCount > 0 && includedFileCount === changedFileCount
+  const { summary, description } = splitCommitMessage(commitMessage)
+  const commitTarget = branchName ?? 'current branch'
 
   return (
     <div
@@ -69,24 +112,60 @@ export function ChangesWorkspace({
       hidden={!visible}
     >
       <section
-        className="working-tree min-h-0 min-w-0 overflow-hidden border-r border-[var(--color-border)] p-4 text-left"
+        className="working-tree min-h-0 min-w-0 overflow-hidden border-r border-[var(--color-border)] text-left"
         aria-label="Changes"
         aria-busy={state.loading || state.commitLoading}
       >
-        <header className="flex items-center justify-between gap-4">
-          <h3>Changes</h3>
-          <button
-            type="button"
-            disabled={state.loading}
-            onClick={() => {
-              void Promise.all([
-                store.load(repositoryPath),
-                conflictStore.load(repositoryPath),
-              ])
-            }}
-          >
-            Refresh changes
-          </button>
+        <header className="working-tree-header">
+          <div className="working-tree-tools">
+            <label className="working-tree-filter">
+              <FontAwesomeIcon icon={faMagnifyingGlass} aria-hidden="true" />
+              <span className="sr-only">Filter changed files</span>
+              <input
+                type="search"
+                value={fileFilter}
+                placeholder="Filter changed files"
+                onChange={event => setFileFilter(event.currentTarget.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="working-tree-refresh"
+              aria-label="Refresh changes"
+              title="Refresh changed files"
+              disabled={state.loading}
+              onClick={() => {
+                void Promise.all([
+                  store.load(repositoryPath),
+                  conflictStore.load(repositoryPath),
+                ])
+              }}
+            >
+              <FontAwesomeIcon icon={faRotate} aria-hidden="true" />
+              <span className="sr-only">Refresh changes</span>
+            </button>
+          </div>
+          <label className="working-tree-summary">
+            <input
+              type="checkbox"
+              aria-label="Include all changed files"
+              checked={allFilesIncluded}
+              disabled={changedFileCount === 0 || state.commitLoading}
+              ref={element => {
+                if (element !== null) {
+                  element.indeterminate =
+                    includedFileCount > 0 && !allFilesIncluded
+                }
+              }}
+              onChange={event =>
+                store.setAllFilesIncluded(event.currentTarget.checked)
+              }
+            />
+            <span>
+              {changedFileCount}{' '}
+              {changedFileCount === 1 ? 'changed file' : 'changed files'}
+            </span>
+          </label>
         </header>
         {state.loading ? (
           <p>Loading changes…</p>
@@ -97,9 +176,13 @@ export function ChangesWorkspace({
         ) : state.workingDirectory === null ||
           state.workingDirectory.files.length === 0 ? (
           <p>No local changes.</p>
+        ) : filteredFiles.length === 0 ? (
+          <p className="working-tree-filter-empty">
+            No changed files match this filter.
+          </p>
         ) : (
           <VirtualList
-            items={state.workingDirectory.files}
+            items={filteredFiles}
             className="working-tree-files"
             ariaLabel="Changed files"
             estimateSize={() => 42}
@@ -109,7 +192,7 @@ export function ChangesWorkspace({
             {(file, index, row) => (
               <WorkingTreeFileRow
                 file={file}
-                files={state.workingDirectory?.files ?? []}
+                files={filteredFiles}
                 index={index}
                 row={row}
                 selectedFileID={state.selectedFileID}
@@ -125,17 +208,43 @@ export function ChangesWorkspace({
       </section>
 
       <section
-        className="working-tree-diff min-h-0 min-w-0 overflow-auto bg-[var(--color-canvas)] p-4 text-left"
+        className="working-tree-diff min-h-0 min-w-0 overflow-hidden bg-[var(--color-canvas)] text-left"
         aria-label="File diff"
       >
-        {state.diffLoading ? (
-          <p>Loading diff…</p>
-        ) : state.diffError !== null ? (
-          <p className="application-error" role="alert">
-            {state.diffError}
-          </p>
-        ) : state.diff === null ? null : state.diff.kind === DiffType.Text ? (
-          <>
+        <header className="working-tree-diff-header">
+          <strong title={selectedFile?.path}>
+            {selectedFile?.path ?? 'File diff'}
+          </strong>
+          {state.diff?.kind === DiffType.Text && (
+            <button
+              type="button"
+              className="discard-selected-lines"
+              aria-label="Discard selected lines"
+              title="Discard selected diff lines"
+              disabled={!hasSelectedDiffLines}
+              onClick={() => {
+                if (selectedFile !== null) {
+                  onDiscard(selectedFile.id, true)
+                }
+              }}
+            >
+              <FontAwesomeIcon icon={faRotateLeft} aria-hidden="true" />
+              <span className="sr-only">Discard selected lines</span>
+            </button>
+          )}
+        </header>
+        <div className="working-tree-diff-content">
+          {state.diffLoading ? (
+            <p>Loading diff…</p>
+          ) : state.diffError !== null ? (
+            <p className="application-error" role="alert">
+              {state.diffError}
+            </p>
+          ) : state.diff === null ? (
+            <p className="working-tree-diff-empty">
+              Select a changed file to inspect its diff.
+            </p>
+          ) : state.diff.kind === DiffType.Text ? (
             <div
               className="working-tree-diff-lines"
               role="table"
@@ -184,71 +293,92 @@ export function ChangesWorkspace({
                 })
               )}
             </div>
-            <button
-              type="button"
-              className="discard-selected-lines"
-              disabled={!hasSelectedDiffLines}
-              onClick={() => {
-                if (selectedFile !== null) {
-                  onDiscard(selectedFile.id, true)
-                }
-              }}
-            >
-              Discard selected lines
-            </button>
-          </>
-        ) : state.diff.kind === DiffType.LargeText ? (
-          <pre>{state.diff.text}</pre>
-        ) : state.diff.kind === DiffType.Binary ? (
-          <p>Binary file cannot be displayed.</p>
-        ) : state.diff.kind === DiffType.Image ? (
-          <p>Image preview is not available yet.</p>
-        ) : state.diff.kind === DiffType.Submodule ? (
-          <p>Submodule change.</p>
-        ) : (
-          <p>Diff cannot be displayed.</p>
-        )}
+          ) : state.diff.kind === DiffType.LargeText ? (
+            <pre>{state.diff.text}</pre>
+          ) : state.diff.kind === DiffType.Binary ? (
+            <p>Binary file cannot be displayed.</p>
+          ) : state.diff.kind === DiffType.Image ? (
+            <p>Image preview is not available yet.</p>
+          ) : state.diff.kind === DiffType.Submodule ? (
+            <p>Submodule change.</p>
+          ) : (
+            <p>Diff cannot be displayed.</p>
+          )}
+        </div>
       </section>
 
       {visible &&
         state.workingDirectory !== null &&
         state.workingDirectory.files.length > 0 && (
           <form
-            className="commit-form grid min-w-0 gap-2 border-t border-r border-[var(--color-border)] bg-[var(--color-surface-subtle)] p-4 text-left"
+            className="commit-form grid min-h-0 min-w-0 border-t border-r border-[var(--color-border)] bg-[var(--color-surface-subtle)] text-left"
             aria-label="Commit changes"
             onSubmit={event => {
               event.preventDefault()
-              void store
-                .commit(commitMessage, useShellHookEnvironment)
-                .then(sha => {
-                  if (sha !== null) {
-                    onCommitMessageChange('')
-                  }
-                })
+              void store.commit(commitMessage, bypassHooks).then(sha => {
+                if (sha !== null) {
+                  onCommitMessageChange('')
+                }
+              })
             }}
           >
-            <label htmlFor="commit-message">Commit message</label>
+            <label className="sr-only" htmlFor="commit-message">
+              Commit summary
+            </label>
             <input
               id="commit-message"
-              value={commitMessage}
+              placeholder="Summary (required)"
+              value={summary}
               onChange={event =>
-                onCommitMessageChange(event.currentTarget.value)
+                onCommitMessageChange(
+                  joinCommitMessage(event.currentTarget.value, description)
+                )
               }
             />
-            <label className="commit-option">
-              <input
-                type="checkbox"
-                checked={useShellHookEnvironment}
-                disabled={state.commitLoading}
-                onChange={event =>
-                  onUseShellHookEnvironmentChange(event.currentTarget.checked)
-                }
-              />
-              Run hooks with the shell environment
+            <label className="sr-only" htmlFor="commit-description">
+              Commit description
             </label>
-            <button type="submit" disabled={state.commitLoading}>
-              {state.commitLoading ? 'Committing…' : 'Commit included files'}
-            </button>
+            <textarea
+              id="commit-description"
+              placeholder="Description"
+              rows={3}
+              value={description}
+              onChange={event =>
+                onCommitMessageChange(
+                  joinCommitMessage(summary, event.currentTarget.value)
+                )
+              }
+            />
+            <div className="commit-form-footer">
+              <div className="commit-form-options">
+                <details>
+                  <summary aria-label="Commit options" title="Commit options">
+                    <FontAwesomeIcon icon={faGear} aria-hidden="true" />
+                    <span className="sr-only">Commit options</span>
+                  </summary>
+                  <div className="commit-options-panel">
+                    <label className="commit-option">
+                      <input
+                        type="checkbox"
+                        checked={bypassHooks}
+                        disabled={state.commitLoading}
+                        onChange={event =>
+                          onBypassHooksChange(event.currentTarget.checked)
+                        }
+                      />
+                      Bypass hooks
+                    </label>
+                  </div>
+                </details>
+              </div>
+              <button type="submit" disabled={state.commitLoading}>
+                {state.commitLoading
+                  ? 'Committing…'
+                  : `Commit ${includedFileCount} ${
+                      includedFileCount === 1 ? 'file' : 'files'
+                    } to ${commitTarget}`}
+              </button>
+            </div>
             {state.commitError !== null && (
               <p className="application-error" role="alert">
                 {state.commitError}

@@ -24,7 +24,8 @@
 - Shell/empty-state baseline:
 - Selected-repository Gate A — context/toolbar/navigation:
 - Selected-repository Gate B — left-pane design:
-- Selected-repository Gate C — Changes/History frame:
+- Selected-repository Gate C — Changes workspace frame:
+- Selected-repository Gate D — History workspace and cross-frame stability:
 - Visual matrix:
 - Platform checklist:
 - Final package smoke (only after development-build acceptance):

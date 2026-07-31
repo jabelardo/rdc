@@ -76,21 +76,8 @@ describe('keyboard-only journey', () => {
     const message = 'Keyboard-only MVP journey'
     const commitMessage = await driver.findElement(By.css('#commit-message'))
     await commitMessage.sendKeys(message)
-    const interceptHooks = await driver.findElement(
-      By.xpath(
-        "//label[contains(normalize-space(.), 'Run hooks with the shell environment')]//input"
-      )
-    )
-    await interceptHooks.sendKeys(Key.SPACE)
-    await driver.wait(
-      async () => await interceptHooks.isSelected(),
-      5_000,
-      'Space did not enable hook interception'
-    )
     await driver
-      .findElement(
-        By.xpath("//button[normalize-space()='Commit included files']")
-      )
+      .findElement(By.css('.commit-form button[type="submit"]'))
       .sendKeys(Key.ENTER)
     const hookDialog = await driver.wait(
       until.elementLocated(By.css('[role="alertdialog"]')),

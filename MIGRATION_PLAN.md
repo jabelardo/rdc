@@ -1030,8 +1030,9 @@ callbacks have no production consumer and are recorded for Phase 7 rather than e
   selection, login-shell environment loading **and the proxy transport** have landed; `config.ts` is
   `localStorage`, so it belongs to Phase 7. Discovery, the shell environment, the transport, the runner
   and `withHooksEnv` have **all** landed — see the slice notes below. Phase 3 wired the four commands and
-  their progress Channels. Phase 7 still owns the preference that enables interception and the
-  bidirectional hook-failure prompt.
+  their progress Channels. Phase 7 landed the bidirectional hook-failure prompt; the working-tree
+  commit flow now intercepts by default and exposes an explicit **Bypass hooks** option that maps to
+  `--no-verify`. Persisted hook-environment preferences remain later refinement.
 - **Deferred inside ported modules:** the commit terminal stream now crosses in Phase 3. Phase 7 retains
   its bounded history and renders the progress dialog. Merge/rebase/push expose the same optional callback
   upstream but have no production consumer; pull declares it but never wires it into the Git options.
@@ -1624,9 +1625,10 @@ rather than an intention:
 - ~~**Partial (per-line) staging**~~ **Done**, in the `apply` + `patch_formatter` slice below.
 - **Checkout progress** is now a `Channel`, not a callback (see the streaming note above).
   ~~**Submodule updates**~~ **Done**, with `lib/git/submodule.ts`.
-- **Hook progress** (`interceptHooks`, `onHookProgress`) is also a Channel. Hooks still *run* — git runs
-  them regardless. The Phase 7 setting decides whether rdc intercepts them with the user's shell
-  environment, and its failure dialog supplies the abort/ignore decision.
+- **Hook progress** (`interceptHooks`, `onHookProgress`) is also a Channel. The working-tree commit flow
+  intercepts hooks by default so they run with the user's shell environment and its failure dialog can
+  supply the abort/ignore decision. Its explicit **Bypass hooks** option is semantically different: it
+  sends `--no-verify`, so the hooks do not run.
 
 A third upstream bug turned up here, and this one was pinned by a test: `parseCommitSHA` returns the
 string `"(root-commit)"` instead of a SHA for a repository's first commit, and the original asserted
@@ -3021,8 +3023,8 @@ live status semantics, all interactive form controls receive visible keyboard fo
 reduced-motion and forced-colors rules keep those cues available under OS accessibility modes. Unit
 and React integration tests pin focus trapping/restoration and list routing; the Ubuntu WebKit
 journey verifies focus entry, both Tab boundaries and Escape through the real native Preferences
-accelerator. A second real-app journey creates a change, selects it, toggles inclusion, enables hook
-interception, submits the commit, proves the mandatory hook decision ignores Escape, chooses Ignore
+accelerator. A second real-app journey creates a change, selects it, toggles inclusion, submits the
+commit with the default hook interception, proves the mandatory hook decision ignores Escape, chooses Ignore
 and reaches the new History entry using keyboard input only. The automated/coding acceptance for
 this slice is complete. Phase 8b retains the corresponding macOS manual checklist: native-menu focus
 entry, both modal Tab boundaries and restoration, repository/change/history list navigation,
