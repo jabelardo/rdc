@@ -22,7 +22,7 @@ agreed MVP blocker.
 ## Cycle
 
 1. Complete `baseline-layout-checklist.md` first for the shell and empty state.
-2. Select the generated fixture and complete all four gates in
+2. Select the generated fixture and complete all five gates in
    `selected-repository-baseline-checklist.md`. Do not spend visual or functional checklist budget on
    a toolbar/navigation/workspace frame whose structure is still expected to change.
 3. Once both foundation checklists pass, complete the visual matrix before functional workflows.
@@ -46,7 +46,7 @@ Linux machine/session:
    green commit recorded in that evidence.
 2. With no registered repositories, complete the empty-state `baseline-layout-checklist.md`; the
    2026-07-31 macOS record already owns the first accepted result.
-3. Select `primary` and complete Gate A, Gate B, Gate C, then Gate D, in
+3. Select `primary` and complete Gate A, Gate B, Gate C, Gate D, then Gate E, in
    `selected-repository-baseline-checklist.md`. These are blocking foundational design passes, not
    functional tests.
 4. Complete the macOS rows of `visual-matrix.md`: normal Light first, compact Light second, then

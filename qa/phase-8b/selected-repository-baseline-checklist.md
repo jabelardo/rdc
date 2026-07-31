@@ -1,6 +1,6 @@
 # Selected-repository foundation gate
 
-Enter only after `baseline-layout-checklist.md` passes on the platform being tested. Complete all four
+Enter only after `baseline-layout-checklist.md` passes on the platform being tested. Complete all five
 gates below before the visual matrix or functional workflow QA. Their question is structural: does a
 populated repository produce a stable application frame whose controls can be tested without an
 expected redesign moving or regrouping them?
@@ -139,23 +139,54 @@ relationship is shared, but this approval does not prescribe platform-specific r
   navigation or the window drag region.
 - Verify empty history, no selected commit, long summaries, long author/ref metadata, many changed
   files and a representative text diff without changing the outer geometry unexpectedly.
-- At compact width, define one deliberate History stacking order. Avoid nested page scrolling,
-  unreachable commit/file navigation and oversized fixed-height gutters.
+- At compact width, preserve the commit list on the left and selected commit details on the right,
+  matching the stable directional language established by Changes. Keep both useful through
+  deliberate proportions and independent scrolling; do not move the details below the list.
 - Switch Changes → History → Changes → History after both frames are individually stable. The
   toolbar, navigation, workspace top edge and repository context remain fixed even though the two
   internal layouts differ; each frame restores every still-valid local selection.
 
 Gate D passes only when:
 
-- [ ] History has deliberate list/details proportions and clear scroll ownership.
-- [ ] Commit metadata, changed files and selected diff have a coherent reading order and truncation.
-- [ ] Empty, unselected, long-content and many-file states preserve the outer frame.
-- [ ] Switching Changes/History preserves repository context, navigation, workspace geometry and
+- [x] History has deliberate list/details proportions and clear scroll ownership.
+- [x] Commit metadata, changed files and selected diff have a coherent reading order and truncation.
+- [x] Empty, unselected, long-content and many-file states preserve the outer frame.
+- [x] Switching Changes/History preserves repository context, navigation, workspace geometry and
       still-valid per-frame selections.
-- [ ] Normal/default/compact History layouts remain usable with the sidebar expanded and collapsed.
+- [x] Normal/default/compact History layouts remain usable with the sidebar expanded and collapsed.
+
+Accepted as the macOS baseline by Jose Gutierrez on 2026-07-31 after five assisted visual
+iterations. Linux and Windows must repeat Gate D independently; the nested commit-list/details and
+file-list/diff relationships are shared, but this approval does not prescribe platform rendering.
+
+## Gate E — top-level resizing behavior
+
+Run this only after Gates A–D are individually accepted. It validates the transitions between the
+settled frames rather than redesigning any one frame during the resize pass.
+
+- Resize continuously from at least 1100×720 down to 620×720 and back in both Changes and History,
+  with the sidebar expanded and collapsed. The toolbar, workspace top edge and window drag region
+  remain fixed while internal proportions respond deliberately.
+- Cross every responsive threshold slowly and repeatedly. Controls must not overlap, disappear,
+  oscillate between layouts or become unreachable; no pane may jump to the opposite axis.
+- Verify the outer shell owns the available viewport without document-level scrolling. Sidebar,
+  lists, commit dock, metadata, file navigation and diffs retain their established independent
+  scrolling and minimum useful sizes.
+- Maximize, restore and resize after switching views and sidebar state. Each still-valid repository,
+  branch, view, commit and file selection remains intact, and no stale or blank frame appears.
+- Repeat with representative long repository, branch, commit and file names so truncation changes
+  continuously rather than forcing a late geometry jump.
+
+Gate E passes only when:
+
+- [ ] Continuous normal → compact → normal resizing is stable in Changes and History.
+- [ ] Expanded and collapsed sidebar states preserve toolbar reachability and workspace direction.
+- [ ] No responsive threshold introduces document scrolling, overlap, reordering or unreachable UI.
+- [ ] Maximize/restore and cross-view resizing preserve valid selections and repaint correctly.
+- [ ] Normal/default/compact end states still match the accepted Gates A–D baselines.
 
 ## Platform ownership
 
-Passing all four gates establishes the selected-repository foundation only for the OS recorded in the
+Passing all five gates establishes the selected-repository foundation only for the OS recorded in the
 evidence. macOS, native-Wayland Linux and Phase 10 Windows each run it independently and record any
 necessary native variation explicitly.

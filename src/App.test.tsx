@@ -1198,10 +1198,15 @@ describe('App', () => {
         .getByRole('region', { name: 'Selected commit details' })
         .closest('.history')
     ).toBe(history)
-    expect(history).toHaveTextContent('aaaaaaaStart Phase 7cMona Lisa')
+    const selectedCommit = screen.getByRole('button', {
+      name: /Start Phase 7c.*Mona Lisa/,
+    })
+    expect(selectedCommit).toHaveAttribute('aria-current', 'true')
+    expect(selectedCommit).not.toHaveTextContent('aaaaaaa')
     expect(history).toHaveTextContent('Render selected commit details.')
-    expect(history).toHaveTextContent('1 changed file+7−2')
-    expect(history).toHaveTextContent('src/App.tsxModified')
+    expect(history).toHaveTextContent('Mona Lisa·aaaaaaa+7−2')
+    expect(history).toHaveTextContent('1 changed file')
+    expect(screen.getByRole('img', { name: 'Modified' })).toBeInTheDocument()
     expect(history).toHaveTextContent('+selected commit diff')
     expect(screen.getByRole('button', { name: 'src/App.tsx' })).toHaveAttribute(
       'aria-current',

@@ -1,7 +1,8 @@
 import { DiffLineType, DiffType } from '../../../models/diff'
-import { mapStatus } from '../../status'
+import { formatRelative } from '../../format-relative'
 import type { HistoryState, HistoryStore } from '../../stores/history-store'
 import { handleListNavigation } from '../list-navigation'
+import { FileStatusIcon } from '../mvp-list-rows'
 
 function diffLineClassName(type: DiffLineType): string {
   switch (type) {
@@ -41,8 +42,7 @@ export function HistoryWorkspace({
       aria-busy={state.loading || state.detailsLoading || state.diffLoading}
       hidden={!visible}
     >
-      <div className="history-list-pane min-h-0 min-w-0 overflow-auto border-r border-[var(--color-border)] p-4">
-        <h3>History</h3>
+      <div className="history-list-pane min-h-0 min-w-0 overflow-auto border-r border-[var(--color-border)]">
         {state.loading ? (
           <p>Loading history…</p>
         ) : state.error !== null ? (
@@ -84,12 +84,17 @@ export function HistoryWorkspace({
                     )
                   }
                 >
-                  <code>{commit.shortSha}</code>
                   <strong>{commit.summary}</strong>
-                  <small>{commit.author.name}</small>
-                  <time dateTime={commit.author.date.toISOString()}>
-                    {commit.author.date.toLocaleDateString()}
-                  </time>
+                  <small>
+                    {commit.author.name}
+                    <span aria-hidden="true"> · </span>
+                    <time
+                      dateTime={commit.author.date.toISOString()}
+                      title={commit.author.date.toLocaleString()}
+                    >
+                      {formatRelative(commit.author.date.getTime() - Date.now())}
+                    </time>
+                  </small>
                 </button>
               </li>
             ))}
@@ -97,137 +102,182 @@ export function HistoryWorkspace({
         )}
       </div>
 
-      {selectedCommit !== null && (
-        <section
-          className="history-details min-h-0 min-w-0 overflow-auto bg-[var(--color-canvas)] p-5"
-          aria-label="Selected commit details"
-        >
-          <header>
-            <div>
+      <section
+        className="history-details min-h-0 min-w-0 overflow-hidden bg-[var(--color-canvas)]"
+        aria-label="Selected commit details"
+      >
+        {selectedCommit === null ? (
+          <p className="history-details-empty">
+            Select a commit to inspect its files and diff.
+          </p>
+        ) : (
+          <>
+            <header className="history-details-header">
               <h4>{selectedCommit.summary}</h4>
-              <code>{selectedCommit.sha}</code>
-            </div>
-            <p>
-              {selectedCommit.author.name} &lt;{selectedCommit.author.email}&gt;
-            </p>
-          </header>
-          {selectedCommit.bodyNoCoAuthors.trim().length > 0 && (
-            <pre className="history-commit-body">
-              {selectedCommit.bodyNoCoAuthors}
-            </pre>
-          )}
-          {state.detailsLoading ? (
-            <p>Loading commit details…</p>
-          ) : state.detailsError !== null ? (
-            <p className="application-error" role="alert">
-              {state.detailsError}
-            </p>
-          ) : state.changeset === null ? null : (
-            <>
-              <p className="history-change-summary">
-                {state.changeset.files.length}{' '}
-                {state.changeset.files.length === 1
-                  ? 'changed file'
-                  : 'changed files'}
-                <span>+{state.changeset.linesAdded}</span>
-                <span>−{state.changeset.linesDeleted}</span>
-              </p>
-              {state.changeset.files.length === 0 ? (
-                <p>No files in commit.</p>
-              ) : (
-                <ul
-                  className="history-files"
-                  aria-label="Commit files"
-                  data-keyboard-list
-                >
-                  {state.changeset.files.map((file, index) => (
-                    <li key={file.id}>
-                      <button
-                        type="button"
-                        aria-label={file.path}
-                        data-keyboard-list-item
-                        aria-current={
-                          state.selectedFileID === file.id ? 'true' : undefined
-                        }
-                        tabIndex={
-                          state.selectedFileID === file.id ||
-                          (state.selectedFileID === null && index === 0)
-                            ? 0
-                            : -1
-                        }
-                        onClick={() => void store.selectFile(file.id)}
-                        onKeyDown={event =>
-                          handleListNavigation(
-                            event,
-                            index,
-                            state.changeset?.files.length ?? 0,
-                            targetIndex => {
-                              const target = state.changeset?.files[targetIndex]
-                              if (target !== undefined) {
-                                void store.selectFile(target.id)
-                              }
-                            }
-                          )
-                        }
-                      >
-                        <span>{file.path}</span>
-                        <small>{mapStatus(file.status)}</small>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-          <section className="history-diff" aria-label="Commit file diff">
-            {state.diffLoading ? (
-              <p>Loading diff…</p>
-            ) : state.diffError !== null ? (
-              <p className="application-error" role="alert">
-                {state.diffError}
-              </p>
-            ) : state.diff === null || selectedFile === null ? null : state.diff
-                .kind === DiffType.Text ? (
-              <div
-                className="working-tree-diff-lines"
-                role="table"
-                aria-label={`Diff for ${selectedFile.path}`}
-              >
-                {state.diff.hunks.flatMap((hunk, hunkIndex) =>
-                  hunk.lines.map((line, lineIndex) => (
-                    <div
-                      className={`working-tree-diff-line ${diffLineClassName(
-                        line.type
-                      )}`}
-                      role="row"
-                      key={`${hunkIndex}-${hunk.unifiedDiffStart + lineIndex}`}
-                    >
-                      <span aria-hidden="true" />
-                      <span className="diff-line-number">
-                        {line.oldLineNumber ?? ''}
-                      </span>
-                      <span className="diff-line-number">
-                        {line.newLineNumber ?? ''}
-                      </span>
-                      <code>{line.text}</code>
-                    </div>
-                  ))
-                )}
-              </div>
-            ) : state.diff.kind === DiffType.LargeText ? (
-              <pre>{state.diff.text}</pre>
-            ) : state.diff.kind === DiffType.Binary ? (
-              <p>Binary file cannot be displayed.</p>
-            ) : state.diff.kind === DiffType.Image ? (
-              <p>Image preview is not available yet.</p>
-            ) : state.diff.kind === DiffType.Submodule ? (
-              <p>Submodule change.</p>
-            ) : (
-              <p>Diff cannot be displayed.</p>
+            </header>
+            {selectedCommit.bodyNoCoAuthors.trim().length > 0 && (
+              <pre className="history-commit-body">
+                {selectedCommit.bodyNoCoAuthors}
+              </pre>
             )}
-          </section>
-        </section>
-      )}
+            <p className="history-commit-meta">
+              <span>{selectedCommit.author.name}</span>
+              <span aria-hidden="true">·</span>
+              <code title={selectedCommit.sha}>{selectedCommit.shortSha}</code>
+              {state.changeset !== null && (
+                <>
+                  <span className="history-lines-added">
+                    +{state.changeset.linesAdded}
+                  </span>
+                  <span className="history-lines-deleted">
+                    −{state.changeset.linesDeleted}
+                  </span>
+                </>
+              )}
+            </p>
+            <div className="history-change-workspace">
+              <section
+                className="history-file-section"
+                aria-label="Changed files"
+              >
+                {state.detailsLoading ? (
+                  <p className="history-details-status">
+                    Loading commit details…
+                  </p>
+                ) : state.detailsError !== null ? (
+                  <p className="application-error" role="alert">
+                    {state.detailsError}
+                  </p>
+                ) : state.changeset === null ? (
+                  <p className="history-details-status">
+                    Commit details are unavailable.
+                  </p>
+                ) : (
+                  <>
+                    <p className="history-change-summary">
+                      <span className="history-change-count">
+                        {state.changeset.files.length}{' '}
+                        changed{' '}
+                        {state.changeset.files.length === 1 ? 'file' : 'files'}
+                      </span>
+                    </p>
+                    {state.changeset.files.length === 0 ? (
+                      <p className="history-details-status">
+                        No files in commit.
+                      </p>
+                    ) : (
+                      <ul
+                        className="history-files"
+                        aria-label="Commit files"
+                        data-keyboard-list
+                      >
+                        {state.changeset.files.map((file, index) => (
+                          <li key={file.id}>
+                            <button
+                              type="button"
+                              aria-label={file.path}
+                              data-keyboard-list-item
+                              aria-current={
+                                state.selectedFileID === file.id
+                                  ? 'true'
+                                  : undefined
+                              }
+                              tabIndex={
+                                state.selectedFileID === file.id ||
+                                (state.selectedFileID === null && index === 0)
+                                  ? 0
+                                  : -1
+                              }
+                              onClick={() => void store.selectFile(file.id)}
+                              onKeyDown={event =>
+                                handleListNavigation(
+                                  event,
+                                  index,
+                                  state.changeset?.files.length ?? 0,
+                                  targetIndex => {
+                                    const target =
+                                      state.changeset?.files[targetIndex]
+                                    if (target !== undefined) {
+                                      void store.selectFile(target.id)
+                                    }
+                                  }
+                                )
+                              }
+                            >
+                              <span>{file.path}</span>
+                              <FileStatusIcon
+                                status={file.status}
+                                className="history-file-status"
+                              />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
+              </section>
+              <section className="history-diff" aria-label="Commit file diff">
+                <header className="history-diff-header">
+                  <strong title={selectedFile?.path}>
+                    {selectedFile?.path ?? 'File diff'}
+                  </strong>
+                </header>
+                <div className="history-diff-content">
+                  {state.diffLoading ? (
+                    <p>Loading diff…</p>
+                  ) : state.diffError !== null ? (
+                    <p className="application-error" role="alert">
+                      {state.diffError}
+                    </p>
+                  ) : state.diff === null || selectedFile === null ? (
+                    <p className="history-details-status">
+                      Select a changed file to inspect its diff.
+                    </p>
+                  ) : state.diff.kind === DiffType.Text ? (
+                    <div
+                      className="working-tree-diff-lines"
+                      role="table"
+                      aria-label={`Diff for ${selectedFile.path}`}
+                    >
+                      {state.diff.hunks.flatMap((hunk, hunkIndex) =>
+                        hunk.lines.map((line, lineIndex) => (
+                          <div
+                            className={`working-tree-diff-line ${diffLineClassName(
+                              line.type
+                            )}`}
+                            role="row"
+                            key={`${hunkIndex}-${hunk.unifiedDiffStart + lineIndex}`}
+                          >
+                            <span aria-hidden="true" />
+                            <span className="diff-line-number">
+                              {line.oldLineNumber ?? ''}
+                            </span>
+                            <span className="diff-line-number">
+                              {line.newLineNumber ?? ''}
+                            </span>
+                            <code>{line.text}</code>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  ) : state.diff.kind === DiffType.LargeText ? (
+                    <pre>{state.diff.text}</pre>
+                  ) : state.diff.kind === DiffType.Binary ? (
+                    <p>Binary file cannot be displayed.</p>
+                  ) : state.diff.kind === DiffType.Image ? (
+                    <p>Image preview is not available yet.</p>
+                  ) : state.diff.kind === DiffType.Submodule ? (
+                    <p>Submodule change.</p>
+                  ) : (
+                    <p>Diff cannot be displayed.</p>
+                  )}
+                </div>
+              </section>
+            </div>
+          </>
+        )}
+      </section>
     </section>
   )
 }

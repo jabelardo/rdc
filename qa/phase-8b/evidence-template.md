@@ -26,6 +26,7 @@
 - Selected-repository Gate B — left-pane design:
 - Selected-repository Gate C — Changes workspace frame:
 - Selected-repository Gate D — History workspace and cross-frame stability:
+- Selected-repository Gate E — top-level resizing behavior:
 - Visual matrix:
 - Platform checklist:
 - Final package smoke (only after development-build acceptance):

@@ -218,6 +218,177 @@ describe('visual layout', () => {
     }
   })
 
+  it('keeps History side by side with independently bounded regions', async () => {
+    const originalRect = await driver.manage().window().getRect()
+    try {
+      await driver.manage().window().setRect({ width: 620, height: 600 })
+      await driver.executeScript(() =>
+        document
+          .querySelector('.repository-view-navigation [aria-label="History"]')
+          .click()
+      )
+      await driver.wait(
+        async () =>
+          await driver.executeScript(() => {
+            const history = document.querySelector('.history')
+            return history !== null && !history.hidden
+          }),
+        5_000,
+        'History did not become visible'
+      )
+      await driver.wait(
+        async () =>
+          await driver.executeScript(
+            () =>
+              document.querySelector(
+                '.history-files [aria-current="true"]'
+              ) !== null &&
+              document.querySelector('.history-diff-content') !== null
+          ),
+        5_000,
+        'History details did not finish loading'
+      )
+
+      const snapshot = () =>
+        driver.executeScript(() => {
+          const history = document.querySelector('.history')
+          const commits = history.querySelector('.history-list-pane')
+          const details = history.querySelector('.history-details')
+          const metadata = history.querySelector('.history-details-header')
+          const fileSection = history.querySelector('.history-file-section')
+          const files = history.querySelector('.history-files')
+          const diffRegion = history.querySelector('.history-diff')
+          const diff = history.querySelector('.history-diff-content')
+          const selectedCommit = history.querySelector(
+            '.history-commits [aria-current="true"]'
+          )
+          const selectedFile = history.querySelector(
+            '.history-files [aria-current="true"]'
+          )
+          const historyRect = history.getBoundingClientRect()
+          const commitRect = commits.getBoundingClientRect()
+          const detailsRect = details.getBoundingClientRect()
+          const regionFits = element => {
+            const rect = element.getBoundingClientRect()
+            return (
+              rect.top >= historyRect.top - 1 &&
+              rect.right <= historyRect.right + 1 &&
+              rect.bottom <= historyRect.bottom + 1 &&
+              rect.left >= historyRect.left - 1
+            )
+          }
+
+          return {
+            columns: getComputedStyle(history).gridTemplateColumns.split(' ')
+              .length,
+            historyOwnsOverflow:
+              getComputedStyle(history).overflowY === 'hidden',
+            historyFits: history.scrollHeight <= history.clientHeight,
+            listStaysLeftOfDetails: commitRect.right <= detailsRect.left + 1,
+            filesStayLeftOfDiff:
+              fileSection.getBoundingClientRect().right <=
+              diffRegion.getBoundingClientRect().left + 1,
+            regionsFit: [
+              commits,
+              details,
+              metadata,
+              fileSection,
+              files,
+              diffRegion,
+              diff,
+            ].every(regionFits),
+            commitListScrollsIndependently:
+              getComputedStyle(commits).overflowY === 'auto',
+            fileListScrollsIndependently:
+              getComputedStyle(files).overflowY === 'auto',
+            diffScrollsIndependently:
+              getComputedStyle(diff).overflowY === 'auto',
+            selectedCommit: selectedCommit?.getAttribute('data-commit-sha'),
+            selectedFile: selectedFile?.getAttribute('aria-label'),
+          }
+        })
+
+      const beforeSwitch = await snapshot()
+      assert.deepEqual(
+        {
+          columns: beforeSwitch.columns,
+          historyOwnsOverflow: beforeSwitch.historyOwnsOverflow,
+          historyFits: beforeSwitch.historyFits,
+          listStaysLeftOfDetails: beforeSwitch.listStaysLeftOfDetails,
+          filesStayLeftOfDiff: beforeSwitch.filesStayLeftOfDiff,
+          regionsFit: beforeSwitch.regionsFit,
+          commitListScrollsIndependently:
+            beforeSwitch.commitListScrollsIndependently,
+          fileListScrollsIndependently:
+            beforeSwitch.fileListScrollsIndependently,
+          diffScrollsIndependently: beforeSwitch.diffScrollsIndependently,
+        },
+        {
+          columns: 2,
+          historyOwnsOverflow: true,
+          historyFits: true,
+          listStaysLeftOfDetails: true,
+          filesStayLeftOfDiff: true,
+          regionsFit: true,
+          commitListScrollsIndependently: true,
+          fileListScrollsIndependently: true,
+          diffScrollsIndependently: true,
+        }
+      )
+      assert.ok(beforeSwitch.selectedCommit)
+      assert.ok(beforeSwitch.selectedFile)
+
+      await driver.executeScript(() =>
+        document
+          .querySelector('.repository-view-navigation [aria-label="Changes"]')
+          .click()
+      )
+      await driver.wait(
+        async () =>
+          await driver.executeScript(
+            () => !document.querySelector('.changes-workspace').hidden
+          ),
+        5_000,
+        'Changes did not become visible'
+      )
+      await driver.executeScript(() =>
+        document
+          .querySelector('.repository-view-navigation [aria-label="History"]')
+          .click()
+      )
+      await driver.wait(
+        async () =>
+          await driver.executeScript(
+            () => !document.querySelector('.history').hidden
+          ),
+        5_000,
+        'History did not become visible after switching back'
+      )
+      await driver.wait(
+        async () =>
+          await driver.executeScript(
+            () =>
+              document.querySelector(
+                '.history-files [aria-current="true"]'
+              ) !== null &&
+              document.querySelector('.history-diff-content') !== null
+          ),
+        5_000,
+        'History details did not restore after switching back'
+      )
+      const afterSwitch = await snapshot()
+      assert.equal(afterSwitch.selectedCommit, beforeSwitch.selectedCommit)
+      assert.equal(afterSwitch.selectedFile, beforeSwitch.selectedFile)
+    } finally {
+      await driver.executeScript(() =>
+        document
+          .querySelector('.repository-view-navigation [aria-label="Changes"]')
+          .click()
+      )
+      await driver.manage().window().setRect(originalRect)
+    }
+  })
+
   it('gives one sidebar panel the remaining height without hiding sibling headers', async () => {
     const snapshot = () =>
       driver.executeScript(() => {

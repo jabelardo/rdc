@@ -3,7 +3,7 @@
 - Repeat `baseline-layout-checklist.md` in expanded and collapsed states at the default 800×600
   window. The macOS result is a design reference, not Linux acceptance evidence; record any necessary
   WebKitGTK/native-decoration variation explicitly.
-- Select the generated `primary` fixture and independently repeat all four gates in
+- Select the generated `primary` fixture and independently repeat all five gates in
   `selected-repository-baseline-checklist.md` before the Linux visual matrix or workflows.
 - Confirm the session is native Wayland (`XDG_SESSION_TYPE=wayland`) and record compositor, WebKitGTK,
   Tauri and system Git versions.

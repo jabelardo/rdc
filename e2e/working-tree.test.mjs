@@ -55,7 +55,7 @@ describe('working tree', () => {
     )
     assert.match(
       await driver.executeScript(element => element.textContent, changedFile),
-      /working-tree\.txt\+/
+      /working-tree\.txt/
     )
     assert.equal(
       await changedFile

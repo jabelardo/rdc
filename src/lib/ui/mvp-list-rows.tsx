@@ -1,14 +1,20 @@
 import {
+  faArrowRight,
   faCheck,
   faCodeBranch,
   faEllipsisVertical,
+  faExclamation,
   faFolder,
   faRotateLeft,
+  faSquareCaretUp,
+  faSquareMinus,
+  faSquarePlus,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import type { Branch } from '../../models/branch'
 import type { Repository } from '../../models/repository'
 import {
+  type AppFileStatus,
   AppFileStatusKind,
   type WorkingDirectoryFileChange,
 } from '../../models/status'
@@ -180,21 +186,42 @@ type WorkingTreeFileRowProps = {
   readonly onSetIncluded: (fileID: string, included: boolean) => void
 }
 
-function workingTreeStatusGlyph(kind: AppFileStatusKind): string {
+function fileStatusIcon(kind: AppFileStatusKind): typeof faSquarePlus {
   switch (kind) {
     case AppFileStatusKind.New:
     case AppFileStatusKind.Untracked:
     case AppFileStatusKind.Copied:
-      return '+'
+      return faSquarePlus
     case AppFileStatusKind.Deleted:
-      return '−'
+      return faSquareMinus
     case AppFileStatusKind.Renamed:
-      return '→'
+      return faArrowRight
     case AppFileStatusKind.Conflicted:
-      return '!'
+      return faExclamation
     case AppFileStatusKind.Modified:
-      return '•'
+      return faSquareCaretUp
   }
+}
+
+/** One status glyph shared by working-tree and committed-file lists. */
+export function FileStatusIcon({
+  status,
+  className = '',
+}: {
+  readonly status: AppFileStatus
+  readonly className?: string
+}) {
+  const label = mapStatus(status)
+  return (
+    <small
+      className={`working-tree-file-status status-${status.kind.toLowerCase()} ${className}`}
+      role="img"
+      aria-label={label}
+      title={label}
+    >
+      <FontAwesomeIcon icon={fileStatusIcon(status.kind)} aria-hidden="true" />
+    </small>
+  )
 }
 
 export function WorkingTreeFileRow({
@@ -242,14 +269,7 @@ export function WorkingTreeFileRow({
         <span>{file.path}</span>
       </button>
       <span className="working-tree-file-actions">
-        <small
-          className={`working-tree-file-status status-${file.status.kind.toLowerCase()}`}
-          role="img"
-          aria-label={mapStatus(file.status)}
-          title={mapStatus(file.status)}
-        >
-          {workingTreeStatusGlyph(file.status.kind)}
-        </small>
+        <FileStatusIcon status={file.status} />
         <button
           type="button"
           className="working-tree-file-discard"
