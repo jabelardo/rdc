@@ -6,11 +6,7 @@
  */
 
 import { invoke } from '@tauri-apps/api/core'
-import {
-  BranchType,
-  type Branch,
-  type IAheadBehind,
-} from '../models/branch'
+import { BranchType, type Branch, type IAheadBehind } from '../models/branch'
 import { revSymmetricDifference } from './rev-range'
 
 /**

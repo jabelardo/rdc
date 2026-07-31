@@ -1,8 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import {
-  getCurrentWindow,
-  UserAttentionType,
-} from '@tauri-apps/api/window'
+import { getCurrentWindow, UserAttentionType } from '@tauri-apps/api/window'
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import type { ILaunchStats } from '../../models/launch-stats'
 import type { OpenRepositoryAction } from '../../models/cli-action'
@@ -174,8 +171,7 @@ export function sendReady(
 export function onLaunchTimingStats(
   callback: (stats: ILaunchStats) => void
 ): Promise<UnlistenFn> {
-  return getCurrentWindow().listen<ILaunchStats>(
-    'launch-timing-stats',
-    event => callback(event.payload)
+  return getCurrentWindow().listen<ILaunchStats>('launch-timing-stats', event =>
+    callback(event.payload)
   )
 }

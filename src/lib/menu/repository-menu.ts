@@ -17,9 +17,7 @@ type RepositoryMenuEnvironment = {
   readonly chooseRepository: () => void
   readonly showChanges: () => void
   readonly showHistory: () => void
-  readonly openRepositoryInNewWindow: (
-    path: string
-  ) => void | Promise<void>
+  readonly openRepositoryInNewWindow: (path: string) => void | Promise<void>
   readonly showFolderContents: (path: string) => void | Promise<void>
   readonly fetch: () => void | Promise<void>
   readonly push: () => void | Promise<void>
@@ -43,9 +41,7 @@ function withEnablement(
       enabled: enabled ?? item.enabled,
       menu: {
         ...item.menu,
-        items: item.menu.items.map(child =>
-          withEnablement(child, enabledByID)
-        ),
+        items: item.menu.items.map(child => withEnablement(child, enabledByID)),
       },
     }
   }
@@ -78,8 +74,7 @@ export function buildRepositoryMenu(
     remoteState.operation === null
   const canPush = canFetch && remoteState?.currentBranch !== null
   const canPull =
-    canPush &&
-    typeof remoteState?.currentBranch?.upstream === 'string'
+    canPush && typeof remoteState?.currentBranch?.upstream === 'string'
   const enabledByID = new Map<string, boolean>([
     ['add-local-repository', true],
     ['clone-repository', true],
@@ -116,8 +111,7 @@ export function buildRepositoryMenu(
       ? {}
       : {
           selectedShell: preferencesState.selectedShell,
-          selectedExternalEditor:
-            preferencesState.selectedExternalEditor,
+          selectedExternalEditor: preferencesState.selectedExternalEditor,
           askForConfirmationOnRepositoryRemoval:
             preferencesState.confirmRepositoryRemoval,
         }

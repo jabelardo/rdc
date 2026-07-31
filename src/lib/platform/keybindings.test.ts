@@ -39,9 +39,9 @@ describe('keybinding wire contract', () => {
     invoke.mockResolvedValue(keybindings)
 
     await expect(getKeybindings()).resolves.toBe(keybindings)
-    await expect(
-      setKeybinding('pull', keybindings.pull!)
-    ).resolves.toBe(keybindings)
+    await expect(setKeybinding('pull', keybindings.pull!)).resolves.toBe(
+      keybindings
+    )
     await expect(resetKeybindings()).resolves.toBe(keybindings)
 
     expect(invoke).toHaveBeenNthCalledWith(1, 'get_keybindings')

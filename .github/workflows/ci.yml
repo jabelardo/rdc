@@ -19,8 +19,16 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
       - run: pnpm exec tsc --noEmit
       - run: pnpm test
+      # Keeps MIGRATION_MAP.md §8's "must be settled before entering the app bundle" true rather
+      # than aspirational: fails if a module that survives type erasure into the browser bundle
+      # imports a Node builtin. The legacy `url.parse()` and Node `path` debt is deferred on the
+      # strength of those modules being unreachable from `src/main.tsx`; this is what checks it.
+      - name: Check the browser bundle boundary
+        run: pnpm check:bundle-boundary
       - name: Qualify Phase 8a inputs and QA fixture
         run: pnpm qualify:phase8a
 
@@ -49,6 +57,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+          # For the Windows portability check below. Only the target's prebuilt std is needed —
+          # `cargo check` type-checks without linking, so no MSVC toolchain is involved.
+          targets: x86_64-pc-windows-msvc
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
@@ -63,6 +74,31 @@ jobs:
       - name: cargo test
         working-directory: src-tauri
         run: cargo test --workspace
+      # Each crate must build on its own, not just as part of the workspace. `cargo check
+      # --workspace` unifies Cargo features across the graph, so a crate can use an API whose
+      # feature it never declared and still compile because a sibling enabled it. That is not
+      # hypothetical: `trampoline` used `tokio::process` without declaring the `process` feature,
+      # and every gate stayed green while `cargo check -p trampoline` was broken on its own.
+      - name: cargo check each crate in isolation
+        working-directory: src-tauri
+        run: |
+          cargo check -p git-ops --lib
+          cargo check -p trampoline --lib
+      # Windows portability guard, on this Linux runner — no Windows runner is spun up.
+      #
+      # There is deliberately no `windows-latest` job. The app crate cannot compile on Windows
+      # until Phase 10 (explicitly post-MVP), so such a job would be red on every run forever:
+      # cost without signal. `git-ops` is different — it is two thirds of the Rust code and its
+      # library *already* compiles for Windows cleanly, so this step is green today and blocking,
+      # which stops that from silently regressing while Phase 10 is still far off.
+      #
+      # `--all-targets`, so bins and test code are type-checked too — that is where unix-only
+      # assumptions collect. It also catches per-OS arms that are written but never compiled:
+      # `rdc-printenvz`'s Windows `as_bytes` returned a different type from its Unix sibling and the
+      # mismatch went unnoticed until this target was checked.
+      - name: cargo check -p git-ops for Windows (portability guard)
+        working-directory: src-tauri
+        run: cargo check -p git-ops --all-targets --target x86_64-pc-windows-msvc
 
   # Two jobs guarding failure modes `ubuntu-latest` cannot reach on its own. Both build only
   # `git-ops`, which needs no webkit/gtk, so neither pays for the Tauri system dependencies above.

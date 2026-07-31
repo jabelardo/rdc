@@ -89,8 +89,6 @@ describe('application paths and architecture', () => {
     invoke.mockResolvedValue(true)
 
     await expect(isRunningUnderARM64Translation()).resolves.toBe(true)
-    expect(invoke).toHaveBeenCalledWith(
-      'is_running_under_arm64_translation'
-    )
+    expect(invoke).toHaveBeenCalledWith('is_running_under_arm64_translation')
   })
 })

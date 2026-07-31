@@ -19,17 +19,15 @@ describe('sidebar section registry', () => {
 
   it('shows only sections backed by MVP features', () => {
     expect(
-      visibleSidebarSections(MvpSidebarCapabilities).map(
-        section => section.id
-      )
+      visibleSidebarSections(MvpSidebarCapabilities).map(section => section.id)
     ).toEqual(['repositories', 'branches'])
   })
 
   it('exposes a deferred section only when its capability lands', () => {
     expect(
-      visibleSidebarSections(
-        new Set([...MvpSidebarCapabilities, 'tags'])
-      ).map(section => section.id)
+      visibleSidebarSections(new Set([...MvpSidebarCapabilities, 'tags'])).map(
+        section => section.id
+      )
     ).toEqual(['repositories', 'branches', 'tags'])
   })
 })

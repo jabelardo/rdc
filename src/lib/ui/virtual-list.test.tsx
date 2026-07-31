@@ -9,12 +9,8 @@ const items = Array.from({ length: 1_000 }, (_, index) => ({
 
 describe('VirtualList', () => {
   beforeEach(() => {
-    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(
-      480
-    )
-    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(
-      320
-    )
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(480)
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(320)
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       bottom: 480,
       height: 480,

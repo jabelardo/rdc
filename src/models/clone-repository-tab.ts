@@ -16,4 +16,4 @@ export const NON_GENERIC_CLONE_REPO_TABS = ALL_CLONE_REPO_TABS.filter(
 )
 
 export type NonGenericCloneRepositoryTab =
-  typeof NON_GENERIC_CLONE_REPO_TABS[number]
+  (typeof NON_GENERIC_CLONE_REPO_TABS)[number]

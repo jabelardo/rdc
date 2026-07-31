@@ -861,6 +861,12 @@ The revised plan preserves the phase numbers but splits them by consumer:
   checklists are ready under `qa/phase-8b/`. No final package was produced. Phase 8b is the one
   human-assisted pre-MVP phase: an iterative visual and platform-QA cycle expected to reveal defects,
   require fixes and send each fix back through 8a.
+- **Phase 8a follow-up reopened (2026-07-31):** before starting that human cycle, formatter/linter
+  enforcement and a Tailwind/component-architecture pass became explicit MVP requirements. Node and
+  browser-boundary guards, independent E2E suites and portable Windows seams landed with the tooling
+  work; the coordinated Tailwind + `App.tsx` decomposition remains. This does not rewrite the July 30
+  evidence—it records that a later scope decision invalidated “8b is next” until the full gate runs
+  again after the new UI architecture.
 - Local macOS/Linux packages are produced only after the 8b development-build QA loop settles, then
   receive a focused installed-artifact pass. Signing, notarization, updater, deep links and the
   standalone CLI remain the Phase 9 public-release track.

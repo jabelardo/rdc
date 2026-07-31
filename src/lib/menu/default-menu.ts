@@ -335,9 +335,7 @@ export function buildDefaultMenu(
         action: event('increase-active-resizable-width'),
       },
       {
-        label: mac
-          ? 'Contract Active Resizable'
-          : 'Contract active resizable',
+        label: mac ? 'Contract Active Resizable' : 'Contract active resizable',
         id: 'decrease-active-resizable-width',
         action: event('decrease-active-resizable-width'),
       },
@@ -517,9 +515,7 @@ export function buildDefaultMenu(
         action: event('squash-and-merge-branch'),
       },
       {
-        label: mac
-          ? 'Rebase Current Branch…'
-          : 'R&ebase current branch…',
+        label: mac ? 'Rebase Current Branch…' : 'R&ebase current branch…',
         id: 'rebase-branch',
         action: event('rebase-branch'),
       },
@@ -729,9 +725,7 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
           action: event('test-showcase-update-banner'),
         },
         {
-          label: `${
-            platform === 'macos' ? 'Apple silicon' : 'Arm64'
-          } banner`,
+          label: `${platform === 'macos' ? 'Apple silicon' : 'Arm64'} banner`,
           action: event('test-arm64-banner'),
         },
         { label: 'Thank you', action: event('test-thank-you-banner') },

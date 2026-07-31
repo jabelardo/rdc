@@ -23,10 +23,7 @@ describe('global renderer error logging', () => {
     window.dispatchEvent(errorEvent)
     window.dispatchEvent(rejection)
 
-    expect(loggedError).toHaveBeenCalledWith(
-      'Uncaught renderer error',
-      error
-    )
+    expect(loggedError).toHaveBeenCalledWith('Uncaught renderer error', error)
     expect(loggedError).toHaveBeenCalledWith(
       'Unhandled renderer promise rejection',
       expect.objectContaining({ message: 'rejected value' })

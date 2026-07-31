@@ -95,14 +95,10 @@ export function createStartupMenuActionExecutor(
               : previous
           )
           const ordered =
-            action.direction === 'in'
-              ? ZoomFactors
-              : [...ZoomFactors].reverse()
+            action.direction === 'in' ? ZoomFactors : [...ZoomFactors].reverse()
           zoomFactor =
             ordered.find(factor =>
-              action.direction === 'in'
-                ? factor > closest
-                : factor < closest
+              action.direction === 'in' ? factor > closest : factor < closest
             ) ?? closest
         }
         await environment.setZoom(zoomFactor)

@@ -15,7 +15,8 @@ const require = createRequire(import.meta.url)
 const { GitError, GitErrorRegexes } = require('./package/build/lib/errors.js')
 
 const names = {}
-for (const [k, v] of Object.entries(GitError)) if (typeof v === 'number') names[v] = k
+for (const [k, v] of Object.entries(GitError))
+  if (typeof v === 'number') names[v] = k
 
 const variants = Object.keys(names)
   .map(Number)
@@ -229,4 +230,6 @@ mod tests {
 `
 
 writeFileSync(process.argv[2], out)
-console.log(`wrote ${process.argv[2]}: ${variants.length} variants, ${entries.length} patterns`)
+console.log(
+  `wrote ${process.argv[2]}: ${variants.length} variants, ${entries.length} patterns`
+)

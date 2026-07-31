@@ -55,7 +55,8 @@ const stashResult = snapshot.stashResult as {
   stashEntryCount: number
 }
 const entryData = stashResult.desktopEntries[0]
-const withoutCustomName = snapshot.stashEntryWithoutCustomName as IStashEntryData
+const withoutCustomName =
+  snapshot.stashEntryWithoutCustomName as IStashEntryData
 
 describe('the stash wire shape', () => {
   it('counts every stash, not one fewer', () => {
@@ -279,10 +280,10 @@ describe('the stash and cherry-pick commands', () => {
   })
 })
 
-
 describe('submodules', () => {
   const entry = snapshot.submoduleEntry as ISubmoduleEntryData
-  const uninitialized = snapshot.uninitializedSubmoduleEntry as ISubmoduleEntryData
+  const uninitialized =
+    snapshot.uninitializedSubmoduleEntry as ISubmoduleEntryData
 
   beforeEach(() => {
     invoke.mockReset()
@@ -329,7 +330,6 @@ describe('submodules', () => {
   })
 })
 
-
 describe('squash and reorder', () => {
   beforeEach(() => {
     invoke.mockReset()
@@ -356,7 +356,10 @@ describe('squash and reorder', () => {
 
     expect(invoke).toHaveBeenCalledWith(
       'squash',
-      expect.objectContaining({ lastRetainedCommitRef: null, commitMessage: '' })
+      expect.objectContaining({
+        lastRetainedCommitRef: null,
+        commitMessage: '',
+      })
     )
   })
 

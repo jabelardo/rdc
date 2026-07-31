@@ -78,13 +78,9 @@ export class ConflictStore {
   private requestID = 0
   private operationID = 0
   private readonly dependencies: ConflictStoreDependencies
-  private readonly listeners = new Set<
-    (state: ConflictState) => void
-  >()
+  private readonly listeners = new Set<(state: ConflictState) => void>()
 
-  public constructor(
-    dependencies: Partial<ConflictStoreDependencies> = {}
-  ) {
+  public constructor(dependencies: Partial<ConflictStoreDependencies> = {}) {
     this.dependencies = { ...defaultDependencies, ...dependencies }
   }
 
@@ -92,9 +88,7 @@ export class ConflictStore {
     return this.currentState
   }
 
-  public onDidUpdate(
-    listener: (state: ConflictState) => void
-  ): () => void {
+  public onDidUpdate(listener: (state: ConflictState) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
@@ -112,10 +106,7 @@ export class ConflictStore {
       operationError: null,
     })
     try {
-      const status = await this.dependencies.getStatus(
-        repositoryPath,
-        true
-      )
+      const status = await this.dependencies.getStatus(repositoryPath, true)
       if (requestID !== this.requestID) {
         return
       }
@@ -168,10 +159,7 @@ export class ConflictStore {
             : undefined,
         },
       ])
-      const nextStatus = await this.dependencies.getStatus(
-        repositoryPath,
-        true
-      )
+      const nextStatus = await this.dependencies.getStatus(repositoryPath, true)
       if (!this.isCurrentOperation(requestID, operationID)) {
         return false
       }
@@ -210,14 +198,8 @@ export class ConflictStore {
     }
   }
 
-  private isCurrentOperation(
-    requestID: number,
-    operationID: number
-  ): boolean {
-    return (
-      requestID === this.requestID &&
-      operationID === this.operationID
-    )
+  private isCurrentOperation(requestID: number, operationID: number): boolean {
+    return requestID === this.requestID && operationID === this.operationID
   }
 
   private update(state: ConflictState): void {

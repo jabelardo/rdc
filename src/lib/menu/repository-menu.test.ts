@@ -45,9 +45,7 @@ const preferencesState = {
 
 function allItems(items: ReadonlyArray<MenuItem>): ReadonlyArray<MenuItem> {
   return items.flatMap(item =>
-    item.type === 'submenuItem'
-      ? [item, ...allItems(item.menu.items)]
-      : [item]
+    item.type === 'submenuItem' ? [item, ...allItems(item.menu.items)] : [item]
   )
 }
 
@@ -119,9 +117,7 @@ describe('repository application menu', () => {
     const byId = (menu: typeof enabled, id: string) =>
       menu.items
         .flatMap(item =>
-          item.type === 'submenuItem'
-            ? [item, ...item.menu.items]
-            : [item]
+          item.type === 'submenuItem' ? [item, ...item.menu.items] : [item]
         )
         .find(item => item.id === id)
 
@@ -219,8 +215,7 @@ describe('repository application menu', () => {
 
       for (const { id, action } of enabledActions) {
         const handled =
-          action.type === 'menu-event' &&
-          (await executeMenuEvent(action.event))
+          action.type === 'menu-event' && (await executeMenuEvent(action.event))
             ? true
             : await executeStartupAction(action)
         expect(handled, `${id} has no action executor`).toBe(true)
@@ -292,9 +287,7 @@ describe('repository application menu actions', () => {
       repository.path
     )
     expect(store.removeRepository).toHaveBeenCalledWith(repository)
-    expect(environment.showFolderContents).toHaveBeenCalledWith(
-      repository.path
-    )
+    expect(environment.showFolderContents).toHaveBeenCalledWith(repository.path)
   })
 
   it('refuses repository actions when the selection disappeared', async () => {
@@ -336,9 +329,7 @@ describe('repository application menu actions', () => {
     await expect(execute('pull')).resolves.toBe(false)
 
     expect(store.removeRepository).not.toHaveBeenCalled()
-    expect(
-      environment.openRepositoryInNewWindow
-    ).not.toHaveBeenCalled()
+    expect(environment.openRepositoryInNewWindow).not.toHaveBeenCalled()
     expect(environment.showFolderContents).not.toHaveBeenCalled()
     expect(environment.fetch).not.toHaveBeenCalled()
     expect(environment.push).not.toHaveBeenCalled()

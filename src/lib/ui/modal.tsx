@@ -1,8 +1,4 @@
-import {
-  type PropsWithChildren,
-  useEffect,
-  useRef,
-} from 'react'
+import { type PropsWithChildren, useEffect, useRef } from 'react'
 
 const focusableSelector = [
   'a[href]',
@@ -91,10 +87,7 @@ export function Modal({
           if (event.shiftKey && document.activeElement === first) {
             event.preventDefault()
             last.focus()
-          } else if (
-            !event.shiftKey &&
-            document.activeElement === last
-          ) {
+          } else if (!event.shiftKey && document.activeElement === last) {
             event.preventDefault()
             first.focus()
           }

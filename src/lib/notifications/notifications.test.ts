@@ -10,10 +10,8 @@ vi.mock('../platform/notifications', () => ({
 }))
 vi.mock('../platform/window', () => ({ focusWindow }))
 
-const {
-  NotificationCallbackRegistry,
-  initializeNotificationHandler,
-} = await import('./notification-handler')
+const { NotificationCallbackRegistry, initializeNotificationHandler } =
+  await import('./notification-handler')
 const { showNotification } = await import('./show-notification')
 
 describe('notification callbacks', () => {
@@ -40,7 +38,9 @@ describe('notification callbacks', () => {
   it('stores a callback only after native display returns an id', async () => {
     const callbacks = new NotificationCallbackRegistry()
     const onClick = vi.fn()
-    nativeShowNotification.mockResolvedValueOnce('41').mockResolvedValueOnce(null)
+    nativeShowNotification
+      .mockResolvedValueOnce('41')
+      .mockResolvedValueOnce(null)
 
     await showNotification(
       {

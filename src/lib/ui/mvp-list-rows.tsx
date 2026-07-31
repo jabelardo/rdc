@@ -40,9 +40,7 @@ export function RepositoryListRow({
         aria-label={`Select ${repository.name}`}
         aria-current={selected ? 'true' : undefined}
         tabIndex={
-          selected || (selectedRepository === null && index === 0)
-            ? 0
-            : -1
+          selected || (selectedRepository === null && index === 0) ? 0 : -1
         }
         onClick={() => onSelect(repository)}
         onKeyDown={event =>
@@ -107,9 +105,7 @@ export function WorkingTreeFileRow({
         type="checkbox"
         aria-label={`Include ${file.path}`}
         checked={file.isIncludedInCommit()}
-        onChange={event =>
-          onSetIncluded(file.id, event.currentTarget.checked)
-        }
+        onChange={event => onSetIncluded(file.id, event.currentTarget.checked)}
       />
       <button
         type="button"
@@ -117,9 +113,7 @@ export function WorkingTreeFileRow({
         data-keyboard-list-item
         data-keyboard-list-index={index}
         aria-current={selected ? 'true' : undefined}
-        tabIndex={
-          selected || (selectedFileID === null && index === 0) ? 0 : -1
-        }
+        tabIndex={selected || (selectedFileID === null && index === 0) ? 0 : -1}
         onClick={() => onSelect(file.id)}
         onKeyDown={event =>
           handleListNavigation(

@@ -51,23 +51,21 @@ const workingTreeStore = vi.hoisted(() => ({
       }>
     } | null,
     selectedFileID: null as string | null,
-    diff: null as
-      | {
-          kind: number
-          text?: string
-          hunks?: ReadonlyArray<{
-            unifiedDiffStart: number
-            lines: ReadonlyArray<{
-              text: string
-              type?: number
-              content: string
-              oldLineNumber: number | null
-              newLineNumber: number | null
-              isIncludeableLine: () => boolean
-            }>
-          }>
-        }
-      | null,
+    diff: null as {
+      kind: number
+      text?: string
+      hunks?: ReadonlyArray<{
+        unifiedDiffStart: number
+        lines: ReadonlyArray<{
+          text: string
+          type?: number
+          content: string
+          oldLineNumber: number | null
+          newLineNumber: number | null
+          isIncludeableLine: () => boolean
+        }>
+      }>
+    } | null,
     diffLoading: false,
     diffError: null as string | null,
     commitLoading: false,
@@ -121,21 +119,19 @@ const historyStore = vi.hoisted(() => ({
     error: null as string | null,
     detailsLoading: false,
     detailsError: null as string | null,
-    diff: null as
-      | {
-          kind: number
-          text?: string
-          hunks?: ReadonlyArray<{
-            unifiedDiffStart: number
-            lines: ReadonlyArray<{
-              text: string
-              type?: number
-              oldLineNumber: number | null
-              newLineNumber: number | null
-            }>
-          }>
-        }
-      | null,
+    diff: null as {
+      kind: number
+      text?: string
+      hunks?: ReadonlyArray<{
+        unifiedDiffStart: number
+        lines: ReadonlyArray<{
+          text: string
+          type?: number
+          oldLineNumber: number | null
+          newLineNumber: number | null
+        }>
+      }>
+    } | null,
     diffLoading: false,
     diffError: null as string | null,
   },
@@ -469,9 +465,9 @@ describe('App', () => {
     render(<App />)
 
     await vi.waitFor(() => {
-      expect(
-        document.querySelector('.window-drag-region') !== null
-      ).toBe(!__LINUX__)
+      expect(document.querySelector('.window-drag-region') !== null).toBe(
+        !__LINUX__
+      )
     })
     const dragRegion = document.querySelector('.window-drag-region')
     expect(dragRegion?.querySelector('button')).toBeFalsy()
@@ -493,9 +489,9 @@ describe('App', () => {
     const items = initialMenu.items.flatMap(item =>
       item.type === 'submenuItem' ? [item, ...item.menu.items] : [item]
     )
-    expect(items.find(item => item.id === 'add-local-repository')).toMatchObject(
-      { enabled: true }
-    )
+    expect(
+      items.find(item => item.id === 'add-local-repository')
+    ).toMatchObject({ enabled: true })
     expect(items.find(item => item.id === 'remove-repository')).toMatchObject({
       enabled: false,
     })
@@ -533,15 +529,13 @@ describe('App', () => {
     )
 
     expect(preferencesStore.setTheme).toHaveBeenCalledWith('dark')
-    expect(
-      preferencesStore.setSelectedExternalEditor
-    ).toHaveBeenCalledWith('Zed')
-    expect(preferencesStore.setSelectedShell).toHaveBeenCalledWith(
-      'Ghostty'
+    expect(preferencesStore.setSelectedExternalEditor).toHaveBeenCalledWith(
+      'Zed'
     )
-    expect(
-      preferencesStore.setConfirmRepositoryRemoval
-    ).toHaveBeenCalledWith(false)
+    expect(preferencesStore.setSelectedShell).toHaveBeenCalledWith('Ghostty')
+    expect(preferencesStore.setConfirmRepositoryRemoval).toHaveBeenCalledWith(
+      false
+    )
   })
 
   it('dismisses a safe modal with Escape and restores focus', async () => {
@@ -570,10 +564,12 @@ describe('App', () => {
 
     await act(() => executeMenuEvent('show-about'))
 
+    expect(screen.getByRole('dialog', { name: 'About rdc' })).toHaveTextContent(
+      `Version ${__APP_VERSION__}`
+    )
     expect(
-      screen.getByRole('dialog', { name: 'About rdc' })
-    ).toHaveTextContent(`Version ${__APP_VERSION__}`)
-    expect(screen.getByText('A Tauri port of Desktop Plus.')).toBeInTheDocument()
+      screen.getByText('A native Git client built with Tauri and Rust.')
+    ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(
@@ -602,12 +598,8 @@ describe('App', () => {
       preferencesStore.selectedEditor
     )
 
-    await user.click(
-      screen.getByRole('button', { name: 'Open in terminal' })
-    )
-    await user.click(
-      screen.getByRole('button', { name: 'Open in editor' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Open in terminal' }))
+    await user.click(screen.getByRole('button', { name: 'Open in editor' }))
     await user.click(screen.getByRole('button', { name: 'Show files' }))
 
     expect(launchShell).toHaveBeenCalledTimes(2)
@@ -636,9 +628,10 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'Repositories' })
     ).toHaveAttribute('aria-expanded', 'true')
-    expect(
-      screen.getByRole('button', { name: 'Branches' })
-    ).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Branches' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
     expect(
       screen.queryByRole('button', { name: 'Tags' })
     ).not.toBeInTheDocument()
@@ -646,9 +639,7 @@ describe('App', () => {
     expect(screen.queryByText('Submodules')).not.toBeInTheDocument()
     expect(screen.queryByText('Subtrees')).not.toBeInTheDocument()
 
-    await user.click(
-      screen.getByRole('button', { name: 'Repositories' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Repositories' }))
     expect(
       screen.getByRole('button', { name: 'Repositories' })
     ).toHaveAttribute('aria-expanded', 'false')
@@ -656,9 +647,7 @@ describe('App', () => {
       screen.queryByRole('region', { name: 'Repositories' })
     ).not.toBeInTheDocument()
 
-    await user.click(
-      screen.getByRole('button', { name: 'Collapse sidebar' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
     expect(
       screen.getByRole('button', { name: 'Expand sidebar' })
     ).toHaveAttribute('aria-expanded', 'false')
@@ -698,9 +687,7 @@ describe('App', () => {
     expect(
       screen.getByRole('form', { name: 'Create branch' })
     ).toBeInTheDocument()
-    expect(setWindowTitle).toHaveBeenLastCalledWith(
-      'rdc — rdc — main'
-    )
+    expect(setWindowTitle).toHaveBeenLastCalledWith('rdc — rdc — main')
     const toolbar = screen.getByRole('toolbar', {
       name: 'Repository actions',
     })
@@ -787,9 +774,7 @@ describe('App', () => {
         })
       }
     })
-    await user.click(
-      screen.getByRole('button', { name: 'Select rdc' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Select rdc' }))
 
     expect(screen.getByText('/projects/rdc')).toBeInTheDocument()
     expect(appStore.selectRepository).toHaveBeenCalledWith(repository)
@@ -814,9 +799,7 @@ describe('App', () => {
 
     first.focus()
     await user.keyboard('{ArrowDown}')
-    expect(appStore.selectRepository).toHaveBeenLastCalledWith(
-      secondRepository
-    )
+    expect(appStore.selectRepository).toHaveBeenLastCalledWith(secondRepository)
     expect(second).toHaveFocus()
 
     await user.keyboard('{Home}')
@@ -824,9 +807,7 @@ describe('App', () => {
     expect(first).toHaveFocus()
 
     await user.keyboard('{End}')
-    expect(appStore.selectRepository).toHaveBeenLastCalledWith(
-      secondRepository
-    )
+    expect(appStore.selectRepository).toHaveBeenLastCalledWith(secondRepository)
     expect(second).toHaveFocus()
   })
 
@@ -845,9 +826,7 @@ describe('App', () => {
     expect(
       screen.getByRole('region', { name: 'Selected repository' })
     ).toHaveTextContent(repository.path)
-    await user.click(
-      screen.getByRole('button', { name: 'Open in new window' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Open in new window' }))
     expect(openRepositoryInNewWindow).toHaveBeenCalledWith(repository.path)
     expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path)
     expect(branchStore.load).toHaveBeenCalledWith(repository.path)
@@ -905,13 +884,9 @@ describe('App', () => {
       screen.getByRole('textbox', { name: 'New branch name' }),
       'feature'
     )
-    await user.click(
-      screen.getByRole('button', { name: 'Create branch' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Create branch' }))
 
-    expect(branchStore.createAndCheckout).toHaveBeenCalledWith(
-      'feature'
-    )
+    expect(branchStore.createAndCheckout).toHaveBeenCalledWith('feature')
   })
 
   it('shows merge conflicts and stages an externally resolved file', async () => {
@@ -948,9 +923,7 @@ describe('App', () => {
     })
     expect(conflicts).toHaveTextContent('Merge in progress')
     expect(conflicts).toHaveTextContent('resolved.txtResolved')
-    expect(conflicts).toHaveTextContent(
-      'unresolved.txt2 conflict markers'
-    )
+    expect(conflicts).toHaveTextContent('unresolved.txt2 conflict markers')
     expect(
       screen.getByRole('button', {
         name: 'Stage resolution for unresolved.txt',
@@ -962,9 +935,7 @@ describe('App', () => {
         name: 'Stage resolution for resolved.txt',
       })
     )
-    expect(conflictStore.stageResolvedFile).toHaveBeenCalledWith(
-      'resolved.txt'
-    )
+    expect(conflictStore.stageResolvedFile).toHaveBeenCalledWith('resolved.txt')
     expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path)
 
     await user.click(
@@ -1043,9 +1014,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'History' })
-    )
+    await user.click(screen.getByRole('button', { name: 'History' }))
 
     expect(historyStore.load).toHaveBeenCalledWith(repository.path)
     const history = screen.getByRole('region', { name: 'History' })
@@ -1060,9 +1029,10 @@ describe('App', () => {
     expect(history).toHaveTextContent('1 changed file+7−2')
     expect(history).toHaveTextContent('src/App.tsxModified')
     expect(history).toHaveTextContent('+selected commit diff')
-    expect(
-      screen.getByRole('button', { name: 'src/App.tsx' })
-    ).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByRole('button', { name: 'src/App.tsx' })).toHaveAttribute(
+      'aria-current',
+      'true'
+    )
   })
 
   it('renders working-tree updates in frontend-owned order', () => {
@@ -1138,14 +1108,12 @@ describe('App', () => {
       }
     })
 
-    expect(
-      screen.getByRole('region', { name: 'Changes' })
-    ).toHaveTextContent(
+    expect(screen.getByRole('region', { name: 'Changes' })).toHaveTextContent(
       'Alpha.tsModifiedDiscardzeta.tsNewDiscard'
     )
-    expect(
-      screen.getByRole('region', { name: 'File diff' })
-    ).toHaveTextContent(/-before.*\+after/)
+    expect(screen.getByRole('region', { name: 'File diff' })).toHaveTextContent(
+      /-before.*\+after/
+    )
   })
 
   it('loads the diff for a changed file selected in the shell', async () => {
@@ -1178,9 +1146,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Alpha.tsModified' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Alpha.tsModified' }))
 
     expect(workingTreeStore.selectFile).toHaveBeenCalledWith(
       'Modified+Alpha.ts'
@@ -1324,34 +1290,21 @@ describe('App', () => {
     expect(changes).toContainElement(
       screen.getByRole('form', { name: 'Commit changes' })
     )
-    expect(
-      document.querySelectorAll('.diff-line-add')
-    ).toHaveLength(2)
-    expect(
-      document.querySelectorAll('.diff-line-hunk')
-    ).toHaveLength(1)
+    expect(document.querySelectorAll('.diff-line-add')).toHaveLength(2)
+    expect(document.querySelectorAll('.diff-line-hunk')).toHaveLength(1)
 
     await user.click(second)
 
-    expect(workingTreeStore.setLineIncluded).toHaveBeenCalledWith(
-      2,
-      true
-    )
+    expect(workingTreeStore.setLineIncluded).toHaveBeenCalledWith(2, true)
 
     await user.click(
       screen.getByRole('button', { name: 'Discard selected lines' })
     )
-    expect(
-      screen.getByRole('alertdialog')
-    ).toHaveTextContent(
+    expect(screen.getByRole('alertdialog')).toHaveTextContent(
       'Selected changes cannot be restored from the operating system trash.'
     )
-    await user.click(
-      screen.getByRole('button', { name: 'Discard changes' })
-    )
-    expect(
-      workingTreeStore.discardSelectedLines
-    ).toHaveBeenCalledWith(
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+    expect(workingTreeStore.discardSelectedLines).toHaveBeenCalledWith(
       workingTreeStore.getSelectedLinesDiscard.mock.results[0].value
     )
   })
@@ -1386,9 +1339,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(
-      screen.getByRole('checkbox', { name: 'Include Alpha.ts' })
-    )
+    await user.click(screen.getByRole('checkbox', { name: 'Include Alpha.ts' }))
 
     expect(workingTreeStore.setFileIncluded).toHaveBeenCalledWith(
       'Modified+Alpha.ts',
@@ -1426,9 +1377,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Discard Alpha.ts' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Discard Alpha.ts' }))
     expect(workingTreeStore.discardFile).not.toHaveBeenCalled()
     expect(
       screen.getByRole('alertdialog', {
@@ -1438,18 +1387,14 @@ describe('App', () => {
       'Changes can be restored from the operating system trash.'
     )
 
-    await user.click(
-      screen.getByRole('button', { name: 'Discard changes' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }))
 
     expect(workingTreeStore.discardFile).toHaveBeenCalledWith(
       'Modified+Alpha.ts',
       false
     )
     await vi.waitFor(() =>
-      expect(
-        screen.queryByRole('alertdialog')
-      ).not.toBeInTheDocument()
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     )
   })
 
@@ -1484,9 +1429,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Discard Alpha.ts' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Discard Alpha.ts' }))
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(workingTreeStore.discardFile).toHaveBeenCalledWith(
@@ -1525,9 +1468,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Discard notes.txt' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Discard notes.txt' }))
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
 
     expect(workingTreeStore.discardFile).not.toHaveBeenCalled()
@@ -1567,12 +1508,8 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Discard notes.txt' })
-    )
-    await user.click(
-      screen.getByRole('button', { name: 'Discard changes' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Discard notes.txt' }))
+    await user.click(screen.getByRole('button', { name: 'Discard changes' }))
 
     expect(
       screen.getByRole('alertdialog', {
@@ -1676,9 +1613,7 @@ describe('App', () => {
     await user.click(
       screen.getByRole('button', { name: 'Ignore hook failure' })
     )
-    expect(
-      workingTreeStore.resolveHookFailure
-    ).toHaveBeenCalledWith('ignore')
+    expect(workingTreeStore.resolveHookFailure).toHaveBeenCalledWith('ignore')
   })
 
   it('shows live commit terminal output and clears it with the buffer', () => {
@@ -1709,14 +1644,13 @@ describe('App', () => {
       error: null,
     }
     render(<App />)
-    const [listener] =
-      workingTreeStore.onCommitTerminalOutput.mock.calls[0]
+    const [listener] = workingTreeStore.onCommitTerminalOutput.mock.calls[0]
 
     act(() => listener('running pre-commit hook'))
 
-    expect(
-      screen.getByLabelText('Commit terminal output')
-    ).toHaveTextContent('running pre-commit hook')
+    expect(screen.getByLabelText('Commit terminal output')).toHaveTextContent(
+      'running pre-commit hook'
+    )
 
     act(() => listener(''))
 
@@ -1770,9 +1704,7 @@ describe('App', () => {
     expect(
       screen.getByRole('alertdialog', { name: 'Remove repository' })
     ).toBeInTheDocument()
-    await user.click(
-      screen.getByRole('button', { name: 'Remove repository' })
-    )
+    await user.click(screen.getByRole('button', { name: 'Remove repository' }))
     expect(appStore.removeRepository).toHaveBeenCalledWith(repository)
   })
 })

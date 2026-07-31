@@ -12,10 +12,7 @@ import {
   moveItemToTrash,
   permanentlyDeleteRepositoryPath,
 } from './platform/files'
-import {
-  listSubmodules,
-  resetSubmodulePaths,
-} from './stash-ipc'
+import { listSubmodules, resetSubmodulePaths } from './stash-ipc'
 
 type DiscardChangesDependencies = {
   readonly resolvePath: (
@@ -130,22 +127,15 @@ export async function discardChanges(
   )
   const necessaryPathsToCheckout = pathsToCheckout.filter(
     path =>
-      !submodulePaths.has(path) ||
-      indexChanges.get(path) !== IndexStatus.Added
+      !submodulePaths.has(path) || indexChanges.get(path) !== IndexStatus.Added
   )
 
-  await dependencies.resetSubmodulePaths(
-    repositoryPath,
-    selectedSubmodulePaths
-  )
+  await dependencies.resetSubmodulePaths(repositoryPath, selectedSubmodulePaths)
   await dependencies.resetPaths(
     repositoryPath,
     GitResetMode.Mixed,
     'HEAD',
     necessaryPathsToReset
   )
-  await dependencies.checkoutIndex(
-    repositoryPath,
-    necessaryPathsToCheckout
-  )
+  await dependencies.checkoutIndex(repositoryPath, necessaryPathsToCheckout)
 }

@@ -6,9 +6,9 @@ describe('getCloneDirectoryName', () => {
     expect(
       getCloneDirectoryName('https://example.com/org/repository.git')
     ).toBe('repository')
-    expect(
-      getCloneDirectoryName('git@example.com:org/repository.git')
-    ).toBe('repository')
+    expect(getCloneDirectoryName('git@example.com:org/repository.git')).toBe(
+      'repository'
+    )
   })
 
   it('uses a local bare repositories basename', () => {

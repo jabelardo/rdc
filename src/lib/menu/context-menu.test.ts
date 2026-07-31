@@ -31,10 +31,7 @@ describe('context menus', () => {
       [
         {
           label: 'Parent',
-          submenu: [
-            { label: 'Disabled', enabled: false },
-            { label: 'Chosen' },
-          ],
+          submenu: [{ label: 'Disabled', enabled: false }, { label: 'Chosen' }],
         },
       ],
       false

@@ -116,9 +116,7 @@ export function hydrateCommittedFileChange(
   )
 }
 
-export function hydrateChangesetData(
-  data: IChangesetDataWire
-): IChangesetData {
+export function hydrateChangesetData(data: IChangesetDataWire): IChangesetData {
   return {
     files: data.files.map(hydrateCommittedFileChange),
     linesAdded: data.linesAdded,

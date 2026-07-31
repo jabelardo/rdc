@@ -1,9 +1,6 @@
 import { describe, it } from 'vitest'
 import assert from 'node:assert'
-import {
-  endpointSatisfies,
-  VersionConstraint,
-} from './endpoint-capabilities'
+import { endpointSatisfies, VersionConstraint } from './endpoint-capabilities'
 import { SemVer, parse } from 'semver'
 import { getDotComAPIEndpoint } from './api'
 import { forceUnwrap } from './fatal-error'

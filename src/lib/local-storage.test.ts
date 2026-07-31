@@ -1,11 +1,6 @@
 import { describe, it, beforeEach } from 'vitest'
 import assert from 'node:assert'
-import {
-  setBoolean,
-  getBoolean,
-  setNumber,
-  getNumber,
-} from './local-storage'
+import { setBoolean, getBoolean, setNumber, getNumber } from './local-storage'
 
 describe('local storage', () => {
   const booleanKey = 'some-boolean-key'

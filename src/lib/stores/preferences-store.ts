@@ -1,8 +1,6 @@
 import type { FoundEditor } from '../../models/editor'
 import { Shell, type FoundShell } from '../../models/shell'
-import {
-  getAvailableEditors,
-} from '../platform/editors'
+import { getAvailableEditors } from '../platform/editors'
 import { getAvailableShells } from '../platform/shells'
 import {
   setNativeThemeSource,
@@ -109,9 +107,7 @@ function readPreferences(): PersistedPreferences {
       typeof record.selectedExternalEditor === 'string'
         ? record.selectedExternalEditor
         : null,
-    selectedShell: isShell(record.selectedShell)
-      ? record.selectedShell
-      : null,
+    selectedShell: isShell(record.selectedShell) ? record.selectedShell : null,
   }
 }
 
@@ -133,13 +129,9 @@ async function resolveSystemTheme(): Promise<void> {
 export class PreferencesStore {
   private currentState: PreferencesState
   private readonly dependencies: PreferencesStoreDependencies
-  private readonly listeners = new Set<
-    (state: PreferencesState) => void
-  >()
+  private readonly listeners = new Set<(state: PreferencesState) => void>()
 
-  public constructor(
-    dependencies: Partial<PreferencesStoreDependencies> = {}
-  ) {
+  public constructor(dependencies: Partial<PreferencesStoreDependencies> = {}) {
     this.currentState = {
       ...readPreferences(),
       editors: [],
@@ -163,8 +155,7 @@ export class PreferencesStore {
   public get selectedEditor(): FoundEditor | null {
     return (
       this.currentState.editors.find(
-        editor =>
-          editor.editor === this.currentState.selectedExternalEditor
+        editor => editor.editor === this.currentState.selectedExternalEditor
       ) ?? null
     )
   }
@@ -177,9 +168,7 @@ export class PreferencesStore {
     )
   }
 
-  public onDidUpdate(
-    listener: (state: PreferencesState) => void
-  ): () => void {
+  public onDidUpdate(listener: (state: PreferencesState) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
@@ -192,13 +181,11 @@ export class PreferencesStore {
         this.dependencies.getAvailableShells(),
         this.dependencies.setTheme(this.currentState.theme),
       ])
-      const selectedExternalEditor =
-        editors.some(
-          editor =>
-            editor.editor === this.currentState.selectedExternalEditor
-        )
-          ? this.currentState.selectedExternalEditor
-          : (editors[0]?.editor ?? null)
+      const selectedExternalEditor = editors.some(
+        editor => editor.editor === this.currentState.selectedExternalEditor
+      )
+        ? this.currentState.selectedExternalEditor
+        : (editors[0]?.editor ?? null)
       const selectedShell = shells.some(
         shell => shell.shell === this.currentState.selectedShell
       )
@@ -275,9 +262,7 @@ export class PreferencesStore {
     this.updateAndPersist({ selectedShell: value })
   }
 
-  private updateAndPersist(
-    update: Partial<PersistedPreferences>
-  ): void {
+  private updateAndPersist(update: Partial<PersistedPreferences>): void {
     this.update({ ...this.currentState, ...update })
     this.persist()
   }

@@ -34,6 +34,8 @@ const decimalPointCountries = [
   'BW', // Botswana
   // British West Indies - No single ISO code (historical region, now multiple countries)
   // Copilot expanded it to the following country codes
+  // Keep this visually grouped as the expansion of the historical region above.
+  // oxlint-disable-next-line unicorn/no-useless-spread
   ...[
     'AI', // Anguilla (British Overseas Territory)
     'AG', // Antigua and Barbuda

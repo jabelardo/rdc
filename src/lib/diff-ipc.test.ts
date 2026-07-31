@@ -174,7 +174,6 @@ describe('DiffHunkHeader.equals', () => {
   })
 })
 
-
 describe('index changes', () => {
   beforeEach(() => {
     invoke.mockReset()
@@ -196,9 +195,9 @@ describe('index changes', () => {
     // Object.prototype members.
     const changes = snapshot.indexChanges
     expect(Array.isArray(changes)).toBe(true)
-    expect(changes.every(entry => Array.isArray(entry) && entry.length === 2)).toBe(
-      true
-    )
+    expect(
+      changes.every(entry => Array.isArray(entry) && entry.length === 2)
+    ).toBe(true)
   })
 
   it('builds a usable Map, which is what callers wanting lookup should do', () => {
@@ -218,7 +217,6 @@ describe('index changes', () => {
     })
   })
 })
-
 
 describe('the IDiff union', () => {
   // Each of these is emitted by the Rust serializer into the snapshot.

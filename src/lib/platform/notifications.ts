@@ -26,11 +26,7 @@ export function requestNotificationsPermission(): Promise<boolean> {
 }
 
 function isUserInfo(value: unknown): value is NotificationUserInfo {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value)
-  )
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 interface NotificationEventPayload {

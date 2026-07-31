@@ -1,9 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import {
-  existsSync,
-  mkdirSync,
-  writeFileSync,
-} from 'node:fs'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -25,10 +21,7 @@ function git(arguments_, cwd) {
 
 function configureIdentity(repository) {
   git(['config', 'user.name', 'rdc Phase 8b QA'], repository)
-  git(
-    ['config', 'user.email', 'rdc-phase8b@example.invalid'],
-    repository
-  )
+  git(['config', 'user.email', 'rdc-phase8b@example.invalid'], repository)
 }
 
 /**

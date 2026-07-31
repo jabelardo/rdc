@@ -1,8 +1,5 @@
 import type { UnlistenFn } from '@tauri-apps/api/event'
-import {
-  getAllWindows,
-  getCurrentWindow,
-} from '@tauri-apps/api/window'
+import { getAllWindows, getCurrentWindow } from '@tauri-apps/api/window'
 import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { getMainProcessConfig } from './config'
 import { applicationUpdateController } from './updater'
@@ -103,10 +100,7 @@ export function installDefaultCloseRequestHandler(
     // Hiding preserves the renderer and its native Update resource. An actual
     // close/quit would destroy the owner while transfer or installation is in
     // progress, so preserve upstream's installing-update warning instead.
-    if (
-      decision !== 'hide' &&
-      applicationUpdateController.isCloseBlocked
-    ) {
+    if (decision !== 'hide' && applicationUpdateController.isCloseBlocked) {
       applicationUpdateController.notifyCloseBlocked()
       return 'cancel'
     }

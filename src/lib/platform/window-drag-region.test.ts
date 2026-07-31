@@ -10,19 +10,16 @@ describe('window drag region policy', () => {
       expect(shouldShowWindowDragRegion(platform, 'native')).toBe(true)
       expect(shouldShowWindowDragRegion(platform, 'custom')).toBe(true)
       expect(
-        shouldShowWindowDragRegion(
-          platform,
-          'native-without-menu-bar'
-        )
+        shouldShowWindowDragRegion(platform, 'native-without-menu-bar')
       ).toBe(true)
     }
   })
 
   it('keeps Linux native decorations and supplies drag chrome only for custom style', () => {
     expect(shouldShowWindowDragRegion('linux', 'native')).toBe(false)
-    expect(
-      shouldShowWindowDragRegion('linux', 'native-without-menu-bar')
-    ).toBe(false)
+    expect(shouldShowWindowDragRegion('linux', 'native-without-menu-bar')).toBe(
+      false
+    )
     expect(shouldShowWindowDragRegion('linux', 'custom')).toBe(true)
   })
 })

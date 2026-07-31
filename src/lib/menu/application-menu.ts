@@ -7,25 +7,11 @@ import {
 } from '../../models/app-menu'
 import type { MenuKeybindings } from '../../models/keybinding'
 import type { MenuEvent } from '../../models/menu-event'
-import {
-  getKeybindings,
-  onKeybindingsChanged,
-} from '../platform/keybindings'
-import {
-  onNativeMenuAction,
-  setNativeMenu,
-} from '../platform/menu'
-import {
-  installKeybindingDispatcher,
-} from './keybindings'
-import {
-  currentMenuPlatform,
-  type MenuPlatform,
-} from './default-menu'
-import {
-  buildStartupMenu,
-  createStartupMenuActionExecutor,
-} from './startup'
+import { getKeybindings, onKeybindingsChanged } from '../platform/keybindings'
+import { onNativeMenuAction, setNativeMenu } from '../platform/menu'
+import { installKeybindingDispatcher } from './keybindings'
+import { currentMenuPlatform, type MenuPlatform } from './default-menu'
+import { buildStartupMenu, createStartupMenuActionExecutor } from './startup'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { quitApp } from '../platform/lifetime'
 import { selectAllWindowContents } from '../platform/menu'
@@ -75,9 +61,7 @@ export class ApplicationMenuController {
   public constructor(
     menu: IMenu,
     bindings: MenuKeybindings,
-    private readonly executeAction: (
-      action: MenuAction
-    ) => Promise<boolean>,
+    private readonly executeAction: (action: MenuAction) => Promise<boolean>,
     private readonly synchronizeNativeMenu?: NativeMenuSynchronizer
   ) {
     this.currentMenu = AppMenu.fromMenu(menu)
@@ -97,9 +81,7 @@ export class ApplicationMenuController {
     await this.synchronizeNativeMenu?.(this.currentMenu.rootMenu)
   }
 
-  public async replaceBindings(
-    bindings: MenuKeybindings
-  ): Promise<void> {
+  public async replaceBindings(bindings: MenuKeybindings): Promise<void> {
     this.currentBindings = bindings
     await this.synchronizeNativeMenu?.(this.currentMenu.rootMenu)
   }
@@ -194,9 +176,7 @@ function defaultDependencies(
  */
 export async function installApplicationMenu(
   configuration: ApplicationMenuConfiguration = {},
-  dependencies: ApplicationMenuDependencies = defaultDependencies(
-    configuration
-  )
+  dependencies: ApplicationMenuDependencies = defaultDependencies(configuration)
 ): Promise<ApplicationMenuController> {
   let latestBindings: MenuKeybindings | undefined
   let controller: ApplicationMenuController | undefined
@@ -210,9 +190,7 @@ export async function installApplicationMenu(
   try {
     const loadedBindings = await dependencies.getKeybindings()
     const synchronizeNativeMenu =
-      dependencies.platform === 'macos'
-        ? dependencies.setNativeMenu
-        : undefined
+      dependencies.platform === 'macos' ? dependencies.setNativeMenu : undefined
     controller = new ApplicationMenuController(
       dependencies.initialMenu,
       latestBindings ?? loadedBindings,
@@ -223,9 +201,9 @@ export async function installApplicationMenu(
 
     if (dependencies.platform === 'macos') {
       const nativeCleanup = await dependencies.onNativeMenuAction(action => {
-        void controller?.executeNativeAction(action).catch(
-          reportExecutionFailure
-        )
+        void controller
+          ?.executeNativeAction(action)
+          .catch(reportExecutionFailure)
       })
       controller.addCleanup(nativeCleanup)
       await dependencies.setNativeMenu(controller.menu.rootMenu)

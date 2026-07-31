@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "react"],
+  "categories": {
+    "correctness": "error"
+  },
+  "options": {
+    "denyWarnings": true,
+    "reportUnusedDisableDirectives": "error",
+    "respectEslintDisableDirectives": false
+  },
+  "rules": {
+    "eslint/no-unused-vars": [
+      "error",
+      {
+        "args": "after-used",
+        "argsIgnorePattern": "^_",
+        "caughtErrors": "none"
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/lib/api.ts", "src/lib/http.ts"],
+      "rules": {
+        "typescript/no-wrapper-object-types": "off"
+      }
+    },
+    {
+      "files": [
+        "src/lib/format-number.ts",
+        "src/lib/sanitize-ref-name.ts",
+        "src/lib/text-token-parser.ts"
+      ],
+      "rules": {
+        "eslint/no-control-regex": "off",
+        "eslint/no-useless-escape": "off"
+      }
+    }
+  ]
+}

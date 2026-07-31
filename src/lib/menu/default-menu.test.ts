@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { MenuItem } from '../../models/app-menu'
 import type { MenuLabelsEvent } from '../../models/menu-labels'
-import {
-  buildDefaultMenu,
-  type MenuPlatform,
-} from './default-menu'
+import { buildDefaultMenu, type MenuPlatform } from './default-menu'
 
 const baseParams: MenuLabelsEvent = {
   selectedShell: null,
@@ -16,9 +13,7 @@ const baseParams: MenuLabelsEvent = {
 
 function allItems(items: ReadonlyArray<MenuItem>): ReadonlyArray<MenuItem> {
   return items.flatMap(item =>
-    item.type === 'submenuItem'
-      ? [item, ...allItems(item.menu.items)]
-      : [item]
+    item.type === 'submenuItem' ? [item, ...allItems(item.menu.items)] : [item]
   )
 }
 
@@ -74,15 +69,9 @@ describe.each<MenuPlatform>(['macos', 'windows', 'linux'])(
 
       for (let bits = 0; bits < 1 << variantKeys.length; bits++) {
         const variants = Object.fromEntries(
-          variantKeys.map((key, index) => [
-            key,
-            Boolean(bits & (1 << index)),
-          ])
+          variantKeys.map((key, index) => [key, Boolean(bits & (1 << index))])
         )
-        const menu = buildDefaultMenu(
-          { ...baseParams, ...variants },
-          platform
-        )
+        const menu = buildDefaultMenu({ ...baseParams, ...variants }, platform)
         expect(duplicateAccessKeys(menu.items)).toEqual([])
       }
     })
@@ -150,7 +139,8 @@ describe('platform and state-derived menu structure', () => {
     const menu = buildDefaultMenu(
       {
         ...baseParams,
-        contributionTargetDefaultBranch: 'a-very-long-contribution-target-branch',
+        contributionTargetDefaultBranch:
+          'a-very-long-contribution-target-branch',
         gitHubRepositoryType: 'gitlab',
         isForcePushForCurrentRepository: true,
         askForConfirmationOnForcePush: true,

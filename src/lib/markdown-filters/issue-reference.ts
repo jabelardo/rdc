@@ -25,7 +25,8 @@ export const IssueRefNumber = /(?<refNumber>\d+)\b/
  * A regular expression to match a group of an repo name or name with owner
  * Example: desktop/dugite or desktop
  */
-export const IssueOwnerOrOwnerRepo = /(?<ownerOrOwnerRepo>\w+(?:-\w+)*(?:\/[.\w-]+)?)/
+export const IssueOwnerOrOwnerRepo =
+  /(?<ownerOrOwnerRepo>\w+(?:-\w+)*(?:\/[.\w-]+)?)/
 
 /**
  * A regular expression to match a group possible of preceding markers are

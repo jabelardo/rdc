@@ -26,13 +26,13 @@ export const SidebarSections: ReadonlyArray<SidebarSectionDefinition> =
     { id: 'subtrees', label: 'Subtrees', delivery: 'phase-7f' },
   ])
 
-export const MvpSidebarCapabilities: ReadonlySet<SidebarSectionID> =
-  new Set(['repositories', 'branches'])
+export const MvpSidebarCapabilities: ReadonlySet<SidebarSectionID> = new Set([
+  'repositories',
+  'branches',
+])
 
 export function visibleSidebarSections(
   capabilities: ReadonlySet<SidebarSectionID>
 ): ReadonlyArray<SidebarSectionDefinition> {
-  return SidebarSections.filter(section =>
-    capabilities.has(section.id)
-  )
+  return SidebarSections.filter(section => capabilities.has(section.id))
 }

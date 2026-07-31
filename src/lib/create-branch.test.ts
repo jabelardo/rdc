@@ -2,12 +2,7 @@ import { describe, it } from 'vitest'
 import assert from 'node:assert'
 import { getStartPoint } from './create-branch'
 import { TipState, IValidBranch, IDetachedHead } from '../models/tip'
-import {
-  BranchType,
-  StartPoint,
-  IBranchTip,
-  Branch,
-} from '../models/branch'
+import { BranchType, StartPoint, IBranchTip, Branch } from '../models/branch'
 
 const stubTip: IBranchTip = {
   sha: 'deadbeef',

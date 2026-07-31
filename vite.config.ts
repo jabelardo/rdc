@@ -1,44 +1,61 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 // @ts-expect-error type error without @types/node package
-import process from "node:process";
-const host = process.env.TAURI_DEV_HOST;
+import process from 'node:process'
+// @ts-expect-error a plain .mjs helper, shared with the `pretest` hook
+import { assertNodeVersion } from './scripts/check-node-version.mjs'
+
+// Runs for `vite`, `vite build` and every Vitest invocation — including a bare
+// `npx vitest`, which bypasses package scripts and so bypasses `pretest`. The
+// wrong Node major fails here with a version error instead of 26 misleading
+// jsdom localStorage failures. See scripts/check-node-version.mjs.
+assertNodeVersion()
+
+const host = process.env.TAURI_DEV_HOST
 
 // Compile-time constants that the ported desktop-plus code expects. These were
 // injected by webpack's DefinePlugin in the original app (see
 // desktop-plus/app/webpack.common.ts); Vite's `define` is the direct equivalent
 // and also applies under Vitest, so verbatim-ported tests see them too.
 // See src/globals.d.ts for the type declarations.
-const lit = (v: unknown) => JSON.stringify(v);
+const lit = (v: unknown) => JSON.stringify(v)
 // An env-provided secret, or the literal `undefined` when unset — these are
 // declared `string | undefined`, so the replacement text must be valid JS.
 const envOrUndefined = (name: string) =>
-  process.env[name] ? lit(process.env[name]) : "undefined";
+  process.env[name] ? lit(process.env[name]) : 'undefined'
 
 // Tauri sets TAURI_ENV_PLATFORM during `tauri dev`/`tauri build`; fall back to
 // the host platform so plain `vite`/`vitest` runs still resolve sensibly.
-const platform = process.env.TAURI_ENV_PLATFORM ?? process.platform;
-const isDev = process.env.NODE_ENV !== "production";
+const platform = process.env.TAURI_ENV_PLATFORM ?? process.platform
+const isDev = process.env.NODE_ENV !== 'production'
 
 const buildTimeGlobals = {
   __DEV__: lit(isDev),
   __DEV_SECRETS__: lit(isDev),
-  __RELEASE_CHANNEL__: lit(process.env.RELEASE_CHANNEL ?? "development"),
-  __DARWIN__: lit(platform === "darwin" || platform === "macos"),
-  __WIN32__: lit(platform === "win32" || platform === "windows"),
-  __LINUX__: lit(platform === "linux"),
-  __APP_NAME__: lit("rdc"),
-  __APP_VERSION__: lit(process.env.npm_package_version ?? "0.1.0"),
-  __OAUTH_CLIENT_ID__: envOrUndefined("DESKTOP_OAUTH_CLIENT_ID"),
-  __OAUTH_SECRET__: envOrUndefined("DESKTOP_OAUTH_CLIENT_SECRET"),
-  __OAUTH_CLIENT_ID_BITBUCKET__: envOrUndefined("DESKTOP_OAUTH_CLIENT_ID_BITBUCKET"),
-  __OAUTH_SECRET_BITBUCKET__: envOrUndefined("DESKTOP_OAUTH_CLIENT_SECRET_BITBUCKET"),
-  __OAUTH_CLIENT_ID_GITLAB__: envOrUndefined("DESKTOP_OAUTH_CLIENT_ID_GITLAB"),
-  __OAUTH_SECRET_GITLAB__: envOrUndefined("DESKTOP_OAUTH_CLIENT_SECRET_GITLAB"),
-  __OAUTH_CLIENT_ID_CODEBERG__: envOrUndefined("DESKTOP_OAUTH_CLIENT_ID_CODEBERG"),
-  __OAUTH_SECRET_CODEBERG__: envOrUndefined("DESKTOP_OAUTH_CLIENT_SECRET_CODEBERG"),
-};
+  __RELEASE_CHANNEL__: lit(process.env.RELEASE_CHANNEL ?? 'development'),
+  __DARWIN__: lit(platform === 'darwin' || platform === 'macos'),
+  __WIN32__: lit(platform === 'win32' || platform === 'windows'),
+  __LINUX__: lit(platform === 'linux'),
+  __APP_NAME__: lit('rdc'),
+  __APP_VERSION__: lit(process.env.npm_package_version ?? '0.1.0'),
+  __OAUTH_CLIENT_ID__: envOrUndefined('DESKTOP_OAUTH_CLIENT_ID'),
+  __OAUTH_SECRET__: envOrUndefined('DESKTOP_OAUTH_CLIENT_SECRET'),
+  __OAUTH_CLIENT_ID_BITBUCKET__: envOrUndefined(
+    'DESKTOP_OAUTH_CLIENT_ID_BITBUCKET'
+  ),
+  __OAUTH_SECRET_BITBUCKET__: envOrUndefined(
+    'DESKTOP_OAUTH_CLIENT_SECRET_BITBUCKET'
+  ),
+  __OAUTH_CLIENT_ID_GITLAB__: envOrUndefined('DESKTOP_OAUTH_CLIENT_ID_GITLAB'),
+  __OAUTH_SECRET_GITLAB__: envOrUndefined('DESKTOP_OAUTH_CLIENT_SECRET_GITLAB'),
+  __OAUTH_CLIENT_ID_CODEBERG__: envOrUndefined(
+    'DESKTOP_OAUTH_CLIENT_ID_CODEBERG'
+  ),
+  __OAUTH_SECRET_CODEBERG__: envOrUndefined(
+    'DESKTOP_OAUTH_CLIENT_SECRET_CODEBERG'
+  ),
+}
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
@@ -56,33 +73,33 @@ export default defineConfig(() => ({
     host: host || false,
     hmr: host
       ? {
-          protocol: "ws",
+          protocol: 'ws',
           host,
           port: 1421,
         }
       : undefined,
     watch: {
       // 3. tell Vite to ignore watching `src-tauri`
-      ignored: ["**/src-tauri/**"],
+      ignored: ['**/src-tauri/**'],
     },
   },
   // Env variables starting with the item of `envPrefix` will be exposed in tauri's source code through `import.meta.env`.
   envPrefix: ['VITE_', 'TAURI_ENV_*'],
   build: {
     // Tauri uses Chromium on Windows and WebKit on macOS and Linux
-    target: process.platform === "win32" ? "chrome105" : "safari13",
+    target: process.platform === 'win32' ? 'chrome105' : 'safari13',
     // don't minify for debug builds
-    minify: process.env.TAURI_ENV_DEBUG ? false : ("oxc" as const),
+    minify: process.env.TAURI_ENV_DEBUG ? false : ('oxc' as const),
     // produce sourcemaps for debug builds
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
   },
   test: {
-    environment: "jsdom",
+    environment: 'jsdom',
     globals: true,
-    setupFiles: ["./src/test-setup.ts"],
+    setupFiles: ['./src/test-setup.ts'],
     css: false,
     // Native WebDriver specs are deliberately container-only; plain Vitest
     // must never discover and run them on the host.
-    exclude: ["**/node_modules/**", "**/src-tauri/**", "**/e2e/**"],
+    exclude: ['**/node_modules/**', '**/src-tauri/**', '**/e2e/**'],
   },
-}));
+}))

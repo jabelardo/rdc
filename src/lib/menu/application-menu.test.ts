@@ -49,11 +49,7 @@ function dependencies(
 describe('application menu controller', () => {
   it('executes current enabled items locally by object or id', async () => {
     const executeAction = vi.fn(async () => true)
-    const controller = new ApplicationMenuController(
-      menu(),
-      {},
-      executeAction
-    )
+    const controller = new ApplicationMenuController(menu(), {}, executeAction)
     const item = controller.menu.getItemById('pull') as ExecutableMenuItem
 
     await expect(controller.executeItem(item)).resolves.toBe(true)
@@ -71,11 +67,7 @@ describe('application menu controller', () => {
 
   it('rejects disabled, missing, actionless, and stale items', async () => {
     const executeAction = vi.fn(async () => true)
-    const controller = new ApplicationMenuController(
-      menu(),
-      {},
-      executeAction
-    )
+    const controller = new ApplicationMenuController(menu(), {}, executeAction)
     const stale = controller.menu.getItemById('pull') as ExecutableMenuItem
 
     await controller.replaceMenu(menu(false))
@@ -92,9 +84,7 @@ describe('application menu controller', () => {
     const calls: string[] = []
     const deps = dependencies('macos')
     let nativeAction: ((action: MenuAction) => void) | undefined
-    let keybindingsChanged:
-      | ((bindings: MenuKeybindings) => void)
-      | undefined
+    let keybindingsChanged: ((bindings: MenuKeybindings) => void) | undefined
     const nativeCleanup = vi.fn()
     const bindingCleanup = vi.fn()
 
@@ -103,13 +93,11 @@ describe('application menu controller', () => {
       nativeAction = callback
       return nativeCleanup
     })
-    vi.mocked(deps.onKeybindingsChanged).mockImplementation(
-      async callback => {
-        calls.push('binding-listener')
-        keybindingsChanged = callback
-        return bindingCleanup
-      }
-    )
+    vi.mocked(deps.onKeybindingsChanged).mockImplementation(async callback => {
+      calls.push('binding-listener')
+      keybindingsChanged = callback
+      return bindingCleanup
+    })
     vi.mocked(deps.getKeybindings).mockImplementation(async () => {
       calls.push('get-bindings')
       return {}
@@ -176,9 +164,7 @@ describe('application menu controller', () => {
         })
       | undefined
     let execute: ((item: ExecutableMenuItem) => void) | undefined
-    let keybindingsChanged:
-      | ((bindings: MenuKeybindings) => void)
-      | undefined
+    let keybindingsChanged: ((bindings: MenuKeybindings) => void) | undefined
     const dispatcherCleanup = vi.fn()
     const bindingCleanup = vi.fn()
 
@@ -189,12 +175,10 @@ describe('application menu controller', () => {
         return dispatcherCleanup
       }
     )
-    vi.mocked(deps.onKeybindingsChanged).mockImplementation(
-      async callback => {
-        keybindingsChanged = callback
-        return bindingCleanup
-      }
-    )
+    vi.mocked(deps.onKeybindingsChanged).mockImplementation(async callback => {
+      keybindingsChanged = callback
+      return bindingCleanup
+    })
 
     const controller = await installApplicationMenu({}, deps)
 
@@ -206,10 +190,7 @@ describe('application menu controller', () => {
     keybindingsChanged?.({
       pull: { modifiers: ['control', 'shift'], key: 'KeyP' },
     })
-    expect(getState?.().bindings.pull?.modifiers).toEqual([
-      'control',
-      'shift',
-    ])
+    expect(getState?.().bindings.pull?.modifiers).toEqual(['control', 'shift'])
 
     const item = controller.menu.getItemById('pull') as ExecutableMenuItem
     execute?.(item)

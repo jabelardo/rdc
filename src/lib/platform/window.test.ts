@@ -75,12 +75,15 @@ describe('current window controls', () => {
     ['restoreWindow', restoreWindow, 'unmaximize'],
     ['closeWindow', closeWindow, 'close'],
     ['startWindowDragging', startWindowDragging, 'startDragging'],
-  ] as const)('%s delegates to the current Tauri window', async (_, action, method) => {
-    await action()
+  ] as const)(
+    '%s delegates to the current Tauri window',
+    async (_, action, method) => {
+      await action()
 
-    expect(getCurrentWindow).toHaveBeenCalledOnce()
-    expect(currentWindow[method]).toHaveBeenCalledOnce()
-  })
+      expect(getCurrentWindow).toHaveBeenCalledOnce()
+      expect(currentWindow[method]).toHaveBeenCalledOnce()
+    }
+  )
 
   it('preserves the upstream restore meaning of unmaximizing', async () => {
     await restoreWindow()
@@ -149,10 +152,9 @@ describe('current window controls', () => {
 
     await openRepositoryInNewWindow('/repo/../repo')
 
-    expect(invoke).toHaveBeenCalledWith(
-      'open_repository_in_new_window',
-      { repositoryPath: '/repo/../repo' }
-    )
+    expect(invoke).toHaveBeenCalledWith('open_repository_in_new_window', {
+      repositoryPath: '/repo/../repo',
+    })
   })
 
   it('unwraps focus and blur events into one boolean subscription', async () => {
@@ -190,9 +192,7 @@ describe('current window controls', () => {
   it.each(stateCases)(
     'reports %s using the upstream state precedence',
     async (expected, state) => {
-      currentWindow.isFullscreen.mockResolvedValue(
-        state.fullscreen === true
-      )
+      currentWindow.isFullscreen.mockResolvedValue(state.fullscreen === true)
       currentWindow.isMaximized.mockResolvedValue(state.maximized === true)
       currentWindow.isMinimized.mockResolvedValue(state.minimized === true)
       currentWindow.isVisible.mockResolvedValue(state.visible !== false)
@@ -205,12 +205,10 @@ describe('current window controls', () => {
     const unlisten = vi.fn()
     const callback = vi.fn()
     currentWindow.isMaximized.mockResolvedValue(true)
-    currentWindow.onResized.mockImplementation(
-      async (handler: () => void) => {
-        await handler()
-        return unlisten
-      }
-    )
+    currentWindow.onResized.mockImplementation(async (handler: () => void) => {
+      await handler()
+      return unlisten
+    })
 
     const cleanup = await onWindowStateChanged(callback)
 

@@ -58,9 +58,7 @@ describe('CloneStore', () => {
   })
 
   it('serializes clone attempts and ignores stale progress after reset', async () => {
-    let reportProgress:
-      | ((progress: ICloneProgress) => void)
-      | undefined
+    let reportProgress: ((progress: ICloneProgress) => void) | undefined
     let finish: (() => void) | undefined
     const pending = new Promise<void>(resolve => {
       finish = resolve

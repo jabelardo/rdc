@@ -299,8 +299,7 @@ export interface IAPIFullRepository extends IAPIRepository {
    */
   readonly permissions?: IAPIRepositoryPermissions
 }
-export interface IBitbucketAPIRepository
-  extends IBitbucketAPIRepositorySummary {
+export interface IBitbucketAPIRepository extends IBitbucketAPIRepositorySummary {
   readonly slug: string // URL (for API calls)
   readonly owner: IBitbucketAPIIdentity
   readonly is_private: boolean
@@ -3065,9 +3064,8 @@ export class API {
       if (response.status === HttpStatusCode.NotModified) {
         return null
       }
-      const users = await parsedResponse<ReadonlyArray<IAPIMentionableUser>>(
-        response
-      )
+      const users =
+        await parsedResponse<ReadonlyArray<IAPIMentionableUser>>(response)
       const etag = response.headers.get('etag') || undefined
       return { users, etag }
     } catch (e) {
@@ -3106,9 +3104,8 @@ export class API {
   public async fetchFeatureFlags(): Promise<ReadonlyArray<string> | undefined> {
     try {
       const response = await this.ghRequest('GET', '/desktop_internal/features')
-      const featuresResponse = await parsedResponse<IUserFeaturesResponse>(
-        response
-      )
+      const featuresResponse =
+        await parsedResponse<IUserFeaturesResponse>(response)
       return featuresResponse.features
     } catch (e) {
       log.warn(`fetchFeatureFlags: failed with endpoint ${this.endpoint}`, e)
@@ -3971,9 +3968,8 @@ export class BitbucketAPI extends API {
       return null
     }
 
-    const bitbucketRepo = await parsedResponse<IBitbucketAPIRepository>(
-      response
-    )
+    const bitbucketRepo =
+      await parsedResponse<IBitbucketAPIRepository>(response)
     const repo = toIAPIRepository(bitbucketRepo)
     return {
       url: protocol === 'ssh' ? repo.ssh_url : repo.clone_url,
@@ -4684,9 +4680,8 @@ export class CodebergAPI extends API {
       // list) because it only returns the latest status for each context
       const path = `repos/${owner}/${name}/commits/${commitRef}/status?limit=${this.maxPerPage}`
       const response = await this.request(this.endpoint, 'GET', path)
-      const combined = await parsedResponse<ICodebergAPICombinedStatus>(
-        response
-      )
+      const combined =
+        await parsedResponse<ICodebergAPICombinedStatus>(response)
       const statuses = (combined.statuses ?? []).map(
         toIAPIRefStatusItemFromCodeberg
       )

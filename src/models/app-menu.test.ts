@@ -72,9 +72,7 @@ describe('application menu model', () => {
     expect(opened.openMenus[0].selectedItem).toBeUndefined()
     expect(opened.openMenus[1].selectedItem?.id).toBe('open')
 
-    const selected = opened.withSelectedItem(
-      opened.getItemById('disabled')!
-    )
+    const selected = opened.withSelectedItem(opened.getItemById('disabled')!)
     expect(selected.openMenus[0].selectedItem?.id).toBe('file')
     expect(selected.openMenus[1].selectedItem?.id).toBe('disabled')
     expect(opened.openMenus[1].selectedItem?.id).toBe('open')
@@ -95,8 +93,6 @@ describe('application menu model', () => {
       'file',
     ])
     expect(refreshed.openMenus[1].selectedItem?.id).toBe('open')
-    expect(refreshed.getItemById('open')).not.toBe(
-      opened.getItemById('open')
-    )
+    expect(refreshed.getItemById('open')).not.toBe(opened.getItemById('open'))
   })
 })

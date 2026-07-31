@@ -2,10 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Branch, BranchType } from '../../models/branch'
 import { BranchStore } from './branch-store'
 
-function branch(
-  name: string,
-  type = BranchType.Local
-): Branch {
+function branch(name: string, type = BranchType.Local): Branch {
   return new Branch(
     name,
     null,
@@ -14,19 +11,14 @@ function branch(
       author: { date: new Date('2026-07-30T12:00:00Z') },
     },
     type,
-    type === BranchType.Local
-      ? `refs/heads/${name}`
-      : `refs/remotes/${name}`,
+    type === BranchType.Local ? `refs/heads/${name}` : `refs/remotes/${name}`,
     false
   )
 }
 
 describe('BranchStore', () => {
   it('loads all branches and the current branch together', async () => {
-    const branches = [
-      branch('main'),
-      branch('origin/main', BranchType.Remote),
-    ]
+    const branches = [branch('main'), branch('origin/main', BranchType.Remote)]
     const getBranches = vi.fn(async () => branches)
     const getStatus = vi.fn(async () => ({
       currentBranch: 'main',
@@ -152,9 +144,7 @@ describe('BranchStore', () => {
 
     expect(await store.createAndCheckout('   ')).toBe(false)
     expect(createBranch).not.toHaveBeenCalled()
-    expect(store.state.operationError).toBe(
-      'Enter a branch name.'
-    )
+    expect(store.state.operationError).toBe('Enter a branch name.')
   })
 
   it('publishes operation failures and keeps the loaded branch list', async () => {
@@ -175,9 +165,7 @@ describe('BranchStore', () => {
   })
 
   it('ignores a slow load after the repository changes', async () => {
-    let resolveOld:
-      | ((branches: ReadonlyArray<Branch>) => void)
-      | undefined
+    let resolveOld: ((branches: ReadonlyArray<Branch>) => void) | undefined
     const oldBranches = new Promise<ReadonlyArray<Branch>>(resolve => {
       resolveOld = resolve
     })

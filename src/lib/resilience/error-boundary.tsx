@@ -61,8 +61,8 @@ export class FatalErrorBoundary extends Component<
       <main className="fatal-error" role="alert">
         <h1>rdc encountered an error</h1>
         <p>
-          The application interface could not continue. The details were
-          written to the application log.
+          The application interface could not continue. The details were written
+          to the application log.
         </p>
         <pre>{error.message}</pre>
         <div className="fatal-error-actions">

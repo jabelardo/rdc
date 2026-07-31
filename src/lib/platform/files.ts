@@ -1,9 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import {
-  openPath,
-  openUrl,
-  revealItemInDir,
-} from '@tauri-apps/plugin-opener'
+import { openPath, openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
 
 type FolderOpenAction = 'open' | 'reveal'
 

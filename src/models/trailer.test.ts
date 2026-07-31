@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  isCoAuthoredByTrailer,
-  parseSingleUnfoldedTrailer,
-} from './trailer'
+import { isCoAuthoredByTrailer, parseSingleUnfoldedTrailer } from './trailer'
 
 /**
  * The same cases as `git_ops::interpret_trailers`' unit tests, because both sides parse trailers and
@@ -19,9 +16,10 @@ describe('parseSingleUnfoldedTrailer', () => {
   })
 
   it('trims whitespace around the token and the value', () => {
-    expect(
-      parseSingleUnfoldedTrailer('  Token  :   value  ', ':')
-    ).toEqual({ token: 'Token', value: 'value' })
+    expect(parseSingleUnfoldedTrailer('  Token  :   value  ', ':')).toEqual({
+      token: 'Token',
+      value: 'value',
+    })
   })
 
   it('rejects a line with no separator', () => {

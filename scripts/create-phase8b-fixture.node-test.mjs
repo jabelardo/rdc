@@ -27,12 +27,7 @@ test('creates a deterministic local, remote, and publisher QA topology', () => {
     )
     assert.match(
       String(
-        execFileSync('git', [
-          '-C',
-          manifest.primary,
-          'status',
-          '--short',
-        ])
+        execFileSync('git', ['-C', manifest.primary, 'status', '--short'])
       ),
       /modified\.txt.*untracked\.txt/s
     )

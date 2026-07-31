@@ -1,11 +1,7 @@
 import { describe, it } from 'vitest'
 import assert from 'node:assert'
 import { wrapRichTextCommitMessage } from './wrap-rich-text-commit-message'
-import {
-  TokenType,
-  Tokenizer,
-  HyperlinkMatch,
-} from './text-token-parser'
+import { TokenType, Tokenizer, HyperlinkMatch } from './text-token-parser'
 import { gitHubRepoFixture } from '../test-helpers/github-repo-builder'
 import { Repository } from '../models/repository'
 import { Emoji } from './emoji'

@@ -25,9 +25,7 @@ function branch(
     upstream,
     { sha: 'a'.repeat(40), author: { date: new Date(0) } },
     type,
-    type === BranchType.Local
-      ? `refs/heads/${name}`
-      : `refs/remotes/${name}`,
+    type === BranchType.Local ? `refs/heads/${name}` : `refs/remotes/${name}`,
     false
   )
 }

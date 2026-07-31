@@ -1,10 +1,6 @@
 import { describe, it } from 'vitest'
 import assert from 'node:assert'
-import {
-  mapStatus,
-  isConflictedFile,
-  hasConflictedFiles,
-} from './status'
+import { mapStatus, isConflictedFile, hasConflictedFiles } from './status'
 import {
   AppFileStatusKind,
   WorkingDirectoryStatus,

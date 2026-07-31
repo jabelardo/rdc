@@ -17,12 +17,8 @@ describe('TokenStore', () => {
     await expect(
       TokenStore.setItem('service', 'login', 'secret')
     ).resolves.toBeUndefined()
-    await expect(
-      TokenStore.getItem('service', 'login')
-    ).resolves.toBe('secret')
-    await expect(
-      TokenStore.deleteItem('service', 'login')
-    ).resolves.toBe(true)
+    await expect(TokenStore.getItem('service', 'login')).resolves.toBe('secret')
+    await expect(TokenStore.deleteItem('service', 'login')).resolves.toBe(true)
 
     expect(invoke).toHaveBeenNthCalledWith(1, 'set_credential', {
       service: 'service',

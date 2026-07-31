@@ -29,13 +29,9 @@ export class CloneStore {
   private currentState = EmptyState
   private operationID = 0
   private readonly dependencies: CloneStoreDependencies
-  private readonly listeners = new Set<
-    (state: CloneState) => void
-  >()
+  private readonly listeners = new Set<(state: CloneState) => void>()
 
-  public constructor(
-    dependencies: Partial<CloneStoreDependencies> = {}
-  ) {
+  public constructor(dependencies: Partial<CloneStoreDependencies> = {}) {
     this.dependencies = {
       clone: cloneRepository,
       ...dependencies,
@@ -46,9 +42,7 @@ export class CloneStore {
     return this.currentState
   }
 
-  public onDidUpdate(
-    listener: (state: CloneState) => void
-  ): () => void {
+  public onDidUpdate(listener: (state: CloneState) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }

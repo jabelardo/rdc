@@ -114,9 +114,7 @@ export async function getBranchCheckouts(
  *
  * The placeholder `git init` writes counts as none, since it isn't something the user chose.
  */
-export async function getDescription(
-  repositoryPath: string
-): Promise<string> {
+export async function getDescription(repositoryPath: string): Promise<string> {
   return invoke<string>('get_description', { repositoryPath })
 }
 
@@ -302,9 +300,7 @@ export async function determineMergeability(
  * A path that isn't a repository is an **answer**, not a rejection: the caller is usually asking exactly that.
  * `unsafe` means git refused it for dubious ownership, and {@linkcode addSafeDirectory} is the way out.
  */
-export async function getRepositoryType(
-  path: string
-): Promise<RepositoryType> {
+export async function getRepositoryType(path: string): Promise<RepositoryType> {
   return invoke<RepositoryType>('get_repository_type', { path })
 }
 

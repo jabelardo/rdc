@@ -14,9 +14,7 @@ export type AppStoreState = {
 
 type AppStoreDependencies = {
   readonly getRepositoryType: (path: string) => Promise<RepositoryType>
-  readonly setWindowSelectedRepository: (
-    path: string | null
-  ) => Promise<void>
+  readonly setWindowSelectedRepository: (path: string | null) => Promise<void>
 }
 
 const defaultDependencies: AppStoreDependencies = {
@@ -100,7 +98,9 @@ export class AppStore {
         ? (this.repositories[0] ?? null)
         : (this.repositories.find(
             candidate => candidate.id === this.selectedRepository?.id
-          ) ?? this.repositories[0] ?? null)
+          ) ??
+          this.repositories[0] ??
+          null)
     await this.selectRepository(selected)
   }
 
@@ -119,9 +119,7 @@ export class AppStore {
     if (selected !== null && persistSelection) {
       setNumber(LastSelectedRepositoryIDKey, selected.id)
     }
-    await this.dependencies.setWindowSelectedRepository(
-      selected?.path ?? null
-    )
+    await this.dependencies.setWindowSelectedRepository(selected?.path ?? null)
     this.emitUpdate()
   }
 }

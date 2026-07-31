@@ -23,12 +23,7 @@
       "csp": {
         "default-src": ["'self'"],
         "base-uri": ["'none'"],
-        "connect-src": [
-          "'self'",
-          "ipc:",
-          "http://ipc.localhost",
-          "rdc-blob:"
-        ],
+        "connect-src": ["'self'", "ipc:", "http://ipc.localhost", "rdc-blob:"],
         "font-src": ["'self'", "data:"],
         "form-action": ["'self'"],
         "frame-src": ["'none'"],
@@ -63,11 +58,7 @@
         "manifest-src": ["'self'", "http://localhost:1420"],
         "object-src": ["'none'"],
         "script-src": ["'self'", "http://localhost:1420"],
-        "style-src": [
-          "'self'",
-          "'unsafe-inline'",
-          "http://localhost:1420"
-        ],
+        "style-src": ["'self'", "'unsafe-inline'", "http://localhost:1420"],
         "worker-src": ["'self'", "blob:", "http://localhost:1420"]
       },
       "freezePrototype": true
@@ -81,9 +72,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": [
-      "resources/rdc-cli"
-    ],
+    "resources": ["resources/rdc-cli"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

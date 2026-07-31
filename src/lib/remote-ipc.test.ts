@@ -214,7 +214,11 @@ describe('the remote commands', () => {
   })
 
   it('fetchRefspec sends the refspec and no Channel', async () => {
-    await fetchRefspec(REPO, 'origin', 'refs/pull/1/head:refs/remotes/origin/pr/1')
+    await fetchRefspec(
+      REPO,
+      'origin',
+      'refs/pull/1/head:refs/remotes/origin/pr/1'
+    )
 
     expect(invoke).toHaveBeenCalledWith('fetch_refspec', {
       repositoryPath: REPO,
@@ -276,7 +280,6 @@ describe('the remote commands', () => {
     })
   })
 })
-
 
 describe('the clone and remote commands', () => {
   beforeEach(() => {

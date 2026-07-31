@@ -11,10 +11,7 @@ import type {
 } from '../../models/progress'
 import type { IRemote } from '../../models/remote'
 import { getBranches, getBranchesDifferingFromUpstream } from '../branch-ipc'
-import {
-  getStatus,
-  type IStatusResult,
-} from '../git-ipc'
+import { getStatus, type IStatusResult } from '../git-ipc'
 import { describeRemoteError } from '../remote-error'
 import {
   fastForwardBranches,
@@ -112,9 +109,7 @@ type RemoteFacts = {
   readonly currentBranch: Branch | null
 }
 
-function findDefaultRemote(
-  remotes: ReadonlyArray<IRemote>
-): IRemote | null {
+function findDefaultRemote(remotes: ReadonlyArray<IRemote>): IRemote | null {
   return remotes.find(remote => remote.name === 'origin') ?? remotes[0] ?? null
 }
 
@@ -125,8 +120,7 @@ function findCurrentBranch(
   return (
     branches.find(
       branch =>
-        branch.type === BranchType.Local &&
-        branch.name === currentBranchName
+        branch.type === BranchType.Local && branch.name === currentBranchName
     ) ?? null
   )
 }
@@ -154,13 +148,9 @@ export class RemoteStore {
   private requestID = 0
   private operationID = 0
   private readonly dependencies: RemoteStoreDependencies
-  private readonly listeners = new Set<
-    (state: RemoteState) => void
-  >()
+  private readonly listeners = new Set<(state: RemoteState) => void>()
 
-  public constructor(
-    dependencies: Partial<RemoteStoreDependencies> = {}
-  ) {
+  public constructor(dependencies: Partial<RemoteStoreDependencies> = {}) {
     this.dependencies = { ...defaultDependencies, ...dependencies }
   }
 
@@ -168,9 +158,7 @@ export class RemoteStore {
     return this.currentState
   }
 
-  public onDidUpdate(
-    listener: (state: RemoteState) => void
-  ): () => void {
+  public onDidUpdate(listener: (state: RemoteState) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
@@ -268,9 +256,7 @@ export class RemoteStore {
                 progress: {
                   ...progress,
                   title: `Fetching ${remote.name}`,
-                  value:
-                    index * remoteWeight +
-                    progress.value * remoteWeight,
+                  value: index * remoteWeight + progress.value * remoteWeight,
                 },
               })
             }
@@ -322,8 +308,7 @@ export class RemoteStore {
   }
 
   public async push(): Promise<boolean> {
-    const { repositoryPath, currentRemote, currentBranch } =
-      this.currentState
+    const { repositoryPath, currentRemote, currentBranch } = this.currentState
     if (
       repositoryPath === null ||
       currentRemote === null ||
@@ -384,8 +369,7 @@ export class RemoteStore {
               progress: {
                 ...progress,
                 title: `Fetching ${currentRemote.name}`,
-                value:
-                  pushWeight + progress.value * fetchWeight,
+                value: pushWeight + progress.value * fetchWeight,
               },
             })
           }
@@ -435,8 +419,7 @@ export class RemoteStore {
   }
 
   public async pull(): Promise<boolean> {
-    const { repositoryPath, currentRemote, currentBranch } =
-      this.currentState
+    const { repositoryPath, currentRemote, currentBranch } = this.currentState
     if (
       repositoryPath === null ||
       currentRemote === null ||
@@ -494,8 +477,7 @@ export class RemoteStore {
               progress: {
                 ...progress,
                 title: `Fetching ${currentRemote.name}`,
-                value:
-                  pullWeight + progress.value * fetchWeight,
+                value: pullWeight + progress.value * fetchWeight,
               },
             })
           }
@@ -572,31 +554,18 @@ export class RemoteStore {
   ): Promise<void> {
     try {
       const branches =
-        await this.dependencies.getBranchesDifferingFromUpstream(
-          repositoryPath
-        )
+        await this.dependencies.getBranchesDifferingFromUpstream(repositoryPath)
       await this.dependencies.fastForwardBranches(
         repositoryPath,
-        branches.map(
-          branch => [branch.upstreamRef, branch.ref] as const
-        )
+        branches.map(branch => [branch.upstreamRef, branch.ref] as const)
       )
     } catch (error) {
-      log.error(
-        'Branch fast-forwarding failed after remote operation',
-        error
-      )
+      log.error('Branch fast-forwarding failed after remote operation', error)
     }
   }
 
-  private isCurrentOperation(
-    requestID: number,
-    operationID: number
-  ): boolean {
-    return (
-      requestID === this.requestID &&
-      operationID === this.operationID
-    )
+  private isCurrentOperation(requestID: number, operationID: number): boolean {
+    return requestID === this.requestID && operationID === this.operationID
   }
 
   private update(state: RemoteState): void {

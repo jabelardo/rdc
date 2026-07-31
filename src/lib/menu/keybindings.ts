@@ -1,7 +1,4 @@
-import type {
-  AppMenu,
-  ExecutableMenuItem,
-} from '../../models/app-menu'
+import type { AppMenu, ExecutableMenuItem } from '../../models/app-menu'
 import type {
   Keybinding,
   KeybindingModifier,

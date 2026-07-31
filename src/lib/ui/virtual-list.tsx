@@ -24,11 +24,7 @@ type VirtualListProps<T> = {
   readonly gap?: number
   readonly getItemKey: (item: T) => string | number
   readonly items: ReadonlyArray<T>
-  readonly children: (
-    item: T,
-    index: number,
-    row: VirtualListRow
-  ) => ReactNode
+  readonly children: (item: T, index: number, row: VirtualListRow) => ReactNode
 }
 
 /**
@@ -71,9 +67,7 @@ export function VirtualList<T>({
       }
       const focus = () =>
         listRef.current
-          ?.querySelector<HTMLElement>(
-            `[data-keyboard-list-index="${index}"]`
-          )
+          ?.querySelector<HTMLElement>(`[data-keyboard-list-index="${index}"]`)
           ?.focus()
       focus()
       requestAnimationFrame(() => requestAnimationFrame(focus))

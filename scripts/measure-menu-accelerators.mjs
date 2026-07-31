@@ -61,18 +61,33 @@ const EXPECTED = [
 ]
 
 function nodeText(source, file, node) {
-  return node === undefined ? undefined : source.slice(node.getStart(file), node.getEnd())
+  return node === undefined
+    ? undefined
+    : source.slice(node.getStart(file), node.getEnd())
 }
 
-export function acceleratorDeclarations(source, fileName = 'build-default-menu.ts') {
-  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true)
+export function acceleratorDeclarations(
+  source,
+  fileName = 'build-default-menu.ts'
+) {
+  const file = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    true
+  )
   const declarations = []
 
   function visit(node) {
-    if (ts.isPropertyAssignment(node) && nodeText(source, file, node.name) === 'accelerator') {
+    if (
+      ts.isPropertyAssignment(node) &&
+      nodeText(source, file, node.name) === 'accelerator'
+    ) {
       const properties = node.parent.properties.filter(ts.isPropertyAssignment)
       const property = name =>
-        properties.find(candidate => nodeText(source, file, candidate.name) === name)
+        properties.find(
+          candidate => nodeText(source, file, candidate.name) === name
+        )
       const literal = name => {
         const initializer = property(name)?.initializer
         return initializer !== undefined && ts.isStringLiteral(initializer)
@@ -111,7 +126,12 @@ export function acceleratorDeclarations(source, fileName = 'build-default-menu.t
 }
 
 export function explicitMenuIds(source, fileName = 'default-menu.ts') {
-  const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true)
+  const file = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    true
+  )
   const ids = new Set()
 
   function visit(node) {

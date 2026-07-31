@@ -151,10 +151,21 @@ export function request(
   return fetch(url, options)
 }
 
-/** Get the user agent to use for all requests. */
+/**
+ * Get the user agent to use for all requests.
+ *
+ * rdc identifies as itself. Upstream sent `GitHubDesktop/<version>`, and carrying that forward
+ * would mean announcing another product's identity to every server we talk to — wrong regardless
+ * of whether anything downstream keys off it. (MIGRATION_MAP.md §8 previously kept it verbatim on
+ * the theory that the GitHub API might treat it as significant; the API requires *a* User-Agent,
+ * not a particular one.)
+ *
+ * The platform token also used to report `Windows` for anything that wasn't macOS — including
+ * Linux, which is rdc's primary target.
+ */
 export function getUserAgent() {
-  const platform = __DARWIN__ ? 'Macintosh' : 'Windows'
-  return `GitHubDesktop/${__APP_VERSION__} (${platform})`
+  const platform = __DARWIN__ ? 'Macintosh' : __LINUX__ ? 'Linux' : 'Windows'
+  return `RDC/${__APP_VERSION__} (${platform})`
 }
 
 /**

@@ -10,8 +10,6 @@ describe('platform system preferences', () => {
     invoke.mockResolvedValue('Minimize')
 
     await expect(getAppleActionOnDoubleClick()).resolves.toBe('Minimize')
-    expect(invoke).toHaveBeenCalledWith(
-      'get_apple_action_on_double_click'
-    )
+    expect(invoke).toHaveBeenCalledWith('get_apple_action_on_double_click')
   })
 })

@@ -32,13 +32,14 @@ describe('native file operations', () => {
     revealItemInDir.mockResolvedValue(undefined)
   })
 
-  it.each(['https://example.com', 'http://example.com', 'mailto:a@example.com'])(
-    'opens URL %s with the URL-scoped plugin command',
-    async url => {
-      await expect(openExternal(url)).resolves.toBe(true)
-      expect(openUrl).toHaveBeenCalledWith(url)
-    }
-  )
+  it.each([
+    'https://example.com',
+    'http://example.com',
+    'mailto:a@example.com',
+  ])('opens URL %s with the URL-scoped plugin command', async url => {
+    await expect(openExternal(url)).resolves.toBe(true)
+    expect(openUrl).toHaveBeenCalledWith(url)
+  })
 
   it('opens file URLs as paths and preserves the upstream boolean result', async () => {
     await expect(openExternal('file:///tmp/a.txt')).resolves.toBe(true)
@@ -57,15 +58,18 @@ describe('native file operations', () => {
   it.each([
     ['open', 'openPath'],
     ['reveal', 'revealItemInDir'],
-  ] as const)('uses the Rust-classified %s folder action', async (action, method) => {
-    invoke.mockResolvedValue(action)
+  ] as const)(
+    'uses the Rust-classified %s folder action',
+    async (action, method) => {
+      invoke.mockResolvedValue(action)
 
-    await showFolderContents('/tmp/repository')
+      await showFolderContents('/tmp/repository')
 
-    expect({ openPath, revealItemInDir }[method]).toHaveBeenCalledWith(
-      '/tmp/repository'
-    )
-  })
+      expect({ openPath, revealItemInDir }[method]).toHaveBeenCalledWith(
+        '/tmp/repository'
+      )
+    }
+  )
 
   it('does nothing when folder classification cannot read the path', async () => {
     invoke.mockResolvedValue(null)
@@ -79,9 +83,7 @@ describe('native file operations', () => {
   it('absorbs folder classification failures like upstream', async () => {
     invoke.mockRejectedValue(new Error('permission denied'))
 
-    await expect(
-      showFolderContents('/tmp/unreadable')
-    ).resolves.toBeUndefined()
+    await expect(showFolderContents('/tmp/unreadable')).resolves.toBeUndefined()
 
     expect(openPath).not.toHaveBeenCalled()
     expect(revealItemInDir).not.toHaveBeenCalled()
@@ -109,12 +111,9 @@ describe('native file operations', () => {
 
     await permanentlyDeleteRepositoryPath('/repo', 'untracked/file.txt')
 
-    expect(invoke).toHaveBeenCalledWith(
-      'permanently_delete_repository_path',
-      {
-        repositoryPath: '/repo',
-        relativePath: 'untracked/file.txt',
-      }
-    )
+    expect(invoke).toHaveBeenCalledWith('permanently_delete_repository_path', {
+      repositoryPath: '/repo',
+      relativePath: 'untracked/file.txt',
+    })
   })
 })

@@ -35,11 +35,14 @@ describe('native file dialogs', () => {
     })
   })
 
-  it.each([null, []])('preserves cancellation represented as %j', async result => {
-    open.mockResolvedValue(result)
+  it.each([null, []])(
+    'preserves cancellation represented as %j',
+    async result => {
+      open.mockResolvedValue(result)
 
-    await expect(showOpenDialog({})).resolves.toBeNull()
-  })
+      await expect(showOpenDialog({})).resolves.toBeNull()
+    }
+  )
 
   it('preserves a single-selection plugin result', async () => {
     open.mockResolvedValue('/chosen')

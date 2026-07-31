@@ -34,6 +34,8 @@ tests. This is pinned in `.nvmrc`, `engines`, and CI — don't unpin it to make 
 ```sh
 pnpm test                    # Vitest (frontend)
 pnpm exec tsc --noEmit       # typecheck
+pnpm format:check            # oxfmt
+pnpm lint                    # oxlint correctness + React hooks
 pnpm test:e2e                # E2E — always inside the Linux container
 ```
 
@@ -44,7 +46,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --check
 ```
 
-**Run all five before committing.** CI enforces exactly these, and `clippy -D warnings` has caught
+**Run all seven before committing.** CI enforces exactly these, and `clippy -D warnings` has caught
 real bugs a passing test missed (an octal-looking `\0` escape, for one).
 
 ```sh
@@ -163,7 +165,44 @@ Lodash is unavoidable it must be ≥ 4.18.1 for security reasons.
 
 **10. E2E runs only in the Linux container**, on every host including Linux. Linux is the primary
 target; current desktop environments are Wayland-only, so don't add X11-dependent assumptions
-outside the container harness.
+outside the container harness. **One spec file per product slice, and no cross-file ordering** —
+each file builds its own fixture, starts its own application session and establishes its own
+preconditions by CLI. The suite was once a single file where each test inherited the previous
+test's state, so one early failure erased the signal from every test after it. `run.sh` passes
+`--test-concurrency=1`; that is load-bearing, not tidiness (single `tauri-driver` port, plus a
+process-wide `pkill -x rdc` in the restart spec). The webview's IndexedDB survives restarts and is
+shared by every file, so specs asserting on repository state call `resetRepositoryFixtures` first.
+
+**11. Platform-specific imports never sit at the scope of a portable module.**
+`std::os::unix`, `std::os::windows` and `libc::` belong inside a `#[cfg]`-gated inner module (or a
+per-OS file), which exports a **platform-neutral signature** so callers never know. Pure logic is
+never gated at all.
+
+This is about keeping Phase 10 additive. `platform/custom_integration.rs` is the worked example: of
+260 lines exactly 10 are unix-specific (`has_execute_access`, deliberately using `libc::access` to
+keep upstream's ACL-aware check), and its `use std::os::unix::ffi::OsStrExt` used to sit at *file
+scope*, so those 10 lines made 250 lines of portable logic uncompilable on Windows. They now live in
+a `#[cfg]`-gated inner `executable` module exporting a platform-neutral signature; Phase 10 adds an
+arm there instead of restructuring anything. Copy that shape.
+
+Two follow-on rules the same exercise produced:
+
+- **Never `#[cfg(any(target_os = "…", test))]` on something whose body makes OS calls.** The `test`
+  arm compiles it on *every* platform's test profile — which is how `platform::cli_installer`'s
+  inline `std::os::unix::fs::symlink` broke a Windows `--all-targets` check for a macOS-only
+  feature. Gate the call (`cli_installer`'s `link` module), not the module.
+- **Every arm of a seam must have the same signature, and be compiled by something.** An arm nobody
+  builds is not a fallback, it is unreviewed code: `rdc-printenvz`'s Windows `as_bytes` returned
+  `Cow<[u8]>` where the Unix arm returned `&[u8]`, and the resulting `write_all` type error sat
+  undiscovered because no gate ever compiled it.
+- Where the platform answer is a *behavioural* choice rather than a translation, don't guess — leave
+  a `compile_error!` naming the decision. "Executable" on Windows means `PATHEXT` membership or a
+  DACL `AccessCheck`, not a mode bit; picking one is Phase 10's job. A file symlink, by contrast,
+  maps exactly (`symlink_file`), so `cli_installer` implements both arms.
+
+Measured, so the scale is not guessed: **`git-ops` compiles cleanly for `x86_64-pc-windows-msvc`
+with `--all-targets`** — library, binaries and tests — and CI keeps it that way. See DEVELOPMENT.md
+for the local one-liner.
 
 ## Conventions
 

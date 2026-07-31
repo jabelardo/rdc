@@ -33,21 +33,27 @@ describe('native theme integration', () => {
     ['light', 'light'],
     ['dark', 'dark'],
     ['system', null],
-  ] as const)('maps the %s source to Tauri application theme %s', async (source, expected) => {
-    await setNativeThemeSource(source)
+  ] as const)(
+    'maps the %s source to Tauri application theme %s',
+    async (source, expected) => {
+      await setNativeThemeSource(source)
 
-    expect(setAppTheme).toHaveBeenCalledWith(expected)
-  })
+      expect(setAppTheme).toHaveBeenCalledWith(expected)
+    }
+  )
 
   it.each([
     ['dark', true],
     ['light', false],
     [null, false],
-  ] as const)('reports resolved theme %s as dark=%s', async (theme, expected) => {
-    currentWindow.theme.mockResolvedValue(theme)
+  ] as const)(
+    'reports resolved theme %s as dark=%s',
+    async (theme, expected) => {
+      currentWindow.theme.mockResolvedValue(theme)
 
-    await expect(shouldUseDarkColors()).resolves.toBe(expected)
-  })
+      await expect(shouldUseDarkColors()).resolves.toBe(expected)
+    }
+  )
 
   it('adapts the theme payload to the upstream payload-free notification', async () => {
     const unlisten = vi.fn()

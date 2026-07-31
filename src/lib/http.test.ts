@@ -1,7 +1,28 @@
 import { describe, it } from 'vitest'
 import assert from 'node:assert'
-import { getAbsoluteUrl } from './http'
+import { getAbsoluteUrl, getUserAgent } from './http'
 import { getDotComAPIEndpoint } from './api'
+
+describe('getUserAgent', () => {
+  // Pinned deliberately. rdc must not announce another product's identity on the wire, and this
+  // string previously read `GitHubDesktop/<version>`; a test is the only thing that stops it
+  // drifting back during a future port from upstream.
+  it('identifies rdc, not the upstream product', () => {
+    const userAgent = getUserAgent()
+    assert.match(userAgent, /^RDC\//)
+    assert.ok(
+      !/GitHubDesktop|GitHub Desktop|Desktop Plus/.test(userAgent),
+      `user agent must not name another product: ${userAgent}`
+    )
+  })
+
+  it('names the platform it is actually running on', () => {
+    // jsdom runs with the test-time build constants, where none of __DARWIN__/__LINUX__/__WIN32__
+    // is forced — so assert the shape rather than one platform, and that Linux is reachable at all
+    // (it used to report `Windows` for everything that was not macOS).
+    assert.match(getUserAgent(), /^RDC\/\S+ \((Macintosh|Linux|Windows)\)$/)
+  })
+})
 
 describe('getAbsoluteUrl', () => {
   describe('dotcom endpoint', () => {

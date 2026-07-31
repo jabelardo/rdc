@@ -2,10 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Commit } from '../../models/commit'
 import { CommitIdentity } from '../../models/commit-identity'
 import { DiffType, type IDiff } from '../../models/diff'
-import {
-  AppFileStatusKind,
-  CommittedFileChange,
-} from '../../models/status'
+import { AppFileStatusKind, CommittedFileChange } from '../../models/status'
 import { HistoryStore } from './history-store'
 
 function commit(sha: string, summary: string): Commit {

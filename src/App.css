@@ -34,7 +34,11 @@
   --space-4: 1rem;
   --space-5: 1.5rem;
   font-family:
-    system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
   font-size: 13px;
   line-height: 1.5;
   color: var(--color-text);
@@ -52,8 +56,7 @@ body {
 
 code,
 pre {
-  font-family:
-    SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
 }
 
 button {
@@ -528,8 +531,8 @@ button:disabled {
   grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
-    "files diff"
-    "commit diff";
+    'files diff'
+    'commit diff';
   overflow: hidden;
   background: var(--color-surface);
 }
@@ -636,7 +639,7 @@ button:disabled {
   max-width: 24rem;
   margin: 18vh auto 0;
   color: var(--color-text-muted);
-  content: "Select a changed file to inspect its diff.";
+  content: 'Select a changed file to inspect its diff.';
   text-align: center;
 }
 
@@ -667,7 +670,8 @@ button:disabled {
   grid-template-columns: 1.5rem 3rem 3rem minmax(0, 1fr);
   min-height: 1.5rem;
   align-items: start;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border) 55%, transparent);
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--color-border) 55%, transparent);
 }
 
 .working-tree-diff-line:last-child {
@@ -1132,9 +1136,9 @@ button:disabled {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(12rem, 34vh) minmax(18rem, 1fr) auto;
     grid-template-areas:
-      "files"
-      "diff"
-      "commit";
+      'files'
+      'diff'
+      'commit';
     overflow: visible;
   }
 
@@ -1265,10 +1269,9 @@ button:disabled {
   background: #a82231;
 }
 
-:root[data-theme='dark'] :is(
-  .repository-toolbar-actions,
-  .remote-actions
-) button {
+:root[data-theme='dark']
+  :is(.repository-toolbar-actions, .remote-actions)
+  button {
   border-color: rgb(255 255 255 / 22%);
   color: var(--color-toolbar-text);
   background: transparent;
@@ -1290,7 +1293,7 @@ button:disabled {
 :root[data-theme='dark'] .history-files small,
 :root[data-theme='dark'] .merge-conflicts header p,
 :root[data-theme='dark'] .merge-conflicts li small {
-    color: #aeb6c6;
+  color: #aeb6c6;
 }
 
 :root[data-theme='dark'] .working-tree-diff pre,

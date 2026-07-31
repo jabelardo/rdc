@@ -1,9 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Shell } from '../../models/shell'
-import {
-  PreferencesStore,
-  PreferencesStorageKey,
-} from './preferences-store'
+import { PreferencesStore, PreferencesStorageKey } from './preferences-store'
 
 const editors = [
   { editor: 'Visual Studio Code', path: '/applications/code' },
@@ -88,7 +85,9 @@ describe('PreferencesStore', () => {
 
     expect(store.state.selectedExternalEditor).toBe('Visual Studio Code')
     expect(store.state.selectedShell).toBe(Shell.Ghostty)
-    expect(JSON.parse(localStorage.getItem(PreferencesStorageKey)!)).toMatchObject({
+    expect(
+      JSON.parse(localStorage.getItem(PreferencesStorageKey)!)
+    ).toMatchObject({
       selectedExternalEditor: 'Visual Studio Code',
       selectedShell: Shell.Ghostty,
     })

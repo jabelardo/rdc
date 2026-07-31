@@ -85,8 +85,6 @@ export function hookFailureChannel(
       onFailure?.(prompt.hook, prompt.terminalOutput) ?? 'abort'
     )
       .catch((): HookFailureResolution => 'abort')
-      .then(resolution =>
-        resolveHookFailure(prompt.id, resolution)
-      )
+      .then(resolution => resolveHookFailure(prompt.id, resolution))
   })
 }

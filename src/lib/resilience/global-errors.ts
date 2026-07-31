@@ -9,16 +9,10 @@ function asError(value: unknown): Error {
  */
 export function installGlobalErrorLogging(): () => void {
   const onError = (event: ErrorEvent) => {
-    log.error(
-      'Uncaught renderer error',
-      asError(event.error ?? event.message)
-    )
+    log.error('Uncaught renderer error', asError(event.error ?? event.message))
   }
   const onUnhandledRejection = (event: PromiseRejectionEvent) => {
-    log.error(
-      'Unhandled renderer promise rejection',
-      asError(event.reason)
-    )
+    log.error('Unhandled renderer promise rejection', asError(event.reason))
   }
 
   window.addEventListener('error', onError)
@@ -26,9 +20,6 @@ export function installGlobalErrorLogging(): () => void {
 
   return () => {
     window.removeEventListener('error', onError)
-    window.removeEventListener(
-      'unhandledrejection',
-      onUnhandledRejection
-    )
+    window.removeEventListener('unhandledrejection', onUnhandledRejection)
   }
 }

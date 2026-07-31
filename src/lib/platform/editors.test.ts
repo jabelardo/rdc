@@ -112,9 +112,9 @@ describe('custom integration validation', () => {
     }
     invoke.mockResolvedValue(true)
 
-    await expect(
-      isValidCustomIntegration(customIntegration)
-    ).resolves.toBe(true)
+    await expect(isValidCustomIntegration(customIntegration)).resolves.toBe(
+      true
+    )
     expect(invoke).toHaveBeenCalledWith('is_valid_custom_integration', {
       customIntegration,
     })

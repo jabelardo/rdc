@@ -47,10 +47,7 @@ export type WorkingTreeState = {
   readonly error: string | null
 }
 
-export type DiscardFileResult =
-  | 'discarded'
-  | 'trash-failed'
-  | 'failed'
+export type DiscardFileResult = 'discarded' | 'trash-failed' | 'failed'
 
 export type SelectedLinesDiscard = {
   readonly repositoryPath: string
@@ -99,9 +96,7 @@ function workingDirectoryFromStatus(
         file.path,
         file.status,
         DiffSelection.fromInitialSelection(
-          file.startsUnselected
-            ? DiffSelectionType.None
-            : DiffSelectionType.All
+          file.startsUnselected ? DiffSelectionType.None : DiffSelectionType.All
         )
       )
       const existing = previous?.findFileWithID(next.id)
@@ -109,21 +104,15 @@ function workingDirectoryFromStatus(
         ? next
         : next.withSelection(existing.selection)
     })
-    .sort((left, right) =>
-      caseInsensitiveCompare(left.path, right.path)
-    )
+    .sort((left, right) => caseInsensitiveCompare(left.path, right.path))
 
   return WorkingDirectoryStatus.fromFiles(files)
 }
 
-function fileToStage(
-  file: WorkingDirectoryFileChange
-): IFileToStage {
+function fileToStage(file: WorkingDirectoryFileChange): IFileToStage {
   const selectionType = file.selection.getSelectionType()
   if (file.status.kind === AppFileStatusKind.Conflicted) {
-    throw new Error(
-      'Resolve conflicted files before committing.'
-    )
+    throw new Error('Resolve conflicted files before committing.')
   }
   const partial = selectionType === DiffSelectionType.Partial
 
@@ -180,13 +169,9 @@ export class WorkingTreeStore {
     | null = null
   private readonly commitTerminalOutput = new TerminalOutputBuffer()
   private readonly dependencies: WorkingTreeStoreDependencies
-  private readonly listeners = new Set<
-    (state: WorkingTreeState) => void
-  >()
+  private readonly listeners = new Set<(state: WorkingTreeState) => void>()
 
-  public constructor(
-    dependencies: Partial<WorkingTreeStoreDependencies> = {}
-  ) {
+  public constructor(dependencies: Partial<WorkingTreeStoreDependencies> = {}) {
     this.dependencies = { ...defaultDependencies, ...dependencies }
   }
 
@@ -194,9 +179,7 @@ export class WorkingTreeStore {
     return this.currentState
   }
 
-  public onDidUpdate(
-    listener: (state: WorkingTreeState) => void
-  ): () => void {
+  public onDidUpdate(listener: (state: WorkingTreeState) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
@@ -233,10 +216,7 @@ export class WorkingTreeStore {
     })
 
     try {
-      const status = await this.dependencies.getStatus(
-        repositoryPath,
-        true
-      )
+      const status = await this.dependencies.getStatus(repositoryPath, true)
       if (requestID !== this.requestID) {
         return
       }
@@ -245,9 +225,7 @@ export class WorkingTreeStore {
         previousWorkingDirectory
       )
       const selectedFileID =
-        workingDirectory.findFileWithID(
-          previousSelectedFileID ?? ''
-        )?.id ??
+        workingDirectory.findFileWithID(previousSelectedFileID ?? '')?.id ??
         workingDirectory.files[0]?.id ??
         null
       this.update({
@@ -329,8 +307,7 @@ export class WorkingTreeStore {
     const state = this.currentState
     const workingDirectory = state.workingDirectory
     const file =
-      workingDirectory?.findFileWithID(state.selectedFileID ?? '') ??
-      null
+      workingDirectory?.findFileWithID(state.selectedFileID ?? '') ?? null
     if (
       file === null ||
       state.diff === null ||
@@ -356,18 +333,15 @@ export class WorkingTreeStore {
     permanentlyDelete = false
   ): Promise<DiscardFileResult> {
     const state = this.currentState
-    const file =
-      state.workingDirectory?.findFileWithID(fileID) ?? null
+    const file = state.workingDirectory?.findFileWithID(fileID) ?? null
     if (state.repositoryPath === null || file === null) {
       return 'failed'
     }
 
     try {
-      await this.dependencies.discardChanges(
-        state.repositoryPath,
-        [file],
-        { permanentlyDelete }
-      )
+      await this.dependencies.discardChanges(state.repositoryPath, [file], {
+        permanentlyDelete,
+      })
       await this.load(state.repositoryPath)
       return 'discarded'
     } catch (error) {
@@ -386,9 +360,7 @@ export class WorkingTreeStore {
   public getSelectedLinesDiscard(): SelectedLinesDiscard | null {
     const state = this.currentState
     const file =
-      state.workingDirectory?.findFileWithID(
-        state.selectedFileID ?? ''
-      ) ?? null
+      state.workingDirectory?.findFileWithID(state.selectedFileID ?? '') ?? null
     if (
       state.repositoryPath === null ||
       file === null ||
@@ -453,10 +425,7 @@ export class WorkingTreeStore {
     interceptHooks = false
   ): Promise<string | null> {
     const state = this.currentState
-    if (
-      state.repositoryPath === null ||
-      state.workingDirectory === null
-    ) {
+    if (state.repositoryPath === null || state.workingDirectory === null) {
       return null
     }
     const trimmedMessage = message.trim()
@@ -471,9 +440,7 @@ export class WorkingTreeStore {
     try {
       const files = state.workingDirectory.files
         .filter(
-          file =>
-            file.selection.getSelectionType() !==
-            DiffSelectionType.None
+          file => file.selection.getSelectionType() !== DiffSelectionType.None
         )
         .map(fileToStage)
       if (files.length === 0) {
@@ -529,9 +496,7 @@ export class WorkingTreeStore {
   private async loadSelectedDiff(statusRequestID: number): Promise<void> {
     const state = this.currentState
     const selectedFile =
-      state.workingDirectory?.findFileWithID(
-        state.selectedFileID ?? ''
-      ) ?? null
+      state.workingDirectory?.findFileWithID(state.selectedFileID ?? '') ?? null
     if (
       state.repositoryPath === null ||
       selectedFile === null ||
@@ -561,8 +526,7 @@ export class WorkingTreeStore {
       ) {
         return
       }
-      const currentWorkingDirectory =
-        this.currentState.workingDirectory
+      const currentWorkingDirectory = this.currentState.workingDirectory
       const currentFile =
         currentWorkingDirectory?.findFileWithID(selectedFile.id) ?? null
       const workingDirectory =

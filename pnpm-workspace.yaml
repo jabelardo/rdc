@@ -1,0 +1,11 @@
+# Not a monorepo — this file exists because pnpm 11 reads its *settings* from here.
+#
+# `engineStrict` makes `pnpm install` fail outright on the wrong Node major instead of printing a
+# warning nobody reads. It was first written as `engine-strict=true` in `.npmrc`, which pnpm 11
+# silently ignores: `pnpm config get engine-strict` returned `undefined` and installs still
+# succeeded with only `[WARN] Unsupported engine`. Verified here, not assumed.
+#
+# This covers `pnpm install`. Test and build runs are covered separately by
+# scripts/check-node-version.mjs, called from vite.config.ts and the `pretest` hook — see
+# DEVELOPMENT.md for why the Node pin is enforced mechanically rather than documented.
+engineStrict: true

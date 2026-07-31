@@ -11,5 +11,5 @@ export function getEditorOverrideLabel(
 ): string | undefined {
   return editorOverride.useCustomEditor
     ? undefined
-    : editorOverride.selectedExternalEditor ?? undefined
+    : (editorOverride.selectedExternalEditor ?? undefined)
 }

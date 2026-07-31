@@ -1,15 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { MenuItem } from '../../models/app-menu'
-import {
-  buildStartupMenu,
-  createStartupMenuActionExecutor,
-} from './startup'
+import { buildStartupMenu, createStartupMenuActionExecutor } from './startup'
 
 function allItems(items: ReadonlyArray<MenuItem>): ReadonlyArray<MenuItem> {
   return items.flatMap(item =>
-    item.type === 'submenuItem'
-      ? [item, ...allItems(item.menu.items)]
-      : [item]
+    item.type === 'submenuItem' ? [item, ...allItems(item.menu.items)] : [item]
   )
 }
 
@@ -25,23 +20,19 @@ describe('startup default menu', () => {
     expect(byId('reset-zoom')).toMatchObject({ enabled: true })
     expect(
       items.find(
-        item =>
-          item.type === 'menuItem' &&
-          item.action?.type === 'show-logs'
+        item => item.type === 'menuItem' && item.action?.type === 'show-logs'
       )
     ).toMatchObject({ enabled: true })
     expect(
       items.find(
         item =>
-          item.type === 'menuItem' &&
-          item.action?.type === 'open-external'
+          item.type === 'menuItem' && item.action?.type === 'open-external'
       )
     ).toMatchObject({ enabled: true })
     expect(
       items.find(item => item.type === 'menuItem' && item.role === 'copy')
     ).toMatchObject({ enabled: true })
   })
-
 })
 
 describe('startup menu actions', () => {
@@ -62,22 +53,18 @@ describe('startup menu actions', () => {
     await expect(
       execute({ type: 'menu-event', event: 'select-all' })
     ).resolves.toBe(true)
-    await expect(
-      execute({ type: 'zoom', direction: 'in' })
-    ).resolves.toBe(true)
-    await expect(
-      execute({ type: 'zoom', direction: 'out' })
-    ).resolves.toBe(true)
-    await expect(
-      execute({ type: 'zoom', direction: 'reset' })
-    ).resolves.toBe(true)
+    await expect(execute({ type: 'zoom', direction: 'in' })).resolves.toBe(true)
+    await expect(execute({ type: 'zoom', direction: 'out' })).resolves.toBe(
+      true
+    )
+    await expect(execute({ type: 'zoom', direction: 'reset' })).resolves.toBe(
+      true
+    )
     await expect(execute({ type: 'reload-window' })).resolves.toBe(true)
     await expect(execute({ type: 'show-logs' })).resolves.toBe(true)
     await expect(execute({ type: 'quit' })).resolves.toBe(true)
 
-    expect(environment.openExternal).toHaveBeenCalledWith(
-      'https://example.com'
-    )
+    expect(environment.openExternal).toHaveBeenCalledWith('https://example.com')
     expect(environment.selectAll).toHaveBeenCalledOnce()
     expect(environment.setZoom.mock.calls).toEqual([[1.1], [1], [1]])
     expect(environment.reload).toHaveBeenCalledOnce()
@@ -95,9 +82,9 @@ describe('startup menu actions', () => {
       setZoom: vi.fn(),
     })
 
-    await expect(
-      execute({ type: 'menu-event', event: 'pull' })
-    ).resolves.toBe(false)
+    await expect(execute({ type: 'menu-event', event: 'pull' })).resolves.toBe(
+      false
+    )
     await expect(execute({ type: 'show-devtools' })).resolves.toBe(false)
   })
 })

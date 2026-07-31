@@ -35,9 +35,7 @@ describe('RemoteStore', () => {
   it('selects the current branches tracked remote ahead of origin', async () => {
     const store = new RemoteStore({
       getRemotes: vi.fn(async () => [origin, upstream]),
-      getBranches: vi.fn(async () => [
-        branch('topic', 'upstream/topic'),
-      ]),
+      getBranches: vi.fn(async () => [branch('topic', 'upstream/topic')]),
       getStatus: vi.fn(async () => ({ currentBranch: 'topic' })),
     })
 
@@ -88,9 +86,7 @@ describe('RemoteStore', () => {
       ) => callback?.(progress)
     )
     const getRemotes = vi.fn(async () => [origin, upstream])
-    const getBranches = vi.fn(async () => [
-      branch('topic', 'upstream/topic'),
-    ])
+    const getBranches = vi.fn(async () => [branch('topic', 'upstream/topic')])
     const getStatus = vi.fn(async () => ({ currentBranch: 'topic' }))
     const getBranchesDifferingFromUpstream = vi.fn(async () => [
       {
@@ -169,9 +165,7 @@ describe('RemoteStore', () => {
     )
     const store = new RemoteStore({
       getRemotes: vi.fn(async () => [origin, upstream]),
-      getBranches: vi.fn(async () => [
-        branch('topic', 'upstream/topic'),
-      ]),
+      getBranches: vi.fn(async () => [branch('topic', 'upstream/topic')]),
       getStatus: vi.fn(async () => ({ currentBranch: 'topic' })),
       push,
       fetch,
@@ -214,9 +208,7 @@ describe('RemoteStore', () => {
     const getBranches = vi
       .fn()
       .mockResolvedValueOnce([branch('new-topic', null)])
-      .mockResolvedValueOnce([
-        branch('new-topic', 'origin/new-topic'),
-      ])
+      .mockResolvedValueOnce([branch('new-topic', 'origin/new-topic')])
     const store = new RemoteStore({
       getRemotes: vi.fn(async () => [origin]),
       getBranches,
@@ -240,9 +232,7 @@ describe('RemoteStore', () => {
       expect.any(Function),
       false
     )
-    expect(store.state.currentBranch?.upstream).toBe(
-      'origin/new-topic'
-    )
+    expect(store.state.currentBranch?.upstream).toBe('origin/new-topic')
   })
 
   it('pulls a tracked current branch and refreshes its remote', async () => {
@@ -262,9 +252,7 @@ describe('RemoteStore', () => {
     const fetch = vi.fn(async () => undefined)
     const store = new RemoteStore({
       getRemotes: vi.fn(async () => [origin]),
-      getBranches: vi.fn(async () => [
-        branch('main', 'origin/main'),
-      ]),
+      getBranches: vi.fn(async () => [branch('main', 'origin/main')]),
       getStatus: vi.fn(async () => ({ currentBranch: 'main' })),
       pull,
       fetch,
@@ -308,9 +296,7 @@ describe('RemoteStore', () => {
     })
     const detached = new RemoteStore({
       getRemotes: vi.fn(async () => [origin]),
-      getBranches: vi.fn(async () => [
-        branch('main', 'origin/main'),
-      ]),
+      getBranches: vi.fn(async () => [branch('main', 'origin/main')]),
       getStatus: vi.fn(async () => ({})),
       pull,
     })
@@ -325,9 +311,7 @@ describe('RemoteStore', () => {
   it('turns pull conflicts into recovery guidance without transport copy', async () => {
     const store = new RemoteStore({
       getRemotes: vi.fn(async () => [origin]),
-      getBranches: vi.fn(async () => [
-        branch('main', 'origin/main'),
-      ]),
+      getBranches: vi.fn(async () => [branch('main', 'origin/main')]),
       getStatus: vi.fn(async () => ({ currentBranch: 'main' })),
       pull: vi.fn(async () => {
         throw {
@@ -349,9 +333,7 @@ describe('RemoteStore', () => {
   it('explains a non-fast-forward rejection without offering force push', async () => {
     const store = new RemoteStore({
       getRemotes: vi.fn(async () => [origin]),
-      getBranches: vi.fn(async () => [
-        branch('main', 'origin/main'),
-      ]),
+      getBranches: vi.fn(async () => [branch('main', 'origin/main')]),
       getStatus: vi.fn(async () => ({ currentBranch: 'main' })),
       push: vi.fn(async () => {
         throw {

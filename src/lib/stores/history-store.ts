@@ -62,13 +62,9 @@ export class HistoryStore {
   private detailsRequestID = 0
   private diffRequestID = 0
   private readonly dependencies: HistoryStoreDependencies
-  private readonly listeners = new Set<
-    (state: HistoryState) => void
-  >()
+  private readonly listeners = new Set<(state: HistoryState) => void>()
 
-  public constructor(
-    dependencies: Partial<HistoryStoreDependencies> = {}
-  ) {
+  public constructor(dependencies: Partial<HistoryStoreDependencies> = {}) {
     this.dependencies = { ...defaultDependencies, ...dependencies }
   }
 
@@ -76,9 +72,7 @@ export class HistoryStore {
     return this.currentState
   }
 
-  public onDidUpdate(
-    listener: (state: HistoryState) => void
-  ): () => void {
+  public onDidUpdate(listener: (state: HistoryState) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
@@ -133,10 +127,7 @@ export class HistoryStore {
         diffError: null,
       })
       if (selectedCommitSHA !== null) {
-        await this.loadSelectedCommitDetails(
-          requestID,
-          selectedCommitSHA
-        )
+        await this.loadSelectedCommitDetails(requestID, selectedCommitSHA)
       }
     } catch (error) {
       if (requestID !== this.requestID) {

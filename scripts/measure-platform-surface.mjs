@@ -11,12 +11,13 @@
 // command. Later-phase and deliberately deleted entries remain classified without pretending they are
 // implemented.
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import ts from 'typescript'
 
 const args = process.argv.slice(2)
-const upstream = args.find(argument => !argument.startsWith('--')) ?? '../desktop-plus'
+const upstream =
+  args.find(argument => !argument.startsWith('--')) ?? '../desktop-plus'
 const requirePhase4aComplete = args.includes('--require-phase4a-complete')
 const requireComplete = args.includes('--require-complete')
 const UPSTREAM_PROXY = join(upstream, 'app/src/ui/main-process-proxy.ts')
@@ -79,7 +80,10 @@ const LATER_PHASE_EXPORTS = new Map([
 
 // rdc owns its configuration format, so it intentionally has no migration-result API.
 const DELETED_EXPORTS = new Map([
-  ['getConfigMigrationResult', 'rdc does not migrate desktop-plus configuration'],
+  [
+    'getConfigMigrationResult',
+    'rdc does not migrate desktop-plus configuration',
+  ],
 ])
 
 // Upstream subscribed directly to raw Electron channels, so these replacement
@@ -124,12 +128,21 @@ const CONSUMER_OUTSIDE_PROXY = new Map([
     'installApplicationMenu',
     'App.tsx installs the Phase 4a frontend menu owner before Phase 7 ports the full application shell',
   ],
-  ['getAvailableEditors', 'lib/editors/lookup.ts and Phase 7 preferences/store consumers'],
-  ['getAvailableShells', 'ui/preferences/preferences.tsx and lib/stores/app-store.ts'],
+  [
+    'getAvailableEditors',
+    'lib/editors/lookup.ts and Phase 7 preferences/store consumers',
+  ],
+  [
+    'getAvailableShells',
+    'ui/preferences/preferences.tsx and lib/stores/app-store.ts',
+  ],
   ['findShellOrDefault', 'lib/stores/app-store.ts'],
   ['launchShell', 'lib/stores/app-store.ts'],
   ['launchCustomShell', 'lib/stores/app-store.ts'],
-  ['validateCustomIntegrationPath', 'ui/preferences/custom-integration-form.tsx'],
+  [
+    'validateCustomIntegrationPath',
+    'ui/preferences/custom-integration-form.tsx',
+  ],
   ['isValidCustomIntegration', 'ui/preferences/preferences.tsx'],
   ['migratedCustomIntegration', 'lib/stores/app-store.ts'],
   ['launchExternalEditor', 'lib/stores/app-store.ts'],
@@ -178,9 +191,18 @@ const CONSUMER_OUTSIDE_PROXY = new Map([
     'applicationUpdateController',
     'platform/lifetime.ts consults the retained update before destructive close',
   ],
-  ['TokenStore', 'account and BYOK credential persistence; direct replacement for keytar'],
-  ['InstalledCLIPath', 'the Phase 7 CLI-installed dialog displays the installed launcher path'],
-  ['installCLI', 'the Phase 7 dispatcher invokes the direct macOS CLI installer'],
+  [
+    'TokenStore',
+    'account and BYOK credential persistence; direct replacement for keytar',
+  ],
+  [
+    'InstalledCLIPath',
+    'the Phase 7 CLI-installed dialog displays the installed launcher path',
+  ],
+  [
+    'installCLI',
+    'the Phase 7 dispatcher invokes the direct macOS CLI installer',
+  ],
 ])
 
 function walk(dir) {
@@ -205,7 +227,11 @@ function sourceFile(file, source) {
 }
 
 function isExported(node) {
-  return node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false
+  return (
+    node.modifiers?.some(
+      modifier => modifier.kind === ts.SyntaxKind.ExportKeyword
+    ) ?? false
+  )
 }
 
 /** Exported runtime values declared by a TypeScript module. */
@@ -225,7 +251,8 @@ export function exportedValues(file, source) {
       }
     } else if (ts.isExportDeclaration(statement) && statement.exportClause) {
       if (ts.isNamedExports(statement.exportClause)) {
-        for (const element of statement.exportClause.elements) names.push(element.name.text)
+        for (const element of statement.exportClause.elements)
+          names.push(element.name.text)
       }
     }
   }
@@ -263,7 +290,11 @@ export function subscribedChannels(files) {
         rendererNamespaces.has(node.expression.expression.text)
       ) {
         const channel = node.arguments[0]
-        if (channel && (ts.isStringLiteral(channel) || ts.isNoSubstitutionTemplateLiteral(channel))) {
+        if (
+          channel &&
+          (ts.isStringLiteral(channel) ||
+            ts.isNoSubstitutionTemplateLiteral(channel))
+        ) {
           channels.add(channel.text)
         }
       }
@@ -279,13 +310,18 @@ export function routedChannelPhases(source) {
   const start = source.indexOf('### 7.1 Upstream channels, routed')
   const end = source.indexOf('### 7.2 Git commands', start)
   if (start < 0 || end < 0) {
-    throw new Error('could not find MIGRATION_MAP.md §7.1 routed-channel tables')
+    throw new Error(
+      'could not find MIGRATION_MAP.md §7.1 routed-channel tables'
+    )
   }
 
   const routes = new Map()
-  for (const match of source.slice(start, end).matchAll(/^\s*\| `([^`]+)` \|[^|]+\|[^|]+\| (\d+) \|/gm)) {
+  for (const match of source
+    .slice(start, end)
+    .matchAll(/^\s*\| `([^`]+)` \|[^|]+\|[^|]+\| (\d+) \|/gm)) {
     const [, channel, phase] = match
-    if (routes.has(channel)) throw new Error(`channel is routed more than once: ${channel}`)
+    if (routes.has(channel))
+      throw new Error(`channel is routed more than once: ${channel}`)
     routes.set(channel, Number(phase))
   }
   return routes
@@ -327,20 +363,24 @@ export function isSubscriptionImplemented(channel, providedExports, commands) {
 }
 
 function measure() {
-  const proxyExports = exportedValues(UPSTREAM_PROXY, readFileSync(UPSTREAM_PROXY, 'utf8')).filter(
-    name => !PROXY_FACTORIES.has(name)
-  )
+  const proxyExports = exportedValues(
+    UPSTREAM_PROXY,
+    readFileSync(UPSTREAM_PROXY, 'utf8')
+  ).filter(name => !PROXY_FACTORIES.has(name))
   const duplicateProxyExports = proxyExports.filter(
     (name, index) => proxyExports.indexOf(name) !== index
   )
   const proxySet = new Set(proxyExports)
-  const unknownClassifications = [...LATER_PHASE_EXPORTS.keys(), ...DELETED_EXPORTS.keys()].filter(
-    name => !proxySet.has(name)
-  )
+  const unknownClassifications = [
+    ...LATER_PHASE_EXPORTS.keys(),
+    ...DELETED_EXPORTS.keys(),
+  ].filter(name => !proxySet.has(name))
   const phase4Exports = proxyExports.filter(
     name => !LATER_PHASE_EXPORTS.has(name) && !DELETED_EXPORTS.has(name)
   )
-  const phase4aExports = phase4Exports.filter(name => !PHASE_4B_PROXY_EXPORTS.has(name))
+  const phase4aExports = phase4Exports.filter(
+    name => !PHASE_4B_PROXY_EXPORTS.has(name)
+  )
 
   const upstreamFiles = walk(UPSTREAM_SOURCE).map(file => ({
     file,
@@ -348,10 +388,16 @@ function measure() {
   }))
   const subscriptions = subscribedChannels(upstreamFiles)
   const routes = routedChannelPhases(readFileSync('MIGRATION_MAP.md', 'utf8'))
-  const unclassifiedSubscriptions = [...subscriptions].filter(channel => !routes.has(channel)).sort()
+  const unclassifiedSubscriptions = [...subscriptions]
+    .filter(channel => !routes.has(channel))
+    .sort()
 
-  const laterSubscriptions = [...subscriptions].filter(channel => routes.get(channel) !== 4)
-  const phase4Subscriptions = [...subscriptions].filter(channel => routes.get(channel) === 4)
+  const laterSubscriptions = [...subscriptions].filter(
+    channel => routes.get(channel) !== 4
+  )
+  const phase4Subscriptions = [...subscriptions].filter(
+    channel => routes.get(channel) === 4
+  )
   const phase4aSubscriptions = phase4Subscriptions.filter(
     channel => !PHASE_4B_SUBSCRIPTIONS.has(channel)
   )
@@ -360,8 +406,7 @@ function measure() {
   const commands = registeredCommands()
   const implementedPhase4Exports = phase4Exports.filter(
     name =>
-      providedExports.has(name) ||
-      providedExports.has(PROXY_ADAPTERS.get(name))
+      providedExports.has(name) || providedExports.has(PROXY_ADAPTERS.get(name))
   )
   const pendingPhase4Exports = phase4Exports.filter(
     name =>
@@ -385,8 +430,8 @@ function measure() {
     )
     .sort()
 
-  const implementedPhase4Subscriptions = phase4Subscriptions.filter(
-    channel => isSubscriptionImplemented(channel, providedExports, commands)
+  const implementedPhase4Subscriptions = phase4Subscriptions.filter(channel =>
+    isSubscriptionImplemented(channel, providedExports, commands)
   )
   const pendingPhase4Subscriptions = phase4Subscriptions.filter(
     channel => !isSubscriptionImplemented(channel, providedExports, commands)
@@ -405,30 +450,47 @@ function measure() {
   console.log(`   ${phase4Exports.length} owned by Phase 4`)
   console.log(`   ${LATER_PHASE_EXPORTS.size} owned by later phases`)
   console.log(`   ${DELETED_EXPORTS.size} deliberately deleted`)
-  console.log(`   ${implementedPhase4Exports.length} Phase 4 wrappers implemented`)
+  console.log(
+    `   ${implementedPhase4Exports.length} Phase 4 wrappers implemented`
+  )
   console.log(`   ${pendingPhase4Exports.length} Phase 4 wrappers pending`)
   console.log(
     `   ${phase4aExports.length - pendingPhase4aExports.length}/${phase4aExports.length} Phase 4a wrappers implemented`
   )
-  for (const name of pendingPhase4Exports) console.log(`   PENDING WRAPPER: ${name}`)
+  for (const name of pendingPhase4Exports)
+    console.log(`   PENDING WRAPPER: ${name}`)
 
-  console.log(`\n${subscriptions.size} distinct upstream renderer subscriptions`)
+  console.log(
+    `\n${subscriptions.size} distinct upstream renderer subscriptions`
+  )
   console.log(`   ${phase4Subscriptions.length} owned by Phase 4`)
   console.log(`   ${laterSubscriptions.length} owned by later phases`)
-  console.log(`   ${implementedPhase4Subscriptions.length} Phase 4 listeners/commands implemented`)
-  console.log(`   ${pendingPhase4Subscriptions.length} Phase 4 listeners/commands pending`)
+  console.log(
+    `   ${implementedPhase4Subscriptions.length} Phase 4 listeners/commands implemented`
+  )
+  console.log(
+    `   ${pendingPhase4Subscriptions.length} Phase 4 listeners/commands pending`
+  )
   console.log(
     `   ${phase4aSubscriptions.length - pendingPhase4aSubscriptions.length}/${phase4aSubscriptions.length} Phase 4a listeners/commands implemented`
   )
-  for (const channel of pendingPhase4Subscriptions) console.log(`   PENDING SUBSCRIPTION: ${channel}`)
+  for (const channel of pendingPhase4Subscriptions)
+    console.log(`   PENDING SUBSCRIPTION: ${channel}`)
 
   console.log(`\n${providedExports.size} Phase 4 adapter runtime exports`)
-  console.log(`   ${CONSUMER_OUTSIDE_PROXY.size} have a named consumer outside the proxy`)
-  for (const name of extraExports) console.log(`   NO UPSTREAM ENTRY POINT: ${name}`)
-  for (const name of unknownClassifications) console.log(`   STALE CLASSIFICATION: ${name}`)
-  for (const channel of unclassifiedSubscriptions) console.log(`   UNROUTED SUBSCRIPTION: ${channel}`)
-  for (const name of duplicateProxyExports) console.log(`   EXPORTED TWICE: ${name}`)
-  for (const name of stalePhase4bExports) console.log(`   STALE PHASE 4B WRAPPER: ${name}`)
+  console.log(
+    `   ${CONSUMER_OUTSIDE_PROXY.size} have a named consumer outside the proxy`
+  )
+  for (const name of extraExports)
+    console.log(`   NO UPSTREAM ENTRY POINT: ${name}`)
+  for (const name of unknownClassifications)
+    console.log(`   STALE CLASSIFICATION: ${name}`)
+  for (const channel of unclassifiedSubscriptions)
+    console.log(`   UNROUTED SUBSCRIPTION: ${channel}`)
+  for (const name of duplicateProxyExports)
+    console.log(`   EXPORTED TWICE: ${name}`)
+  for (const name of stalePhase4bExports)
+    console.log(`   STALE PHASE 4B WRAPPER: ${name}`)
   for (const channel of stalePhase4bSubscriptions) {
     console.log(`   STALE PHASE 4B SUBSCRIPTION: ${channel}`)
   }
@@ -446,11 +508,16 @@ function measure() {
   const pendingPhase4aProblems = requirePhase4aComplete
     ? pendingPhase4aExports.length + pendingPhase4aSubscriptions.length
     : 0
-  const pendingProblems =
-    requireComplete ? pendingPhase4Exports.length + pendingPhase4Subscriptions.length : 0
-  process.exitCode = structuralProblems + pendingPhase4aProblems + pendingProblems > 0 ? 1 : 0
+  const pendingProblems = requireComplete
+    ? pendingPhase4Exports.length + pendingPhase4Subscriptions.length
+    : 0
+  process.exitCode =
+    structuralProblems + pendingPhase4aProblems + pendingProblems > 0 ? 1 : 0
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(resolve(process.argv[1])).href
+) {
   measure()
 }

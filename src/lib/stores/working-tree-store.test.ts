@@ -17,9 +17,7 @@ import type {
 import { TrashDiscardError } from '../discard-changes'
 import { WorkingTreeStore } from './working-tree-store'
 
-function status(
-  files: IStatusResult['files']
-): IStatusResult {
+function status(files: IStatusResult['files']): IStatusResult {
   return {
     mergeHeadFound: false,
     squashMsgFound: false,
@@ -37,13 +35,7 @@ const selectableDiff: IDiff = {
     new DiffHunk(
       new DiffHunkHeader(0, 0, 1, 2),
       [
-        new DiffLine(
-          '@@ -0,0 +1,2 @@',
-          DiffLineType.Hunk,
-          0,
-          null,
-          null
-        ),
+        new DiffLine('@@ -0,0 +1,2 @@', DiffLineType.Hunk, 0, null, null),
         new DiffLine('+first', DiffLineType.Add, 1, null, 1),
         new DiffLine('+second', DiffLineType.Add, 2, null, 2),
       ],
@@ -142,9 +134,7 @@ describe('WorkingTreeStore', () => {
   })
 
   it('ignores a slow response after another repository is selected', async () => {
-    let resolveFirst:
-      | ((result: IStatusResult | null) => void)
-      | undefined
+    let resolveFirst: ((result: IStatusResult | null) => void) | undefined
     const first = new Promise<IStatusResult | null>(resolve => {
       resolveFirst = resolve
     })
@@ -176,9 +166,9 @@ describe('WorkingTreeStore', () => {
     await staleLoad
 
     expect(store.state.repositoryPath).toBe('/current')
-    expect(
-      store.state.workingDirectory?.files.map(file => file.path)
-    ).toEqual(['current.ts'])
+    expect(store.state.workingDirectory?.files.map(file => file.path)).toEqual([
+      'current.ts',
+    ])
   })
 
   it('clears repository-specific state', async () => {
@@ -287,9 +277,7 @@ describe('WorkingTreeStore', () => {
     store.setLineIncluded(2, false)
 
     const file = store.state.workingDirectory?.files[0]
-    expect(file?.selection.getSelectionType()).toBe(
-      DiffSelectionType.Partial
-    )
+    expect(file?.selection.getSelectionType()).toBe(DiffSelectionType.Partial)
     expect(file?.selection.getSelectedLines()).toEqual([1])
 
     store.setLineIncluded(0, false)
@@ -439,14 +427,12 @@ describe('WorkingTreeStore', () => {
         if (failure === undefined) {
           throw new Error('hook interception was not enabled')
         }
-        return failure('pre-commit', 'lint failed\n').then(
-          resolution => {
-            if (resolution === 'abort') {
-              throw new Error('commit aborted by hook')
-            }
-            return 'a'.repeat(40)
+        return failure('pre-commit', 'lint failed\n').then(resolution => {
+          if (resolution === 'abort') {
+            throw new Error('commit aborted by hook')
           }
-        )
+          return 'a'.repeat(40)
+        })
       }
     )
     const store = new WorkingTreeStore({
@@ -501,15 +487,13 @@ describe('WorkingTreeStore', () => {
     await store.load('/repo')
     const selectedFile = store.state.workingDirectory?.files[0]
 
-    await expect(
-      store.discardFile('Modified+file.ts')
-    ).resolves.toBe('discarded')
-
-    expect(discardChanges).toHaveBeenCalledWith(
-      '/repo',
-      [selectedFile],
-      { permanentlyDelete: false }
+    await expect(store.discardFile('Modified+file.ts')).resolves.toBe(
+      'discarded'
     )
+
+    expect(discardChanges).toHaveBeenCalledWith('/repo', [selectedFile], {
+      permanentlyDelete: false,
+    })
     expect(store.state.workingDirectory?.files).toEqual([])
   })
 
@@ -532,9 +516,7 @@ describe('WorkingTreeStore', () => {
     })
     await store.load('/repo')
 
-    await expect(
-      store.discardFile('Modified+file.ts')
-    ).resolves.toBe('failed')
+    await expect(store.discardFile('Modified+file.ts')).resolves.toBe('failed')
 
     expect(getStatus).toHaveBeenCalledOnce()
     expect(store.state).toMatchObject({
@@ -562,9 +544,9 @@ describe('WorkingTreeStore', () => {
     })
     await store.load('/repo')
 
-    await expect(
-      store.discardFile('Untracked+file.ts')
-    ).resolves.toBe('trash-failed')
+    await expect(store.discardFile('Untracked+file.ts')).resolves.toBe(
+      'trash-failed'
+    )
 
     expect(store.state.error).toBeNull()
     expect(getStatus).toHaveBeenCalledOnce()
@@ -594,9 +576,7 @@ describe('WorkingTreeStore', () => {
     const discard = store.getSelectedLinesDiscard()
     store.setLineIncluded(1, false)
 
-    await expect(
-      store.discardSelectedLines(discard)
-    ).resolves.toBe(true)
+    await expect(store.discardSelectedLines(discard)).resolves.toBe(true)
 
     expect(discardChangesFromSelection).toHaveBeenCalledWith(
       '/repo',

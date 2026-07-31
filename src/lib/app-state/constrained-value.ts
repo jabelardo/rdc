@@ -4,7 +4,6 @@
  * Extracted verbatim from `desktop-plus/app/src/lib/app-state.ts` — see this directory's README.
  */
 
-
 /**
  * An interface for describing a desired value and a valid range
  *

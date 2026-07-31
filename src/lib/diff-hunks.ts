@@ -45,8 +45,7 @@ export const DefaultDiffExpansionStep = 20
  *
  * Kept in sync with `is_hidden_bidi_char` in `crates/git-ops/src/diff_parser.rs`.
  */
-export const HiddenBidiCharsRegex =
-  /[\u202A-\u202E]|[\u2066-\u2069]/
+export const HiddenBidiCharsRegex = /[\u202A-\u202E]|[\u2066-\u2069]/
 
 /**
  * Calculates whether or not a hunk header can be expanded up, down, both, or if

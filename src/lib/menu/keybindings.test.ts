@@ -169,16 +169,10 @@ describe('friendly keybinding text', () => {
 
   it('renders physical punctuation and named keys', () => {
     expect(
-      friendlyKeybindingText(
-        { modifiers: ['control'], key: 'Comma' },
-        'linux'
-      )
+      friendlyKeybindingText({ modifiers: ['control'], key: 'Comma' }, 'linux')
     ).toBe('Ctrl+,')
     expect(
-      friendlyKeybindingText(
-        { modifiers: ['meta'], key: 'Backspace' },
-        'macos'
-      )
+      friendlyKeybindingText({ modifiers: ['meta'], key: 'Backspace' }, 'macos')
     ).toBe('⌘⌫')
   })
 })

@@ -1,22 +1,24 @@
 {
   "name": "rdc",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.17.0",
-  "engines": {
-    "node": ">=24 <25"
-  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "check:node": "node scripts/check-node-version.mjs",
+    "check:bundle-boundary": "node scripts/check-bundle-boundary.mjs",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint",
+    "pretest": "node scripts/check-node-version.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "docker compose -f docker-compose.e2e.yml run --rm --build e2e",
-    "qualify:phase8a": "node --test --test-timeout=10000 scripts/qualify-phase8a.node-test.mjs scripts/create-phase8b-fixture.node-test.mjs && node scripts/qualify-phase8a.mjs",
-    "fixture:phase8b": "node scripts/create-phase8b-fixture.mjs"
+    "qualify:phase8a": "node scripts/check-node-version.mjs && node --test --test-timeout=10000 scripts/qualify-phase8a.node-test.mjs scripts/create-phase8b-fixture.node-test.mjs && node scripts/qualify-phase8a.mjs",
+    "fixture:phase8b": "node scripts/check-node-version.mjs && node scripts/create-phase8b-fixture.mjs"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.9",
@@ -46,9 +48,15 @@
     "@vitejs/plugin-react": "^6.0.2",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
+    "oxfmt": "^0.61.0",
+    "oxlint": "^1.76.0",
     "selenium-webdriver": "^4.46.0",
     "typescript": "~6.0.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.10"
-  }
+  },
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "packageManager": "pnpm@11.17.0"
 }

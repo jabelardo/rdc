@@ -23,7 +23,10 @@ import type { CommitOneLine } from '../models/commit'
 import { SubmoduleEntry } from '../models/submodule'
 import type { IMultiCommitOperationProgress } from '../models/progress'
 import { RebaseResult, type IFileToStage } from './git-ipc'
-import { hydrateCommittedFileChange, type ICommittedFileChangeData } from './log-ipc'
+import {
+  hydrateCommittedFileChange,
+  type ICommittedFileChangeData,
+} from './log-ipc'
 
 /** A {@linkcode IStashEntry} as it arrives over IPC: everything but the frontend's load state. */
 export interface IStashEntryData {

@@ -1,11 +1,7 @@
 import { BranchType, type Branch } from '../../models/branch'
 import type { ICheckoutProgress } from '../../models/progress'
 import { getBranches } from '../branch-ipc'
-import {
-  checkoutBranch,
-  getStatus,
-  type IStatusResult,
-} from '../git-ipc'
+import { checkoutBranch, getStatus, type IStatusResult } from '../git-ipc'
 import { createBranch } from '../branch-ipc'
 
 export type BranchOperation = 'creating' | 'checking-out'
@@ -65,13 +61,9 @@ export class BranchStore {
   private requestID = 0
   private operationID = 0
   private readonly dependencies: BranchStoreDependencies
-  private readonly listeners = new Set<
-    (state: BranchState) => void
-  >()
+  private readonly listeners = new Set<(state: BranchState) => void>()
 
-  public constructor(
-    dependencies: Partial<BranchStoreDependencies> = {}
-  ) {
+  public constructor(dependencies: Partial<BranchStoreDependencies> = {}) {
     this.dependencies = { ...defaultDependencies, ...dependencies }
   }
 
@@ -79,9 +71,7 @@ export class BranchStore {
     return this.currentState
   }
 
-  public onDidUpdate(
-    listener: (state: BranchState) => void
-  ): () => void {
+  public onDidUpdate(listener: (state: BranchState) => void): () => void {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
@@ -171,14 +161,9 @@ export class BranchStore {
       await this.dependencies.checkoutBranch(
         repositoryPath,
         branchName,
-        progress =>
-          this.publishProgress(requestID, operationID, progress)
+        progress => this.publishProgress(requestID, operationID, progress)
       )
-      return await this.finishOperation(
-        repositoryPath,
-        requestID,
-        operationID
-      )
+      return await this.finishOperation(repositoryPath, requestID, operationID)
     } catch (error) {
       return this.failOperation(requestID, operationID, error)
     }
@@ -210,14 +195,9 @@ export class BranchStore {
       await this.dependencies.checkoutBranch(
         repositoryPath,
         branch.name,
-        progress =>
-          this.publishProgress(requestID, operationID, progress)
+        progress => this.publishProgress(requestID, operationID, progress)
       )
-      return await this.finishOperation(
-        repositoryPath,
-        requestID,
-        operationID
-      )
+      return await this.finishOperation(repositoryPath, requestID, operationID)
     } catch (error) {
       return this.failOperation(requestID, operationID, error)
     }
@@ -284,14 +264,8 @@ export class BranchStore {
     }
   }
 
-  private isCurrentOperation(
-    requestID: number,
-    operationID: number
-  ): boolean {
-    return (
-      requestID === this.requestID &&
-      operationID === this.operationID
-    )
+  private isCurrentOperation(requestID: number, operationID: number): boolean {
+    return requestID === this.requestID && operationID === this.operationID
   }
 
   private update(state: BranchState): void {

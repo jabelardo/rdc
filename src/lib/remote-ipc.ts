@@ -21,10 +21,7 @@
  */
 
 import { Channel, invoke } from '@tauri-apps/api/core'
-import {
-  hookFailureChannel,
-  type IHookProgress,
-} from './hook-ipc'
+import { hookFailureChannel, type IHookProgress } from './hook-ipc'
 import type { IHookOptions } from './git-ipc'
 import type { IRemote } from '../models/remote'
 import type {
@@ -71,9 +68,7 @@ export async function push(
   hooks?: IHookOptions
 ): Promise<void> {
   const onProgress = new Channel<IPushProgress>(progressCallback)
-  const onHookProgress = new Channel<IHookProgress>(
-    hooks?.onHookProgress
-  )
+  const onHookProgress = new Channel<IHookProgress>(hooks?.onHookProgress)
   const onHookFailure = hookFailureChannel(hooks?.onHookFailure)
 
   return await invoke<void>('push', {
@@ -169,9 +164,7 @@ export async function pull(
   hooks?: IHookOptions
 ): Promise<void> {
   const onProgress = new Channel<IPullProgress>(progressCallback)
-  const onHookProgress = new Channel<IHookProgress>(
-    hooks?.onHookProgress
-  )
+  const onHookProgress = new Channel<IHookProgress>(hooks?.onHookProgress)
   const onHookFailure = hookFailureChannel(hooks?.onHookFailure)
 
   return await invoke<void>('pull', {

@@ -6,6 +6,10 @@ according to [`MIGRATION_PLAN.md`](./MIGRATION_PLAN.md) (phases and decisions) a
 for *why* things are structured this way; this document is just *how* to work in the repo
 day to day.
 
+For **what is still open** — the next phase, the engineering backlog, carried debt and accepted
+gaps — read [`REMAINING.md`](./REMAINING.md). Plan and map are the historical record and are large;
+`REMAINING.md` is the short forward-looking list, and it is the one to keep current.
+
 ## Prerequisites
 
 - **Node 24** — pinned, not a suggestion. Run `nvm use` (the repo has a `.nvmrc`), and
@@ -14,6 +18,23 @@ day to day.
   is passed, and it shadows jsdom's implementation — silently breaking every web-storage
   test with a confusing `Cannot read properties of undefined`. Keep `@types/node` on the v24
   line too, or the types will declare globals the runtime doesn't have.
+
+  This is now enforced mechanically, because saying it here was not enough — the wrong Node
+  presents as ~26 broken store tests rather than a version error, which has already cost real
+  debugging time. Two independent gates:
+
+  | Gate | Covers |
+  |---|---|
+  | `pnpm-workspace.yaml` → `engineStrict: true` | `pnpm install` — fails with `ERR_PNPM_UNSUPPORTED_ENGINE` |
+  | `scripts/check-node-version.mjs` | every `vite`/`vitest` run (called from `vite.config.ts`, so a bare `npx vitest` is covered too) and the `pretest` hook |
+
+  `pnpm check:node` runs the check by hand. Don't remove either to make something pass.
+
+  Two traps found while building this, both worth not reintroducing: pnpm 11 **ignores**
+  `engine-strict` in `.npmrc` (`pnpm config get engine-strict` → `undefined`, installs succeed
+  with only a warning) — the setting has to live in `pnpm-workspace.yaml`. And the script's
+  "am I the entry point" check must compare **realpaths**; `path.resolve` alone made it silently
+  no-op, exit 0, whenever the repo was reached through a symlink.
 - [pnpm](https://pnpm.io/)
 - [Rust](https://www.rust-lang.org/tools/install) (stable), with the `rustfmt` and `clippy`
   components: `rustup component add rustfmt clippy`
@@ -32,6 +53,8 @@ day to day.
 | `pnpm build` | Typecheck and build the frontend |
 | `pnpm test` | Run the Vitest suite (frontend unit/component tests) |
 | `pnpm test:watch` | Vitest in watch mode |
+| `pnpm format` / `pnpm format:check` | Apply or check the repository's oxfmt policy |
+| `pnpm lint` | Run the blocking Oxlint correctness and React-hooks rules |
 | `pnpm test:e2e` | Run the E2E suite — always inside the Linux container, see below |
 | `pnpm qualify:phase8a` | Audit MVP build/package inputs and exercise the deterministic Phase 8b fixture generator |
 | `pnpm fixture:phase8b -- <new-directory>` | Create fresh local/remote Git repositories for the human QA cycle |
@@ -48,6 +71,41 @@ Rust-side, from `src-tauri/`:
 CI (`.github/workflows/ci.yml`) runs all of the above on every push/PR. Run them locally
 before pushing — there's no reason to let CI be the first place a formatting or lint issue
 shows up.
+
+Oxlint is deliberately a correctness gate, not a second formatter. Its base correctness rules and
+React-hooks plugin are errors, warnings fail the command, and legacy parser/type exceptions are
+narrow file overrides in `.oxlintrc.json`. Enabling every available plugin was evaluated and
+rejected as a baseline: the Vitest, accessibility and promise plugins produced more than 500 mostly
+ported-code findings, obscuring the defects the gate is meant to expose. Type-aware promise rules
+also require the separate experimental `oxlint-tsgolint` package. Re-evaluate those as focused
+slices; don't quietly add a noisy non-blocking lint job.
+
+### Windows portability, without a Windows runner
+
+There is deliberately **no `windows-latest` job**. The app crate cannot compile on Windows until
+Phase 10 (post-MVP), so such a job would be red on every run forever — cost without signal.
+
+What exists instead are two blocking steps inside the existing Linux `rust` job:
+
+| Step | Guards against |
+|---|---|
+| `cargo check -p git-ops --all-targets --target x86_64-pc-windows-msvc` | Losing the Windows portability `git-ops` already has |
+| `cargo check -p git-ops --lib` / `-p trampoline --lib` | Under-declared Cargo features hidden by workspace feature unification |
+
+`cargo check` type-checks without linking, so the Windows target needs only its prebuilt `std` —
+no MSVC toolchain, and it runs on Linux in seconds. Locally:
+
+```sh
+rustup target add x86_64-pc-windows-msvc
+cd src-tauri && cargo check -p git-ops --all-targets --target x86_64-pc-windows-msvc
+```
+
+Measured when this was set up: **all `git-ops` targets — library, binaries and tests — compile for
+Windows cleanly.** The structural seams in `rdc-printenvz`, `platform::custom_integration` and
+`platform::cli_installer` are now isolated behind platform-neutral signatures. Phase 10 still owns
+the behavioral Windows implementation of `custom_integration`'s executable check; adding that arm
+no longer requires reorganizing the portable module. Keeping it that way is what the platform-seam
+rule in `AGENTS.md` is for.
 
 ## E2E tests
 
@@ -70,6 +128,31 @@ under `e2e/*.test.mjs`. The suite covers application and native-window lifecycle
 dialogs, configuration/log locations, persistence across a process restart, repository workflows,
 keyboard navigation and large-list behavior. `--build` is intentional; without it, Compose silently
 reuses an image containing an older source tree.
+
+### Spec layout
+
+Each product slice owns one spec file (`e2e/shell.test.mjs`, `working-tree`, `history`,
+`branches`, `discard`, `merge-conflicts`, `remote-fetch`, `remote-push`, `remote-pull`, `clone`,
+`restart`, `keyboard`, `visual`, `large-lists`), with the shared fixture and driver helpers in
+`e2e/harness.mjs`. Two rules follow from that and are easy to break by accident:
+
+- **Every file builds its own fixture and its own application session, and establishes its own
+  preconditions by CLI.** The suite used to be one file where each test inherited whatever state
+  the previous one left behind, so one early failure erased the signal from everything after it.
+  Don't reintroduce cross-file ordering. Note the guarantee is **between** files, not within one:
+  `working-tree` and `discard` each run an ordered journey inside their own file (the commit test
+  depends on the preceding test having excluded a diff line), so those individual tests are not
+  runnable in isolation via `--test-name-pattern`. That is a deliberate limit of the split, not an
+  oversight — the blast radius is one slice instead of the whole suite.
+- **Files must not run in parallel.** `run.sh` passes `--test-concurrency=1`; `node --test`
+  parallelises files by default, and these specs share a single `tauri-driver` on a fixed port
+  while `restart.test.mjs` terminates the app with a process-wide `pkill -x rdc`.
+
+The webview's IndexedDB survives application restarts and is shared by every spec file, since the
+container sets one `XDG_DATA_HOME` for the whole run and `tauri-driver` — not the test process —
+launches the app. `harness.mjs`'s `resetRepositoryFixtures` exists for that: without it a spec
+sees whatever repositories earlier files registered, and above 100 records the repository list
+virtualizes and windows a spec's own row out of the DOM.
 
 The harness sets isolated `XDG_CONFIG_HOME` and `XDG_DATA_HOME` roots. Its native journey writes
 `main-process-config.json`, observes the startup log under the identifier-scoped log directory,

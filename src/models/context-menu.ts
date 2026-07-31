@@ -17,7 +17,9 @@ export interface ContextMenuItem {
 }
 
 /** Context-menu data after renderer-only callbacks have been removed. */
-export interface SerializableContextMenuItem
-  extends Omit<ContextMenuItem, 'action' | 'submenu'> {
+export interface SerializableContextMenuItem extends Omit<
+  ContextMenuItem,
+  'action' | 'submenu'
+> {
   readonly submenu?: ReadonlyArray<SerializableContextMenuItem>
 }

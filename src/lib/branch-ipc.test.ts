@@ -77,7 +77,9 @@ describe('the branch wire shape', () => {
     const branch = hydrateBranch(localBranch)
 
     expect(branch.tip.author.date).toBeInstanceOf(Date)
-    expect(branch.tip.author.date.getTime()).toBe(snapshot.branch.tip.author.date * 1000)
+    expect(branch.tip.author.date.getTime()).toBe(
+      snapshot.branch.tip.author.date * 1000
+    )
     expect(branch.tip.sha).toHaveLength(40)
   })
 
@@ -156,9 +158,12 @@ describe('the branch commands', () => {
 
     const branches = await getBranchesDifferingFromUpstream(REPO)
 
-    expect(invoke).toHaveBeenCalledWith('get_branches_differing_from_upstream', {
-      repositoryPath: REPO,
-    })
+    expect(invoke).toHaveBeenCalledWith(
+      'get_branches_differing_from_upstream',
+      {
+        repositoryPath: REPO,
+      }
+    )
     // Four strings, so what Rust sent is what the caller gets.
     expect(branches).toEqual([trackingBranch])
   })

@@ -17,9 +17,7 @@ function includesLegacyIdentity(value) {
 export function qualifyPhase8aInputs(root) {
   const errors = []
   const packageJson = readJson(path.join(root, 'package.json'))
-  const tauriConfig = readJson(
-    path.join(root, 'src-tauri', 'tauri.conf.json')
-  )
+  const tauriConfig = readJson(path.join(root, 'src-tauri', 'tauri.conf.json'))
   const capability = readJson(
     path.join(root, 'src-tauri', 'capabilities', 'default.json')
   )
@@ -96,10 +94,7 @@ export function qualifyPhase8aInputs(root) {
 
   return {
     errors,
-    humanDecisions: [
-      'final bundle identifier',
-      'final application icon',
-    ],
+    humanDecisions: ['final bundle identifier', 'final application icon'],
     productName: tauriConfig.productName,
     version: tauriConfig.version,
     identifier: tauriConfig.identifier,

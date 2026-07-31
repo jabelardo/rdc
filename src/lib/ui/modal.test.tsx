@@ -48,10 +48,7 @@ describe('modal accessibility', () => {
     const user = userEvent.setup()
     const onDismiss = vi.fn()
     render(
-      <Modal
-        role="alertdialog"
-        aria-labelledby="decision-title"
-      >
+      <Modal role="alertdialog" aria-labelledby="decision-title">
         <h2 id="decision-title">Decision required</h2>
         <button type="button" onClick={onDismiss}>
           Resolve

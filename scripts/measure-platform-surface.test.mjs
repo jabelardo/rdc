@@ -66,10 +66,13 @@ describe('measure-platform-surface', () => {
 | \`certificate-error\` | main→renderer | design work | 5 |
 ### 7.2 Git commands
 `
-    assert.deepEqual([...routedChannelPhases(map)], [
-      ['focus', 4],
-      ['certificate-error', 5],
-    ])
+    assert.deepEqual(
+      [...routedChannelPhases(map)],
+      [
+        ['focus', 4],
+        ['certificate-error', 5],
+      ]
+    )
 
     assert.throws(
       () =>
@@ -95,7 +98,10 @@ describe('measure-platform-surface', () => {
 
     assert.equal(isSubscriptionImplemented('focus', exports, commands), true)
     assert.equal(isSubscriptionImplemented('blur', exports, commands), true)
-    assert.equal(isSubscriptionImplemented('menu-event', exports, commands), true)
+    assert.equal(
+      isSubscriptionImplemented('menu-event', exports, commands),
+      true
+    )
     assert.equal(isSubscriptionImplemented('app-menu', exports, commands), true)
     assert.equal(
       isSubscriptionImplemented('window-state-changed', exports, commands),
@@ -105,6 +111,9 @@ describe('measure-platform-surface', () => {
       isSubscriptionImplemented('zoom-factor-changed', exports, commands),
       true
     )
-    assert.equal(isSubscriptionImplemented('url-action', exports, commands), false)
+    assert.equal(
+      isSubscriptionImplemented('url-action', exports, commands),
+      false
+    )
   })
 })

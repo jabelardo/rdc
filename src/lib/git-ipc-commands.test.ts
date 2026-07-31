@@ -115,9 +115,7 @@ describe('the git commands', () => {
   it('createCommit describes a rename with oldPath', async () => {
     invoke.mockResolvedValue('a'.repeat(40))
 
-    await createCommit(REPO, 'renamed', [
-      { path: 'after', oldPath: 'before' },
-    ])
+    await createCommit(REPO, 'renamed', [{ path: 'after', oldPath: 'before' }])
 
     expect(invoke).toHaveBeenCalledWith(
       'create_commit',
@@ -247,7 +245,9 @@ describe('the git commands', () => {
     const progress = vi.fn()
     await checkoutBranch(REPO, 'topic', progress)
 
-    const args = invoke.mock.calls[0][1] as { onProgress: InstanceType<typeof Channel> }
+    const args = invoke.mock.calls[0][1] as {
+      onProgress: InstanceType<typeof Channel>
+    }
     const event = {
       kind: 'checkout' as const,
       value: 0.5,
@@ -318,10 +318,7 @@ describe('the git commands', () => {
         {
           path: 'conflicted.txt',
           resolution: ManualConflictResolution.theirs,
-          entries: [
-            GitStatusEntry.UpdatedButUnmerged,
-            GitStatusEntry.Deleted,
-          ],
+          entries: [GitStatusEntry.UpdatedButUnmerged, GitStatusEntry.Deleted],
         },
       ],
       true

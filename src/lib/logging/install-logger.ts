@@ -1,9 +1,4 @@
-import {
-  debug,
-  error,
-  info,
-  warn,
-} from '@tauri-apps/plugin-log'
+import { debug, error, info, warn } from '@tauri-apps/plugin-log'
 
 /**
  * Installs the ambient `log` global that ported desktop-plus code calls.

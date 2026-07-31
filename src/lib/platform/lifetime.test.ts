@@ -69,25 +69,28 @@ describe('application lifetime', () => {
     ['quit', exit],
     ['hide', currentWindow.hide],
     ['close', currentWindow.destroy],
-  ] as const)('prevents native close before asynchronously deciding to %s', async (decision, action) => {
-    const preventDefault = vi.fn()
-    let closeHandler:
-      | ((event: { preventDefault: () => void }) => void)
-      | undefined
-    const unlisten = vi.fn()
-    currentWindow.onCloseRequested.mockImplementation(async handler => {
-      closeHandler = handler
-      return unlisten
-    })
+  ] as const)(
+    'prevents native close before asynchronously deciding to %s',
+    async (decision, action) => {
+      const preventDefault = vi.fn()
+      let closeHandler:
+        | ((event: { preventDefault: () => void }) => void)
+        | undefined
+      const unlisten = vi.fn()
+      currentWindow.onCloseRequested.mockImplementation(async handler => {
+        closeHandler = handler
+        return unlisten
+      })
 
-    const cleanup = await installCloseRequestHandler(async () => decision)
-    closeHandler?.({ preventDefault })
-    await vi.waitFor(() => expect(action).toHaveBeenCalledOnce())
+      const cleanup = await installCloseRequestHandler(async () => decision)
+      closeHandler?.({ preventDefault })
+      await vi.waitFor(() => expect(action).toHaveBeenCalledOnce())
 
-    expect(preventDefault).toHaveBeenCalledOnce()
-    cleanup()
-    expect(unlisten).toHaveBeenCalledOnce()
-  })
+      expect(preventDefault).toHaveBeenCalledOnce()
+      cleanup()
+      expect(unlisten).toHaveBeenCalledOnce()
+    }
+  )
 
   it('leaves the application running when the frontend cancels close', async () => {
     const preventDefault = vi.fn()
@@ -162,21 +165,24 @@ describe('application lifetime', () => {
   it.each([
     [true, 'hide'],
     [false, 'quit'],
-  ] as const)('defaults to the upstream platform close behavior when macOS=%s', async (isMacOS, expected) => {
-    let closeHandler:
-      | ((event: { preventDefault: () => void }) => void)
-      | undefined
-    currentWindow.onCloseRequested.mockImplementation(async handler => {
-      closeHandler = handler
-      return vi.fn()
-    })
+  ] as const)(
+    'defaults to the upstream platform close behavior when macOS=%s',
+    async (isMacOS, expected) => {
+      let closeHandler:
+        | ((event: { preventDefault: () => void }) => void)
+        | undefined
+      currentWindow.onCloseRequested.mockImplementation(async handler => {
+        closeHandler = handler
+        return vi.fn()
+      })
 
-    await installDefaultCloseRequestHandler(isMacOS)
-    closeHandler?.({ preventDefault: vi.fn() })
+      await installDefaultCloseRequestHandler(isMacOS)
+      closeHandler?.({ preventDefault: vi.fn() })
 
-    const action = expected === 'hide' ? currentWindow.hide : exit
-    await vi.waitFor(() => expect(action).toHaveBeenCalledOnce())
-  })
+      const action = expected === 'hide' ? currentWindow.hide : exit
+      await vi.waitFor(() => expect(action).toHaveBeenCalledOnce())
+    }
+  )
 
   it('hides the last non-macOS window when configured', async () => {
     let closeHandler:
@@ -194,9 +200,7 @@ describe('application lifetime', () => {
     await installDefaultCloseRequestHandler(false)
     closeHandler?.({ preventDefault: vi.fn() })
 
-    await vi.waitFor(() =>
-      expect(currentWindow.hide).toHaveBeenCalledOnce()
-    )
+    await vi.waitFor(() => expect(currentWindow.hide).toHaveBeenCalledOnce())
     expect(exit).not.toHaveBeenCalled()
   })
 
@@ -236,9 +240,7 @@ describe('application lifetime', () => {
     await installDefaultCloseRequestHandler(true)
     closeHandler?.({ preventDefault: vi.fn() })
 
-    await vi.waitFor(() =>
-      expect(currentWindow.hide).toHaveBeenCalledOnce()
-    )
+    await vi.waitFor(() => expect(currentWindow.hide).toHaveBeenCalledOnce())
     expect(
       applicationUpdateController.notifyCloseBlocked
     ).not.toHaveBeenCalled()

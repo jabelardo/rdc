@@ -7,10 +7,7 @@ export type MenuItem =
   | ICheckboxMenuItem
   | IRadioMenuItem
 
-export type ExecutableMenuItem =
-  | IMenuItem
-  | ICheckboxMenuItem
-  | IRadioMenuItem
+export type ExecutableMenuItem = IMenuItem | ICheckboxMenuItem | IRadioMenuItem
 
 /** Actions remain data so the same tree can drive React and the macOS native menu. */
 export type MenuAction =
@@ -220,9 +217,7 @@ export class AppMenu {
       ? ourMenuItem.menu.items.find(itemIsSelectable)
       : undefined
     newOpenMenus.push(
-      selectedItem
-        ? { ...ourMenuItem.menu, selectedItem }
-        : ourMenuItem.menu
+      selectedItem ? { ...ourMenuItem.menu, selectedItem } : ourMenuItem.menu
     )
     return new AppMenu(this.menu, newOpenMenus, this.menuItemById)
   }
@@ -231,7 +226,9 @@ export class AppMenu {
     if (!menu.id) {
       return this
     }
-    const index = this.openMenus.findIndex(candidate => candidate.id === menu.id)
+    const index = this.openMenus.findIndex(
+      candidate => candidate.id === menu.id
+    )
     if (index === -1) {
       return this
     }
@@ -243,7 +240,9 @@ export class AppMenu {
   }
 
   public withLastMenu(menu: IMenu) {
-    const index = this.openMenus.findIndex(candidate => candidate.id === menu.id)
+    const index = this.openMenus.findIndex(
+      candidate => candidate.id === menu.id
+    )
     if (index === -1) {
       return this
     }
@@ -271,7 +270,11 @@ export class AppMenu {
       ...newOpenMenus[parentMenuIndex],
       selectedItem: ourMenuItem,
     }
-    for (let index = parentMenuIndex + 1; index < newOpenMenus.length; index++) {
+    for (
+      let index = parentMenuIndex + 1;
+      index < newOpenMenus.length;
+      index++
+    ) {
       newOpenMenus[index] = {
         ...newOpenMenus[index],
         selectedItem: undefined,

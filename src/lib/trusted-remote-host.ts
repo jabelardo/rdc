@@ -23,10 +23,7 @@ export function isTrustedRemoteHost(url: string): boolean {
     if (protocol !== 'https:') {
       return false
     }
-    if (
-      hostname === 'github.com' ||
-      hostname.endsWith('.github.com')
-    ) {
+    if (hostname === 'github.com' || hostname.endsWith('.github.com')) {
       return true
     }
     return isKnownThirdPartyHost(hostname)

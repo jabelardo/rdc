@@ -347,8 +347,6 @@ export class CommittedFileChange extends FileChange {
     public readonly parentCommitish: string
   ) {
     super(path, status)
-
-    this.commitish = commitish
   }
 }
 

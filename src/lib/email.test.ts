@@ -1,14 +1,7 @@
 import { describe, it } from 'vitest'
 import assert from 'node:assert'
-import {
-  lookupPreferredEmail,
-  isAttributableEmailFor,
-} from './email'
-import {
-  IAPIEmail,
-  getDotComAPIEndpoint,
-  getEnterpriseAPIURL,
-} from './api'
+import { lookupPreferredEmail, isAttributableEmailFor } from './email'
+import { IAPIEmail, getDotComAPIEndpoint, getEnterpriseAPIURL } from './api'
 import { Account } from '../models/account'
 
 describe('emails', () => {

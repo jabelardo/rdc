@@ -2,6 +2,13 @@
  * This is the magic remote name prefix
  * for when we add a remote on behalf of
  * the user.
+ *
+ * **Deliberately not rebranded**, for the same reason as `git-ops`'s `STASH_ENTRY_MARKER`: this
+ * prefix is written into the user's `.git/config` as a real remote name, and it is how a client
+ * recognises a remote it created on the user's behalf rather than one the user added. Renaming it
+ * to `rdc-` would make every remote created by another client look user-added here, and every
+ * remote rdc creates look user-added there. Product names in the UI and on the wire are rdc's to
+ * choose; bytes inside someone's repository are not — see MIGRATION_PLAN.md principle 6.
  */
 export const ForkedRemotePrefix = 'github-desktop-'
 

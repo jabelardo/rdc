@@ -32,11 +32,7 @@ export function handleListNavigation(
   if (event.altKey || event.ctrlKey || event.metaKey) {
     return
   }
-  const target = listNavigationTarget(
-    event.key,
-    currentIndex,
-    length
-  )
+  const target = listNavigationTarget(event.key, currentIndex, length)
   if (target === null) {
     return
   }
@@ -51,10 +47,9 @@ export function handleListNavigation(
   const indexedTarget = list?.querySelector<HTMLElement>(
     `[data-keyboard-list-index="${target}"]`
   )
-  const positionalTarget =
-    list?.querySelectorAll<HTMLElement>('[data-keyboard-list-item]')[
-      target
-    ]
+  const positionalTarget = list?.querySelectorAll<HTMLElement>(
+    '[data-keyboard-list-item]'
+  )[target]
   const focusTarget = indexedTarget ?? positionalTarget
   focusTarget?.focus()
 }

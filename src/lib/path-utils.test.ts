@@ -38,9 +38,12 @@ describe('basename', () => {
     ['baz', ''],
   ]
 
-  it.each(suffixCases)('matches node:path/posix for %j with suffix %j', (path, suffix) => {
-    expect(basename(path, suffix)).toBe(nodeBasename(path, suffix))
-  })
+  it.each(suffixCases)(
+    'matches node:path/posix for %j with suffix %j',
+    (path, suffix) => {
+      expect(basename(path, suffix)).toBe(nodeBasename(path, suffix))
+    }
+  )
 
   it('returns the last segment for a plain path', () => {
     expect(basename('/foo/bar/baz.txt')).toBe('baz.txt')
@@ -58,7 +61,7 @@ describe('basename', () => {
     expect(basename('repo.git', '.git')).toBe('repo')
   })
 
-  it('reproduces node\'s asymmetric whole-path suffix rule', () => {
+  it("reproduces node's asymmetric whole-path suffix rule", () => {
     // Node returns '' when the suffix equals the entire path, but returns the basename unchanged
     // when the suffix merely equals the basename. Surprising, but long-standing behaviour.
     expect(basename('.git', '.git')).toBe('')

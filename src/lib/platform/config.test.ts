@@ -23,10 +23,8 @@ describe('main-process config wire contract', () => {
     ).resolves.toBe(config)
 
     expect(invoke).toHaveBeenNthCalledWith(1, 'get_main_process_config')
-    expect(invoke).toHaveBeenNthCalledWith(
-      2,
-      'update_main_process_config',
-      { configDiff: { hideWindowOnQuit: true } }
-    )
+    expect(invoke).toHaveBeenNthCalledWith(2, 'update_main_process_config', {
+      configDiff: { hideWindowOnQuit: true },
+    })
   })
 })

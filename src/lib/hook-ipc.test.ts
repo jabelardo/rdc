@@ -101,13 +101,11 @@ describe('asking for interception', () => {
       interceptHooks: true,
       onHookFailure,
     })
-    const handler = channelInstances[1].handler as (
-      prompt: {
-        id: number
-        hook: string
-        terminalOutput: string
-      }
-    ) => void
+    const handler = channelInstances[1].handler as (prompt: {
+      id: number
+      hook: string
+      terminalOutput: string
+    }) => void
     handler({
       id: 17,
       hook: 'pre-commit',
@@ -120,23 +118,18 @@ describe('asking for interception', () => {
         resolution: 'ignore',
       })
     )
-    expect(onHookFailure).toHaveBeenCalledWith(
-      'pre-commit',
-      'lint failed'
-    )
+    expect(onHookFailure).toHaveBeenCalledWith('pre-commit', 'lint failed')
   })
 
   it('aborts conservatively when no failure callback is installed', async () => {
     await createCommit(REPO, 'message', [], undefined, {
       interceptHooks: true,
     })
-    const handler = channelInstances[1].handler as (
-      prompt: {
-        id: number
-        hook: string
-        terminalOutput: string
-      }
-    ) => void
+    const handler = channelInstances[1].handler as (prompt: {
+      id: number
+      hook: string
+      terminalOutput: string
+    }) => void
     handler({
       id: 18,
       hook: 'commit-msg',
@@ -178,7 +171,9 @@ describe('asking for interception', () => {
       expect.objectContaining({ interceptHooks: true })
     )
 
-    await pull(REPO, 'origin', undefined, false, false, { interceptHooks: true })
+    await pull(REPO, 'origin', undefined, false, false, {
+      interceptHooks: true,
+    })
     expect(invoke).toHaveBeenLastCalledWith(
       'pull',
       expect.objectContaining({ interceptHooks: true })

@@ -1,9 +1,6 @@
 import { describe, it, beforeEach } from 'vitest'
 import assert from 'node:assert'
-import {
-  hasShownWelcomeFlow,
-  markWelcomeFlowComplete,
-} from './welcome'
+import { hasShownWelcomeFlow, markWelcomeFlowComplete } from './welcome'
 
 describe('Welcome', () => {
   const key = 'has-shown-welcome-flow'

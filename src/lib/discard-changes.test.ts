@@ -1,18 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  DiffSelection,
-  DiffSelectionType,
-} from '../models/diff'
+import { DiffSelection, DiffSelectionType } from '../models/diff'
 import { GitResetMode } from '../models/git-reset-mode'
 import { IndexStatus } from '../models/index-status'
-import {
-  AppFileStatusKind,
-  WorkingDirectoryFileChange,
-} from '../models/status'
-import {
-  discardChanges,
-  TrashDiscardError,
-} from './discard-changes'
+import { AppFileStatusKind, WorkingDirectoryFileChange } from '../models/status'
+import { discardChanges, TrashDiscardError } from './discard-changes'
 
 function file(
   path: string,
@@ -27,8 +18,8 @@ function file(
 
 function dependencies() {
   return {
-    resolvePath: vi.fn(async (repositoryPath, path) =>
-      `${repositoryPath}/${path}`
+    resolvePath: vi.fn(
+      async (repositoryPath, path) => `${repositoryPath}/${path}`
     ),
     moveItemToTrash: vi.fn(async () => undefined),
     permanentlyDeleteRepositoryPath: vi.fn(async () => undefined),
@@ -75,9 +66,7 @@ describe('discardChanges', () => {
       ['/repo/untracked.ts'],
       ['/repo/new-name.ts'],
     ])
-    expect(deps.resetSubmodulePaths).toHaveBeenCalledWith('/repo', [
-      'module',
-    ])
+    expect(deps.resetSubmodulePaths).toHaveBeenCalledWith('/repo', ['module'])
     expect(deps.resetPaths).toHaveBeenCalledWith(
       '/repo',
       GitResetMode.Mixed,

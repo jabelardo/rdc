@@ -3147,7 +3147,8 @@ deferred to human QA.
 
 **Phase 8a complete (2026-07-30):**
 
-- The five repository gates, the 14-journey Ubuntu 26.04 `tauri-driver` suite and
+- The five repository gates, the Ubuntu 26.04 `tauri-driver` suite (one spec file per product
+  slice; 22 tests across 14 suites since the single-file suite was split) and
   `pnpm qualify:phase8a` are green. The container journey now owns isolated XDG config/data roots,
   asserts the exact persisted startup configuration and identifier-scoped log, and retains the
   complete-process repository-persistence check.
@@ -3166,6 +3167,16 @@ deferred to human QA.
 
 Phase 8b is therefore the next MVP phase. Its visual and native-platform judgments remain
 deliberately human-assisted, and every resulting fix returns through the complete Phase 8a gate.
+
+**Phase 8a reopened before QA (2026-07-31):** the completed result above remains the historical
+qualification point, but new pre-QA requirements changed the code after it and made “8b is next”
+temporarily stale. The autonomous follow-up first made the Node 24 requirement mechanical, split the
+order-dependent E2E monolith into 14 independently prepared suites, added the browser bundle-boundary
+guard, isolated Windows compilation seams, and adopted blocking oxfmt/Oxlint checks. The remaining
+follow-up is one coordinated Tailwind/component-architecture slice: decompose the 2,166-line
+`App.tsx` while migrating its current UI, preserving the Phase 7e token and computed-style contract.
+Phase 8a closes again only after that slice passes the complete gate and refreshes the development
+build evidence; only then does Phase 8b begin.
 
 #### Phase 8b — human-assisted QA and refinement
 
