@@ -3148,7 +3148,7 @@ deferred to human QA.
 **Phase 8a complete (2026-07-30):**
 
 - The five repository gates, the Ubuntu 26.04 `tauri-driver` suite (one spec file per product
-  slice; 22 tests across 14 suites since the single-file suite was split) and
+  slice; 23 tests across 14 suites since the single-file suite was split) and
   `pnpm qualify:phase8a` are green. The container journey now owns isolated XDG config/data roots,
   asserts the exact persisted startup configuration and identifier-scoped log, and retains the
   complete-process repository-persistence check.
@@ -3320,6 +3320,8 @@ The work is grouped so a feature cannot disappear behind “Windows later”:
 5. **Window, menu and native-plugin behavior.** Run the already-shared custom title bar,
    Linux/Windows menu dispatcher, contextual menus, keybindings, zoom/state restore, focus/close,
    dialogs, opener/reveal, recoverable Recycle Bin trash, log path and process relaunch on WebView2.
+   Repeat the Phase 8b baseline-layout checklist at the default 800×600 window in expanded and
+   collapsed states; macOS/Linux results are design references, not Windows acceptance evidence.
    Add WOW64/ARM64 translation detection and preserve the unsafe-directory trailing-backslash guard
    that prevents `C:\\path\\foo.exe` being opened when the caller intended `C:\\path\\foo`.
 6. **Packaging, CLI, protocols and updater.** Against Phase 9's shared controller, choose and sign the

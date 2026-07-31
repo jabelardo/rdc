@@ -20,7 +20,7 @@
 - `pnpm lint`: passed
 - `pnpm build`: passed
 - `pnpm check:bundle-boundary`: passed; 108 browser-reachable modules, no Node built-ins
-- `pnpm test:e2e`: passed; 22 tests in 14 suites
+- `pnpm test:e2e`: passed; 23 tests in 14 suites
 - `cargo test --workspace`: passed; 1,180 tests
 - `cargo clippy --workspace --all-targets -- -D warnings`: passed
 - `cargo fmt --check`: passed
@@ -33,8 +33,8 @@ recorded in `REMAINING.md` and the E2E harness documentation.
 
 ## Human results
 
-- Baseline application-shell layout: implementation complete; Jose's affected-check retest pending —
-  `baseline-layout-checklist.md`
+- Baseline application-shell layout: accepted as the macOS baseline after three annotated refinement
+  rounds — `baseline-layout-checklist.md`. Linux and Windows revalidation remain open in their own QA.
 - Visual matrix: pending — macOS normal and compact rows in `visual-matrix.md`
 - Platform checklist: pending — `macos-checklist.md`
 - Final package smoke: not started; packaging is deliberately last
@@ -44,7 +44,7 @@ recorded in `REMAINING.md` and the E2E harness documentation.
 | ID | Classification | Reproduction | Evidence | Owner/fix commit | Retest |
 |---|---|---|---|---|---|
 | P8B-001 | MVP-blocking preparation defect, resolved before human QA | Run the documented `pnpm fixture:phase8b -- /tmp/rdc-phase8b-qa`; pnpm 11 preserved `--`, which the script mistook for the target | Generator output pointed at the repository's `--/` directory | `a2e32c9` | Parser unit test, real documented command, complete Phase 8a gate |
-| P8B-002 | MVP-blocking visual structure; implementation complete, human closure pending | Open the clean default 800×600 window: the responsive breakpoint expands navigation into a full-width top panel; product identity and Add/Clone actions are duplicated; the collapse control becomes detached from a left rail; the collapsed state lacks persistent section controls/current-value descriptions; and the workspace empty state lacks the requested real Create action | Current and annotated screenshots plus collapsed-rail direction supplied during cycle-one review; decisions transcribed into `baseline-layout-checklist.md` | Baseline-layout implementation (this commit): permanent left rail, live icon controls, RDC identity, compact three-action empty state and native repository initialization | Codex verified the clean 800×600 macOS launch and complete automated suite; Jose must repeat the affected checklist before this issue closes |
+| P8B-002 | MVP-blocking visual structure; resolved on macOS | Open the clean default 800×600 window: the initial responsive breakpoint expanded navigation into a full-width top panel; product identity and Add/Clone actions were duplicated; the collapse control became detached from a left rail; the collapsed state lacked persistent section controls/current-value descriptions; and the workspace empty state lacked the requested real Create action. Later reviews found a short title bar, a collapse control that jumped to the far edge, a content-height sidebar, an empty action group sitting too low, and collapsed controls styled as offset floating buttons with an oversized expand control. | Current and three annotated screenshot rounds plus collapsed-rail direction supplied during cycle-one review; decisions transcribed into `baseline-layout-checklist.md` | Baseline implementation: permanent left rail, live icon controls, RDC identity, compact three-action empty state and native repository initialization. Refinements: taller overlay bar, full-height sidebar, top-aligned empty actions, stable centered rail alignment, equal-sized borderless rail controls and contextual tooltips. | Codex verified the final equal-size macOS rail plus an exact dimension assertion in the green 23-test container E2E suite; Jose approved the macOS baseline on 2026-07-31. Linux and Windows remain separate platform gates. |
 
 ## Accepted deviations
 
@@ -56,5 +56,5 @@ recorded in `REMAINING.md` and the E2E harness documentation.
 
 - [ ] No agreed MVP blocker remains.
 - [x] Every preparation fix passed Phase 8a again.
-- [ ] Every affected human check was repeated.
+- [x] Every affected baseline-layout human check was repeated on macOS.
 - [ ] Final packages passed the focused smoke pass.

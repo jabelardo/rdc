@@ -82,6 +82,7 @@ export function RepositorySidebar({
         type="button"
         className="sidebar-collapse"
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         aria-expanded={!collapsed}
         onClick={onToggleCollapsed}
       >

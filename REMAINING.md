@@ -28,7 +28,7 @@ the next MVP phase and the only human-blocked phase.**
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --check` | clean |
 | Windows `git-ops --all-targets` compile guard | clean |
-| `pnpm test:e2e` (Linux container) | 22 tests / 14 suites passing |
+| `pnpm test:e2e` (Linux container) | 23 tests / 14 suites passing |
 | `pnpm qualify:phase8a` | green, `"errors": []` |
 
 ---
@@ -45,9 +45,10 @@ affected human check. Package **last**, only once no agreed blocker remains.
 
 Cycle one begins with `qa/phase-8b/baseline-layout-checklist.md`: settle the populated Light-theme
 shell's title/header, sidebar, toolbar/navigation and workspace hierarchy before spending human
-review on theme variants, component polish or platform workflows. Its first implementation slice is
-complete (permanent left rail, collapsed live icon controls, RDC identity and real empty-state
-creation actions); the affected human checklist still has to be repeated before that gate closes.
+review on theme variants, component polish or platform workflows. The macOS implementation was
+accepted on 2026-07-31 after three annotated refinement rounds. Linux must repeat the baseline in its
+real-Wayland QA—the macOS result is a reference, not transferable acceptance evidence. Windows
+repeats it in Phase 10.
 
 Human judgement is required for: visual refinement (hierarchy, density, alignment, empty/loading/
 error states, diff readability) at normal and compact sizes in Light/Dark/System; the final icon,

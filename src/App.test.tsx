@@ -676,6 +676,9 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
     expect(
       screen.getByRole('button', { name: 'Expand sidebar' })
+    ).toHaveAttribute('title', 'Expand sidebar')
+    expect(
+      screen.getByRole('button', { name: 'Expand sidebar' })
     ).toHaveAttribute('aria-expanded', 'false')
     const repositoriesRailButton = screen.getByRole('button', {
       name: 'Repositories: No repository selected',

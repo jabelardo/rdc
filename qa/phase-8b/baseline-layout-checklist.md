@@ -57,6 +57,26 @@ The 2026-07-31 current/annotated empty-state comparison turns the first revision
   disclosure indicators and accessible section names; they are supporting hierarchy, not a new icon
   language to solve during the structural pass.
 
+The first implementation review added four refinements from the 2026-07-31 annotated follow-up:
+
+- Increase the macOS overlay drag strip by approximately 8–9 px (from `1.75rem` to `2.4rem`) so it
+  reads as intentional title-bar chrome and remains an easy persistent drag target.
+- Keep the sidebar collapse/expand control on the rail's leading edge in both states. Collapsing the
+  rail must not make the control jump horizontally to a different alignment.
+- Make the sidebar own the full available height below the drag strip. Its background and right
+  divider continue to the bottom of the window even when its panels contain little or no data.
+- Keep the empty-state action group near the top of the workspace, directly beneath the window
+  chrome, rather than vertically centering it or offsetting it by viewport height.
+- Center the collapsed controls in the icon rail (approximately 12 screenshot pixels left from the
+  first implementation), and place the expanded collapse control on that same x-coordinate so it
+  does not jump during the transition. In the collapsed state these controls are borderless and
+  shadowless, inheriting the rail/title-bar surface; a restrained hover background may communicate
+  interactivity without turning them back into detached floating buttons.
+- Give the expand/collapse control the same `2.25rem` square hit area as the repository and branch
+  controls. Its different glyph must not change the control's dimensions.
+- Every collapsed control has a contextual native tooltip. The expand control names its action;
+  repository and branch controls include their live current values as already specified above.
+
 ## Information architecture
 
 - Identify the five top-level regions without relying on color alone: native/title-bar area,
@@ -75,6 +95,9 @@ The 2026-07-31 current/annotated empty-state comparison turns the first revision
   balance must remain useful at the smallest supported normal window.
 - Verify the collapse control, repository actions and panel disclosure controls form one stable
   header rather than floating independently.
+- Verify the leading-edge collapse control keeps its horizontal alignment when the rail changes
+  width, and that the sidebar divider spans the complete content height with empty and populated
+  panels.
 - Verify Repositories and Branches have a clear parent/child hierarchy, useful density, aligned
   labels and predictable truncation for long names and paths.
 - Collapse and expand the whole sidebar and each visible panel. The workspace must resize without
@@ -122,20 +145,29 @@ The 2026-07-31 current/annotated empty-state comparison turns the first revision
 
 ## Gate decision
 
+Passing this gate establishes the **macOS baseline only**. Each supported operating system must
+repeat this structural baseline during its own platform QA: Linux before the macOS/Linux MVP ships,
+and Windows in Phase 10 before Windows support ships. A platform may accept the same composition or
+record a necessary native variation, but it cannot inherit another OS's visual pass without running
+the checklist itself.
+
 Do not proceed to `visual-matrix.md` or the platform workflow checklists until all are true:
 
-- [ ] A first-time user can point to repository context, workspace navigation, primary content and
+- [x] A first-time user can point to repository context, workspace navigation, primary content and
       primary action without explanation.
-- [ ] At the default 800×600 window, the sidebar remains a left rail and the empty-state action group
-      occupies the workspace without duplicated product labels or actions.
-- [ ] The collapsed rail retains the reverse expand arrow and enabled section controls; repository
+- [x] At the default 800×600 window, the sidebar remains a left rail and the empty-state action group
+      stays near the top of the workspace without duplicated product labels or actions.
+- [x] The collapsed rail retains the reverse expand arrow and enabled section controls; repository
       and branch descriptions expose current values, stay synchronized, and restore the matching
       panel with keyboard focus.
-- [ ] Create, Add existing and Clone are three real, keyboard-reachable actions with concise
+- [x] Create, Add existing and Clone are three real, keyboard-reachable actions with concise
       hover/focus descriptions; none is a hollow control.
-- [ ] The title/header, sidebar, toolbar/navigation and workspace form one hierarchy with no
+- [x] The title/header, sidebar, toolbar/navigation and workspace form one hierarchy with no
       duplicated identity or competing top-level bars.
-- [ ] Expanded/collapsed sidebar and normal-to-compact resizing preserve useful content proportions.
-- [ ] Changes and History retain a stable outer frame.
-- [ ] No agreed top-level layout blocker remains; remaining findings are component-level refinement
+- [x] Expanded/collapsed sidebar and normal-to-compact resizing preserve useful content proportions.
+- [x] Changes and History retain a stable outer frame.
+- [x] No agreed top-level layout blocker remains; remaining findings are component-level refinement
       suitable for the visual matrix.
+
+macOS accepted this baseline on 2026-07-31 after three annotated review/refinement rounds. These
+checks do not pre-close the Linux or Windows copies of this gate.

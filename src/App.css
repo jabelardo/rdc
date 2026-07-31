@@ -95,6 +95,8 @@ button:disabled {
 }
 
 .application-shell {
+  height: 100vh;
+  min-height: 0;
   grid-template-columns: minmax(15rem, 21rem) 1fr;
 }
 
@@ -103,7 +105,9 @@ button:disabled {
 }
 
 .application-shell.webview-titlebar {
-  grid-template-rows: 1.75rem minmax(0, 1fr);
+  /* The overlay needs enough height to read as persistent window chrome while
+   * remaining a deliberately compact drag target. */
+  grid-template-rows: 2.4rem minmax(0, 1fr);
 }
 
 .window-drag-region {
@@ -114,11 +118,20 @@ button:disabled {
   padding-inline: 0.5rem;
 }
 
+.repository-sidebar {
+  height: 100%;
+  min-height: 0;
+  align-self: stretch;
+}
+
 .sidebar-collapse {
-  display: block;
+  display: grid;
+  width: 2.25rem;
   min-width: 2.25rem;
-  margin: 0 0 0.75rem auto;
-  padding-inline: 0.5rem;
+  height: 2.25rem;
+  place-items: center;
+  margin: 0 auto 0.75rem -0.5rem;
+  padding: 0;
   font-size: 1.15rem;
   line-height: 1;
 }
@@ -140,6 +153,19 @@ button:disabled {
   height: 2.25rem;
   place-items: center;
   padding: 0;
+}
+
+.repository-sidebar-collapsed
+  :is(.sidebar-collapse, .sidebar-icon-rail button) {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.repository-sidebar-collapsed
+  :is(.sidebar-collapse, .sidebar-icon-rail button):hover {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 
 .sidebar-panel h2 {

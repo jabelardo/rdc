@@ -1,5 +1,7 @@
 # macOS development-build checklist
 
+- Run `baseline-layout-checklist.md` in expanded and collapsed states at the default 800×600 window
+  before the platform workflow checks below. This result establishes only the macOS baseline.
 - Launch with a clean rdc config/data state; add the generated `primary` fixture and confirm selection
   survives a complete quit and relaunch.
 - Move the overlay-titlebar window before and after scrolling. Double-click the drag strip under each

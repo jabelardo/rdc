@@ -47,6 +47,65 @@ describe('application shell', () => {
     )
   })
 
+  it('keeps the empty shell aligned through sidebar collapse', async () => {
+    const measure = () =>
+      driver.executeScript(() => {
+        const sidebar = document.querySelector('.repository-sidebar')
+        const collapse = document.querySelector('.sidebar-collapse')
+        const railSection = document.querySelector('.sidebar-icon-rail button')
+        const workspace = document.querySelector('.repository-workspace')
+        const actions = document.querySelector('.repository-empty-actions')
+        const sidebarRect = sidebar.getBoundingClientRect()
+        const collapseRect = collapse.getBoundingClientRect()
+        const workspaceRect = workspace.getBoundingClientRect()
+        const actionsRect = actions.getBoundingClientRect()
+        return {
+          sidebarBottom: sidebarRect.bottom,
+          viewportBottom: window.innerHeight,
+          collapseLeft: collapseRect.left,
+          collapseWidth: collapseRect.width,
+          collapseHeight: collapseRect.height,
+          railSectionWidth: railSection?.getBoundingClientRect().width ?? null,
+          railSectionHeight:
+            railSection?.getBoundingClientRect().height ?? null,
+          actionTopOffset: actionsRect.top - workspaceRect.top,
+        }
+      })
+
+    const expanded = await measure()
+    assert.ok(
+      Math.abs(expanded.sidebarBottom - expanded.viewportBottom) <= 1,
+      'the sidebar divider does not span the available window height'
+    )
+    assert.ok(
+      expanded.actionTopOffset <= 48,
+      'the empty-state actions sit too far below the workspace top'
+    )
+
+    await driver
+      .findElement(By.css('button[aria-label="Collapse sidebar"]'))
+      .click()
+    await driver.wait(
+      until.elementLocated(By.css('button[aria-label="Expand sidebar"]')),
+      5_000
+    )
+    const collapsed = await measure()
+    assert.ok(
+      Math.abs(collapsed.collapseLeft - expanded.collapseLeft) <= 1,
+      'the sidebar control moved horizontally when the rail collapsed'
+    )
+    assert.equal(collapsed.collapseWidth, collapsed.railSectionWidth)
+    assert.equal(collapsed.collapseHeight, collapsed.railSectionHeight)
+
+    await driver
+      .findElement(By.css('button[aria-label="Expand sidebar"]'))
+      .click()
+    await driver.wait(
+      until.elementLocated(By.css('button[aria-label="Collapse sidebar"]')),
+      5_000
+    )
+  })
+
   it('enforces the production CSP and freezes the shared prototype', async () => {
     const security = await driver.executeScript(() => ({
       inlineScriptBlocked: (() => {
