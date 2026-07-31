@@ -3,7 +3,23 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { test } from 'node:test'
-import { createPhase8bFixture } from './create-phase8b-fixture.mjs'
+import {
+  createPhase8bFixture,
+  parsePhase8bFixtureTarget,
+} from './create-phase8b-fixture.mjs'
+
+test('accepts pnpm and direct invocation without treating -- as the target', () => {
+  assert.equal(
+    parsePhase8bFixtureTarget(['--', '/tmp/rdc-phase8b-qa']),
+    '/tmp/rdc-phase8b-qa'
+  )
+  assert.equal(
+    parsePhase8bFixtureTarget(['/tmp/rdc-phase8b-qa']),
+    '/tmp/rdc-phase8b-qa'
+  )
+  assert.equal(parsePhase8bFixtureTarget(['--']), undefined)
+  assert.equal(parsePhase8bFixtureTarget(['one', 'two']), undefined)
+})
 
 test('creates a deterministic local, remote, and publisher QA topology', () => {
   const root = mkdtempSync('/tmp/rdc-phase8b-fixture-test-')

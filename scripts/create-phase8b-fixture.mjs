@@ -85,11 +85,23 @@ export function createPhase8bFixture(requestedTarget) {
   return manifest
 }
 
+/**
+ * pnpm 11 preserves the conventional `--` separator in a script's argv. Accept
+ * both the documented `pnpm fixture:phase8b -- <target>` form and direct Node
+ * invocation without ever mistaking the separator for a directory name.
+ */
+export function parsePhase8bFixtureTarget(arguments_) {
+  const positionals = arguments_[0] === '--' ? arguments_.slice(1) : arguments_
+  return positionals.length === 1 && positionals[0] !== ''
+    ? positionals[0]
+    : undefined
+}
+
 if (
   process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
 ) {
-  const target = process.argv[2]
+  const target = parsePhase8bFixtureTarget(process.argv.slice(2))
   if (target === undefined) {
     console.error(
       'Usage: node scripts/create-phase8b-fixture.mjs <new-target-directory>'
