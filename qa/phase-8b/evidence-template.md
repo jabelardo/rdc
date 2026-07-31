@@ -21,6 +21,9 @@
 
 ## Human results
 
+- Shell/empty-state baseline:
+- Selected-repository Gate A — context/toolbar/navigation:
+- Selected-repository Gate B — Changes/History frame:
 - Visual matrix:
 - Platform checklist:
 - Final package smoke (only after development-build acceptance):

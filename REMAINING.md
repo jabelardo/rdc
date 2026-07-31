@@ -20,11 +20,11 @@ the next MVP phase and the only human-blocked phase.**
 
 | Gate | State |
 |---|---|
-| `pnpm test` (Vitest) | 939 passing |
+| `pnpm test` (Vitest) | 941 passing |
 | `pnpm exec tsc --noEmit` | clean |
 | `pnpm format:check` / `pnpm lint` | clean |
 | `pnpm build` / `pnpm check:bundle-boundary` | clean; 108 browser-reachable modules, no Node built-ins |
-| `cargo test --workspace` | 1,179 passing |
+| `cargo test --workspace` | 1,180 passing |
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --check` | clean |
 | Windows `git-ops --all-targets` compile guard | clean |
@@ -43,12 +43,13 @@ fix every agreed MVP-blocking defect, adding automated regression coverage where
 can be pinned without human judgement → rerun the **complete** Phase 8a gate and repeat every
 affected human check. Package **last**, only once no agreed blocker remains.
 
-Cycle one begins with `qa/phase-8b/baseline-layout-checklist.md`: settle the populated Light-theme
-shell's title/header, sidebar, toolbar/navigation and workspace hierarchy before spending human
-review on theme variants, component polish or platform workflows. The macOS implementation was
-accepted on 2026-07-31 after three annotated refinement rounds. Linux must repeat the baseline in its
-real-Wayland QA—the macOS result is a reference, not transferable acceptance evidence. Windows
-repeats it in Phase 10.
+Cycle one now has two explicit foundation levels. The shell/empty-state gate in
+`qa/phase-8b/baseline-layout-checklist.md` was accepted on macOS on 2026-07-31 after three annotated
+refinement rounds. **Next:** with the populated `primary` fixture, complete Gate A then Gate B in
+`qa/phase-8b/selected-repository-baseline-checklist.md` to settle repository/branch context, toolbar
+and navigation hierarchy, then the Changes/History frame. Only after both pass should macOS enter the
+visual matrix and functional checklist. Linux repeats all foundation gates in real-Wayland QA; the
+macOS result is a reference, not transferable evidence. Windows repeats them in Phase 10.
 
 Human judgement is required for: visual refinement (hierarchy, density, alignment, empty/loading/
 error states, diff readability) at normal and compact sizes in Light/Dark/System; the final icon,

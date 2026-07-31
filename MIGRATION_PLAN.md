@@ -3215,11 +3215,13 @@ expected to reveal defects and require fixes**, not a one-shot approval ceremony
 
 The human checks cover:
 
-- Begin with a blocking baseline-shell pass in one populated, normal-size Light-theme window. Settle
-  the relationship and proportions of native/title-bar space, general sidebar, repository identity
-  and actions, Changes/History navigation and the active workspace before reviewing themes or
-  platform workflows. `qa/phase-8b/baseline-layout-checklist.md` owns the gate; cycle one recorded the
-  existing top-level composition as an MVP blocker rather than allowing later polish to build on it.
+- Begin with two blocking foundation levels before reviewing themes or workflows. First settle native
+  chrome, general sidebar and repository-entry actions in the clean shell through
+  `qa/phase-8b/baseline-layout-checklist.md`. Then select the populated fixture and complete Gate A
+  (repository/branch context, toolbar and Changes/History navigation) followed by Gate B (Changes and
+  History workspace frame) in `qa/phase-8b/selected-repository-baseline-checklist.md`. Cycle one
+  accepted the macOS shell/empty-state level on 2026-07-31; it deliberately did not transfer
+  acceptance to the selected-repository level or another OS.
 - Refine hierarchy, proportions, density, alignment, labels, sidebar disclosure, toolbar grouping,
   empty/loading/error states, diff readability and commit/history details on macOS and real Wayland
   Linux at normal and compact sizes in Light, Dark and System themes. Validate against Desktop Plus's
@@ -3320,8 +3322,10 @@ The work is grouped so a feature cannot disappear behind “Windows later”:
 5. **Window, menu and native-plugin behavior.** Run the already-shared custom title bar,
    Linux/Windows menu dispatcher, contextual menus, keybindings, zoom/state restore, focus/close,
    dialogs, opener/reveal, recoverable Recycle Bin trash, log path and process relaunch on WebView2.
-   Repeat the Phase 8b baseline-layout checklist at the default 800×600 window in expanded and
-   collapsed states; macOS/Linux results are design references, not Windows acceptance evidence.
+   Repeat both Phase 8b foundation checklists: the shell/empty-state baseline at 800×600 in expanded
+   and collapsed states, then the selected-repository context/toolbar/navigation and workspace-frame
+   gates at normal, default and compact widths. macOS/Linux results are design references, not
+   Windows acceptance evidence.
    Add WOW64/ARM64 translation detection and preserve the unsafe-directory trailing-backslash guard
    that prevents `C:\\path\\foo.exe` being opened when the caller intended `C:\\path\\foo`.
 6. **Packaging, CLI, protocols and updater.** Against Phase 9's shared controller, choose and sign the

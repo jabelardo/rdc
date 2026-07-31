@@ -35,6 +35,9 @@ recorded in `REMAINING.md` and the E2E harness documentation.
 
 - Baseline application-shell layout: accepted as the macOS baseline after three annotated refinement
   rounds — `baseline-layout-checklist.md`. Linux and Windows revalidation remain open in their own QA.
+- Selected-repository context/toolbar/navigation foundation: pending —
+  `selected-repository-baseline-checklist.md` Gate A
+- Changes/History workspace foundation: pending — `selected-repository-baseline-checklist.md` Gate B
 - Visual matrix: pending — macOS normal and compact rows in `visual-matrix.md`
 - Platform checklist: pending — `macos-checklist.md`
 - Final package smoke: not started; packaging is deliberately last
@@ -54,7 +57,7 @@ recorded in `REMAINING.md` and the E2E harness documentation.
 
 ## Decision
 
-- [ ] No agreed MVP blocker remains.
+- [ ] No agreed MVP blocker remains; selected-repository foundation and later QA are still pending.
 - [x] Every preparation fix passed Phase 8a again.
 - [x] Every affected baseline-layout human check was repeated on macOS.
 - [ ] Final packages passed the focused smoke pass.

@@ -1,7 +1,8 @@
 # Visual review matrix
 
-Enter this matrix only after `baseline-layout-checklist.md` passes. This matrix refines a settled
-shell across themes, sizes and platforms; it is not where the top-level application structure is
+Enter this matrix only after both `baseline-layout-checklist.md` and the two gates in
+`selected-repository-baseline-checklist.md` pass on the platform being tested. This matrix refines a
+settled shell across themes and sizes; it is not where the toolbar, navigation or workspace frame is
 decided.
 
 Review Changes and History with the Repositories/Branches sidebar expanded and collapsed. For every
@@ -16,7 +17,9 @@ principles and native platform conventions without copying its layout or values.
 | Ubuntu 26.04 native Wayland | normal (at least 1100×720) | pending | pending | pending |
 | Ubuntu 26.04 native Wayland | compact (620×720) | pending | pending | pending |
 
-For each cell capture:
+Review the cells in this order per platform: normal Light, compact Light, normal Dark/System, compact
+Dark/System. For each cell capture representative presentation states rather than repeating every
+functional workflow:
 
 - Empty repository and populated fixture states.
 - Changes list, selected text diff, commit form and progress/error presentation.
