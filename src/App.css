@@ -127,8 +127,19 @@ button:disabled {
   margin-inline: auto;
 }
 
-.repository-shell-heading {
-  margin-bottom: 1rem;
+.sidebar-icon-rail {
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+}
+
+.sidebar-icon-rail button {
+  display: grid;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  padding: 0;
 }
 
 .sidebar-panel h2 {
@@ -158,16 +169,6 @@ button:disabled {
   margin: 0.25rem 0 0.75rem;
   color: var(--color-text-muted);
   font-size: 0.85rem;
-}
-
-.repository-shell-heading h1 {
-  margin: 0;
-  font-size: 1.25rem;
-}
-
-.repository-shell-heading > div {
-  display: flex;
-  gap: 0.4rem;
 }
 
 .repository-list {
@@ -892,27 +893,6 @@ button:disabled {
 }
 
 @media (max-width: 52rem) {
-  body {
-    overflow: auto;
-  }
-
-  .application-shell,
-  .application-shell.sidebar-collapsed {
-    height: auto;
-    min-height: 100vh;
-    grid-template-columns: 1fr;
-  }
-
-  .repository-sidebar {
-    max-height: 38vh;
-    border-right: 0;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .repository-sidebar-collapsed {
-    min-height: 3.25rem;
-  }
-
   .repository-toolbar {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -925,10 +905,6 @@ button:disabled {
 
   .remote-controls {
     grid-column: auto;
-  }
-
-  .selected-repository {
-    min-height: 62vh;
   }
 
   .changes-workspace {

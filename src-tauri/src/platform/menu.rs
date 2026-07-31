@@ -47,7 +47,7 @@ pub fn install_bootstrap(
     bindings: &BTreeMap<String, Keybinding>,
 ) -> Result<(), String> {
     let menu = Menu::new(app).map_err(|error| error.to_string())?;
-    let application = Submenu::with_id(app, "bootstrap-application", "rdc", true)
+    let application = Submenu::with_id(app, "bootstrap-application", "RDC", true)
         .map_err(|error| error.to_string())?;
     application
         .append(&PredefinedMenuItem::hide(app, None).map_err(|error| error.to_string())?)
@@ -65,7 +65,7 @@ pub fn install_bootstrap(
     let accelerator = bindings.get("quit").map(accelerator_text);
     application
         .append(
-            &MenuItem::with_id(app, "quit", "Quit rdc", true, accelerator.as_deref())
+            &MenuItem::with_id(app, "quit", "Quit RDC", true, accelerator.as_deref())
                 .map_err(|error| error.to_string())?,
         )
         .map_err(|error| error.to_string())?;
@@ -242,7 +242,7 @@ fn predefined_item<R: Runtime>(
     label: &str,
 ) -> Result<PredefinedMenuItem<R>, String> {
     // The TypeScript normalizer uses the role's wire value as a structural fallback label.
-    // Passing that fallback into muda would replace localized labels such as "Hide rdc" with
+    // Passing that fallback into muda would replace localized labels such as "Hide RDC" with
     // lowercase implementation names such as "hide".
     let label = explicit_role_label(role, label);
     let result = match role {

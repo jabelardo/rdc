@@ -140,10 +140,10 @@ export function buildDefaultMenu(
   const template: TemplateItem[] = []
   if (mac) {
     template.push({
-      label: 'rdc',
+      label: 'RDC',
       submenu: [
         {
-          label: 'About rdc',
+          label: 'About RDC',
           id: 'about',
           action: event('show-about'),
         },
@@ -568,7 +568,7 @@ export function buildDefaultMenu(
       },
     },
     {
-      label: mac ? 'View rdc on GitHub' : 'View rdc on &GitHub',
+      label: mac ? 'View RDC on GitHub' : 'View RDC on &GitHub',
       action: {
         type: 'open-external',
         url: 'https://github.com/jabelardo/rdc',
@@ -593,7 +593,7 @@ export function buildDefaultMenu(
         ...helpItems,
         separator(),
         {
-          label: '&About rdc',
+          label: '&About RDC',
           id: 'about',
           action: event('show-about'),
         },

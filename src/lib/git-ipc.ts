@@ -93,6 +93,14 @@ export function isCommandError(error: unknown): error is ICommandError {
   )
 }
 
+/** Creates a Git repository at a new or existing empty directory. */
+export async function initRepository(
+  repositoryPath: string,
+  defaultBranch: string
+): Promise<void> {
+  return invoke('init_repository', { repositoryPath, defaultBranch })
+}
+
 /**
  * Reads the status of the repository at `repositoryPath`, or `null` if that path isn't a git
  * repository.

@@ -43,10 +43,11 @@ fix every agreed MVP-blocking defect, adding automated regression coverage where
 can be pinned without human judgement → rerun the **complete** Phase 8a gate and repeat every
 affected human check. Package **last**, only once no agreed blocker remains.
 
-Cycle one begins with the blocking `qa/phase-8b/baseline-layout-checklist.md`: settle the populated
-Light-theme shell's title/header, sidebar, toolbar/navigation and workspace hierarchy before spending
-human review on theme variants, component polish or platform workflows. The first macOS review found
-that the current top-level composition does not yet clear that gate.
+Cycle one begins with `qa/phase-8b/baseline-layout-checklist.md`: settle the populated Light-theme
+shell's title/header, sidebar, toolbar/navigation and workspace hierarchy before spending human
+review on theme variants, component polish or platform workflows. Its first implementation slice is
+complete (permanent left rail, collapsed live icon controls, RDC identity and real empty-state
+creation actions); the affected human checklist still has to be repeated before that gate closes.
 
 Human judgement is required for: visual refinement (hierarchy, density, alignment, empty/loading/
 error states, diff readability) at normal and compact sizes in Light/Dark/System; the final icon,

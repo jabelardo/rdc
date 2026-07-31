@@ -220,6 +220,7 @@ pub fn run() {
             commands::git::get_branch_merge_base_changed_files,
             commands::git::get_commit_range_changed_files,
             commands::git::get_status,
+            commands::git::init_repository,
             commands::git::abort_hook,
             commands::git::resolve_hook_failure,
             commands::git::create_commit,

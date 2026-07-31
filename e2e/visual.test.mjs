@@ -64,7 +64,7 @@ describe('visual layout', () => {
           document.querySelector('.changes-workspace')
         ).gridTemplateColumns.split(' ').length,
       }))
-      assert.deepEqual(compact, { shellColumns: 1, workspaceColumns: 1 })
+      assert.deepEqual(compact, { shellColumns: 2, workspaceColumns: 1 })
     } finally {
       await driver.manage().window().setRect(originalRect)
     }

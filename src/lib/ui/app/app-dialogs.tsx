@@ -204,7 +204,7 @@ export function AppDialogs({
           aria-labelledby="about-dialog-title"
           onDismiss={onDismissAbout}
         >
-          <h2 id="about-dialog-title">About rdc</h2>
+          <h2 id="about-dialog-title">About RDC</h2>
           <p>Version {__APP_VERSION__}</p>
           <p>A native Git client built with Tauri and Rust.</p>
           <div className={dialogActionsClassName}>

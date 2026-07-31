@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { join } from '@tauri-apps/api/path'
 import type { Repository } from '../../../models/repository'
 import { getCloneDirectoryName } from '../../clone-destination'
+import { initRepository } from '../../git-ipc'
 import { installApplicationMenu } from '../../menu/application-menu'
 import { showContextualMenu } from '../../menu/context-menu'
 import { currentMenuPlatform } from '../../menu/default-menu'
@@ -122,8 +123,8 @@ export function useAppController() {
     const repository = appState.selectedRepository
     const title =
       repository === null
-        ? 'rdc'
-        : `rdc — ${repository.name}${
+        ? 'RDC'
+        : `RDC — ${repository.name}${
             branchState.currentBranch === null
               ? ''
               : ` — ${branchState.currentBranch}`
@@ -170,6 +171,7 @@ export function useAppController() {
     let latestPreferencesState = preferencesStore.state
     const platform = rendererPlatform
     const executeMenuEvent = createRepositoryMenuEventExecutor(appStore, {
+      createRepository,
       addLocalRepository: addExistingRepository,
       chooseRepository: () => {
         document
@@ -394,6 +396,24 @@ export function useAppController() {
 
     try {
       setError(null)
+      await appStore.addRepository(selected)
+    } catch (error) {
+      setError(String(error))
+    }
+  }
+
+  async function createRepository(): Promise<void> {
+    const selected = await showSaveDialog({
+      title: 'Create a repository',
+      properties: ['createDirectory'],
+    })
+    if (selected === null) {
+      return
+    }
+
+    try {
+      setError(null)
+      await initRepository(selected, 'main')
       await appStore.addRepository(selected)
     } catch (error) {
       setError(String(error))
@@ -686,6 +706,11 @@ export function useAppController() {
     })
   }
 
+  function activateSidebarSection(section: SidebarSectionID): void {
+    setSidebarCollapsed(false)
+    setExpandedSidebarSections(current => new Set(current).add(section))
+  }
+
   return {
     appState,
     branchState,
@@ -729,6 +754,7 @@ export function useAppController() {
     permanentlyDiscard,
     discardSelection,
     discarding,
+    createRepository,
     addExistingRepository,
     openCloneDialog,
     dismissCloneDialog,
@@ -749,6 +775,7 @@ export function useAppController() {
     confirmDiscard,
     cancelDiscard,
     toggleSidebarSection,
+    activateSidebarSection,
   }
 }
 

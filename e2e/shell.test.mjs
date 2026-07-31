@@ -23,7 +23,12 @@ describe('application shell', () => {
     await driver.navigate().refresh()
     // The reload must finish before any assertion runs, or the first one races it and the
     // shell has no DOM yet.
-    await driver.wait(until.elementLocated(By.css('main h1')), 10_000)
+    await driver.wait(
+      until.elementLocated(
+        By.css('main.application-shell [aria-label="Navigation"]')
+      ),
+      10_000
+    )
   })
 
   after(async () => {
@@ -31,8 +36,15 @@ describe('application shell', () => {
   })
 
   it('launches the real Tauri application', async () => {
-    const heading = await driver.findElement(By.css('main h1')).getText()
-    assert.equal(heading, 'rdc')
+    assert.equal(await driver.getTitle(), 'RDC')
+    assert.equal(
+      await driver
+        .findElements(
+          By.css('main.application-shell [aria-label="Navigation"]')
+        )
+        .then(elements => elements.length),
+      1
+    )
   })
 
   it('enforces the production CSP and freezes the shared prototype', async () => {
@@ -81,7 +93,7 @@ describe('application shell', () => {
       process.env.XDG_DATA_HOME,
       'org.rdc',
       'logs',
-      'rdc.log'
+      'RDC.log'
     )
     await driver.wait(
       () => existsSync(logPath),
@@ -97,7 +109,7 @@ describe('application shell', () => {
 
     await driver.wait(
       until.elementLocated(
-        By.xpath("//h2[normalize-space()='Add a repository to get started']")
+        By.xpath("//button[normalize-space()='Create repository']")
       ),
       5_000
     )

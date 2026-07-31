@@ -13,6 +13,7 @@ type RepositoryMenuStore = {
 }
 
 type RepositoryMenuEnvironment = {
+  readonly createRepository: () => void | Promise<void>
   readonly addLocalRepository: () => void | Promise<void>
   readonly chooseRepository: () => void
   readonly showChanges: () => void
@@ -76,6 +77,7 @@ export function buildRepositoryMenu(
   const canPull =
     canPush && typeof remoteState?.currentBranch?.upstream === 'string'
   const enabledByID = new Map<string, boolean>([
+    ['new-repository', true],
     ['add-local-repository', true],
     ['clone-repository', true],
     ['about', true],
@@ -130,6 +132,9 @@ export function createRepositoryMenuEventExecutor(
 ): (event: MenuEvent) => Promise<boolean> {
   return async event => {
     switch (event) {
+      case 'create-repository':
+        await environment.createRepository()
+        return true
       case 'add-local-repository':
         await environment.addLocalRepository()
         return true

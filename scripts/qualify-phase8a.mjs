@@ -28,8 +28,8 @@ export function qualifyPhase8aInputs(root) {
   }
 
   requireCondition(
-    packageJson.name === tauriConfig.productName,
-    'package and Tauri product names must match'
+    packageJson.name === tauriConfig.productName.toLowerCase(),
+    'package name must match the lowercase Tauri product name'
   )
   requireCondition(
     packageJson.version === tauriConfig.version,

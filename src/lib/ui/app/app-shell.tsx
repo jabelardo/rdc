@@ -58,6 +58,7 @@ export function AppShell({ controller }: AppShellProps) {
     permanentlyDiscard,
     discardSelection,
     discarding,
+    createRepository,
     addExistingRepository,
     openCloneDialog,
     dismissCloneDialog,
@@ -78,6 +79,7 @@ export function AppShell({ controller }: AppShellProps) {
     confirmDiscard,
     cancelDiscard,
     toggleSidebarSection,
+    activateSidebarSection,
   } = controller
 
   return (
@@ -97,8 +99,7 @@ export function AppShell({ controller }: AppShellProps) {
         newBranchName={newBranchName}
         onToggleCollapsed={() => setSidebarCollapsed(collapsed => !collapsed)}
         onToggleSection={toggleSidebarSection}
-        onClone={openCloneDialog}
-        onAddRepository={() => void addExistingRepository()}
+        onActivateSection={activateSidebarSection}
         onSelectRepository={repository => void selectRepository(repository)}
         onRepositoryContextMenu={repository =>
           void openRepositoryContextMenu(repository)
@@ -112,15 +113,30 @@ export function AppShell({ controller }: AppShellProps) {
         aria-label="Selected repository"
       >
         {appState.selectedRepository === null ? (
-          <div className="repository-empty-state mx-auto mt-[15vh] max-w-[32rem] p-8 text-center">
-            <h2>Add a repository to get started</h2>
-            <p>Open an existing Git repository from your computer.</p>
-            <button type="button" onClick={() => void addExistingRepository()}>
-              Add existing repository
-            </button>
-            <button type="button" onClick={openCloneDialog}>
-              Clone repository
-            </button>
+          <div className="repository-empty-state mx-auto mt-[15vh] max-w-[40rem] p-8 text-center">
+            <div className="repository-empty-actions flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                title="Create a new Git repository"
+                onClick={() => void createRepository()}
+              >
+                Create repository
+              </button>
+              <button
+                type="button"
+                title="Open a Git repository from this computer"
+                onClick={() => void addExistingRepository()}
+              >
+                Add existing repository
+              </button>
+              <button
+                type="button"
+                title="Clone a Git repository from a remote URL"
+                onClick={openCloneDialog}
+              >
+                Clone repository
+              </button>
+            </div>
           </div>
         ) : (
           <div className="selected-repository relative grid h-full min-h-0 min-w-0 text-left">

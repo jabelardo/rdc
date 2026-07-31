@@ -13,7 +13,7 @@ test('current MVP packaging inputs are safe and internally consistent', () => {
     'final bundle identifier',
     'final application icon',
   ])
-  assert.equal(report.productName, 'rdc')
+  assert.equal(report.productName, 'RDC')
   assert.equal(report.version, '0.1.0')
   assert.equal(report.identifier, 'org.rdc')
   assert.equal(report.finalPackagesProduced, false)

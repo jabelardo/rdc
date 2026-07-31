@@ -177,6 +177,7 @@ describe('repository application menu', () => {
           removeRepository: vi.fn(async () => undefined),
         },
         {
+          createRepository: vi.fn(),
           addLocalRepository: vi.fn(),
           chooseRepository: vi.fn(),
           showChanges: vi.fn(),
@@ -236,6 +237,7 @@ describe('repository application menu actions', () => {
       removeRepository: vi.fn(async () => undefined),
     }
     const environment = {
+      createRepository: vi.fn(async () => undefined),
       addLocalRepository: vi.fn(async () => undefined),
       chooseRepository: vi.fn(),
       showChanges: vi.fn(),
@@ -253,6 +255,7 @@ describe('repository application menu actions', () => {
     }
     const execute = createRepositoryMenuEventExecutor(store, environment)
 
+    await expect(execute('create-repository')).resolves.toBe(true)
     await expect(execute('add-local-repository')).resolves.toBe(true)
     await expect(execute('choose-repository')).resolves.toBe(true)
     await expect(execute('open-new-window')).resolves.toBe(true)
@@ -269,6 +272,7 @@ describe('repository application menu actions', () => {
     await expect(execute('open-in-shell')).resolves.toBe(true)
     await expect(execute('open-external-editor')).resolves.toBe(true)
 
+    expect(environment.createRepository).toHaveBeenCalledOnce()
     expect(environment.addLocalRepository).toHaveBeenCalledOnce()
     expect(environment.chooseRepository).toHaveBeenCalledOnce()
     expect(environment.showChanges).toHaveBeenCalledOnce()
@@ -296,6 +300,7 @@ describe('repository application menu actions', () => {
       removeRepository: vi.fn(async () => undefined),
     }
     const environment = {
+      createRepository: vi.fn(async () => undefined),
       addLocalRepository: vi.fn(async () => undefined),
       chooseRepository: vi.fn(),
       showChanges: vi.fn(),

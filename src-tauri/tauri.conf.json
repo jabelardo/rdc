@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "rdc",
+  "productName": "RDC",
   "version": "0.1.0",
   "identifier": "org.rdc",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "create": false,
-        "title": "rdc",
+        "title": "RDC",
         "width": 800,
         "height": 600,
         "visible": false

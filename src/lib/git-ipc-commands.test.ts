@@ -30,6 +30,7 @@ const { invoke, Channel } = ipc
 vi.mock('@tauri-apps/api/core', () => ipc)
 
 const {
+  initRepository,
   createCommit,
   createMergeCommit,
   checkoutBranch,
@@ -56,6 +57,15 @@ describe('the git commands', () => {
   beforeEach(() => {
     invoke.mockReset()
     invoke.mockResolvedValue(undefined)
+  })
+
+  it('initializes a repository with the chosen default branch', async () => {
+    await initRepository(REPO, 'main')
+
+    expect(invoke).toHaveBeenCalledWith('init_repository', {
+      repositoryPath: REPO,
+      defaultBranch: 'main',
+    })
   })
 
   it('createCommit sends the message, files and options', async () => {

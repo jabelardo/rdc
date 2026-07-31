@@ -11,6 +11,7 @@ import {
   openSeededRepository,
   publishCanonical,
   removeFixtureRoot,
+  sendNativeKeys,
   startApplication,
 } from './harness.mjs'
 
@@ -34,7 +35,7 @@ describe('clone', () => {
   })
 
   it('clones the local bare remote and selects the persisted repository', async () => {
-    await driver.findElement(By.css('[aria-label="Clone repository"]')).click()
+    sendNativeKeys('ctrl+shift+o')
     const cloneDialog = await driver.wait(
       until.elementLocated(
         By.xpath(

@@ -8,6 +8,8 @@ const installApplicationMenu = vi.hoisted(() => vi.fn())
 const replaceApplicationMenu = vi.hoisted(() => vi.fn())
 const showContextualMenu = vi.hoisted(() => vi.fn())
 const showOpenDialog = vi.hoisted(() => vi.fn())
+const showSaveDialog = vi.hoisted(() => vi.fn())
+const initRepository = vi.hoisted(() => vi.fn())
 const showFolderContents = vi.hoisted(() => vi.fn())
 const getMainProcessConfig = vi.hoisted(() => vi.fn())
 const launchExternalEditor = vi.hoisted(() => vi.fn())
@@ -146,6 +148,7 @@ const branchStore = vi.hoisted(() => ({
     repositoryPath: null as string | null,
     branches: [] as ReadonlyArray<{
       name: string
+      ref: string
       type: number
       tip: { sha: string }
     }>,
@@ -218,7 +221,11 @@ const preferencesStore = vi.hoisted(() => ({
 
 vi.mock('./lib/menu/application-menu', () => ({ installApplicationMenu }))
 vi.mock('./lib/menu/context-menu', () => ({ showContextualMenu }))
-vi.mock('./lib/platform/dialogs', () => ({ showOpenDialog }))
+vi.mock('./lib/platform/dialogs', () => ({ showOpenDialog, showSaveDialog }))
+vi.mock('./lib/git-ipc', async importOriginal => ({
+  ...(await importOriginal<typeof import('./lib/git-ipc')>()),
+  initRepository,
+}))
 vi.mock('./lib/platform/config', () => ({ getMainProcessConfig }))
 vi.mock('./lib/platform/files', () => ({ showFolderContents }))
 vi.mock('./lib/platform/editors', () => ({ launchExternalEditor }))
@@ -276,6 +283,10 @@ describe('App', () => {
     showContextualMenu.mockResolvedValue(undefined)
     showOpenDialog.mockReset()
     showOpenDialog.mockResolvedValue(null)
+    showSaveDialog.mockReset()
+    showSaveDialog.mockResolvedValue(null)
+    initRepository.mockReset()
+    initRepository.mockResolvedValue(undefined)
     showFolderContents.mockReset()
     showFolderContents.mockResolvedValue(undefined)
     getMainProcessConfig.mockReset()
@@ -564,7 +575,7 @@ describe('App', () => {
 
     await act(() => executeMenuEvent('show-about'))
 
-    expect(screen.getByRole('dialog', { name: 'About rdc' })).toHaveTextContent(
+    expect(screen.getByRole('dialog', { name: 'About RDC' })).toHaveTextContent(
       `Version ${__APP_VERSION__}`
     )
     expect(
@@ -573,7 +584,7 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: 'Close' }))
     expect(
-      screen.queryByRole('dialog', { name: 'About rdc' })
+      screen.queryByRole('dialog', { name: 'About RDC' })
     ).not.toBeInTheDocument()
   })
 
@@ -607,11 +618,26 @@ describe('App', () => {
     expect(showFolderContents).toHaveBeenCalledWith(repository.path)
   })
 
-  it('shows a product empty state instead of the integration harness', () => {
+  it('shows a compact product empty state with the three real entry actions', () => {
     render(<App />)
 
     expect(
-      screen.getByRole('heading', { name: 'Add a repository to get started' })
+      screen.queryByRole('heading', { name: /rdc/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Add a repository to get started')
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/open an existing git repository/i)
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Create repository' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Add existing repository' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Clone repository' })
     ).toBeInTheDocument()
     expect(
       screen.queryByText(/native integration harness/i)
@@ -651,9 +677,43 @@ describe('App', () => {
     expect(
       screen.getByRole('button', { name: 'Expand sidebar' })
     ).toHaveAttribute('aria-expanded', 'false')
+    const repositoriesRailButton = screen.getByRole('button', {
+      name: 'Repositories: No repository selected',
+    })
+    const branchesRailButton = screen.getByRole('button', {
+      name: 'Branches: No branch selected',
+    })
+    expect(repositoriesRailButton).toHaveAttribute(
+      'title',
+      'Repositories: No repository selected'
+    )
+    expect(repositoriesRailButton.querySelector('svg')).toHaveAttribute(
+      'data-icon',
+      'folder-tree'
+    )
+    expect(branchesRailButton).toHaveAttribute(
+      'title',
+      'Branches: No branch selected'
+    )
+    expect(branchesRailButton.querySelector('svg')).toHaveAttribute(
+      'data-icon',
+      'code-branch'
+    )
     expect(
       screen.queryByRole('button', { name: 'Branches' })
     ).not.toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Repositories: No repository selected',
+      })
+    )
+    expect(
+      screen.getByRole('button', { name: 'Collapse sidebar' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Repositories' })
+    ).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('places live branch selection in the Branches sidebar panel', () => {
@@ -666,6 +726,7 @@ describe('App', () => {
       branches: [
         {
           name: 'main',
+          ref: 'refs/heads/main',
           type: 0,
           tip: { sha: 'a'.repeat(40) },
         },
@@ -687,7 +748,7 @@ describe('App', () => {
     expect(
       screen.getByRole('form', { name: 'Create branch' })
     ).toBeInTheDocument()
-    expect(setWindowTitle).toHaveBeenLastCalledWith('rdc — rdc — main')
+    expect(setWindowTitle).toHaveBeenLastCalledWith('RDC — rdc — main')
     const toolbar = screen.getByRole('toolbar', {
       name: 'Repository actions',
     })
@@ -729,6 +790,26 @@ describe('App', () => {
       properties: ['openDirectory', 'createDirectory'],
     })
     expect(appStore.addRepository).toHaveBeenCalledWith('/repo')
+  })
+
+  it('creates and registers the directory selected by the native dialog', async () => {
+    showSaveDialog.mockResolvedValue('/projects/new-repository')
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'Create repository' }))
+
+    expect(showSaveDialog).toHaveBeenCalledWith({
+      title: 'Create a repository',
+      properties: ['createDirectory'],
+    })
+    expect(initRepository).toHaveBeenCalledWith(
+      '/projects/new-repository',
+      'main'
+    )
+    expect(appStore.addRepository).toHaveBeenCalledWith(
+      '/projects/new-repository'
+    )
   })
 
   it('does nothing when the native directory dialog is dismissed', async () => {
@@ -843,16 +924,19 @@ describe('App', () => {
       branches: [
         {
           name: 'main',
+          ref: 'refs/heads/main',
           type: 0,
           tip: { sha: 'a'.repeat(40) },
         },
         {
           name: 'topic',
+          ref: 'refs/heads/topic',
           type: 0,
           tip: { sha: 'b'.repeat(40) },
         },
         {
           name: 'origin/main',
+          ref: 'refs/remotes/origin/main',
           type: 1,
           tip: { sha: 'a'.repeat(40) },
         },

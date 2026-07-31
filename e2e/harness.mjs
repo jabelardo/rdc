@@ -295,7 +295,12 @@ export async function startApplication() {
     .usingServer('http://127.0.0.1:4444/')
     .withCapabilities(capabilities)
     .build()
-  await applicationDriver.wait(until.elementLocated(By.css('main h1')), 10_000)
+  await applicationDriver.wait(
+    until.elementLocated(
+      By.css('main.application-shell [aria-label="Navigation"]')
+    ),
+    10_000
+  )
   return applicationDriver
 }
 

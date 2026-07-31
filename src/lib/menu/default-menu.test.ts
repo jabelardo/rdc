@@ -89,11 +89,11 @@ describe('platform and state-derived menu structure', () => {
     const mac = buildDefaultMenu(baseParams, 'macos')
 
     expect(windows.items[0]).toMatchObject({ label: '&File' })
-    expect(mac.items[0]).toMatchObject({ label: 'rdc' })
+    expect(mac.items[0]).toMatchObject({ label: 'RDC' })
 
     const macItems = allItems(mac.items)
     expect(macItems.find(item => item.id === 'about')).toMatchObject({
-      label: 'About rdc',
+      label: 'About RDC',
       action: { type: 'menu-event', event: 'show-about' },
     })
     expect(macItems.find(item => item.id === 'preferences')).toMatchObject({
@@ -129,7 +129,7 @@ describe('platform and state-derived menu structure', () => {
       ).toBe(false)
       if (platform !== 'macos') {
         expect(items.find(item => item.id === 'about')).toMatchObject({
-          label: '&About rdc',
+          label: '&About RDC',
         })
       }
     }
