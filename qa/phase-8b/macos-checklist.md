@@ -6,7 +6,7 @@ native acceptance record; do not label it automated.
 ## 1. Foundation prerequisites
 
 - Run `baseline-layout-checklist.md` in expanded and collapsed states at 800×600.
-- With the generated `primary` fixture selected, pass Gate A and Gate B in
+- With the generated `primary` fixture selected, pass Gates A, B and C in
   `selected-repository-baseline-checklist.md` before testing toolbar actions or repository workflows.
 - Move, resize, maximize and restore the overlay-titlebar window. Double-click the persistent drag
   strip under each available `AppleActionOnDoubleClick` behavior; no rejected promise may appear.

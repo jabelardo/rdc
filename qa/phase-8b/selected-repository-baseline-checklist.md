@@ -1,6 +1,6 @@
 # Selected-repository foundation gate
 
-Enter only after `baseline-layout-checklist.md` passes on the platform being tested. Complete both
+Enter only after `baseline-layout-checklist.md` passes on the platform being tested. Complete all three
 gates below before the visual matrix or functional workflow QA. Their question is structural: does a
 populated repository produce a stable application frame whose controls can be tested without an
 expected redesign moving or regrouping them?
@@ -46,7 +46,39 @@ Gate A passes only when:
 Accepted as the macOS baseline by Jose Gutierrez on 2026-07-31. Linux and Windows must repeat this
 gate independently; this approval does not prescribe their native window-chrome details.
 
-## Gate B — Changes and History workspace frame
+## Gate B — left-pane design refinement
+
+- Establish a clear hierarchy between the Repositories and Branches panel headers, their current
+  values and their secondary controls. Disclosure arrows and section icons must support scanning
+  without competing with repository or branch names.
+- Refine repository rows as navigation rather than generic form controls. Selection, path
+  truncation, hover/focus, contextual-menu affordance and long or similarly named repositories must
+  remain distinguishable without making each row unnecessarily tall.
+- Refine the Branches panel around its primary job: understanding and changing the current branch.
+  Branch selection and branch creation need distinct hierarchy; labels, fields and the Create action
+  must not read as an undifferentiated form block.
+- Decide the expanded sidebar's useful width and density at normal, default and compact window sizes.
+  It must leave the workspace useful, but paths, repository names and branch names need predictable
+  truncation and contextual disclosure.
+- Establish scroll ownership when repository or branch lists grow. The command-bar control remains
+  fixed; scrolling one panel must not hide unrelated panel headers or make the lower panel
+  unreachable.
+- Verify empty, loading, error, detached/unborn branch, long-content and many-item states without
+  changing the outer shell geometry.
+- Recheck the collapsed rail transition. Icons keep current-value tooltips and accessible names,
+  focus moves deliberately when a section expands, and no stale expanded-pane content remains
+  visible or keyboard-reachable.
+
+Gate B passes only when:
+
+- [ ] Repository and Branches panels have a deliberate hierarchy, density and disclosure treatment.
+- [ ] Repository selection, contextual actions and long values remain clear and accessible.
+- [ ] Current-branch selection and branch creation have distinct, understandable visual jobs.
+- [ ] Panel and list scrolling preserve fixed shell controls and access to every enabled section.
+- [ ] Expanded/collapsed and normal/default/compact states preserve the accepted toolbar and useful
+      workspace width.
+
+## Gate C — Changes and History workspace frame
 
 - Set intentional proportions for the changed-file list, selected diff and commit area. The diff is
   the primary reading surface; navigation and commit controls support rather than crowd it.
@@ -63,7 +95,7 @@ gate independently; this approval does not prescribe their native window-chrome 
 - At compact width, define one deliberate stacking order for Changes and one for History. Avoid
   nested page scrolling, unreachable controls and oversized fixed-height gutters.
 
-Gate B passes only when:
+Gate C passes only when:
 
 - [ ] Changes has deliberate file/diff/commit proportions and clear scroll ownership.
 - [ ] History has deliberate list/details proportions and a coherent reading order.
@@ -73,6 +105,6 @@ Gate B passes only when:
 
 ## Platform ownership
 
-Passing both gates establishes the selected-repository foundation only for the OS recorded in the
+Passing all three gates establishes the selected-repository foundation only for the OS recorded in the
 evidence. macOS, native-Wayland Linux and Phase 10 Windows each run it independently and record any
 necessary native variation explicitly.

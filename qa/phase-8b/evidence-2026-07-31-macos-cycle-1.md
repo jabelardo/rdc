@@ -38,7 +38,8 @@ recorded in `REMAINING.md` and the E2E harness documentation.
 - Selected-repository context/toolbar/navigation foundation: accepted as the macOS baseline —
   `selected-repository-baseline-checklist.md` Gate A; started from commit `372787e`, accepted after
   two visual iterations on 2026-07-31
-- Changes/History workspace foundation: pending — `selected-repository-baseline-checklist.md` Gate B
+- Left-pane design foundation: pending — `selected-repository-baseline-checklist.md` Gate B
+- Changes/History workspace foundation: pending — `selected-repository-baseline-checklist.md` Gate C
 - Visual matrix: pending — macOS normal and compact rows in `visual-matrix.md`
 - Platform checklist: pending — `macos-checklist.md`
 - Final package smoke: not started; packaging is deliberately last

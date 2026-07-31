@@ -1,6 +1,6 @@
 # Visual review matrix
 
-Enter this matrix only after both `baseline-layout-checklist.md` and the two gates in
+Enter this matrix only after both `baseline-layout-checklist.md` and the three gates in
 `selected-repository-baseline-checklist.md` pass on the platform being tested. This matrix refines a
 settled shell across themes and sizes; it is not where the toolbar, navigation or workspace frame is
 decided.

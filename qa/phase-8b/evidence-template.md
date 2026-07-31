@@ -23,7 +23,8 @@
 
 - Shell/empty-state baseline:
 - Selected-repository Gate A — context/toolbar/navigation:
-- Selected-repository Gate B — Changes/History frame:
+- Selected-repository Gate B — left-pane design:
+- Selected-repository Gate C — Changes/History frame:
 - Visual matrix:
 - Platform checklist:
 - Final package smoke (only after development-build acceptance):
