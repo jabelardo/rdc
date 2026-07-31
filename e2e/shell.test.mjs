@@ -1,0 +1,152 @@
+// Application shell: launch, the Phase 5a security boundary, directory isolation, and the two
+// native-menu surfaces. Nothing here needs a repository.
+import assert from 'node:assert/strict'
+import { existsSync, readFileSync } from 'node:fs'
+import path from 'node:path'
+import process from 'node:process'
+import { after, before, describe, it } from 'node:test'
+import { By, Key, until } from 'selenium-webdriver'
+import {
+  resetRepositoryFixtures,
+  sendNativeKeys,
+  startApplication,
+} from './harness.mjs'
+
+describe('application shell', () => {
+  let driver
+
+  before(async () => {
+    driver = await startApplication()
+    // Start from no registered repositories, the state this spec's empty-shell assertions
+    // were originally written against. See resetRepositoryFixtures.
+    await resetRepositoryFixtures(driver)
+    await driver.navigate().refresh()
+    // The reload must finish before any assertion runs, or the first one races it and the
+    // shell has no DOM yet.
+    await driver.wait(until.elementLocated(By.css('main h1')), 10_000)
+  })
+
+  after(async () => {
+    await driver?.quit().catch(() => undefined)
+  })
+
+  it('launches the real Tauri application', async () => {
+    const heading = await driver.findElement(By.css('main h1')).getText()
+    assert.equal(heading, 'rdc')
+  })
+
+  it('enforces the production CSP and freezes the shared prototype', async () => {
+    const security = await driver.executeScript(() => ({
+      inlineScriptBlocked: (() => {
+        delete window.__rdcInlineCspProbe
+        const script = document.createElement('script')
+        script.textContent = 'window.__rdcInlineCspProbe = true'
+        document.head.append(script)
+        script.remove()
+        return window.__rdcInlineCspProbe !== true
+      })(),
+      objectPrototypeFrozen: Object.isFrozen(Object.prototype),
+    }))
+
+    assert.equal(security.objectPrototypeFrozen, true)
+    assert.equal(security.inlineScriptBlocked, true)
+  })
+
+  it('writes configuration and logs only to the isolated application directories', async () => {
+    const config = await driver.executeAsyncScript(done => {
+      window.__TAURI_INTERNALS__
+        .invoke('update_main_process_config', {
+          configDiff: { hideWindowOnQuit: false },
+        })
+        .then(done, error => done({ error: String(error) }))
+    })
+    assert.equal(config.hideWindowOnQuit, false)
+
+    const configPath = path.join(
+      process.env.XDG_CONFIG_HOME,
+      'org.rdc',
+      'main-process-config.json'
+    )
+    await driver.wait(
+      () => existsSync(configPath),
+      5_000,
+      'main-process configuration was not written to app_config_dir'
+    )
+    assert.deepEqual(JSON.parse(readFileSync(configPath, 'utf8')), {
+      titleBarStyle: 'native',
+      hideWindowOnQuit: false,
+    })
+
+    const logPath = path.join(
+      process.env.XDG_DATA_HOME,
+      'org.rdc',
+      'logs',
+      'rdc.log'
+    )
+    await driver.wait(
+      () => existsSync(logPath),
+      5_000,
+      'renderer startup log was not written to app_log_dir'
+    )
+  })
+
+  it('opens and dismisses the add-repository dialog from the application menu', async () => {
+    sendNativeKeys('ctrl+o')
+    await new Promise(resolve => setTimeout(resolve, 250))
+    sendNativeKeys('Escape')
+
+    await driver.wait(
+      until.elementLocated(
+        By.xpath("//h2[normalize-space()='Add a repository to get started']")
+      ),
+      5_000
+    )
+  })
+
+  it('opens MVP preferences from the native menu and applies theme changes', async () => {
+    sendNativeKeys('ctrl+comma')
+    const preferences = await driver.wait(
+      until.elementLocated(
+        By.css('[role="dialog"][aria-labelledby="preferences-dialog-title"]')
+      ),
+      5_000
+    )
+    const theme = await preferences.findElement(By.css('#theme-preference'))
+    await driver.wait(
+      async () =>
+        (await driver.switchTo().activeElement().getAttribute('id')) ===
+        'theme-preference',
+      5_000,
+      'preferences did not place focus on its first control'
+    )
+    await theme.sendKeys(Key.chord(Key.SHIFT, Key.TAB))
+    assert.equal(await driver.switchTo().activeElement().getText(), 'Close')
+    await driver.switchTo().activeElement().sendKeys(Key.TAB)
+    assert.equal(
+      await driver.switchTo().activeElement().getAttribute('id'),
+      'theme-preference'
+    )
+    await driver.executeScript(select => {
+      select.value = 'dark'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    }, theme)
+    await driver.wait(
+      async () =>
+        (await driver
+          .findElement(By.css('html'))
+          .getAttribute('data-theme')) === 'dark',
+      5_000,
+      'dark theme preference was not applied'
+    )
+    await driver.executeScript(select => {
+      select.value = 'system'
+      select.dispatchEvent(new Event('change', { bubbles: true }))
+    }, theme)
+    await theme.sendKeys(Key.ESCAPE)
+    await driver.wait(
+      until.stalenessOf(preferences),
+      5_000,
+      'preferences dialog did not close'
+    )
+  })
+})

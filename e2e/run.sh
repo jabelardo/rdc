@@ -45,4 +45,8 @@ if ! kill -0 "${DRIVER_PID}" 2>/dev/null; then
 fi
 
 echo "==> Running the real Tauri WebDriver specs..."
-node --test --test-timeout=30000 e2e/*.test.mjs
+# --test-concurrency=1 is load-bearing, not tidiness. `node --test` runs files in parallel by
+# default; these specs each start their own application through the single `tauri-driver` on
+# port 4444, and restart.test.mjs terminates the app with a process-wide `pkill -x rdc`.
+# Run them in parallel and they destroy each other's sessions.
+node --test --test-concurrency=1 --test-timeout=30000 e2e/*.test.mjs

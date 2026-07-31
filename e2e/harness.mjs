@@ -1,0 +1,536 @@
+// Shared harness for the native WebDriver specs.
+//
+// Split out of the former single `menu.test.mjs` so that each product slice owns an
+// independently runnable spec file. Two consequences worth knowing before editing:
+//
+//   - **Every spec file builds its own fixture and its own application session.** The old
+//     suite ran one app instance and let each test inherit whatever state the previous one
+//     had left behind, so a single early failure erased the signal from everything after it.
+//     Preconditions are now established explicitly, by CLI, in each file's `before`.
+//   - **Spec files must not run concurrently.** `tauri-driver` is a single process on one
+//     fixed port and `stopApplication` is a process-wide `pkill -x rdc`, so two spec files
+//     racing would kill each other's application. `e2e/run.sh` passes
+//     `--test-concurrency=1` for exactly this reason; don't remove it.
+import { execFileSync } from 'node:child_process'
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import path from 'node:path'
+import { Builder, By, Capabilities, until } from 'selenium-webdriver'
+
+export const application = path.resolve('src-tauri/target/debug/rdc')
+
+/**
+ * Runs git and returns stdout with trailing whitespace removed — the common case.
+ *
+ * `trimEnd`, not `trim`: `status --porcelain` encodes staged/unstaged state in two leading
+ * columns, so a plain `trim` would turn ` M file` into `M file` and silently misreport the XY
+ * status to any assertion that looks at it.
+ *
+ * @param {string} repositoryPath a working tree, passed as `-C`
+ * @param {...string} args
+ * @returns {string}
+ */
+export function git(repositoryPath, ...args) {
+  return String(execFileSync('git', ['-C', repositoryPath, ...args])).trimEnd()
+}
+
+/**
+ * As {@link git}, but preserves stdout verbatim. Needed where the assertion is about exact
+ * bytes, e.g. `show HEAD:file` compared against `'committed line\n'`.
+ *
+ * @param {string} repositoryPath
+ * @param {...string} args
+ * @returns {string}
+ */
+export function gitRaw(repositoryPath, ...args) {
+  return String(execFileSync('git', ['-C', repositoryPath, ...args]))
+}
+
+/**
+ * Runs git against a bare repository addressed by `--git-dir`.
+ *
+ * @param {string} gitDir
+ * @param {...string} args
+ * @returns {string}
+ */
+export function gitBare(gitDir, ...args) {
+  return String(execFileSync('git', ['--git-dir', gitDir, ...args])).trim()
+}
+
+/**
+ * Creates the temporary fixture tree. Only `canonical` and `remote` are created on disk;
+ * `publisher` and `clone` are paths for the specs that produce them.
+ *
+ * @returns {{canonical: string, remote: string, publisher: string, clone: string}}
+ */
+export function createFixtureRoot() {
+  const fixtureRoot = mkdtempSync('/tmp/rdc-e2e-repository-')
+  return {
+    root: fixtureRoot,
+    canonical: path.join(fixtureRoot, 'repo'),
+    remote: path.join(fixtureRoot, 'remote.git'),
+    publisher: path.join(fixtureRoot, 'publisher'),
+    clone: path.join(fixtureRoot, 'cloned'),
+  }
+}
+
+/**
+ * Removes a fixture tree. Call from `after`.
+ *
+ * There are now 14 spec files each creating a root, and `run.sh` reuses `/tmp/rdc-e2e-config` and
+ * `/tmp/rdc-e2e-data`, so a container that runs the suite more than once would otherwise
+ * accumulate fixtures — including the thousand-file tree from the large-list spec.
+ *
+ * @param {{root?: string}} fixture
+ */
+export function removeFixtureRoot(fixture) {
+  if (fixture?.root === undefined) {
+    return
+  }
+  rmSync(fixture.root, { recursive: true, force: true })
+}
+
+/**
+ * Initialises the canonical working tree, its bare `origin`, the committer identity and the
+ * `working-tree.txt` fixture content.
+ *
+ * @param {{canonical: string, remote: string}} fixture
+ * @param {{failingPreCommitHook?: boolean}} [options] installs a `pre-commit` hook that exits
+ *   7 with `hook says no` on stderr — the fixture the hook-interception specs assert against.
+ */
+export function initCanonicalRepository(fixture, options = {}) {
+  const { failingPreCommitHook = false } = options
+
+  mkdirSync(fixture.canonical)
+  execFileSync('git', ['init', '--quiet', fixture.canonical])
+  execFileSync('git', ['init', '--bare', '--quiet', fixture.remote])
+  git(fixture.canonical, 'remote', 'add', 'origin', fixture.remote)
+  git(fixture.canonical, 'config', 'user.name', 'rdc E2E')
+  git(fixture.canonical, 'config', 'user.email', 'rdc-e2e@example.invalid')
+  writeFileSync(
+    path.join(fixture.canonical, 'working-tree.txt'),
+    'committed line\nleft for partial discard\n'
+  )
+
+  if (failingPreCommitHook) {
+    const preCommitHook = path.join(
+      fixture.canonical,
+      '.git',
+      'hooks',
+      'pre-commit'
+    )
+    writeFileSync(preCommitHook, "#!/bin/sh\necho 'hook says no' >&2\nexit 7\n")
+    chmodSync(preCommitHook, 0o755)
+  }
+}
+
+/**
+ * Commits `working-tree.txt` holding only `committed line`, reproducing the state the former
+ * suite reached by driving the commit form with the second diff line excluded. Specs that
+ * assert on history, branches or discard need that commit to exist but are not testing how it
+ * was made, so establishing it by CLI keeps each file independent and deterministic.
+ *
+ * @param {{canonical: string}} fixture
+ * @param {string} [message]
+ * @returns {string} the new commit SHA
+ */
+export function commitWorkingTreeBaseline(
+  fixture,
+  message = 'Commit from the real shell'
+) {
+  writeFileSync(
+    path.join(fixture.canonical, 'working-tree.txt'),
+    'committed line\n'
+  )
+  git(fixture.canonical, 'add', 'working-tree.txt')
+  git(fixture.canonical, 'commit', '--quiet', '--no-verify', '-m', message)
+  return git(fixture.canonical, 'rev-parse', 'HEAD')
+}
+
+/**
+ * Initialises a minimal repository with one commit, for specs that need a *second* registered
+ * repository rather than a second working tree to operate on.
+ *
+ * @param {string} repositoryPath
+ */
+export function initSimpleRepository(repositoryPath) {
+  mkdirSync(repositoryPath, { recursive: true })
+  execFileSync('git', ['init', '--quiet', repositoryPath])
+  git(repositoryPath, 'config', 'user.name', 'rdc E2E')
+  git(repositoryPath, 'config', 'user.email', 'rdc-e2e@example.invalid')
+  writeFileSync(path.join(repositoryPath, 'readme.txt'), 'second repository\n')
+  git(repositoryPath, 'add', 'readme.txt')
+  git(
+    repositoryPath,
+    'commit',
+    '--quiet',
+    '--no-verify',
+    '-m',
+    'Initial commit'
+  )
+}
+
+/**
+ * Publishes the current branch to the bare `origin` with an upstream, and points the bare
+ * repository's HEAD at it so it can be cloned.
+ *
+ * @param {{canonical: string, remote: string}} fixture
+ * @returns {string} the published branch name
+ */
+export function publishCanonical(fixture) {
+  const branch = git(fixture.canonical, 'branch', '--show-current')
+  git(
+    fixture.canonical,
+    'push',
+    '--set-upstream',
+    'origin',
+    `${branch}:${branch}`
+  )
+  gitBare(fixture.remote, 'symbolic-ref', 'HEAD', `refs/heads/${branch}`)
+  return branch
+}
+
+/**
+ * Clones the bare remote into the `publisher` path — a second working tree standing in for
+ * "somebody else pushed", so fetch and pull have something real to retrieve.
+ *
+ * @param {{remote: string, publisher: string}} fixture
+ */
+export function createPublisherClone(fixture) {
+  execFileSync('git', ['clone', '--quiet', fixture.remote, fixture.publisher])
+  git(fixture.publisher, 'config', 'user.name', 'rdc Remote E2E')
+  git(
+    fixture.publisher,
+    'config',
+    'user.email',
+    'rdc-remote-e2e@example.invalid'
+  )
+}
+
+/**
+ * Commits a file in the publisher clone and pushes it to `origin`.
+ *
+ * @param {{publisher: string}} fixture
+ * @param {string} branch
+ * @param {string} fileName
+ * @param {string} contents
+ * @param {string} message
+ */
+export function publishCommit(fixture, branch, fileName, contents, message) {
+  writeFileSync(path.join(fixture.publisher, fileName), contents)
+  git(fixture.publisher, 'add', fileName)
+  git(fixture.publisher, 'commit', '--quiet', '-m', message)
+  git(fixture.publisher, 'push', '--quiet', 'origin', branch)
+}
+
+/**
+ * True when the bare remote has the named branch.
+ *
+ * @param {string} gitDir
+ * @param {string} branch
+ */
+export function remoteHasBranch(gitDir, branch) {
+  try {
+    execFileSync(
+      'git',
+      [
+        '--git-dir',
+        gitDir,
+        'show-ref',
+        '--verify',
+        '--quiet',
+        `refs/heads/${branch}`,
+      ],
+      { stdio: 'ignore' }
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The configured upstream of the current branch, or null when it has none.
+ *
+ * @param {string} repositoryPath
+ * @returns {string | null}
+ */
+export function upstreamOf(repositoryPath) {
+  try {
+    return String(
+      execFileSync(
+        'git',
+        [
+          '-C',
+          repositoryPath,
+          'rev-parse',
+          '--abbrev-ref',
+          '--symbolic-full-name',
+          '@{upstream}',
+        ],
+        { stdio: ['ignore', 'pipe', 'ignore'] }
+      )
+    ).trim()
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Starts the packaged debug binary through `tauri-driver` and waits for the shell to render.
+ *
+ * @returns {Promise<import('selenium-webdriver').WebDriver>}
+ */
+export async function startApplication() {
+  const capabilities = new Capabilities()
+  capabilities.setBrowserName('wry')
+  capabilities.set('tauri:options', { application })
+
+  const applicationDriver = await new Builder()
+    .usingServer('http://127.0.0.1:4444/')
+    .withCapabilities(capabilities)
+    .build()
+  await applicationDriver.wait(until.elementLocated(By.css('main h1')), 10_000)
+  return applicationDriver
+}
+
+/** Terminates the application out of band, as a user force-quitting it would. */
+export function stopApplication() {
+  execFileSync('pkill', ['-x', 'rdc'])
+}
+
+/**
+ * @param {import('selenium-webdriver').WebDriver} driver
+ */
+export async function waitForApplicationExit(driver) {
+  await driver.wait(async () => {
+    try {
+      execFileSync('pgrep', ['-x', 'rdc'])
+      return false
+    } catch {
+      return true
+    }
+  }, 5_000)
+}
+
+/**
+ * @param {string} repositoryPath
+ * @param {boolean} [selected] additionally require the row to be the current selection
+ */
+export function repositorySelector(repositoryPath, selected = false) {
+  return By.css(
+    `[data-repository-path="${repositoryPath}"]${
+      selected ? '[aria-current="true"]' : ''
+    }`
+  )
+}
+
+/**
+ * Presses keys through the X server rather than WebDriver, which is the only way to reach the
+ * *native* application menu.
+ *
+ * @param {...string} keys `xdotool key` arguments
+ */
+export function sendNativeKeys(...keys) {
+  execFileSync('xdotool', ['key', '--delay', '150', ...keys])
+}
+
+/**
+ * Writes one repository record into the renderer's IndexedDB, creating the store if the
+ * database does not exist yet.
+ *
+ * @param {import('selenium-webdriver').WebDriver} driver
+ * @param {string} repositoryPath
+ */
+export async function seedRepositoryFixture(driver, repositoryPath) {
+  return driver.executeAsyncScript(
+    (record, done) => {
+      const request = indexedDB.open('rdc-repositories')
+      request.onerror = () => done({ error: String(request.error) })
+      request.onupgradeneeded = () => {
+        const store = request.result.createObjectStore('repositories', {
+          keyPath: 'id',
+          autoIncrement: true,
+        })
+        store.createIndex('path', 'path', { unique: true })
+      }
+      request.onsuccess = () => {
+        const transaction = request.result.transaction(
+          'repositories',
+          'readwrite'
+        )
+        transaction.objectStore('repositories').put(record)
+        transaction.onerror = () => done({ error: String(transaction.error) })
+        transaction.oncomplete = () => {
+          const countRequest = request.result
+            .transaction('repositories')
+            .objectStore('repositories')
+            .count()
+          countRequest.onerror = () =>
+            done({ error: String(countRequest.error) })
+          countRequest.onsuccess = () => {
+            request.result.close()
+            done({ count: countRequest.result })
+          }
+        }
+      }
+    },
+    {
+      path: repositoryPath,
+      gitDir: path.join(repositoryPath, '.git'),
+      missing: false,
+      alias: null,
+      groupName: null,
+      defaultBranch: null,
+    }
+  )
+}
+
+/**
+ * Empties the renderer's repository store.
+ *
+ * Load-bearing for spec independence: the container sets one `XDG_DATA_HOME` for the whole
+ * run and `tauri-driver` — not the test process — launches the application, so the webview's
+ * IndexedDB survives every restart and is shared by all spec files. Without this, a file's
+ * assertions depend on how many repositories earlier files happened to register (measured: a
+ * spec expecting 1 record saw 264, and another lost its own row because the repository list
+ * virtualizes above 100 items and windowed it out of the DOM).
+ *
+ * @param {import('selenium-webdriver').WebDriver} driver
+ */
+export async function resetRepositoryFixtures(driver) {
+  return driver.executeAsyncScript(done => {
+    const request = indexedDB.open('rdc-repositories')
+    request.onerror = () => done({ error: String(request.error) })
+    request.onupgradeneeded = () => {
+      // A fresh database — create the store so the clear below has a target.
+      const store = request.result.createObjectStore('repositories', {
+        keyPath: 'id',
+        autoIncrement: true,
+      })
+      store.createIndex('path', 'path', { unique: true })
+    }
+    request.onsuccess = () => {
+      const database = request.result
+      if (!database.objectStoreNames.contains('repositories')) {
+        database.close()
+        done({ cleared: true })
+        return
+      }
+      const transaction = database.transaction('repositories', 'readwrite')
+      transaction.objectStore('repositories').clear()
+      transaction.onerror = () => done({ error: String(transaction.error) })
+      transaction.oncomplete = () => {
+        database.close()
+        done({ cleared: true })
+      }
+    }
+  })
+}
+
+/**
+ * @param {import('selenium-webdriver').WebDriver} driver
+ */
+export async function readRepositoryFixtures(driver) {
+  return driver.executeAsyncScript(done => {
+    const request = indexedDB.open('rdc-repositories')
+    request.onerror = () => done([])
+    request.onsuccess = () => {
+      const records = request.result
+        .transaction('repositories')
+        .objectStore('repositories')
+        .getAll()
+      records.onerror = () => done([])
+      records.onsuccess = () => {
+        request.result.close()
+        done(records.result)
+      }
+    }
+  })
+}
+
+/**
+ * Seeds `count` absent repository records, to exercise the repository list at a size the
+ * virtualized adapter has to window.
+ *
+ * @param {import('selenium-webdriver').WebDriver} driver
+ * @param {number} count
+ */
+export async function seedRepositoryScaleFixture(driver, count) {
+  const records = Array.from({ length: count }, (_, index) => {
+    const repositoryPath = `/tmp/rdc-scale-repository-${String(index).padStart(
+      4,
+      '0'
+    )}`
+    return {
+      path: repositoryPath,
+      gitDir: path.join(repositoryPath, '.git'),
+      missing: true,
+      alias: null,
+      groupName: null,
+      defaultBranch: null,
+    }
+  })
+  return driver.executeAsyncScript((fixtures, done) => {
+    const request = indexedDB.open('rdc-repositories')
+    request.onerror = () => done({ error: String(request.error) })
+    request.onsuccess = () => {
+      const transaction = request.result.transaction(
+        'repositories',
+        'readwrite'
+      )
+      const store = transaction.objectStore('repositories')
+      for (const fixture of fixtures) {
+        store.put(fixture)
+      }
+      transaction.onerror = () => done({ error: String(transaction.error) })
+      transaction.oncomplete = () => {
+        request.result.close()
+        done({ count: fixtures.length })
+      }
+    }
+  }, records)
+}
+
+/**
+ * Seeds one repository, reloads so the store picks it up, and waits for its row. A lone
+ * repository is selected on load, so single-repository specs need nothing further.
+ *
+ * @param {import('selenium-webdriver').WebDriver} driver
+ * @param {string} repositoryPath
+ */
+export async function openSeededRepository(driver, repositoryPath) {
+  await resetRepositoryFixtures(driver)
+  await seedRepositoryFixture(driver, repositoryPath)
+  await driver.navigate().refresh()
+  await driver.wait(
+    until.elementLocated(repositorySelector(repositoryPath)),
+    5_000
+  )
+}
+
+/**
+ * Selects a repository row and waits for it to become the current selection. Needed where
+ * more than one repository is registered, since the selection then decides which repository
+ * the workspace is showing.
+ *
+ * @param {import('selenium-webdriver').WebDriver} driver
+ * @param {string} repositoryPath
+ */
+export async function selectRepository(driver, repositoryPath) {
+  const row = await driver.wait(
+    until.elementLocated(repositorySelector(repositoryPath)),
+    5_000
+  )
+  await driver.executeScript(element => element.click(), row)
+  await driver.wait(
+    until.elementLocated(repositorySelector(repositoryPath, true)),
+    5_000,
+    `repository ${repositoryPath} did not become the current selection`
+  )
+}
