@@ -3215,6 +3215,11 @@ expected to reveal defects and require fixes**, not a one-shot approval ceremony
 
 The human checks cover:
 
+- Begin with a blocking baseline-shell pass in one populated, normal-size Light-theme window. Settle
+  the relationship and proportions of native/title-bar space, general sidebar, repository identity
+  and actions, Changes/History navigation and the active workspace before reviewing themes or
+  platform workflows. `qa/phase-8b/baseline-layout-checklist.md` owns the gate; cycle one recorded the
+  existing top-level composition as an MVP blocker rather than allowing later polish to build on it.
 - Refine hierarchy, proportions, density, alignment, labels, sidebar disclosure, toolbar grouping,
   empty/loading/error states, diff readability and commit/history details on macOS and real Wayland
   Linux at normal and compact sizes in Light, Dark and System themes. Validate against Desktop Plus's

@@ -21,14 +21,17 @@ agreed MVP blocker.
 
 ## Cycle
 
-1. Complete the visual matrix and the platform checklist against development builds.
-2. Record every issue with reproduction steps and evidence. Classify it as MVP-blocking, accepted
+1. Complete `baseline-layout-checklist.md` first. Do not spend the rest of the visual or platform
+   checklist budget on a shell whose top-level hierarchy is still expected to change.
+2. Once that gate passes, complete the visual matrix and the platform checklist against development
+   builds.
+3. Record every issue with reproduction steps and evidence. Classify it as MVP-blocking, accepted
    non-blocking, or deferred with a named owner.
-3. Implement agreed fixes and add automated regression coverage wherever human judgment is not
+4. Implement agreed fixes and add automated regression coverage wherever human judgment is not
    essential.
-4. Rerun the complete Phase 8a gate, refresh both development builds and repeat affected human checks.
-5. Repeat until no agreed MVP blocker remains.
-6. Settle the final icon and bundle identifier, package once, then run `final-package-smoke.md`.
+5. Rerun the complete Phase 8a gate, refresh both development builds and repeat affected human checks.
+6. Repeat until no agreed MVP blocker remains.
+7. Settle the final icon and bundle identifier, package once, then run `final-package-smoke.md`.
    Packaging-only defects return through the same fix, Phase 8a, repackage and focused recheck loop.
 
 ## Immediate cycle-one order
@@ -38,15 +41,18 @@ Linux machine/session:
 
 1. Create the fixture and evidence record, then launch the macOS development build from the exact
    green commit recorded in that evidence.
-2. Complete `macos-checklist.md` and the macOS rows of `visual-matrix.md`. Start with normal/Light and
-   the populated fixture to expose layout and workflow blockers quickly, then cover compact,
-   Dark/System, empty state, keyboard, increased contrast and Reduce Motion.
-3. Classify and fix macOS findings. Any code change invalidates the recorded green prerequisite:
+2. Complete `baseline-layout-checklist.md` using normal/Light and the populated fixture. Treat its
+   gate as blocking: settle the shell hierarchy and proportions before reviewing individual visual
+   elements or exercising workflows.
+3. Once the baseline gate passes, complete `macos-checklist.md` and the macOS rows of
+   `visual-matrix.md`, then cover compact, Dark/System, empty state, keyboard, increased contrast and
+   Reduce Motion.
+4. Classify and fix macOS findings. Any code change invalidates the recorded green prerequisite:
    rerun all of Phase 8a and repeat every affected macOS check before moving on.
-4. On a real Ubuntu 26.04 Wayland session, use the same fixture topology and complete
+5. On a real Ubuntu 26.04 Wayland session, use the same fixture topology and complete
    `linux-wayland-checklist.md` plus the Linux visual rows. Xvfb E2E remains a prerequisite, never a
    substitute.
-5. Repeat the fix/regression/recheck loop across both platforms until neither has an agreed MVP
+6. Repeat the fix/regression/recheck loop across both platforms until neither has an agreed MVP
    blocker. Only then choose final identity/icon values and enter `final-package-smoke.md`.
 
 Do not wait for the Linux session before starting macOS evidence, and do not interpret a clean macOS
