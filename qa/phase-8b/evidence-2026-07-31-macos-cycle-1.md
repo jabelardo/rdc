@@ -41,7 +41,9 @@ recorded in `REMAINING.md` and the E2E harness documentation.
 - Left-pane design foundation: accepted as the macOS baseline —
   `selected-repository-baseline-checklist.md` Gate B; accepted after four assisted visual iterations
   on 2026-07-31. Linux and Windows revalidation remain open in their own QA.
-- Changes/History workspace foundation: pending — `selected-repository-baseline-checklist.md` Gate C
+- Changes workspace foundation: pending — `selected-repository-baseline-checklist.md` Gate C
+- History workspace foundation and cross-frame stability: pending —
+  `selected-repository-baseline-checklist.md` Gate D
 - Visual matrix: pending — macOS normal and compact rows in `visual-matrix.md`
 - Platform checklist: pending — `macos-checklist.md`
 - Final package smoke: not started; packaging is deliberately last

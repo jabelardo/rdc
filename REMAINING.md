@@ -45,10 +45,10 @@ affected human check. Package **last**, only once no agreed blocker remains.
 
 Cycle one now has two explicit foundation levels. The shell/empty-state gate in
 `qa/phase-8b/baseline-layout-checklist.md` was accepted on macOS on 2026-07-31 after three annotated
-refinement rounds. Gate A established the macOS repository toolbar baseline on 2026-07-31. **Next:**
-with the populated `primary` fixture, complete Gate B then Gate C in
-`qa/phase-8b/selected-repository-baseline-checklist.md` to settle the expanded left pane, then the
-Changes/History frame. Only after all three pass should macOS enter the
+refinement rounds. Gates A and B established the macOS repository toolbar and left-pane baselines on
+2026-07-31. **Next:** with the populated `primary` fixture, complete Gate C then Gate D in
+`qa/phase-8b/selected-repository-baseline-checklist.md` to settle the Changes and History frames
+independently. Only after all four gates pass should macOS enter the
 visual matrix and functional checklist. Linux repeats all foundation gates in real-Wayland QA; the
 macOS result is a reference, not transferable evidence. Windows repeats them in Phase 10.
 

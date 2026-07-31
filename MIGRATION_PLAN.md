@@ -3219,7 +3219,8 @@ The human checks cover:
   chrome, general sidebar and repository-entry actions in the clean shell through
   `qa/phase-8b/baseline-layout-checklist.md`. Then select the populated fixture and complete Gate A
   (repository/branch context, toolbar and Changes/History navigation), Gate B (expanded left-pane
-  design), then Gate C (Changes and History workspace frame) in
+  design), Gate C (Changes workspace frame), then Gate D (History workspace frame and cross-frame
+  stability) in
   `qa/phase-8b/selected-repository-baseline-checklist.md`. Cycle one
   accepted the macOS shell/empty-state level on 2026-07-31; it deliberately did not transfer
   acceptance to the selected-repository level or another OS.

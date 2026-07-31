@@ -1,6 +1,6 @@
 # Selected-repository foundation gate
 
-Enter only after `baseline-layout-checklist.md` passes on the platform being tested. Complete all three
+Enter only after `baseline-layout-checklist.md` passes on the platform being tested. Complete all four
 gates below before the visual matrix or functional workflow QA. Their question is structural: does a
 populated repository produce a stable application frame whose controls can be tested without an
 expected redesign moving or regrouping them?
@@ -98,7 +98,7 @@ Accepted as the macOS baseline by Jose Gutierrez on 2026-07-31 after four assist
 iterations. Linux and Windows must repeat Gate B independently; the data-backed accordion and
 grouping semantics are shared, but this approval does not prescribe platform-specific rendering.
 
-## Gate C — Changes and History workspace frame
+## Gate C — Changes workspace frame
 
 - Set intentional proportions for the changed-file list, selected diff and commit area. The diff is
   the primary reading surface; navigation and commit controls support rather than crowd it.
@@ -108,23 +108,46 @@ grouping semantics are shared, but this approval does not prescribe platform-spe
   change the outer geometry unexpectedly.
 - Place merge-conflict status so it is visible without introducing an accidental extra grid row or
   pushing the primary workspace unpredictably.
-- Set intentional History list/details proportions. Commit metadata, changed files and selected diff
-  must have a stable reading order and useful truncation.
-- Switch Changes → History → Changes. The toolbar, navigation, workspace top edge and repository
-  context remain fixed even though the internal pane layouts differ.
-- At compact width, define one deliberate stacking order for Changes and one for History. Avoid
-  nested page scrolling, unreachable controls and oversized fixed-height gutters.
+- Leave and re-enter Changes without moving its outer top edge, changing its pane proportions or
+  losing a still-valid file selection.
+- At compact width, define one deliberate Changes stacking order. Avoid nested page scrolling,
+  unreachable commit controls and oversized fixed-height gutters.
 
 Gate C passes only when:
 
 - [ ] Changes has deliberate file/diff/commit proportions and clear scroll ownership.
-- [ ] History has deliberate list/details proportions and a coherent reading order.
 - [ ] Merge-conflict, empty-selection, long-content and commit-form states preserve the outer frame.
-- [ ] Switching Changes/History preserves repository context, navigation and workspace geometry.
-- [ ] Normal/default/compact layouts remain usable with the sidebar expanded and collapsed.
+- [ ] Re-entering Changes preserves its geometry and every still-valid selection.
+- [ ] Normal/default/compact Changes layouts remain usable with the sidebar expanded and collapsed.
+
+## Gate D — History workspace frame
+
+- Set intentional proportions for the commit list and commit details. History navigation must remain
+  scannable while leaving the selected commit enough room to be understood.
+- Establish a stable reading order for commit metadata, changed files and selected diff. Their visual
+  hierarchy must not depend on a particular commit having a short summary or few files.
+- Establish scroll ownership and minimum useful pane sizes independently from Changes. Scrolling a
+  long commit list, long metadata or a long diff must not remove repository context, primary
+  navigation or the window drag region.
+- Verify empty history, no selected commit, long summaries, long author/ref metadata, many changed
+  files and a representative text diff without changing the outer geometry unexpectedly.
+- At compact width, define one deliberate History stacking order. Avoid nested page scrolling,
+  unreachable commit/file navigation and oversized fixed-height gutters.
+- Switch Changes → History → Changes → History after both frames are individually stable. The
+  toolbar, navigation, workspace top edge and repository context remain fixed even though the two
+  internal layouts differ; each frame restores every still-valid local selection.
+
+Gate D passes only when:
+
+- [ ] History has deliberate list/details proportions and clear scroll ownership.
+- [ ] Commit metadata, changed files and selected diff have a coherent reading order and truncation.
+- [ ] Empty, unselected, long-content and many-file states preserve the outer frame.
+- [ ] Switching Changes/History preserves repository context, navigation, workspace geometry and
+      still-valid per-frame selections.
+- [ ] Normal/default/compact History layouts remain usable with the sidebar expanded and collapsed.
 
 ## Platform ownership
 
-Passing all three gates establishes the selected-repository foundation only for the OS recorded in the
+Passing all four gates establishes the selected-repository foundation only for the OS recorded in the
 evidence. macOS, native-Wayland Linux and Phase 10 Windows each run it independently and record any
 necessary native variation explicitly.
