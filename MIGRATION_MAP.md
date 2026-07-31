@@ -243,7 +243,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/ipc-shared.ts` | `rdc/MIGRATION_MAP.md` §7 channel table; hand-written `src/lib/*-ipc.ts` wrappers over native `invoke` (**no** codegen — see §8) | 3 |
 | `lib/app-shell.ts` | facade over `src/lib/platform/files.ts`, `system.ts`, recoverable trash and repository-scoped permanent-delete commands | **Phase 4 mechanism complete; Phase 7b discard facade complete** with a path-validated Rust replacement for Node `fs.rm`; Phase 10 validates Windows opener/Recycle Bin/beep behavior |
 | `lib/stores/app-store.ts` | `rdc/src/lib/stores/app-store.ts` | **Phase 7a MVP implementation complete:** durable repository ownership, selected-ID restoration, native per-window metadata and repository-derived menu updates are live; macOS acceptance remains pending, and later slices extend this store rather than replace it | **7a MVP implementation complete / macOS acceptance pending** |
-| `lib/stores/app-store.ts` preference fields + `ui/preferences/{appearance,integrations,prompts}.tsx` MVP subset | `rdc/src/lib/stores/preferences-store.ts` + the focused Preferences surface in `src/App.tsx` | **Phase 7e MVP subset complete:** validated/versioned renderer persistence; Light/Dark/System native + document application; upstream-safe repository-removal, recoverable-discard and permanent-discard confirmation defaults; installed editor/shell discovery, stable-identifier fallback, dynamic menu labels and preferred launch actions. Machine paths are rediscovered rather than persisted. Custom integrations and advanced preferences remain 7f. | **7e preferences complete** |
+| `lib/stores/app-store.ts` preference fields + `ui/preferences/{appearance,integrations,prompts}.tsx` MVP subset | `rdc/src/lib/stores/preferences-store.ts` + the focused Preferences surface in `src/lib/ui/app/app-dialogs.tsx` | **Phase 7e MVP subset complete:** validated/versioned renderer persistence; Light/Dark/System native + document application; upstream-safe repository-removal, recoverable-discard and permanent-discard confirmation defaults; installed editor/shell discovery, stable-identifier fallback, dynamic menu labels and preferred launch actions. Machine paths are rediscovered rather than persisted. Custom integrations and advanced preferences remain 7f. | **7e preferences complete** |
 | `lib/stores/repositories-store.ts` + `lib/databases/repositories-database.ts` | same paths in `rdc/src/lib/**` | **Phase 7a local subset complete:** add/get/deduplicate/remove and local repository fields; GitHub association and its schema migrations remain with the post-MVP account consumer | **7a local complete / 7f accounts** |
 | `lib/stores/git-store.ts` | incremental state slices under `rdc/src/lib/stores/`; **Phase 7b MVP working tree, whole-file and partial-line inclusion, partial commit, recoverable whole-file discard with explicit permanent retry, partial-line discard, selected-file diff, minimum commit form, bounded/replaying commit-terminal history and hook-failure Abort/Ignore are live** in `working-tree-store.ts` plus `discard-changes.ts`. Partial discard snapshots the exact displayed diff and selected indices before confirmation, so a concurrent status refresh cannot change the action while the user decides. **Phase 7c MVP is live** across three focused stores: `history-store.ts` owns the first 100 hydrated `HEAD` commits, stable selection, hydrated selected-commit changesets, changed-file selection and read-only first-parent/root-commit diffs; `branch-store.ts` owns hydrated local/remote listing, explicit current-branch state, create-from-HEAD plus checkout, local checkout progress and post-checkout fact refresh; `conflict-store.ts` owns merge visibility and safe staging only after Git reports a marker-free external-editor resolution. **Phase 7d MVP is live** across `remote-store.ts` and `clone-store.ts`: tracked/default-remote choice, serialized fetch/push/pull, aggregate progress, first-publish upstream setup, post-operation fetch, best-effort inactive-branch fast-forward, actionable transport/non-fast-forward/merge errors and stale-operation rejection, plus generic URL/path clone followed by durable repository registration and selection. Failed pulls still refresh conflict and working-tree state. Each focused store converts raw Git facts into view state rather than expanding the IPC contract. Remote checkout naming and advanced history/conflict/account operations remain post-MVP. | **7b / 7c / 7d MVP complete** |
 | `lib/stores/helpers/create-tutorial-repository.ts` | `rdc/src/lib/stores/helpers/create-tutorial-repository.ts` | same | 7 |
@@ -380,13 +380,18 @@ All directories below map 1:1 to `rdc/src/ui/<same>/`, same filenames. Not re-li
 row since the mapping is mechanical; flagging only what's non-mechanical:
 
 - `ui/dispatcher/` (3 files) + `app/src/lib/stores/**` — the seam. Keep the shape (Phase 7).
-- The Phase 7a shell now lives in `src/App.tsx`: repository sidebar, selected-repository workspace,
-  add/select/remove, accessible contextual actions and open-in-new-window routing are implemented.
+- The Phase 7a–7e shell now has a component-owned boundary under `src/lib/ui/app/`: the controller
+  hook owns orchestration; `app-shell.tsx` composes focused repository sidebar/toolbar, Changes,
+  History, conflict, dialog and window-drag components; and `src/App.tsx` is a nine-line entry point.
+  Repository add/select/remove, accessible contextual actions and open-in-new-window routing are
+  implemented.
   Phase 7d now adds generic Clone plus remote discovery, user-initiated Fetch, normal Push and
   tracked-branch Pull, shared progress and actionable errors through `CloneStore` and `RemoteStore`;
   Phase 7e adds the focused MVP Preferences surface, explicit theme application, destructive-action
   confirmation policy and preferred editor/shell launches through `PreferencesStore`. The remaining
-  feature-specific component tree stays a component-by-component Phase 7e–7f port.
+  feature-specific component tree stays a component-by-component Phase 7f port. Build-time Tailwind
+  owns component-local layout primitives, while `App.css` deliberately retains the shared Phase 7e
+  tokens, state selectors, platform behavior and cross-component responsive relationships.
 - `ui/lib/` (104 files) — shared UI helpers/components (list virtualization, filter-list,
   dialog helpers, etc.). Phase 7e's MVP shell now owns focused replacements in
   `src/lib/ui/modal.tsx` and `list-navigation.ts`; they provide common focus trapping/restoration and
@@ -861,12 +866,11 @@ The revised plan preserves the phase numbers but splits them by consumer:
   checklists are ready under `qa/phase-8b/`. No final package was produced. Phase 8b is the one
   human-assisted pre-MVP phase: an iterative visual and platform-QA cycle expected to reveal defects,
   require fixes and send each fix back through 8a.
-- **Phase 8a follow-up reopened (2026-07-31):** before starting that human cycle, formatter/linter
-  enforcement and a Tailwind/component-architecture pass became explicit MVP requirements. Node and
-  browser-boundary guards, independent E2E suites and portable Windows seams landed with the tooling
-  work; the coordinated Tailwind + `App.tsx` decomposition remains. This does not rewrite the July 30
-  evidence—it records that a later scope decision invalidated “8b is next” until the full gate runs
-  again after the new UI architecture.
+- **Phase 8a pre-QA follow-up complete (2026-07-31):** formatter/linter enforcement, mechanical Node
+  and browser-boundary guards, independent E2E suites and portable Windows seams now precede QA.
+  Build-time Tailwind and the component-owned shell replace the former 2,166-line `App.tsx` without
+  changing the Phase 7e visual contract. The refreshed frontend/Rust/Windows/Linux-WebKit/audit gate
+  and macOS no-bundle build are green, so 8a is closed again and 8b is next.
 - Local macOS/Linux packages are produced only after the 8b development-build QA loop settles, then
   receive a focused installed-artifact pass. Signing, notarization, updater, deep links and the
   standalone CLI remain the Phase 9 public-release track.

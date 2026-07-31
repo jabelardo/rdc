@@ -80,6 +80,20 @@ ported-code findings, obscuring the defects the gate is meant to expose. Type-aw
 also require the separate experimental `oxlint-tsgolint` package. Re-evaluate those as focused
 slices; don't quietly add a noisy non-blocking lint job.
 
+### Frontend shell and styling boundary
+
+`src/App.tsx` is intentionally only the application entry point. State/effect orchestration lives
+in `src/lib/ui/app/use-app-controller.ts`; `app-shell.tsx` composes focused sidebar, toolbar,
+Changes, History, conflict, dialog and window-drag components beside it. Extend the owning component
+instead of rebuilding a monolithic shell in `App.tsx`.
+
+Tailwind 4 runs through the Vite plugin at build time—there is no runtime JIT and therefore no new
+script-evaluation CSP requirement. Extracted components own their local layout primitives with
+Tailwind utility classes. `src/App.css` remains deliberate: it owns the shared visual tokens,
+platform behavior such as the draggable title bar, semantic/state selectors and responsive rules
+that coordinate multiple components. Keep that division; do not translate state or platform rules
+into unreadable conditional class strings merely to reduce the stylesheet's line count.
+
 ### Windows portability, without a Windows runner
 
 There is deliberately **no `windows-latest` job**. The app crate cannot compile on Windows until

@@ -13,34 +13,27 @@ commit history already record what happened.
 
 ## Where the MVP stands
 
-Phases 0–4, 5a, 6a and 7a–7e are closed. Phase 8a first closed on 2026-07-30, but the automated
-frontier was deliberately reopened when formatter/linter enforcement and a Tailwind/component
-architecture pass became pre-QA requirements. **The next work is autonomous; Phase 8b remains the
-only human-blocked phase, but it must not start until the reopened 8a work closes again.**
+Phases 0–4, 5a, 6a, 7a–7e and 8a are closed. Phase 8a first closed on 2026-07-30 and closed again
+after its 2026-07-31 pre-QA follow-up added mechanical Node/bundle/format/lint/Windows-portability
+guards, independent E2E suites, Tailwind and a component-owned application shell. **Phase 8b is now
+the next MVP phase and the only human-blocked phase.**
 
 | Gate | State |
 |---|---|
 | `pnpm test` (Vitest) | 939 passing |
 | `pnpm exec tsc --noEmit` | clean |
 | `pnpm format:check` / `pnpm lint` | clean |
+| `pnpm build` / `pnpm check:bundle-boundary` | clean; 108 browser-reachable modules, no Node built-ins |
 | `cargo test --workspace` | 1,179 passing |
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --check` | clean |
+| Windows `git-ops --all-targets` compile guard | clean |
 | `pnpm test:e2e` (Linux container) | 22 tests / 14 suites passing |
 | `pnpm qualify:phase8a` | green, `"errors": []` |
 
 ---
 
-## Next autonomous work — close Phase 8a again
-
-Complete the engineering items below, rerun every gate in the table, refresh the development builds
-and update the recorded evidence. Tailwind migration and `App.tsx` decomposition are one coordinated
-UI-architecture slice: splitting or restyling the monolith independently would churn the same view
-and tests twice.
-
-After that, the next phase is Phase 8b.
-
-## Then: Phase 8b — human-assisted QA and refinement
+## Next: Phase 8b — human-assisted QA and refinement
 
 An **iterative QA/fix cycle**, not an approval ceremony. Full description at
 `MIGRATION_PLAN.md` §"Phase 8b"; prepared fixtures and checklists in `qa/phase-8b/`.
@@ -64,31 +57,7 @@ items, unchanged; do not restate them here, satisfy them there.
 
 ## Open engineering items
 
-Ordered by cost.
-
-**Sequencing matters here.** Items 1 and 2 rewrite the same components, so doing them in
-one pass is much cheaper than in sequence: decompose `App.tsx` into components and style those
-components with Tailwind together, rather than migrating a 2,166-line monolith to Tailwind and then
-splitting it up. Both should precede the Phase 8b visual QA cycle — findings recorded against
-a UI that is about to be restructured would have to be re-verified afterwards.
-
-1. **Adopt Tailwind CSS and migrate the current UI.** Today styling is `src/App.css` plus the
-   Phase 7e design tokens. Note two existing constraints: Phase 5a's production CSP allows
-   `style-src 'unsafe-inline'` but no script eval, so a build-time Tailwind is fine while any
-   runtime JIT is not; and `e2e/visual.test.mjs` asserts computed values (`13px` root font size,
-   toolbar background differing from canvas, single-column grids at the compact breakpoint), so the
-   token layer has to survive the migration or that spec must move with it.
-2. **Decompose `src/App.tsx`.** 2,166 lines in a single component: 22 `useState`, 14 `useEffect`,
-   zero `useCallback`/`useMemo`. The store layer beneath it is well factored and independently
-   tested, so the logic is not trapped — the view is. Two consequences: every store update
-   re-renders the whole workspace including the virtualized lists, and with no memoized callbacks
-   each row gets fresh props, which is the cost `@tanstack/react-virtual` was added to avoid; and
-   Phase 7f is written as "port components one by one", which presumes a component tree to port
-   *into*. Suggested target: `App.tsx` becomes a composition root under ~200 lines, one component
-   per sidebar/workspace region, stores consumed via `useSyncExternalStore`. `App.test.tsx` (1,778
-   lines) is coupled to the monolith and will need to move with it — budget for that, it is the
-   larger half of the work. Pair this with item 1 rather than doing either alone.
-3. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
+1. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
    seams themselves are done (`AGENTS.md` rule 11): `rdc-printenvz`'s two arms now share a
    signature, `cli_installer`'s symlink is behind a per-OS `link` module with both arms real, and
    `custom_integration`'s unix code is in a gated inner module. What is left is a genuine Phase 10

@@ -3168,15 +3168,28 @@ deferred to human QA.
 Phase 8b is therefore the next MVP phase. Its visual and native-platform judgments remain
 deliberately human-assisted, and every resulting fix returns through the complete Phase 8a gate.
 
-**Phase 8a reopened before QA (2026-07-31):** the completed result above remains the historical
-qualification point, but new pre-QA requirements changed the code after it and made “8b is next”
-temporarily stale. The autonomous follow-up first made the Node 24 requirement mechanical, split the
-order-dependent E2E monolith into 14 independently prepared suites, added the browser bundle-boundary
-guard, isolated Windows compilation seams, and adopted blocking oxfmt/Oxlint checks. The remaining
-follow-up is one coordinated Tailwind/component-architecture slice: decompose the 2,166-line
-`App.tsx` while migrating its current UI, preserving the Phase 7e token and computed-style contract.
-Phase 8a closes again only after that slice passes the complete gate and refreshes the development
-build evidence; only then does Phase 8b begin.
+**Phase 8a pre-QA follow-up complete (2026-07-31):** the completed result above remains the first
+historical qualification point. A later scope decision deliberately reopened 8a, made the Node 24
+requirement mechanical, split the order-dependent E2E monolith into 14 independently prepared
+suites, added the browser bundle-boundary guard, isolated Windows compilation seams, and adopted
+blocking oxfmt/Oxlint checks. The coordinated UI slice then added build-time Tailwind and replaced
+the 2,166-line application component with a nine-line entry point, an orchestration hook and focused
+sidebar, toolbar, Changes, History, conflict, dialog and window-drag components under
+`src/lib/ui/app/`. Component-local layout now uses Tailwind while `App.css` retains the shared
+tokens, state selectors, platform behavior and cross-component responsive rules.
+
+The forecast that `App.test.tsx` would have to be rewritten with the monolith was wrong: its 32
+tests interact through rendered behavior and mocked platform/store boundaries, so all passed
+unchanged after the component extraction. It remains the intentionally broad shell-integration
+contract; splitting it merely to mirror production filenames would add duplicate mock setup without
+improving isolation. Focused component tests can be added where a component develops behavior that
+is not already clearer at that boundary.
+
+The refreshed complete gate is green: 939 Vitest and 1,179 Rust tests, TypeScript, oxfmt, Oxlint,
+Clippy, rustfmt, isolated-crate and Windows `git-ops --all-targets` compilation, the 22-test/14-suite
+Linux WebKit journey (including its computed visual contract), browser-boundary and packaging-input
+audits. Fresh no-bundle development builds succeeded on macOS and in the Linux journey; no final
+package was produced. Phase 8a is closed again and Phase 8b is next.
 
 #### Phase 8b — human-assisted QA and refinement
 

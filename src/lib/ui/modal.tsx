@@ -57,7 +57,7 @@ export function Modal({
   }, [])
 
   return (
-    <div className="dialog-backdrop">
+    <div className="dialog-backdrop fixed inset-0 z-10 grid place-items-center bg-[rgb(0_0_0/42%)]">
       <section
         ref={dialog}
         className={className}

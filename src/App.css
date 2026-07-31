@@ -1,3 +1,11 @@
+@import 'tailwindcss';
+
+/*
+ * Extracted components use Tailwind for local layout primitives. This stylesheet keeps the
+ * shared visual system, platform behavior, state selectors, and responsive relationships that
+ * span component boundaries.
+ */
+
 :root {
   --color-canvas: #f5f7fa;
   --color-surface: #ffffff;
@@ -87,8 +95,6 @@ button:disabled {
 }
 
 .application-shell {
-  height: 100vh;
-  display: grid;
   grid-template-columns: minmax(15rem, 21rem) 1fr;
 }
 
@@ -101,23 +107,7 @@ button:disabled {
 }
 
 .window-drag-region {
-  position: sticky;
-  z-index: 9;
-  top: 0;
-  grid-column: 1 / -1;
-  min-width: 0;
-  background: var(--color-surface-subtle);
   -webkit-app-region: drag;
-  user-select: none;
-}
-
-.repository-sidebar {
-  box-sizing: border-box;
-  min-width: 0;
-  padding: 1rem;
-  overflow: auto;
-  border-right: 1px solid var(--color-border);
-  background: var(--color-surface-subtle);
 }
 
 .repository-sidebar-collapsed {
@@ -138,21 +128,7 @@ button:disabled {
 }
 
 .repository-shell-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
   margin-bottom: 1rem;
-}
-
-.sidebar-panels {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.sidebar-panel {
-  min-width: 0;
-  border-top: 1px solid var(--color-border);
 }
 
 .sidebar-panel h2 {
@@ -245,27 +221,8 @@ button:disabled {
   font-size: 0.85rem;
 }
 
-.repository-workspace {
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.repository-empty-state {
-  max-width: 32rem;
-  margin: 15vh auto 0;
-  padding: 2rem;
-  text-align: center;
-}
-
 .selected-repository {
-  position: relative;
-  display: grid;
-  height: 100%;
   grid-template-rows: auto auto minmax(0, 1fr);
-  min-width: 0;
-  min-height: 0;
-  text-align: left;
 }
 
 .repository-empty-state h2,
@@ -274,18 +231,7 @@ button:disabled {
 }
 
 .repository-toolbar {
-  display: grid;
   grid-template-columns: minmax(12rem, 1fr) auto minmax(20rem, auto);
-  align-items: center;
-  gap: 0.75rem 1rem;
-  padding: 0.65rem 1rem;
-  border-bottom: 1px solid var(--color-toolbar-border);
-  color: var(--color-toolbar-text);
-  background: var(--color-toolbar);
-}
-
-.repository-toolbar-identity {
-  min-width: 0;
 }
 
 .repository-toolbar-identity h2,
@@ -294,12 +240,6 @@ button:disabled {
   margin: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.repository-toolbar-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
 }
 
 .repository-toolbar-actions button {
@@ -369,11 +309,7 @@ button:disabled {
 }
 
 .remote-controls {
-  display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.5rem 1rem;
-  min-width: 0;
   text-align: left;
 }
 
@@ -386,11 +322,6 @@ button:disabled {
   overflow-wrap: anywhere;
   color: var(--color-toolbar-muted);
   font-size: 0.85rem;
-}
-
-.remote-actions {
-  display: flex;
-  gap: 0.5rem;
 }
 
 .remote-actions button {
@@ -431,27 +362,8 @@ button:disabled {
   font: inherit;
 }
 
-.clone-path {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.5rem;
-}
-
-.clone-progress {
-  display: grid;
-  gap: 0.35rem;
-}
-
 .clone-progress progress {
   width: 100%;
-}
-
-.repository-view-navigation {
-  display: flex;
-  gap: 0.5rem;
-  padding: 0.45rem 1rem;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-canvas);
 }
 
 .repository-view-navigation button {
@@ -467,27 +379,6 @@ button:disabled {
   background: var(--color-accent-soft);
 }
 
-.merge-conflicts {
-  position: absolute;
-  z-index: 2;
-  top: 8rem;
-  right: 1rem;
-  left: 1rem;
-  padding: 1rem;
-  border: 1px solid var(--color-warning-border);
-  border-radius: var(--radius-medium);
-  background: var(--color-warning-surface);
-  box-shadow: 0 0.5rem 1.5rem rgb(23 32 51 / 15%);
-  text-align: left;
-}
-
-.merge-conflicts header {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
 .merge-conflicts h3,
 .merge-conflicts header p {
   margin: 0;
@@ -497,21 +388,6 @@ button:disabled {
   margin-top: 0.25rem;
   color: var(--color-text-muted);
   font-size: 0.85rem;
-}
-
-.merge-conflicts ul {
-  display: grid;
-  gap: 0.4rem;
-  margin: 1rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.merge-conflicts li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 0.75rem;
 }
 
 .merge-conflicts li span {
@@ -525,16 +401,11 @@ button:disabled {
 }
 
 .changes-workspace {
-  display: grid;
-  min-width: 0;
-  min-height: 0;
   grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
     'files diff'
     'commit diff';
-  overflow: hidden;
-  background: var(--color-surface);
 }
 
 .changes-workspace[hidden] {
@@ -543,13 +414,7 @@ button:disabled {
 
 .working-tree {
   grid-area: files;
-  min-width: 0;
-  min-height: 0;
   margin: 0;
-  overflow: hidden;
-  padding: 1rem;
-  border-right: 1px solid var(--color-border);
-  text-align: left;
 }
 
 .working-tree h3 {
@@ -557,10 +422,6 @@ button:disabled {
 }
 
 .working-tree > header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
   margin-bottom: 0.5rem;
 }
 
@@ -625,13 +486,7 @@ button:disabled {
 
 .working-tree-diff {
   grid-area: diff;
-  min-width: 0;
-  min-height: 0;
   margin: 0;
-  overflow: auto;
-  padding: 1rem;
-  background: var(--color-canvas);
-  text-align: left;
 }
 
 .working-tree-diff:empty::before {
@@ -723,15 +578,7 @@ button:disabled {
 
 .commit-form {
   grid-area: commit;
-  display: grid;
-  gap: 0.5rem;
-  min-width: 0;
   margin: 0;
-  padding: 1rem;
-  border-top: 1px solid var(--color-border);
-  border-right: 1px solid var(--color-border);
-  background: var(--color-surface-subtle);
-  text-align: left;
 }
 
 .commit-form label {
@@ -798,26 +645,12 @@ button:disabled {
 }
 
 .history {
-  display: grid;
-  min-width: 0;
-  min-height: 0;
   grid-template-columns: minmax(19rem, 24rem) minmax(0, 1fr);
   margin: 0;
-  overflow: hidden;
-  background: var(--color-surface);
-  text-align: left;
 }
 
 .history[hidden] {
   display: none;
-}
-
-.history-list-pane {
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  padding: 1rem;
-  border-right: 1px solid var(--color-border);
 }
 
 .history-list-pane > h3 {
@@ -870,12 +703,7 @@ button:disabled {
 }
 
 .history-details {
-  min-width: 0;
-  min-height: 0;
   margin: 0;
-  overflow: auto;
-  padding: 1.25rem;
-  background: var(--color-canvas);
 }
 
 .history-details header {
@@ -971,25 +799,6 @@ button:disabled {
   white-space: pre-wrap;
 }
 
-.dialog-backdrop {
-  position: fixed;
-  z-index: 10;
-  display: grid;
-  background: rgb(0 0 0 / 42%);
-  inset: 0;
-  place-items: center;
-}
-
-.confirmation-dialog {
-  box-sizing: border-box;
-  width: min(30rem, calc(100vw - 2rem));
-  padding: 1.5rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-medium);
-  background: var(--color-surface-raised);
-  box-shadow: var(--shadow-dialog);
-}
-
 .confirmation-dialog h2 {
   margin-top: 0;
 }
@@ -999,10 +808,7 @@ button:disabled {
 }
 
 .preferences-fields {
-  display: grid;
   grid-template-columns: minmax(8rem, auto) minmax(0, 1fr);
-  align-items: center;
-  gap: 0.75rem 1rem;
 }
 
 .preferences-fields > label {
@@ -1038,13 +844,6 @@ button:disabled {
 
 .preferences-fields fieldset input {
   margin-top: 0.3rem;
-}
-
-.confirmation-dialog-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  margin-top: 1.5rem;
 }
 
 .destructive-button {
