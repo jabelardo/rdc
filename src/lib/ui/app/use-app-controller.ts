@@ -42,10 +42,7 @@ import type {
   SelectedLinesDiscard,
   WorkingTreeState,
 } from '../../stores/working-tree-store'
-import {
-  MvpSidebarCapabilities,
-  type SidebarSectionID,
-} from '../sidebar-sections'
+import type { SidebarSectionID } from '../sidebar-sections'
 
 const rendererStartTime = performance.now()
 const rendererPlatform = currentMenuPlatform()
@@ -81,7 +78,7 @@ export function useAppController() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [expandedSidebarSections, setExpandedSidebarSections] = useState<
     ReadonlySet<SidebarSectionID>
-  >(() => new Set(MvpSidebarCapabilities))
+  >(() => new Set<SidebarSectionID>(['repositories']))
   const [error, setError] = useState<string | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
   const [newBranchName, setNewBranchName] = useState('')
@@ -696,19 +693,18 @@ export function useAppController() {
 
   function toggleSidebarSection(section: SidebarSectionID): void {
     setExpandedSidebarSections(current => {
-      const next = new Set(current)
-      if (next.has(section)) {
-        next.delete(section)
-      } else {
-        next.add(section)
-      }
-      return next
+      // The expanded panel owns the sidebar's remaining height. Keeping this exclusive means a
+      // repository list can scroll without pushing Branches off-screen, while every section header
+      // remains available as the next accordion target.
+      return current.has(section)
+        ? new Set<SidebarSectionID>()
+        : new Set<SidebarSectionID>([section])
     })
   }
 
   function activateSidebarSection(section: SidebarSectionID): void {
     setSidebarCollapsed(false)
-    setExpandedSidebarSections(current => new Set(current).add(section))
+    setExpandedSidebarSections(new Set<SidebarSectionID>([section]))
   }
 
   return {

@@ -2,10 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 import { Branch, BranchType } from '../../models/branch'
 import { BranchStore } from './branch-store'
 
-function branch(name: string, type = BranchType.Local): Branch {
+function branch(
+  name: string,
+  type = BranchType.Local,
+  upstream: string | null = null
+): Branch {
   return new Branch(
     name,
-    null,
+    upstream,
     {
       sha: name.padEnd(40, 'a').slice(0, 40),
       author: { date: new Date('2026-07-30T12:00:00Z') },
@@ -18,7 +22,11 @@ function branch(name: string, type = BranchType.Local): Branch {
 
 describe('BranchStore', () => {
   it('loads all branches and the current branch together', async () => {
-    const branches = [branch('main'), branch('origin/main', BranchType.Remote)]
+    const branches = [
+      branch('main', BranchType.Local, 'origin/main'),
+      branch('topic'),
+      branch('origin/main', BranchType.Remote),
+    ]
     const getBranches = vi.fn(async () => branches)
     const getStatus = vi.fn(async () => ({
       currentBranch: 'main',
@@ -28,7 +36,18 @@ describe('BranchStore', () => {
       files: [],
       doConflictedFilesExist: false,
     }))
-    const store = new BranchStore({ getBranches, getStatus })
+    const getRecentBranches = vi.fn(async () => ['topic', 'main'])
+    const getRemotes = vi.fn(async () => [
+      { name: 'origin', url: 'https://example.invalid/repository.git' },
+    ])
+    const getRemoteHEAD = vi.fn(async () => 'main')
+    const store = new BranchStore({
+      getBranches,
+      getStatus,
+      getRecentBranches,
+      getRemotes,
+      getRemoteHEAD,
+    })
 
     await store.load('/repo')
 
@@ -38,9 +57,13 @@ describe('BranchStore', () => {
       repositoryPath: '/repo',
       branches,
       currentBranch: 'main',
+      defaultBranch: 'main',
+      recentBranches: ['topic', 'main'],
       loading: false,
       error: null,
     })
+    expect(getRecentBranches).toHaveBeenCalledWith('/repo', 6)
+    expect(getRemoteHEAD).toHaveBeenCalledWith('/repo', 'origin')
   })
 
   it('creates from HEAD, checks out, and refreshes branch facts', async () => {

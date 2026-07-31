@@ -98,7 +98,7 @@ button:disabled {
 .application-shell {
   height: 100vh;
   min-height: 0;
-  grid-template-columns: minmax(15rem, 21rem) 1fr;
+  grid-template-columns: clamp(15rem, 24vw, 21rem) minmax(0, 1fr);
 }
 
 .application-shell.sidebar-collapsed {
@@ -187,10 +187,26 @@ button:disabled {
 }
 
 .sidebar-panels {
-  align-content: start;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
   border-right: 1px solid var(--color-border);
-  padding: 0.75rem 1rem 1rem;
+  padding: 0.6rem 0.75rem 1rem;
+}
+
+.sidebar-panel {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.sidebar-panel-expanded {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.sidebar-panel-content {
+  min-height: 0;
+  overflow: auto;
 }
 
 .sidebar-panel h2 > button {
@@ -198,11 +214,11 @@ button:disabled {
   width: 100%;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.65rem 0.25rem;
+  padding: 0.55rem 0.2rem;
   border: 0;
   background: transparent;
   box-shadow: none;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   letter-spacing: 0.04em;
   text-align: left;
   text-transform: uppercase;
@@ -220,53 +236,124 @@ button:disabled {
 
 .repository-list {
   display: grid;
-  gap: 0.4rem;
+  gap: 0.25rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.sidebar-panel .virtual-list-viewport {
-  max-height: min(24rem, 45vh);
+.repositories-panel-content {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.repository-filter {
+  position: relative;
+  display: block;
+}
+
+.repository-filter svg {
+  position: absolute;
+  top: 50%;
+  left: 0.65rem;
+  color: var(--color-text-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.repository-filter input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0.45rem 0.65rem 0.45rem 2rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-small);
+  color: inherit;
+  background: var(--color-surface);
+  font: inherit;
+}
+
+.repositories-panel-content .virtual-list-viewport {
+  height: 100%;
+  max-height: none;
 }
 
 .repository-list-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.35rem;
+  position: relative;
+  min-width: 0;
 }
 
 .repository-list-selection {
   display: grid;
+  box-sizing: border-box;
   width: 100%;
-  gap: 0.1rem;
+  min-height: 2.25rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
   overflow: hidden;
+  padding: 0.35rem 2.65rem 0.35rem 0.65rem;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
   text-align: left;
 }
 
+.repository-list-selection:hover {
+  background: var(--color-surface-raised);
+}
+
 .repository-list-selection[aria-current='true'] {
-  border-color: var(--color-accent);
   background: var(--color-accent-soft);
+  box-shadow: inset 3px 0 0 var(--color-accent);
 }
 
 .repository-list-actions {
-  align-self: stretch;
-  padding-inline: 0.65rem;
-  font-size: 1.15rem;
+  position: absolute;
+  top: 50%;
+  right: 0.2rem;
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  font-size: 1rem;
   line-height: 1;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 100ms ease-in-out;
 }
 
-.repository-list-selection strong,
-.repository-list-selection span {
+.repository-list-actions:hover {
+  color: var(--color-accent);
+  background: var(--color-surface-raised);
+}
+
+.repository-list-item:hover .repository-list-actions,
+.repository-list-item:focus-within .repository-list-actions {
+  opacity: 1;
+}
+
+.repository-list-selection strong {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.repository-list-selection span,
 .repository-list-empty {
   color: var(--color-text-muted);
   font-size: 0.85rem;
+}
+
+.repository-list-icon {
+  width: 1rem;
+  color: var(--color-text-muted);
 }
 
 .selected-repository {
@@ -334,30 +421,69 @@ button:disabled {
   color: var(--color-error-text);
 }
 
-.branch-controls {
-  display: grid;
-  gap: 0.65rem;
-  margin-bottom: 0.75rem;
+.branches-panel-content {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0.5rem;
   text-align: left;
 }
 
-.branch-controls > label,
-.branch-controls form {
+.branch-filter-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.35rem 0.5rem;
+  gap: 0.5rem;
 }
 
-.branch-controls > label select {
-  grid-column: 1 / -1;
+.branch-filter {
+  position: relative;
+  display: block;
+  min-width: 0;
 }
 
-.branch-controls form label {
-  grid-column: 1 / -1;
+.branch-filter svg {
+  position: absolute;
+  top: 50%;
+  left: 0.65rem;
+  color: var(--color-text-muted);
+  pointer-events: none;
+  transform: translateY(-50%);
 }
 
-.branch-controls select,
-.branch-controls input {
+.branch-filter input {
+  width: 100%;
+  height: 2.25rem;
+  padding-left: 2rem;
+}
+
+.new-branch-button {
+  display: grid;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  padding: 0;
+}
+
+.new-branch-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.4rem;
+}
+
+.new-branch-form label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.branch-filter input,
+.new-branch-form input {
   box-sizing: border-box;
   min-width: 0;
   padding: 0.5rem 0.65rem;
@@ -368,8 +494,90 @@ button:disabled {
   font: inherit;
 }
 
-.branch-controls p {
+.branch-filter input {
+  padding-left: 2rem;
+}
+
+.new-branch-form button {
+  display: grid;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 100%;
+  place-items: center;
+  padding: 0;
+}
+
+.branches-panel-content p {
   margin: 0;
+}
+
+.branches-panel-content .virtual-list-viewport {
+  min-height: 0;
+  flex: 1 1 auto;
+  max-height: none;
+}
+
+.branch-list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.branch-list-item {
+  min-width: 0;
+}
+
+.branch-list-group-heading {
+  margin: 0;
+  padding: 0.45rem 0.65rem 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.branch-list-selection {
+  display: grid;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.25rem;
+  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  padding: 0.35rem 0.65rem;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+
+.branch-list-selection:hover {
+  background: var(--color-surface-raised);
+}
+
+.branch-list-selection[aria-current='true'] {
+  background: var(--color-accent-soft);
+}
+
+.branch-list-selection[aria-disabled='true']:not([aria-current='true']) {
+  color: var(--color-text-muted);
+}
+
+.branch-list-selection span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.branch-list-icon {
+  width: 1rem;
+  color: var(--color-text-muted);
+}
+
+.branch-list-empty {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
 }
 
 .clone-dialog form {
@@ -1075,8 +1283,9 @@ button:disabled {
 :root[data-theme='dark'] .history-diff pre,
 :root[data-theme='dark'] .commit-terminal-output,
 :root[data-theme='dark'] .commit-form input,
-:root[data-theme='dark'] .branch-controls select,
-:root[data-theme='dark'] .branch-controls input {
+:root[data-theme='dark'] .repository-filter input,
+:root[data-theme='dark'] .branch-filter input,
+:root[data-theme='dark'] .new-branch-form input {
   border-color: var(--color-border);
   color: var(--color-text);
   background: var(--color-surface);

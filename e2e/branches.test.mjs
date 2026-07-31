@@ -24,6 +24,16 @@ describe('branches', () => {
     initialBranch = git(fixture.canonical, 'branch', '--show-current')
     driver = await startApplication()
     await openSeededRepository(driver, fixture.canonical)
+    const branchesHeading = await driver.findElement(
+      By.css('#sidebar-branches-heading')
+    )
+    await branchesHeading.click()
+    await driver.wait(
+      async () =>
+        (await branchesHeading.getAttribute('aria-expanded')) === 'true',
+      5_000,
+      'the Branches panel did not expand'
+    )
   })
 
   after(async () => {
@@ -33,13 +43,14 @@ describe('branches', () => {
 
   it('creates and checks out a branch, then checks the original out again', async () => {
     const newBranchName = 'phase-7c-e2e'
+    await driver.findElement(By.css('button[aria-label="New branch"]')).click()
     const newBranchInput = await driver.wait(
       until.elementLocated(By.css('#new-branch-name')),
       5_000
     )
     await newBranchInput.sendKeys(newBranchName)
     await driver
-      .findElement(By.xpath("//button[normalize-space()='Create branch']"))
+      .findElement(By.css('button[aria-label="Create branch"]'))
       .click()
     await driver.wait(
       () =>
@@ -48,17 +59,12 @@ describe('branches', () => {
       'new branch was not created and checked out'
     )
 
-    const branchSelector = await driver.findElement(
-      By.css('select[aria-label="Current branch"]')
+    const initialBranchButton = await driver.wait(
+      until.elementLocated(By.css(`[data-branch-name="${initialBranch}"]`)),
+      5_000,
+      'the original branch did not appear in the branch list'
     )
-    await driver.executeScript(
-      (select, branchName) => {
-        select.value = branchName
-        select.dispatchEvent(new Event('change', { bubbles: true }))
-      },
-      branchSelector,
-      initialBranch
-    )
+    await initialBranchButton.click()
     await driver.wait(
       () =>
         git(fixture.canonical, 'branch', '--show-current') === initialBranch,

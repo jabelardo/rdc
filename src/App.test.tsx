@@ -153,6 +153,8 @@ const branchStore = vi.hoisted(() => ({
       tip: { sha: string }
     }>,
     currentBranch: null as string | null,
+    defaultBranch: null as string | null,
+    recentBranches: [] as ReadonlyArray<string>,
     loading: false,
     error: null as string | null,
     operation: null as 'creating' | 'checking-out' | null,
@@ -399,6 +401,8 @@ describe('App', () => {
       repositoryPath: null,
       branches: [],
       currentBranch: null,
+      defaultBranch: null,
+      recentBranches: [],
       loading: false,
       error: null,
       operation: null,
@@ -647,7 +651,7 @@ describe('App', () => {
     ).not.toBeInTheDocument()
   })
 
-  it('renders only backed sidebar panels and collapses them independently', async () => {
+  it('renders backed sidebar panels as an exclusive accordion', async () => {
     const user = userEvent.setup()
     render(<App />)
 
@@ -656,7 +660,7 @@ describe('App', () => {
     ).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByRole('button', { name: 'Branches' })).toHaveAttribute(
       'aria-expanded',
-      'true'
+      'false'
     )
     expect(
       screen.queryByRole('button', { name: 'Tags' })
@@ -665,13 +669,26 @@ describe('App', () => {
     expect(screen.queryByText('Submodules')).not.toBeInTheDocument()
     expect(screen.queryByText('Subtrees')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Repositories' }))
+    await user.click(screen.getByRole('button', { name: 'Branches' }))
     expect(
       screen.getByRole('button', { name: 'Repositories' })
     ).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Branches' })).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
     expect(
       screen.queryByRole('region', { name: 'Repositories' })
     ).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Repositories' }))
+    expect(
+      screen.getByRole('button', { name: 'Repositories' })
+    ).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Branches' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
 
     await user.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
     expect(
@@ -719,7 +736,7 @@ describe('App', () => {
     ).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('places live branch selection in the Branches sidebar panel', () => {
+  it('places live branch selection in the Branches sidebar panel', async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
@@ -735,6 +752,8 @@ describe('App', () => {
         },
       ],
       currentBranch: 'main',
+      defaultBranch: 'main',
+      recentBranches: [],
       loading: false,
       error: null,
       operation: null,
@@ -742,15 +761,21 @@ describe('App', () => {
       operationError: null,
     }
 
+    const user = userEvent.setup()
     render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Branches' }))
 
     const panel = screen.getByRole('region', { name: 'Branches' })
     expect(panel).toContainElement(
-      screen.getByRole('combobox', { name: 'Current branch' })
+      screen.getByRole('searchbox', { name: 'Filter branches' })
     )
-    expect(
-      screen.getByRole('form', { name: 'Create branch' })
-    ).toBeInTheDocument()
+    expect(panel).toContainElement(
+      screen.getByRole('button', { name: 'main — current branch' })
+    )
+    expect(screen.getByRole('button', { name: 'New branch' })).toHaveAttribute(
+      'aria-expanded',
+      'false'
+    )
     expect(setWindowTitle).toHaveBeenLastCalledWith('RDC — rdc — main')
     const toolbar = screen.getByRole('toolbar', {
       name: 'Repository actions',
@@ -773,7 +798,7 @@ describe('App', () => {
       })
     )
     expect(toolbar).not.toContainElement(
-      screen.getByRole('combobox', { name: 'Current branch' })
+      screen.getByRole('list', { name: 'Branches' })
     )
   })
 
@@ -860,7 +885,10 @@ describe('App', () => {
     })
     await user.click(screen.getByRole('button', { name: 'Select rdc' }))
 
-    expect(screen.getByText('/projects/rdc')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Select rdc' })).toHaveAttribute(
+      'title',
+      'rdc — /projects/rdc'
+    )
     expect(appStore.selectRepository).toHaveBeenCalledWith(repository)
   })
 
@@ -893,6 +921,33 @@ describe('App', () => {
     await user.keyboard('{End}')
     expect(appStore.selectRepository).toHaveBeenLastCalledWith(secondRepository)
     expect(second).toHaveFocus()
+  })
+
+  it('filters repositories by name or path without changing selection', async () => {
+    const secondRepository = {
+      id: 8,
+      name: 'desktop-plus',
+      path: '/projects/upstream/desktop-plus',
+    }
+    appStore.state = {
+      repositories: [repository, secondRepository],
+      selectedRepository: repository,
+    }
+    const user = userEvent.setup()
+    render(<App />)
+
+    const filter = screen.getByRole('searchbox', {
+      name: 'Filter repositories',
+    })
+    await user.type(filter, 'upstream')
+
+    expect(
+      screen.queryByRole('button', { name: 'Select rdc' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Select desktop-plus' })
+    ).toBeInTheDocument()
+    expect(appStore.selectRepository).not.toHaveBeenCalled()
   })
 
   it('renders a selected-repository workspace with a window action', async () => {
@@ -955,6 +1010,8 @@ describe('App', () => {
         },
       ],
       currentBranch: 'main',
+      defaultBranch: 'main',
+      recentBranches: ['topic'],
       loading: false,
       error: null,
       operation: null,
@@ -965,18 +1022,36 @@ describe('App', () => {
     branchStore.createAndCheckout.mockResolvedValue(true)
     const user = userEvent.setup()
     render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Branches' }))
 
-    const selector = screen.getByRole('combobox', {
-      name: 'Current branch',
-    })
-    expect(selector).toHaveTextContent('main')
-    expect(selector).toHaveTextContent('topic')
-    expect(selector).toHaveTextContent('origin/main (remote)')
-    await user.selectOptions(selector, 'topic')
+    expect(
+      screen.getByRole('button', { name: 'main — current branch' })
+    ).toHaveAttribute('aria-current', 'true')
+    expect(
+      screen.getByRole('heading', { name: 'Default Branch' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: 'Recent Branches' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Check out topic' })
+    ).toBeInTheDocument()
+    expect(screen.queryByText('origin/main')).not.toBeInTheDocument()
+    const filter = screen.getByRole('searchbox', { name: 'Filter branches' })
+    await user.type(filter, 'topic')
+    expect(
+      screen.queryByRole('button', { name: 'main — current branch' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Check out topic' })
+    ).toBeInTheDocument()
+    await user.clear(filter)
+    await user.click(screen.getByRole('button', { name: 'Check out topic' }))
 
     expect(branchStore.checkout).toHaveBeenCalledWith('topic')
     expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path)
 
+    await user.click(screen.getByRole('button', { name: 'New branch' }))
     await user.type(
       screen.getByRole('textbox', { name: 'New branch name' }),
       'feature'

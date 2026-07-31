@@ -32,6 +32,16 @@ describe('remote fetch', () => {
 
     driver = await startApplication()
     await openSeededRepository(driver, fixture.canonical)
+    const branchesHeading = await driver.findElement(
+      By.css('#sidebar-branches-heading')
+    )
+    await branchesHeading.click()
+    await driver.wait(
+      async () =>
+        (await branchesHeading.getAttribute('aria-expanded')) === 'true',
+      5_000,
+      'the Branches panel did not expand'
+    )
   })
 
   after(async () => {
@@ -71,14 +81,19 @@ describe('remote fetch', () => {
       10_000,
       'fetch did not update the remote-tracking branch'
     )
-    const remoteBranchOption = await driver.wait(
+    await driver.wait(
       until.elementLocated(
-        By.xpath(
-          `//select[@aria-label='Current branch']/option[contains(normalize-space(.), 'origin/${branch} (remote)')]`
-        )
+        By.xpath("//h3[normalize-space()='Default Branch']")
       ),
-      10_000
+      10_000,
+      'the recorded remote HEAD did not classify the local default branch'
     )
-    assert.match(await remoteBranchOption.getText(), /\(remote\)$/)
+    assert.equal(
+      await driver
+        .findElements(By.css(`[data-branch-name="origin/${branch}"]`))
+        .then(elements => elements.length),
+      0,
+      'remote refs are fetch state, not selectable MVP branch rows'
+    )
   })
 })

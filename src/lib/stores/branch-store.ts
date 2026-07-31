@@ -1,8 +1,11 @@
 import { BranchType, type Branch } from '../../models/branch'
 import type { ICheckoutProgress } from '../../models/progress'
+import type { IRemote } from '../../models/remote'
 import { getBranches } from '../branch-ipc'
 import { checkoutBranch, getStatus, type IStatusResult } from '../git-ipc'
 import { createBranch } from '../branch-ipc'
+import { getRecentBranches } from '../misc-ipc'
+import { getRemoteHEAD, getRemotes } from '../remote-ipc'
 
 export type BranchOperation = 'creating' | 'checking-out'
 
@@ -10,6 +13,8 @@ export type BranchState = {
   readonly repositoryPath: string | null
   readonly branches: ReadonlyArray<Branch>
   readonly currentBranch: string | null
+  readonly defaultBranch: string | null
+  readonly recentBranches: ReadonlyArray<string>
   readonly loading: boolean
   readonly error: string | null
   readonly operation: BranchOperation | null
@@ -27,6 +32,9 @@ type BranchStoreDependencies = {
     repositoryPath: string,
     listUntrackedFilesIndividually: boolean
   ) => Promise<BranchFactsStatus | null>
+  readonly getRecentBranches: typeof getRecentBranches
+  readonly getRemotes: typeof getRemotes
+  readonly getRemoteHEAD: typeof getRemoteHEAD
   readonly createBranch: typeof createBranch
   readonly checkoutBranch: typeof checkoutBranch
 }
@@ -34,6 +42,9 @@ type BranchStoreDependencies = {
 const defaultDependencies: BranchStoreDependencies = {
   getBranches,
   getStatus,
+  getRecentBranches,
+  getRemotes,
+  getRemoteHEAD,
   createBranch,
   checkoutBranch,
 }
@@ -42,11 +53,36 @@ const EmptyState: BranchState = {
   repositoryPath: null,
   branches: [],
   currentBranch: null,
+  defaultBranch: null,
+  recentBranches: [],
   loading: false,
   error: null,
   operation: null,
   progress: null,
   operationError: null,
+}
+
+function findDefaultLocalBranch(
+  branches: ReadonlyArray<Branch>,
+  remoteName: string | null,
+  remoteHead: string | null
+): string | null {
+  if (remoteName === null || remoteHead === null) {
+    return null
+  }
+
+  const upstream = `${remoteName}/${remoteHead}`
+  const tracking = branches.filter(
+    branch => branch.type === BranchType.Local && branch.upstream === upstream
+  )
+  return (
+    tracking.find(branch => branch.name === remoteHead)?.name ??
+    tracking[0]?.name ??
+    branches.find(
+      branch => branch.type === BranchType.Local && branch.name === remoteHead
+    )?.name ??
+    null
+  )
 }
 
 /**
@@ -83,6 +119,8 @@ export class BranchStore {
       repositoryPath,
       branches: [],
       currentBranch: null,
+      defaultBranch: null,
+      recentBranches: [],
       loading: true,
       error: null,
       operation: null,
@@ -91,14 +129,13 @@ export class BranchStore {
     })
 
     try {
-      const [branches, status] = await this.loadFacts(repositoryPath)
+      const facts = await this.loadFacts(repositoryPath)
       if (requestID !== this.requestID) {
         return
       }
       this.update({
         repositoryPath,
-        branches,
-        currentBranch: status?.currentBranch ?? null,
+        ...facts,
         loading: false,
         error: null,
         operation: null,
@@ -113,6 +150,8 @@ export class BranchStore {
         repositoryPath,
         branches: [],
         currentBranch: null,
+        defaultBranch: null,
+        recentBranches: [],
         loading: false,
         error: String(error),
         operation: null,
@@ -209,11 +248,45 @@ export class BranchStore {
     this.update(EmptyState)
   }
 
-  private loadFacts(repositoryPath: string) {
-    return Promise.all([
+  private async loadFacts(repositoryPath: string) {
+    const [branches, status, recentBranches, remotes] = await Promise.all([
       this.dependencies.getBranches(repositoryPath),
       this.dependencies.getStatus(repositoryPath, true),
+      this.dependencies
+        .getRecentBranches(repositoryPath, 6)
+        .catch(() => [] as ReadonlyArray<string>),
+      this.dependencies
+        .getRemotes(repositoryPath)
+        .catch(() => [] as ReadonlyArray<IRemote>),
     ])
+    const currentBranch = status?.currentBranch ?? null
+    const current = branches.find(
+      branch =>
+        branch.type === BranchType.Local && branch.name === currentBranch
+    )
+    const defaultRemote =
+      remotes.find(remote => remote.name === current?.upstreamRemoteName) ??
+      remotes.find(remote => remote.name === 'origin') ??
+      remotes[0] ??
+      null
+    const remoteHead =
+      defaultRemote === null
+        ? null
+        : await this.dependencies
+            .getRemoteHEAD(repositoryPath, defaultRemote.name)
+            .catch(() => null)
+    const defaultBranch = findDefaultLocalBranch(
+      branches,
+      defaultRemote?.name ?? null,
+      remoteHead
+    )
+
+    return {
+      branches,
+      currentBranch,
+      defaultBranch,
+      recentBranches,
+    }
   }
 
   private async finishOperation(
@@ -221,14 +294,13 @@ export class BranchStore {
     requestID: number,
     operationID: number
   ): Promise<boolean> {
-    const [branches, status] = await this.loadFacts(repositoryPath)
+    const facts = await this.loadFacts(repositoryPath)
     if (!this.isCurrentOperation(requestID, operationID)) {
       return false
     }
     this.update({
       repositoryPath,
-      branches,
-      currentBranch: status?.currentBranch ?? null,
+      ...facts,
       loading: false,
       error: null,
       operation: null,

@@ -128,4 +128,96 @@ describe('visual layout', () => {
       await driver.manage().window().setRect(originalRect)
     }
   })
+
+  it('gives one sidebar panel the remaining height without hiding sibling headers', async () => {
+    const snapshot = () =>
+      driver.executeScript(() => {
+        const panels = document.querySelector('.sidebar-panels')
+        const repositoriesHeading = document.querySelector(
+          '#sidebar-repositories-heading'
+        )
+        const branchesHeading = document.querySelector(
+          '#sidebar-branches-heading'
+        )
+        const repositories = document.querySelector('#sidebar-repositories')
+        const branches = document.querySelector('#sidebar-branches')
+        const panelsRect = panels.getBoundingClientRect()
+        const repositoriesHeadingRect =
+          repositoriesHeading.getBoundingClientRect()
+        const branchesHeadingRect = branchesHeading.getBoundingClientRect()
+        return {
+          repositoriesExpanded:
+            repositoriesHeading.getAttribute('aria-expanded') === 'true',
+          branchesExpanded:
+            branchesHeading.getAttribute('aria-expanded') === 'true',
+          repositoriesRegionPresent: repositories !== null,
+          branchesRegionPresent: branches !== null,
+          repositoriesHeadingVisible:
+            repositoriesHeadingRect.top >= panelsRect.top &&
+            repositoriesHeadingRect.bottom <= panelsRect.bottom,
+          branchesHeadingVisible:
+            branchesHeadingRect.top >= panelsRect.top &&
+            branchesHeadingRect.bottom <= panelsRect.bottom,
+          expandedRegionHeight:
+            (repositories ?? branches)?.getBoundingClientRect().height ?? 0,
+        }
+      })
+
+    const repositories = await snapshot()
+    assert.deepEqual(
+      {
+        repositoriesExpanded: repositories.repositoriesExpanded,
+        branchesExpanded: repositories.branchesExpanded,
+        repositoriesRegionPresent: repositories.repositoriesRegionPresent,
+        branchesRegionPresent: repositories.branchesRegionPresent,
+        repositoriesHeadingVisible: repositories.repositoriesHeadingVisible,
+        branchesHeadingVisible: repositories.branchesHeadingVisible,
+      },
+      {
+        repositoriesExpanded: true,
+        branchesExpanded: false,
+        repositoriesRegionPresent: true,
+        branchesRegionPresent: false,
+        repositoriesHeadingVisible: true,
+        branchesHeadingVisible: true,
+      }
+    )
+    assert.ok(
+      repositories.expandedRegionHeight > 100,
+      'the repository panel did not receive the available sidebar height'
+    )
+
+    await driver.executeScript(() =>
+      document.querySelector('#sidebar-branches-heading').click()
+    )
+    const branches = await snapshot()
+    assert.deepEqual(
+      {
+        repositoriesExpanded: branches.repositoriesExpanded,
+        branchesExpanded: branches.branchesExpanded,
+        repositoriesRegionPresent: branches.repositoriesRegionPresent,
+        branchesRegionPresent: branches.branchesRegionPresent,
+        repositoriesHeadingVisible: branches.repositoriesHeadingVisible,
+        branchesHeadingVisible: branches.branchesHeadingVisible,
+      },
+      {
+        repositoriesExpanded: false,
+        branchesExpanded: true,
+        repositoriesRegionPresent: false,
+        branchesRegionPresent: true,
+        repositoriesHeadingVisible: true,
+        branchesHeadingVisible: true,
+      }
+    )
+    assert.ok(
+      branches.expandedRegionHeight > 100,
+      'the branch panel did not receive the available sidebar height'
+    )
+
+    // Leave the shared application session in its default state for future
+    // visual checks added to this file.
+    await driver.executeScript(() =>
+      document.querySelector('#sidebar-repositories-heading').click()
+    )
+  })
 })

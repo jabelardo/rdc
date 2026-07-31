@@ -1,3 +1,11 @@
+import {
+  faCheck,
+  faCodeBranch,
+  faEllipsisVertical,
+  faFolder,
+} from '@fortawesome/free-solid-svg-icons'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import type { Branch } from '../../models/branch'
 import type { Repository } from '../../models/repository'
 import type { WorkingDirectoryFileChange } from '../../models/status'
 import { mapStatus } from '../status'
@@ -38,6 +46,7 @@ export function RepositoryListRow({
         data-keyboard-list-item
         data-keyboard-list-index={index}
         aria-label={`Select ${repository.name}`}
+        title={`${repository.name} — ${repository.path}`}
         aria-current={selected ? 'true' : undefined}
         tabIndex={
           selected || (selectedRepository === null && index === 0) ? 0 : -1
@@ -57,16 +66,100 @@ export function RepositoryListRow({
           onContextMenu(repository)
         }}
       >
+        <FontAwesomeIcon
+          className="repository-list-icon"
+          icon={faFolder}
+          aria-hidden="true"
+        />
         <strong>{repository.name}</strong>
-        <span>{repository.path}</span>
       </button>
       <button
         type="button"
         className="repository-list-actions"
         aria-label={`More actions for ${repository.name}`}
+        title={`More actions for ${repository.name}`}
         onClick={() => onContextMenu(repository)}
       >
-        …
+        <FontAwesomeIcon icon={faEllipsisVertical} aria-hidden="true" />
+      </button>
+    </li>
+  )
+}
+
+type BranchListRowProps = {
+  readonly branch: Branch
+  readonly branches: ReadonlyArray<Branch>
+  readonly currentBranch: string | null
+  readonly groupLabel?: string
+  readonly index: number
+  readonly operationDisabled: boolean
+  readonly row: VirtualListRow
+  readonly onSelect: (branch: Branch) => void
+}
+
+export function BranchListRow({
+  branch,
+  branches,
+  currentBranch,
+  groupLabel,
+  index,
+  onSelect,
+  operationDisabled,
+  row,
+}: BranchListRowProps) {
+  const current = branch.name === currentBranch
+  const unavailable = operationDisabled || current
+  const description = current
+    ? `${branch.name} — current branch`
+    : `Check out ${branch.name}`
+
+  return (
+    <li
+      ref={row.measureElement}
+      className="branch-list-item"
+      data-index={row.virtualIndex}
+      style={row.style}
+    >
+      {groupLabel !== undefined && (
+        <h3 className="branch-list-group-heading">{groupLabel}</h3>
+      )}
+      <button
+        type="button"
+        className="branch-list-selection"
+        data-branch-name={branch.name}
+        data-keyboard-list-item
+        data-keyboard-list-index={index}
+        aria-label={description}
+        aria-current={current ? 'true' : undefined}
+        aria-disabled={unavailable}
+        title={description}
+        tabIndex={current || (currentBranch === null && index === 0) ? 0 : -1}
+        onClick={() => {
+          if (!unavailable) {
+            onSelect(branch)
+          }
+        }}
+        onKeyDown={event => {
+          handleListNavigation(
+            event,
+            index,
+            branches.length,
+            targetIndex => {
+              const target = branches[targetIndex]
+              if (!operationDisabled && target.name !== currentBranch) {
+                onSelect(target)
+              }
+            },
+            row.focusIndex
+          )
+        }}
+      >
+        <FontAwesomeIcon
+          className="branch-list-icon"
+          icon={current ? faCheck : faCodeBranch}
+          aria-hidden="true"
+        />
+        <span>{branch.name}</span>
       </button>
     </li>
   )

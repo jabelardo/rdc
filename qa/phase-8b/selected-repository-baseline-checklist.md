@@ -63,6 +63,22 @@ gate independently; this approval does not prescribe their native window-chrome 
 - Establish scroll ownership when repository or branch lists grow. The command-bar control remains
   fixed; scrolling one panel must not hide unrelated panel headers or make the lower panel
   unreachable.
+- Use an exclusive accordion for the backed sections: the expanded panel owns the remaining
+  vertical space and scrolls internally, while every other enabled section collapses to a header
+  that remains visible and operable. Opening Branches therefore collapses Repositories, and vice
+  versa; this is deliberately not an overlay that hides the rest of the navigation.
+- Reuse the useful repository-selector patterns from desktop-plus — a filterable, dense,
+  single-line navigation list with selected-row emphasis and contextual disclosure for full names
+  and paths — without implying unsupported data. Account/recent grouping, pinned state, pull
+  status, Pull All and the selector's overlay geometry remain post-MVP until their backing behavior
+  exists.
+- Apply the same boundary to the upstream branch selector: keep its filter/New branch hierarchy,
+  compact current-row treatment and grouped scrolling list. Default Branch is inferred only from
+  the locally recorded remote `HEAD`; Recent Branches comes from the native
+  reflog reader; all remaining local refs become Other Branches. A group is omitted when its fact
+  cannot be established. Remote-branch checkout, Pull Requests, merge-target selection, relative
+  activity and branch context actions remain absent until their stores and workflows exist. Remote
+  refs stay in fetch state; they are not rendered as inert navigation rows.
 - Verify empty, loading, error, detached/unborn branch, long-content and many-item states without
   changing the outer shell geometry.
 - Recheck the collapsed rail transition. Icons keep current-value tooltips and accessible names,
@@ -71,12 +87,16 @@ gate independently; this approval does not prescribe their native window-chrome 
 
 Gate B passes only when:
 
-- [ ] Repository and Branches panels have a deliberate hierarchy, density and disclosure treatment.
-- [ ] Repository selection, contextual actions and long values remain clear and accessible.
-- [ ] Current-branch selection and branch creation have distinct, understandable visual jobs.
-- [ ] Panel and list scrolling preserve fixed shell controls and access to every enabled section.
-- [ ] Expanded/collapsed and normal/default/compact states preserve the accepted toolbar and useful
+- [x] Repository and Branches panels have a deliberate hierarchy, density and disclosure treatment.
+- [x] Repository selection, contextual actions and long values remain clear and accessible.
+- [x] Current-branch selection and branch creation have distinct, understandable visual jobs.
+- [x] Panel and list scrolling preserve fixed shell controls and access to every enabled section.
+- [x] Expanded/collapsed and normal/default/compact states preserve the accepted toolbar and useful
       workspace width.
+
+Accepted as the macOS baseline by Jose Gutierrez on 2026-07-31 after four assisted visual
+iterations. Linux and Windows must repeat Gate B independently; the data-backed accordion and
+grouping semantics are shared, but this approval does not prescribe platform-specific rendering.
 
 ## Gate C — Changes and History workspace frame
 
