@@ -44,8 +44,38 @@ pub fn install_without_elevation(
         )
     })?;
     std::fs::create_dir_all(parent)?;
-    std::os::unix::fs::symlink(packaged_path, installed_path)?;
+    link::symlink_file(packaged_path, installed_path)?;
     Ok(())
+}
+
+/// Creating a file symlink, per platform.
+///
+/// This module is gated `any(target_os = "macos", test)` — a macOS feature whose logic is tested
+/// everywhere. That `test` arm is the point: it compiles this file on *every* platform's test
+/// profile, so the `std::os::unix::fs::symlink` call that used to be inline here broke a Windows
+/// `cargo check --all-targets` even though the feature is macOS-only. Gate the OS call, not the
+/// module. See AGENTS.md rule 11.
+///
+/// Unlike `custom_integration`'s executability check, this one has an exact Windows counterpart, so
+/// both arms are real rather than one arm and a deferral.
+mod link {
+    use std::io;
+    use std::path::Path;
+
+    #[cfg(unix)]
+    pub fn symlink_file(original: &Path, link: &Path) -> io::Result<()> {
+        std::os::unix::fs::symlink(original, link)
+    }
+
+    /// Windows splits the call by target kind; the packaged launcher is always a file.
+    ///
+    /// Note this may fail at runtime without Developer Mode or elevation. That is correct
+    /// behaviour, not a gap: the caller already maps `io::Error` to
+    /// `CliInstallerError::Filesystem`, and the installer itself is macOS-only at runtime.
+    #[cfg(windows)]
+    pub fn symlink_file(original: &Path, link: &Path) -> io::Result<()> {
+        std::os::windows::fs::symlink_file(original, link)
+    }
 }
 
 #[cfg(any(target_os = "macos", test))]

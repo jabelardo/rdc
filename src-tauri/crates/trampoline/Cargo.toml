@@ -16,7 +16,18 @@ path = "src/bin/rdc-trampoline.rs"
 
 [dependencies]
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["net", "io-util", "rt", "macros", "sync"] }
+# `process` is required by `credential.rs`, which spawns the configured credential helper. It was
+# missing here and the crate still built, because `cargo check --workspace` unifies features across
+# the graph and the `rdc` crate enables `tokio/process` — so `cargo check -p trampoline` alone was
+# broken while every CI gate stayed green. Declare what this crate actually uses.
+tokio = { workspace = true, features = [
+  "net",
+  "io-util",
+  "rt",
+  "macros",
+  "sync",
+  "process",
+] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "process", "io-util"] }

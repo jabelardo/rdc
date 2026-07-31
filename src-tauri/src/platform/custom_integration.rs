@@ -1,8 +1,10 @@
 use super::custom_integration_model::{CustomIntegration, CustomIntegrationPathValidation};
-use std::ffi::CString;
 use std::fmt;
-use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
+
+// Private, as it was before the seam was extracted — this is an implementation detail of
+// `validate_custom_integration_path`, not part of the module's surface.
+use executable::has_execute_access;
 
 pub const TARGET_PATH_ARGUMENT: &str = "%TARGET_PATH%";
 
@@ -71,15 +73,43 @@ pub async fn is_valid_custom_integration(custom_integration: &CustomIntegration)
     path_result.is_valid && check_target_path_argument(&arguments)
 }
 
-fn has_execute_access(path: &Path) -> bool {
-    let Ok(path) = CString::new(path.as_os_str().as_bytes()) else {
-        return false;
-    };
+/// "Can this path be executed" — the one platform-specific question this module asks.
+///
+/// Isolated here on purpose. Everything else in this file is portable (argument parsing, the
+/// `%TARGET_PATH%` expansion, the validation flow), but the Unix answer needs
+/// `std::os::unix::ffi::OsStrExt` and `libc::access`. Those imports used to sit at file scope, which
+/// meant ten Unix-specific lines made the other two hundred and fifty uncompilable on Windows. The
+/// exported signature is platform-neutral, so callers are unaware and Phase 10 adds an arm here
+/// rather than restructuring the module. See AGENTS.md rule 11.
+mod executable {
+    use std::path::Path;
 
-    // SAFETY: `path` is NUL-terminated and remains alive for the duration of
-    // the call. `access` preserves upstream's OS-level filesystem check,
-    // including ACLs, rather than approximating executability from mode bits.
-    unsafe { libc::access(path.as_ptr(), libc::X_OK) == 0 }
+    #[cfg(unix)]
+    pub fn has_execute_access(path: &Path) -> bool {
+        use std::ffi::CString;
+        use std::os::unix::ffi::OsStrExt;
+
+        let Ok(path) = CString::new(path.as_os_str().as_bytes()) else {
+            return false;
+        };
+
+        // SAFETY: `path` is NUL-terminated and remains alive for the duration of
+        // the call. `access` preserves upstream's OS-level filesystem check,
+        // including ACLs, rather than approximating executability from mode bits.
+        unsafe { libc::access(path.as_ptr(), libc::X_OK) == 0 }
+    }
+
+    // Phase 10 owns the Windows arm, and it is a behavioural decision rather than a translation:
+    // Windows has no execute permission bit, so "executable" means something else there —
+    // `PATHEXT` membership, or an `AccessCheck` against the file's DACL. Picking one is exactly the
+    // judgement Phase 10 exists for, so this deliberately does not guess. Adding it is additive:
+    // define `has_execute_access` under `#[cfg(windows)]` with the same signature.
+    #[cfg(not(unix))]
+    pub fn has_execute_access(_path: &Path) -> bool {
+        compile_error!(
+            "has_execute_access has no non-Unix implementation yet — see Phase 10 in REMAINING.md"
+        )
+    }
 }
 
 fn invalid_path_validation() -> CustomIntegrationPathValidation {

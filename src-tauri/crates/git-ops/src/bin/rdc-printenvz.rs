@@ -12,6 +12,7 @@
 //! - **Bytes, not strings.** On Unix a value is arbitrary bytes; writing it through a UTF-8 string type
 //!   would either fail or silently alter it, so the value goes out exactly as received.
 
+use std::borrow::Cow;
 use std::io::{self, Write};
 
 fn main() -> io::Result<()> {
@@ -22,9 +23,9 @@ fn main() -> io::Result<()> {
     out.write_all(b"--printenvz--begin\n")?;
 
     for (name, value) in std::env::vars_os() {
-        out.write_all(as_bytes(&name))?;
+        out.write_all(&as_bytes(&name))?;
         out.write_all(b"=")?;
-        out.write_all(as_bytes(&value))?;
+        out.write_all(&as_bytes(&value))?;
         out.write_all(&[0])?;
     }
 
@@ -33,11 +34,16 @@ fn main() -> io::Result<()> {
 }
 
 /// The raw bytes of an environment string.
+///
+/// Both arms return `Cow` so the two platforms share one signature. They previously did not — the
+/// Unix arm returned `&[u8]` and the Windows arm `Cow<[u8]>` — and because the Windows arm was
+/// never compiled, the resulting `write_all` type mismatch sat undetected. Keep the signatures
+/// identical: a per-OS seam is only useful if every arm type-checks.
 #[cfg(unix)]
-fn as_bytes(value: &std::ffi::OsString) -> &[u8] {
+fn as_bytes(value: &std::ffi::OsString) -> Cow<'_, [u8]> {
     use std::os::unix::ffi::OsStrExt;
 
-    value.as_os_str().as_bytes()
+    Cow::Borrowed(value.as_os_str().as_bytes())
 }
 
 /// On Windows an environment string is UTF-16, so it round-trips through UTF-8 instead.
@@ -45,9 +51,9 @@ fn as_bytes(value: &std::ffi::OsString) -> &[u8] {
 /// `to_string_lossy` cannot fail, and an unpaired surrogate — which is all it would alter — cannot
 /// appear in a variable the shell itself set.
 #[cfg(not(unix))]
-fn as_bytes(value: &std::ffi::OsString) -> std::borrow::Cow<'_, [u8]> {
+fn as_bytes(value: &std::ffi::OsString) -> Cow<'_, [u8]> {
     match value.to_string_lossy() {
-        std::borrow::Cow::Borrowed(text) => std::borrow::Cow::Borrowed(text.as_bytes()),
-        std::borrow::Cow::Owned(text) => std::borrow::Cow::Owned(text.into_bytes()),
+        Cow::Borrowed(text) => Cow::Borrowed(text.as_bytes()),
+        Cow::Owned(text) => Cow::Owned(text.into_bytes()),
     }
 }

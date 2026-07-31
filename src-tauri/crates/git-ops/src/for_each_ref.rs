@@ -606,6 +606,12 @@ mod tests {
         );
     }
 
+    // Unix-only by construction, not by neglect: `std::os::unix::fs::symlink` has no portable
+    // equivalent — Windows splits it into `symlink_file`/`symlink_dir` and creating one normally
+    // needs Developer Mode or elevation, so the Windows version of this test is a Phase 10 decision
+    // rather than a rename. The behaviour under test (canonicalizing before comparing worktree
+    // paths) is platform-neutral and covered on every platform by the sibling tests.
+    #[cfg(unix)]
     #[tokio::test]
     async fn recognizes_its_own_worktree_through_a_symlink() {
         // Why the path comparison canonicalizes. Reached through a symlink, the original's string
