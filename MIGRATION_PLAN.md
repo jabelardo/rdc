@@ -3191,6 +3191,16 @@ Linux WebKit journey (including its computed visual contract), browser-boundary 
 audits. Fresh no-bundle development builds succeeded on macOS and in the Linux journey; no final
 package was produced. Phase 8a is closed again and Phase 8b is next.
 
+One debug-build warning was investigated rather than hidden: with source maps enabled for a Tauri
+debug build, Rolldown reports that `@tailwindcss/vite:generate:build` transformed `src/App.css`
+without a complete input map. Production builds do not emit the warning; the generated JavaScript
+map was traced successfully through `App.tsx` and `use-app-controller.ts`; and enabling Vite's CSS
+development maps only moves the warning to the next CSS transform without producing a usable CSS
+map. The practical gap is precise CSS source mapping in developer tools, not application behavior or
+packaging. It remains visible as upstream Tailwind/Vite/Rolldown debt in `REMAINING.md`, to be
+rechecked on dependency upgrades rather than “fixed” by suppressing the warning or disabling the
+working JavaScript maps.
+
 #### Phase 8b — human-assisted QA and refinement
 
 Phase 8b is the one consolidated human-blocked pre-MVP phase. It is an **iterative QA cycle that is

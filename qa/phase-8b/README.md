@@ -31,5 +31,26 @@ agreed MVP blocker.
 6. Settle the final icon and bundle identifier, package once, then run `final-package-smoke.md`.
    Packaging-only defects return through the same fix, Phase 8a, repackage and focused recheck loop.
 
+## Immediate cycle-one order
+
+Use the available macOS host first so the first human feedback arrives before arranging a separate
+Linux machine/session:
+
+1. Create the fixture and evidence record, then launch the macOS development build from the exact
+   green commit recorded in that evidence.
+2. Complete `macos-checklist.md` and the macOS rows of `visual-matrix.md`. Start with normal/Light and
+   the populated fixture to expose layout and workflow blockers quickly, then cover compact,
+   Dark/System, empty state, keyboard, increased contrast and Reduce Motion.
+3. Classify and fix macOS findings. Any code change invalidates the recorded green prerequisite:
+   rerun all of Phase 8a and repeat every affected macOS check before moving on.
+4. On a real Ubuntu 26.04 Wayland session, use the same fixture topology and complete
+   `linux-wayland-checklist.md` plus the Linux visual rows. Xvfb E2E remains a prerequisite, never a
+   substitute.
+5. Repeat the fix/regression/recheck loop across both platforms until neither has an agreed MVP
+   blocker. Only then choose final identity/icon values and enter `final-package-smoke.md`.
+
+Do not wait for the Linux session before starting macOS evidence, and do not interpret a clean macOS
+cycle as permission to package: both native-platform records are required.
+
 The phase closes only when the evidence record links all completed matrices/checklists, every blocker
 is resolved, accepted deviations are explicit, and the final packages pass their focused smoke pass.

@@ -94,6 +94,13 @@ platform behavior such as the draggable title bar, semantic/state selectors and 
 that coordinate multiple components. Keep that division; do not translate state or platform rules
 into unreadable conditional class strings merely to reduce the stylesheet's line count.
 
+Tauri debug builds currently report an incomplete source map from
+`@tailwindcss/vite:generate:build`. This is a known CSS developer-tools limitation, not a failed
+bundle: production is quiet and the JavaScript map remains valid. Keep the warning visible and keep
+debug JavaScript source maps enabled. `REMAINING.md` records the investigation and upstream links so
+the workaround experiments do not have to be repeated before a dependency upgrade changes the
+result.
+
 ### Windows portability, without a Windows runner
 
 There is deliberately **no `windows-latest` job**. The app crate cannot compile on Windows until

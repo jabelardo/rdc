@@ -68,6 +68,17 @@ items, unchanged; do not restate them here, satisfy them there.
 
 ## Carried debt
 
+- **Tailwind 4 debug CSS source maps are incomplete.** A debug Tauri/Vite build emits Rolldown's
+  `Sourcemap is likely to be incorrect` warning for `@tailwindcss/vite:generate:build` when
+  `src/App.css` contains real Tailwind roots. The production build is quiet, the generated JavaScript
+  map was traced back to both `App.tsx` and `use-app-controller.ts`, and application output is
+  unaffected; the missing fidelity is CSS-to-source mapping in development tools. Enabling
+  `css.devSourcemap` only moves the warning to Vite's CSS transform and emits no usable standalone
+  CSS map, so do not suppress the warning or disable the working JavaScript maps. Recheck after
+  Tailwind/Vite/Rolldown upgrades; upstream context is Tailwind
+  [discussion #16119](https://github.com/tailwindlabs/tailwindcss/discussions/16119) and
+  [issue #19930](https://github.com/tailwindlabs/tailwindcss/issues/19930). This is not an MVP
+  runtime or packaging blocker.
 - **Legacy `url.parse()` — 8 sites** in `api.ts` (3), `find-account.ts` (3), `parse-app-url.ts` (1),
   `repository-matching.ts` (1). `DEP0169`, security-relevant, and the WHATWG `URL` migration is a
   strict behaviour change that needs its own change with tests as the guard. **None of these modules
