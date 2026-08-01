@@ -2,7 +2,7 @@ import {
   faGear,
   faMagnifyingGlass,
   faRotate,
-  faRotateLeft,
+  faTrashCan,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { useRef, useState, type CSSProperties } from 'react'
@@ -14,6 +14,7 @@ import type {
 } from '../../stores/working-tree-store'
 import { HorizontalResizer } from '../horizontal-resizer'
 import { WorkingTreeFileRow } from '../mvp-list-rows'
+import { Tooltip } from '../tooltip'
 import { VirtualList } from '../virtual-list'
 
 function diffLineClassName(type: DiffLineType): string {
@@ -143,22 +144,23 @@ export function ChangesWorkspace({
                 onChange={event => setFileFilter(event.currentTarget.value)}
               />
             </label>
-            <button
-              type="button"
-              className="working-tree-refresh"
-              aria-label="Refresh changes"
-              title="Refresh changed files"
-              disabled={state.loading}
-              onClick={() => {
-                void Promise.all([
-                  store.load(repositoryPath),
-                  conflictStore.load(repositoryPath),
-                ])
-              }}
-            >
-              <FontAwesomeIcon icon={faRotate} aria-hidden="true" />
-              <span className="sr-only">Refresh changes</span>
-            </button>
+            <Tooltip label="Refresh changed files">
+              <button
+                type="button"
+                className="working-tree-refresh"
+                aria-label="Refresh changes"
+                disabled={state.loading}
+                onClick={() => {
+                  void Promise.all([
+                    store.load(repositoryPath),
+                    conflictStore.load(repositoryPath),
+                  ])
+                }}
+              >
+                <FontAwesomeIcon icon={faRotate} aria-hidden="true" />
+                <span className="sr-only">Refresh changes</span>
+              </button>
+            </Tooltip>
           </div>
           <label className="working-tree-summary">
             <input
@@ -227,25 +229,26 @@ export function ChangesWorkspace({
         aria-label="File diff"
       >
         <header className="working-tree-diff-header">
-          <strong title={selectedFile?.path}>
-            {selectedFile?.path ?? 'File diff'}
-          </strong>
+          <Tooltip label={selectedFile?.path ?? 'File diff'}>
+            <strong>{selectedFile?.path ?? 'File diff'}</strong>
+          </Tooltip>
           {state.diff?.kind === DiffType.Text && (
-            <button
-              type="button"
-              className="discard-selected-lines"
-              aria-label="Discard selected lines"
-              title="Discard selected diff lines"
-              disabled={!hasSelectedDiffLines}
-              onClick={() => {
-                if (selectedFile !== null) {
-                  onDiscard(selectedFile.id, true)
-                }
-              }}
-            >
-              <FontAwesomeIcon icon={faRotateLeft} aria-hidden="true" />
-              <span className="sr-only">Discard selected lines</span>
-            </button>
+            <Tooltip label="Discard selected diff lines">
+              <button
+                type="button"
+                className="discard-selected-lines"
+                aria-label="Discard selected lines"
+                disabled={!hasSelectedDiffLines}
+                onClick={() => {
+                  if (selectedFile !== null) {
+                    onDiscard(selectedFile.id, true)
+                  }
+                }}
+              >
+                <FontAwesomeIcon icon={faTrashCan} aria-hidden="true" />
+                <span className="sr-only">Discard selected lines</span>
+              </button>
+            </Tooltip>
           )}
         </header>
         <div className="working-tree-diff-content">
@@ -367,10 +370,12 @@ export function ChangesWorkspace({
             <div className="commit-form-footer">
               <div className="commit-form-options">
                 <details>
-                  <summary aria-label="Commit options" title="Commit options">
-                    <FontAwesomeIcon icon={faGear} aria-hidden="true" />
-                    <span className="sr-only">Commit options</span>
-                  </summary>
+                  <Tooltip label="Commit options">
+                    <summary aria-label="Commit options">
+                      <FontAwesomeIcon icon={faGear} aria-hidden="true" />
+                      <span className="sr-only">Commit options</span>
+                    </summary>
+                  </Tooltip>
                   <div className="commit-options-panel">
                     <label className="commit-option">
                       <input

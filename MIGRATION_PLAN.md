@@ -3232,6 +3232,12 @@ The human checks cover:
   Linux at normal, default and compact sizes in Light, Dark and System themes. Validate against
   Desktop Plus's successful visual principles and native platform conventions without copying its
   layout or values.
+- Audit the complete application-menu inventory against the MVP before functional journeys. Across
+  empty, selected, dirty, History, remote/busy, protected and multi-window states, every visible and
+  enabled item must be backed and correctly scoped, every post-MVP item must remain hidden or honestly
+  disabled, and labels, accelerators, Help/About destinations and contextual menus must match rdc.
+  `qa/phase-8b/menu-mvp-alignment-checklist.md` is the shared macOS/Linux evidence gate; Windows
+  repeats it independently in Phase 10.
 - Settle the final MVP icon, bundle identifier and preview presentation before packaging. “Preview
   presentation” is a concrete release-identity decision: whether this MVP is labelled Preview/Beta
   in About and package-facing metadata, what exact label is used and how it relates to version 0.1.0;

@@ -5,6 +5,7 @@ import type { HistoryState, HistoryStore } from '../../stores/history-store'
 import { handleListNavigation } from '../list-navigation'
 import { HorizontalResizer } from '../horizontal-resizer'
 import { FileStatusIcon } from '../mvp-list-rows'
+import { Tooltip } from '../tooltip'
 
 function diffLineClassName(type: DiffLineType): string {
   switch (type) {
@@ -35,6 +36,7 @@ export function HistoryWorkspace({
   const changeWorkspaceRef = useRef<HTMLDivElement>(null)
   const [commitListWidth, setCommitListWidth] = useState(270)
   const [changedFilesWidth, setChangedFilesWidth] = useState(240)
+  const [copyStatus, setCopyStatus] = useState('')
   const selectedCommit =
     state.commits.find(commit => commit.sha === state.selectedCommitSHA) ?? null
   const selectedFile =
@@ -100,14 +102,13 @@ export function HistoryWorkspace({
                   <small>
                     {commit.author.name}
                     <span aria-hidden="true"> · </span>
-                    <time
-                      dateTime={commit.author.date.toISOString()}
-                      title={commit.author.date.toLocaleString()}
-                    >
-                      {formatRelative(
-                        commit.author.date.getTime() - Date.now()
-                      )}
-                    </time>
+                    <Tooltip label={commit.author.date.toLocaleString()}>
+                      <time dateTime={commit.author.date.toISOString()}>
+                        {formatRelative(
+                          commit.author.date.getTime() - Date.now()
+                        )}
+                      </time>
+                    </Tooltip>
                   </small>
                 </button>
               </li>
@@ -147,7 +148,26 @@ export function HistoryWorkspace({
             <p className="history-commit-meta">
               <span>{selectedCommit.author.name}</span>
               <span aria-hidden="true">·</span>
-              <code title={selectedCommit.sha}>{selectedCommit.shortSha}</code>
+              <Tooltip label={selectedCommit.sha}>
+                <button
+                  type="button"
+                  className="history-commit-sha"
+                  aria-label="Copy full commit hash"
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(selectedCommit.sha)
+                      .then(() => setCopyStatus('Full commit hash copied.'))
+                      .catch(() =>
+                        setCopyStatus('Unable to copy the full commit hash.')
+                      )
+                  }}
+                >
+                  <code>{selectedCommit.shortSha}</code>
+                </button>
+              </Tooltip>
+              <span className="sr-only" role="status" aria-live="polite">
+                {copyStatus}
+              </span>
               {state.changeset !== null && (
                 <>
                   <span className="history-lines-added">
@@ -259,9 +279,9 @@ export function HistoryWorkspace({
               />
               <section className="history-diff" aria-label="Commit file diff">
                 <header className="history-diff-header">
-                  <strong title={selectedFile?.path}>
-                    {selectedFile?.path ?? 'File diff'}
-                  </strong>
+                  <Tooltip label={selectedFile?.path ?? 'File diff'}>
+                    <strong>{selectedFile?.path ?? 'File diff'}</strong>
+                  </Tooltip>
                 </header>
                 <div className="history-diff-content">
                   {state.diffLoading ? (

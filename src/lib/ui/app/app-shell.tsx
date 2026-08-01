@@ -1,6 +1,11 @@
 import { useRef, useState, type CSSProperties } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import {
+  faClone,
+  faFolderPlus,
+  faPlus,
+} from '@fortawesome/free-solid-svg-icons'
 import { showFolderContents } from '../../platform/files'
-import { openRepositoryInNewWindow } from '../../platform/window'
 import { HorizontalResizer } from '../horizontal-resizer'
 import { AppDialogs } from './app-dialogs'
 import { ChangesWorkspace } from './changes-workspace'
@@ -154,25 +159,19 @@ export function AppShell({ controller }: AppShellProps) {
         {appState.selectedRepository === null ? (
           <div className="repository-empty-state mx-auto max-w-[40rem] p-8 text-center">
             <div className="repository-empty-actions flex flex-wrap justify-center gap-2">
-              <button
-                type="button"
-                title="Create a new Git repository"
-                onClick={() => void createRepository()}
-              >
+              <button type="button" onClick={() => void createRepository()}>
+                <FontAwesomeIcon icon={faPlus} aria-hidden="true" />
                 Create repository
               </button>
               <button
                 type="button"
-                title="Open a Git repository from this computer"
                 onClick={() => void addExistingRepository()}
               >
+                <FontAwesomeIcon icon={faFolderPlus} aria-hidden="true" />
                 Add existing repository
               </button>
-              <button
-                type="button"
-                title="Clone a Git repository from a remote URL"
-                onClick={openCloneDialog}
-              >
+              <button type="button" onClick={openCloneDialog}>
+                <FontAwesomeIcon icon={faClone} aria-hidden="true" />
                 Clone repository
               </button>
             </div>
@@ -180,11 +179,13 @@ export function AppShell({ controller }: AppShellProps) {
         ) : (
           <div className="selected-repository relative grid h-full min-h-0 min-w-0 text-left">
             <RepositoryToolbar
-              repository={appState.selectedRepository}
               remoteState={remoteState}
               hasEditor={preferencesStore.selectedEditor !== null}
               hasShell={preferencesStore.selectedShell !== null}
               repositoryView={repositoryView}
+              onCreateRepository={() => void createRepository()}
+              onAddExistingRepository={() => void addExistingRepository()}
+              onCloneRepository={openCloneDialog}
               onShowFiles={() =>
                 void runRepositoryAction(() =>
                   showFolderContents(appState.selectedRepository!.path)
@@ -198,11 +199,6 @@ export function AppShell({ controller }: AppShellProps) {
               onOpenShell={() =>
                 void runRepositoryAction(() =>
                   openInShell(appState.selectedRepository!.path)
-                )
-              }
-              onOpenNewWindow={() =>
-                void runRepositoryAction(() =>
-                  openRepositoryInNewWindow(appState.selectedRepository!.path)
                 )
               }
               onFetch={() => void refreshAfterFetch()}

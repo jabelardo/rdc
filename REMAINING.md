@@ -20,7 +20,7 @@ the next MVP phase and the only human-blocked phase.**
 
 | Gate | State |
 |---|---|
-| `pnpm test` (Vitest) | 950 passing |
+| `pnpm test` (Vitest) | 951 passing |
 | `pnpm exec tsc --noEmit` | clean |
 | `pnpm format:check` / `pnpm lint` | clean |
 | `pnpm build` / `pnpm check:bundle-boundary` | clean; 108 browser-reachable modules, no Node built-ins |
@@ -52,6 +52,11 @@ views, and a prepared History transition without intermediate repainting. All fi
 repository foundation gates now pass, so macOS proceeds to the visual matrix and functional
 checklist. Linux repeats all foundation gates in real-Wayland QA; the macOS result is a reference,
 not transferable evidence. Windows repeats them in Phase 10.
+
+Before either platform begins functional journeys, it now runs the shared
+`qa/phase-8b/menu-mvp-alignment-checklist.md`. Existing automation proves enabled menu leaves have
+executors; this human gate verifies that the inventory, state-dependent enablement, labels,
+accelerators, destinations and hidden/deferred commands are themselves aligned with the MVP.
 
 Human judgement is required for: visual refinement (hierarchy, density, alignment, empty/loading/
 error states, diff readability) at normal and compact sizes in Light/Dark/System; the final icon,

@@ -151,7 +151,7 @@ const branchStore = vi.hoisted(() => ({
       name: string
       ref: string
       type: number
-      tip: { sha: string }
+      tip: { sha: string; author: { date: Date } }
     }>,
     currentBranch: null as string | null,
     defaultBranch: null as string | null,
@@ -640,11 +640,26 @@ describe('App', () => {
       screen.getByRole('button', { name: 'Create repository' })
     ).toBeInTheDocument()
     expect(
+      screen
+        .getByRole('button', { name: 'Create repository' })
+        .querySelector('svg')
+    ).toHaveAttribute('data-icon', 'plus')
+    expect(
       screen.getByRole('button', { name: 'Add existing repository' })
     ).toBeInTheDocument()
     expect(
+      screen
+        .getByRole('button', { name: 'Add existing repository' })
+        .querySelector('svg')
+    ).toHaveAttribute('data-icon', 'folder-plus')
+    expect(
       screen.getByRole('button', { name: 'Clone repository' })
     ).toBeInTheDocument()
+    expect(
+      screen
+        .getByRole('button', { name: 'Clone repository' })
+        .querySelector('svg')
+    ).toHaveAttribute('data-icon', 'clone')
     expect(
       screen.queryByText(/native integration harness/i)
     ).not.toBeInTheDocument()
@@ -695,7 +710,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
     expect(
       screen.getByRole('button', { name: 'Expand sidebar' })
-    ).toHaveAttribute('title', 'Expand sidebar')
+    ).toHaveAttribute('data-tooltip', 'Expand sidebar')
     expect(
       screen.getByRole('button', { name: 'Expand sidebar' })
     ).toHaveAttribute('aria-expanded', 'false')
@@ -706,7 +721,7 @@ describe('App', () => {
       name: 'Branches: No branch selected',
     })
     expect(repositoriesRailButton).toHaveAttribute(
-      'title',
+      'data-tooltip',
       'Repositories: No repository selected'
     )
     expect(repositoriesRailButton.querySelector('svg')).toHaveAttribute(
@@ -714,7 +729,7 @@ describe('App', () => {
       'folder-tree'
     )
     expect(branchesRailButton).toHaveAttribute(
-      'title',
+      'data-tooltip',
       'Branches: No branch selected'
     )
     expect(branchesRailButton.querySelector('svg')).toHaveAttribute(
@@ -750,7 +765,10 @@ describe('App', () => {
           name: 'main',
           ref: 'refs/heads/main',
           type: 0,
-          tip: { sha: 'a'.repeat(40) },
+          tip: {
+            sha: 'a'.repeat(40),
+            author: { date: new Date('2026-04-23T14:04:00') },
+          },
         },
       ],
       currentBranch: 'main',
@@ -783,7 +801,13 @@ describe('App', () => {
       name: 'Repository actions',
     })
     expect(toolbar).toContainElement(
-      screen.getByRole('button', { name: 'Open in new window' })
+      screen.getByRole('button', { name: 'New repository' })
+    )
+    expect(toolbar).toContainElement(
+      screen.getByRole('button', { name: 'Add local repository' })
+    )
+    expect(toolbar).toContainElement(
+      screen.getByRole('button', { name: 'Clone repository' })
     )
     expect(toolbar).toContainElement(
       screen.getByRole('button', { name: 'Show files' })
@@ -802,6 +826,9 @@ describe('App', () => {
     expect(toolbar).not.toContainElement(
       screen.getByRole('list', { name: 'Branches' })
     )
+    expect(
+      screen.queryByRole('button', { name: 'Open in new window' })
+    ).not.toBeInTheDocument()
   })
 
   it('adds the directory selected by the native dialog', async () => {
@@ -888,8 +915,8 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Select rdc' }))
 
     expect(screen.getByRole('button', { name: 'Select rdc' })).toHaveAttribute(
-      'title',
-      'rdc — /projects/rdc'
+      'data-tooltip',
+      '/projects/rdc'
     )
     expect(appStore.selectRepository).toHaveBeenCalledWith(repository)
   })
@@ -952,13 +979,11 @@ describe('App', () => {
     expect(appStore.selectRepository).not.toHaveBeenCalled()
   })
 
-  it('renders a selected-repository workspace with a window action', async () => {
+  it('orders the selected-repository toolbar actions and keeps tooltips generic', () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
     }
-    const user = userEvent.setup()
-
     render(<App />)
 
     const toolbar = screen.getByRole('toolbar', {
@@ -966,22 +991,86 @@ describe('App', () => {
     })
     expect(toolbar).not.toHaveTextContent(repository.name)
     expect(toolbar).not.toHaveTextContent(repository.path)
-    const openInNewWindow = screen.getByRole('button', {
-      name: 'Open in new window',
-    })
-    expect(openInNewWindow).toHaveAttribute(
-      'title',
-      `Open ${repository.name} in a new window`
-    )
-    expect(openInNewWindow.querySelector('svg')).toHaveAttribute(
-      'data-icon',
-      'arrow-up-right-from-square'
-    )
-    await user.click(openInNewWindow)
-    expect(openRepositoryInNewWindow).toHaveBeenCalledWith(repository.path)
+    const toolbarButtonNames = Array.from(
+      toolbar.querySelectorAll<HTMLButtonElement>('button')
+    ).map(button => button.getAttribute('aria-label'))
+    expect(toolbarButtonNames.slice(0, 6)).toEqual([
+      'New repository',
+      'Add local repository',
+      'Clone repository',
+      'Show files',
+      'Open in editor',
+      'Open in terminal',
+    ])
+    expect(
+      screen.queryByRole('button', { name: 'Open in new window' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen
+        .getByRole('button', { name: 'New repository' })
+        .querySelector('svg')
+    ).toHaveAttribute('data-icon', 'plus')
+    expect(
+      screen
+        .getByRole('button', { name: 'Add local repository' })
+        .querySelector('svg')
+    ).toHaveAttribute('data-icon', 'folder-plus')
+    expect(
+      screen
+        .getByRole('button', { name: 'Clone repository' })
+        .querySelector('svg')
+    ).toHaveAttribute('data-icon', 'clone')
+    expect(
+      screen.getByRole('button', { name: 'Fetch' }).querySelector('svg')
+    ).toHaveAttribute('data-icon', 'arrows-down-to-line')
+    expect(document.querySelectorAll('[title]')).toHaveLength(0)
+    const tooltipLabels = Array.from(
+      toolbar.querySelectorAll<HTMLElement>(
+        'button[data-tooltip], .disabled-tooltip-anchor[data-tooltip]'
+      )
+    ).map(tooltip => tooltip.dataset.tooltip)
+    expect(tooltipLabels).toEqual([
+      'New repository',
+      'Add local repository',
+      'Clone repository',
+      'Show in file manager',
+      'Open in configured editor',
+      'Open in terminal',
+      'Fetch from remote',
+      'Pull from remote',
+      'Push to remote',
+      'Show changes',
+      'Show history',
+    ])
+    for (const label of tooltipLabels) {
+      expect(label).not.toContain(repository.name)
+      expect(label).not.toContain('main')
+      expect(label).not.toContain('origin')
+    }
     expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path)
     expect(branchStore.load).toHaveBeenCalledWith(repository.path)
     expect(conflictStore.load).toHaveBeenCalledWith(repository.path)
+  })
+
+  it('routes repository creation actions from the selected-repository toolbar', async () => {
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    }
+    const user = userEvent.setup()
+    render(<App />)
+
+    await user.click(screen.getByRole('button', { name: 'New repository' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Add local repository' })
+    )
+    await user.click(screen.getByRole('button', { name: 'Clone repository' }))
+
+    expect(showSaveDialog).toHaveBeenCalledOnce()
+    expect(showOpenDialog).toHaveBeenCalledOnce()
+    expect(
+      screen.getByRole('dialog', { name: 'Clone a repository' })
+    ).toBeInTheDocument()
   })
 
   it('lists branches, checks out a local branch, and creates from HEAD', async () => {
@@ -996,19 +1085,28 @@ describe('App', () => {
           name: 'main',
           ref: 'refs/heads/main',
           type: 0,
-          tip: { sha: 'a'.repeat(40) },
+          tip: {
+            sha: 'a'.repeat(40),
+            author: { date: new Date('2026-04-23T14:04:00') },
+          },
         },
         {
           name: 'topic',
           ref: 'refs/heads/topic',
           type: 0,
-          tip: { sha: 'b'.repeat(40) },
+          tip: {
+            sha: 'b'.repeat(40),
+            author: { date: new Date('2026-04-22T13:03:00') },
+          },
         },
         {
           name: 'origin/main',
           ref: 'refs/remotes/origin/main',
           type: 1,
-          tip: { sha: 'a'.repeat(40) },
+          tip: {
+            sha: 'a'.repeat(40),
+            author: { date: new Date('2026-04-21T12:02:00') },
+          },
         },
       ],
       currentBranch: 'main',
@@ -1026,18 +1124,26 @@ describe('App', () => {
     render(<App />)
     await user.click(screen.getByRole('button', { name: 'Branches' }))
 
-    expect(
-      screen.getByRole('button', { name: 'main — current branch' })
-    ).toHaveAttribute('aria-current', 'true')
+    const currentBranch = screen.getByRole('button', {
+      name: 'main — current branch',
+    })
+    expect(currentBranch).toHaveAttribute('aria-current', 'true')
+    expect(currentBranch).toHaveAttribute(
+      'data-tooltip',
+      'Current branch\nLast modified: 2026-04-23 14:04'
+    )
     expect(
       screen.getByRole('heading', { name: 'Default Branch' })
     ).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { name: 'Recent Branches' })
     ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Check out topic' })
-    ).toBeInTheDocument()
+    const topicBranch = screen.getByRole('button', { name: 'Check out topic' })
+    expect(topicBranch).toBeInTheDocument()
+    expect(topicBranch).toHaveAttribute(
+      'data-tooltip',
+      'Check out branch\nLast modified: 2026-04-22 13:03'
+    )
     expect(screen.queryByText('origin/main')).not.toBeInTheDocument()
     const filter = screen.getByRole('searchbox', { name: 'Filter branches' })
     await user.type(filter, 'topic')
@@ -1229,6 +1335,12 @@ describe('App', () => {
     expect(selectedCommit).not.toHaveTextContent('aaaaaaa')
     expect(history).toHaveTextContent('Render selected commit details.')
     expect(history).toHaveTextContent('Mona Lisa·aaaaaaa+7−2')
+    const copyCommitHash = screen.getByRole('button', {
+      name: 'Copy full commit hash',
+    })
+    expect(copyCommitHash).toHaveAttribute('data-tooltip', 'a'.repeat(40))
+    await user.click(copyCommitHash)
+    expect(await navigator.clipboard.readText()).toBe('a'.repeat(40))
     expect(history).toHaveTextContent('1 changed file')
     expect(screen.getByRole('img', { name: 'Modified' })).toBeInTheDocument()
     expect(history).toHaveTextContent('+selected commit diff')
@@ -1502,9 +1614,14 @@ describe('App', () => {
 
     expect(workingTreeStore.setLineIncluded).toHaveBeenCalledWith(2, true)
 
-    await user.click(
-      screen.getByRole('button', { name: 'Discard selected lines' })
+    const discardSelectedLines = screen.getByRole('button', {
+      name: 'Discard selected lines',
+    })
+    expect(discardSelectedLines.querySelector('svg')).toHaveAttribute(
+      'data-icon',
+      'trash-can'
     )
+    await user.click(discardSelectedLines)
     expect(screen.getByRole('alertdialog')).toHaveTextContent(
       'Selected changes cannot be restored from the operating system trash.'
     )

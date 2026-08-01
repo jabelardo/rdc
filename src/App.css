@@ -427,11 +427,59 @@ button:disabled {
   margin: 0 0 0.5rem;
 }
 
+.repository-empty-actions button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+:root {
+  --tooltip-delay: 250ms;
+}
+
 .repository-toolbar {
   position: relative;
   height: var(--command-bar-height);
   box-sizing: border-box;
   gap: 0.75rem;
+}
+
+.disabled-tooltip-anchor {
+  display: inline-flex;
+  flex: none;
+}
+
+.app-tooltip {
+  position: fixed;
+  z-index: 10000;
+  width: max-content;
+  max-width: calc(100vw - 1rem);
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.35rem;
+  color: var(--color-text);
+  background: var(--color-surface-raised);
+  box-shadow: 0 0.2rem 0.6rem rgb(0 0 0 / 18%);
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1.2;
+  pointer-events: none;
+  text-align: center;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  animation: tooltip-appear 80ms ease var(--tooltip-delay) both;
+}
+
+@keyframes tooltip-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-0.15rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .repository-toolbar::before {
@@ -445,7 +493,13 @@ button:disabled {
   transform: translateY(-50%);
 }
 
-.repository-toolbar :is(.repository-toolbar-actions, .remote-actions) button {
+.repository-toolbar
+  :is(
+    .repository-creation-actions,
+    .repository-toolbar-actions,
+    .remote-actions
+  )
+  button {
   display: grid;
   width: 2.25rem;
   min-width: 2.25rem;
@@ -458,10 +512,20 @@ button:disabled {
 }
 
 .repository-toolbar
-  :is(.repository-toolbar-actions, .remote-actions)
+  :is(
+    .repository-creation-actions,
+    .repository-toolbar-actions,
+    .remote-actions
+  )
   button:hover {
   color: var(--color-accent);
   background: var(--color-accent-soft);
+}
+
+.repository-toolbar-actions {
+  margin-left: 0.75rem;
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--color-border);
 }
 
 .remote-controls {
@@ -511,6 +575,10 @@ button:disabled {
 
 .repository-toolbar-status.is-error {
   color: var(--color-error-text);
+}
+
+.repository-toolbar-status:empty {
+  display: none;
 }
 
 .branches-panel-content {
@@ -1327,7 +1395,23 @@ button:disabled {
   text-overflow: ellipsis;
 }
 
-.history-commit-meta code {
+.history-commit-sha {
+  flex: 0 0 auto;
+  padding: 0;
+  border-color: transparent;
+  color: inherit;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+}
+
+.history-commit-sha:hover {
+  color: var(--color-accent);
+  background: transparent;
+  text-decoration: underline;
+}
+
+.history-commit-sha code {
   flex: 0 0 auto;
   color: inherit;
   font-size: inherit;
@@ -1585,15 +1669,7 @@ button:disabled {
   gap: 0.75rem;
 }
 
-@media (max-width: 46rem) {
-  .changes-workspace {
-    grid-template-rows: minmax(0, 1fr) minmax(0, auto);
-    grid-template-areas:
-      'files diff'
-      'commit diff';
-    overflow: hidden;
-  }
-
+@media (max-width: 58rem) {
   .repository-view-navigation button {
     width: 2.25rem;
     padding: 0;
@@ -1601,6 +1677,16 @@ button:disabled {
 
   .repository-view-label {
     display: none;
+  }
+}
+
+@media (max-width: 46rem) {
+  .changes-workspace {
+    grid-template-rows: minmax(0, 1fr) minmax(0, auto);
+    grid-template-areas:
+      'files diff'
+      'commit diff';
+    overflow: hidden;
   }
 
   .commit-form {
@@ -1705,6 +1791,12 @@ button:disabled {
   border-color: var(--color-border-strong);
   color: var(--color-text);
   background: var(--color-surface-raised);
+}
+
+:root[data-theme='dark'] .history-commit-sha {
+  border-color: transparent;
+  color: inherit;
+  background: transparent;
 }
 
 :root[data-theme='dark'] .repository-view-navigation button {

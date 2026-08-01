@@ -14,6 +14,7 @@ native acceptance record; do not label it automated.
 
 ## 2. Read-only repository journey
 
+- Complete `menu-mvp-alignment-checklist.md` for macOS before beginning the functional journeys.
 - Launch with clean config/data, add `populated`, inspect status and text diff, switch to History and
   inspect commit metadata/files/diff, then quit and relaunch. Repository registration and selection
   persist; workspace geometry returns coherently to its defined defaults (individual pane widths are
@@ -61,8 +62,8 @@ native acceptance record; do not label it automated.
 
 ## 7. Native integrations, accessibility and lifecycle
 
-- Open every enabled MVP native-menu item. Confirm labels, accelerators, enablement, Preferences,
-  About, dialogs and contextual menus target the focused repository window.
+- Repeat any focused-window menu checks identified by `menu-mvp-alignment-checklist.md`; Preferences,
+  About, dialogs and contextual menus must still target the focused repository window.
 - Open a second repository window, give each window a different selected repository/view, and repeat
   menu, context-menu and close actions while alternating focus. State and commands must remain scoped
   to the focused window; closing one must not destroy or retarget the other.

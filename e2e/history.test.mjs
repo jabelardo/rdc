@@ -64,6 +64,45 @@ describe('history', () => {
       /Commit from the real shell.*1 changed file.*working-tree\.txt/s
     )
 
+    const copyCommitHash = await driver.findElement(
+      By.css('[aria-label="Copy full commit hash"]')
+    )
+    assert.equal(await copyCommitHash.getAttribute('data-tooltip'), head)
+    await driver.executeScript(element => element.focus(), copyCommitHash)
+    await driver.wait(
+      async () =>
+        await driver.executeScript(() => {
+          const tooltip = document.querySelector('.app-tooltip')
+          return (
+            tooltip?.textContent.length === 40 &&
+            tooltip.scrollWidth <= tooltip.clientWidth &&
+            getComputedStyle(tooltip).opacity === '1'
+          )
+        }),
+      2_000,
+      'the full hash did not fit inside its tooltip'
+    )
+    await driver.executeScript(() => {
+      window.__rdcCopiedCommitHash = null
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText(value) {
+            window.__rdcCopiedCommitHash = value
+            return Promise.resolve()
+          },
+        },
+      })
+    })
+    await driver.executeScript(element => element.click(), copyCommitHash)
+    await driver.wait(
+      async () =>
+        (await driver.executeScript(() => window.__rdcCopiedCommitHash)) ===
+        head,
+      2_000,
+      'clicking the short hash did not copy the complete commit hash'
+    )
+
     const commitDiff = await driver.wait(
       until.elementLocated(By.css('[aria-label="Diff for working-tree.txt"]')),
       10_000

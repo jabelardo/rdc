@@ -53,6 +53,12 @@ describe('visual layout', () => {
         fontFamily: root.fontFamily,
         canvas: root.getPropertyValue('--color-canvas').trim(),
         toolbar: toolbar.backgroundColor,
+        tooltipDelayMs: (() => {
+          const value = toolbar.getPropertyValue('--tooltip-delay').trim()
+          return value.endsWith('ms')
+            ? Number.parseFloat(value)
+            : Number.parseFloat(value) * 1_000
+        })(),
         sidebar: getComputedStyle(sidebar).backgroundColor,
         toolbarHeight: toolbarElement.getBoundingClientRect().height,
         sidebarCommandBarHeight:
@@ -71,15 +77,62 @@ describe('visual layout', () => {
     assert.equal(normal.fontSize, '13px')
     assert.match(normal.fontFamily, /system-ui/)
     assert.notEqual(normal.toolbar, normal.canvas)
+    assert.equal(normal.tooltipDelayMs, 250)
     assert.equal(normal.toolbar, normal.sidebar)
     assert.equal(normal.toolbarHeight, normal.sidebarCommandBarHeight)
     assert.equal(normal.seamHeight, normal.collapseButtonHeight)
     assert.equal(normal.seamHeight, normal.remoteControlsHeight)
     assert.equal(normal.seamWidth, 1)
     assert.notEqual(normal.seamColor, 'rgba(0, 0, 0, 0)')
-    assert.equal(normal.toolbarButtons, 9)
+    assert.equal(normal.toolbarButtons, 11)
     assert.equal(normal.selectedView, 'Changes')
     assert.equal(normal.selectedViewHasTreatment, true)
+
+    const newRepositoryButton = await driver.findElement(
+      By.css('.repository-toolbar [aria-label="New repository"]')
+    )
+    await driver.executeScript(element => element.focus(), newRepositoryButton)
+    await driver.wait(
+      async () =>
+        await driver.executeScript(() => {
+          const tooltip = document.querySelector('.app-tooltip')
+          return tooltip !== null && getComputedStyle(tooltip).opacity === '1'
+        }),
+      2_000,
+      'the shared tooltip did not appear after its configured delay'
+    )
+    const toolbarTooltip = await driver.executeScript(() => {
+      const tooltip = document.querySelector('.app-tooltip')
+      const toolbar = document.querySelector('.repository-toolbar')
+      const expectedSurface = document.createElement('span')
+      expectedSurface.style.background = 'var(--color-surface-raised)'
+      document.body.append(expectedSurface)
+      const snapshot = {
+        label: tooltip.textContent,
+        background: getComputedStyle(tooltip).backgroundColor,
+        expectedBackground: getComputedStyle(expectedSurface).backgroundColor,
+        zIndex: Number.parseInt(getComputedStyle(tooltip).zIndex, 10),
+        top: tooltip.getBoundingClientRect().top,
+        toolbarBottom: toolbar.getBoundingClientRect().bottom,
+      }
+      expectedSurface.remove()
+      return snapshot
+    })
+    assert.equal(toolbarTooltip.label, 'New repository')
+    assert.equal(toolbarTooltip.background, toolbarTooltip.expectedBackground)
+    assert.ok(toolbarTooltip.zIndex >= 10_000)
+    assert.ok(toolbarTooltip.top >= toolbarTooltip.toolbarBottom)
+
+    const collapseButton = await driver.findElement(By.css('.sidebar-collapse'))
+    await driver.executeScript(element => element.focus(), collapseButton)
+    await driver.wait(
+      async () =>
+        (await driver.findElement(By.css('.app-tooltip')).getText()) ===
+        'Collapse sidebar',
+      2_000,
+      'the sidebar did not use the shared tooltip layer'
+    )
+    await driver.executeScript(element => element.blur(), collapseButton)
 
     const originalRect = await driver.manage().window().getRect()
     try {

@@ -33,6 +33,7 @@
 - Selected-repository Gate D — History workspace and cross-frame stability:
 - Selected-repository Gate E — top-level resizing behavior:
 - Visual matrix:
+- Application-menu MVP alignment:
 - Read-only/reversible local journeys and Git CLI oracle:
 - Destructive/commit/conflict journeys and Git CLI oracle:
 - Local-bare and system-credential remote journeys:

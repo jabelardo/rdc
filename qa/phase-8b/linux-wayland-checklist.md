@@ -23,6 +23,8 @@
 
 ## 3. Local repository journeys
 
+- Complete `menu-mvp-alignment-checklist.md` on the native Wayland build before beginning the
+  functional journeys.
 - On `populated`, inspect status/diff and History and exercise file/line inclusion. Use `branch` for
   checkout/return. Cross-check with `git status --short`, `git branch --show-current` and
   `git log -1 --format=%H`.

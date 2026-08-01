@@ -20,7 +20,15 @@ import {
 } from '../../models/status'
 import { mapStatus } from '../status'
 import { handleListNavigation } from './list-navigation'
+import { Tooltip } from './tooltip'
 import type { VirtualListRow } from './virtual-list'
+
+function formatBranchModifiedDate(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate()
+  )} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
 
 type RepositoryListRowProps = {
   readonly index: number
@@ -49,49 +57,51 @@ export function RepositoryListRow({
       data-index={row.virtualIndex}
       style={row.style}
     >
-      <button
-        type="button"
-        className="repository-list-selection"
-        data-repository-path={repository.path}
-        data-keyboard-list-item
-        data-keyboard-list-index={index}
-        aria-label={`Select ${repository.name}`}
-        title={`${repository.name} — ${repository.path}`}
-        aria-current={selected ? 'true' : undefined}
-        tabIndex={
-          selected || (selectedRepository === null && index === 0) ? 0 : -1
-        }
-        onClick={() => onSelect(repository)}
-        onKeyDown={event =>
-          handleListNavigation(
-            event,
-            index,
-            repositories.length,
-            targetIndex => onSelect(repositories[targetIndex]),
-            row.focusIndex
-          )
-        }
-        onContextMenu={event => {
-          event.preventDefault()
-          onContextMenu(repository)
-        }}
-      >
-        <FontAwesomeIcon
-          className="repository-list-icon"
-          icon={faFolder}
-          aria-hidden="true"
-        />
-        <strong>{repository.name}</strong>
-      </button>
-      <button
-        type="button"
-        className="repository-list-actions"
-        aria-label={`More actions for ${repository.name}`}
-        title={`More actions for ${repository.name}`}
-        onClick={() => onContextMenu(repository)}
-      >
-        <FontAwesomeIcon icon={faEllipsisVertical} aria-hidden="true" />
-      </button>
+      <Tooltip label={repository.path}>
+        <button
+          type="button"
+          className="repository-list-selection"
+          data-repository-path={repository.path}
+          data-keyboard-list-item
+          data-keyboard-list-index={index}
+          aria-label={`Select ${repository.name}`}
+          aria-current={selected ? 'true' : undefined}
+          tabIndex={
+            selected || (selectedRepository === null && index === 0) ? 0 : -1
+          }
+          onClick={() => onSelect(repository)}
+          onKeyDown={event =>
+            handleListNavigation(
+              event,
+              index,
+              repositories.length,
+              targetIndex => onSelect(repositories[targetIndex]),
+              row.focusIndex
+            )
+          }
+          onContextMenu={event => {
+            event.preventDefault()
+            onContextMenu(repository)
+          }}
+        >
+          <FontAwesomeIcon
+            className="repository-list-icon"
+            icon={faFolder}
+            aria-hidden="true"
+          />
+          <strong>{repository.name}</strong>
+        </button>
+      </Tooltip>
+      <Tooltip label={`More actions for ${repository.name}`}>
+        <button
+          type="button"
+          className="repository-list-actions"
+          aria-label={`More actions for ${repository.name}`}
+          onClick={() => onContextMenu(repository)}
+        >
+          <FontAwesomeIcon icon={faEllipsisVertical} aria-hidden="true" />
+        </button>
+      </Tooltip>
     </li>
   )
 }
@@ -122,6 +132,9 @@ export function BranchListRow({
   const description = current
     ? `${branch.name} — current branch`
     : `Check out ${branch.name}`
+  const tooltipDescription = `${
+    current ? 'Current branch' : 'Check out branch'
+  }\nLast modified: ${formatBranchModifiedDate(branch.tip.author.date)}`
 
   return (
     <li
@@ -133,44 +146,45 @@ export function BranchListRow({
       {groupLabel !== undefined && (
         <h3 className="branch-list-group-heading">{groupLabel}</h3>
       )}
-      <button
-        type="button"
-        className="branch-list-selection"
-        data-branch-name={branch.name}
-        data-keyboard-list-item
-        data-keyboard-list-index={index}
-        aria-label={description}
-        aria-current={current ? 'true' : undefined}
-        aria-disabled={unavailable}
-        title={description}
-        tabIndex={current || (currentBranch === null && index === 0) ? 0 : -1}
-        onClick={() => {
-          if (!unavailable) {
-            onSelect(branch)
-          }
-        }}
-        onKeyDown={event => {
-          handleListNavigation(
-            event,
-            index,
-            branches.length,
-            targetIndex => {
-              const target = branches[targetIndex]
-              if (!operationDisabled && target.name !== currentBranch) {
-                onSelect(target)
-              }
-            },
-            row.focusIndex
-          )
-        }}
-      >
-        <FontAwesomeIcon
-          className="branch-list-icon"
-          icon={current ? faCheck : faCodeBranch}
-          aria-hidden="true"
-        />
-        <span>{branch.name}</span>
-      </button>
+      <Tooltip label={tooltipDescription}>
+        <button
+          type="button"
+          className="branch-list-selection"
+          data-branch-name={branch.name}
+          data-keyboard-list-item
+          data-keyboard-list-index={index}
+          aria-label={description}
+          aria-current={current ? 'true' : undefined}
+          aria-disabled={unavailable}
+          tabIndex={current || (currentBranch === null && index === 0) ? 0 : -1}
+          onClick={() => {
+            if (!unavailable) {
+              onSelect(branch)
+            }
+          }}
+          onKeyDown={event => {
+            handleListNavigation(
+              event,
+              index,
+              branches.length,
+              targetIndex => {
+                const target = branches[targetIndex]
+                if (!operationDisabled && target.name !== currentBranch) {
+                  onSelect(target)
+                }
+              },
+              row.focusIndex
+            )
+          }}
+        >
+          <FontAwesomeIcon
+            className="branch-list-icon"
+            icon={current ? faCheck : faCodeBranch}
+            aria-hidden="true"
+          />
+          <span>{branch.name}</span>
+        </button>
+      </Tooltip>
     </li>
   )
 }
@@ -213,14 +227,18 @@ export function FileStatusIcon({
 }) {
   const label = mapStatus(status)
   return (
-    <small
-      className={`working-tree-file-status status-${status.kind.toLowerCase()} ${className}`}
-      role="img"
-      aria-label={label}
-      title={label}
-    >
-      <FontAwesomeIcon icon={fileStatusIcon(status.kind)} aria-hidden="true" />
-    </small>
+    <Tooltip label={label}>
+      <small
+        className={`working-tree-file-status status-${status.kind.toLowerCase()} ${className}`}
+        role="img"
+        aria-label={label}
+      >
+        <FontAwesomeIcon
+          icon={fileStatusIcon(status.kind)}
+          aria-hidden="true"
+        />
+      </small>
+    </Tooltip>
   )
 }
 
@@ -270,16 +288,17 @@ export function WorkingTreeFileRow({
       </button>
       <span className="working-tree-file-actions">
         <FileStatusIcon status={file.status} />
-        <button
-          type="button"
-          className="working-tree-file-discard"
-          aria-label={`Discard ${file.path}`}
-          title={`Discard changes to ${file.path}`}
-          onClick={() => onDiscard(file.id)}
-        >
-          <FontAwesomeIcon icon={faRotateLeft} aria-hidden="true" />
-          <span className="sr-only">Discard {file.path}</span>
-        </button>
+        <Tooltip label={`Discard changes to ${file.path}`}>
+          <button
+            type="button"
+            className="working-tree-file-discard"
+            aria-label={`Discard ${file.path}`}
+            onClick={() => onDiscard(file.id)}
+          >
+            <FontAwesomeIcon icon={faRotateLeft} aria-hidden="true" />
+            <span className="sr-only">Discard {file.path}</span>
+          </button>
+        </Tooltip>
       </span>
     </li>
   )

@@ -6,6 +6,7 @@ import {
   type PointerEvent,
   type RefObject,
 } from 'react'
+import { Tooltip } from './tooltip'
 
 type HorizontalResizerProps = {
   readonly ariaLabel: string
@@ -149,44 +150,45 @@ export function HorizontalResizer({
   }
 
   return (
-    <div
-      className={`horizontal-resizer${className ? ` ${className}` : ''}${
-        resisting ? ' is-resisting' : ''
-      }`}
-      role="separator"
-      aria-label={ariaLabel}
-      aria-orientation="vertical"
-      aria-valuemin={minimum}
-      aria-valuemax={Math.round(maximum())}
-      aria-valuenow={Math.round(bounded(value))}
-      tabIndex={0}
-      title={`${ariaLabel}. Drag or use the arrow keys.`}
-      onKeyDown={onKeyDown}
-      onPointerDown={event => {
-        pointerStart.current = {
-          pointerID: event.pointerId,
-          pointerX: event.clientX,
-          value: bounded(value),
-        }
-        event.currentTarget.setPointerCapture?.(event.pointerId)
-        event.preventDefault()
-      }}
-      onPointerMove={event => {
-        const start = pointerStart.current
-        if (start?.pointerID === event.pointerId) {
-          const nextValue = start.value + event.clientX - start.pointerX
-          onResize(bounded(nextValue))
-          if (nextValue < minimum) {
-            beginBoundaryHold('minimum', onMinimumHold, minimumHoldDelay)
-          } else if (nextValue > maximum()) {
-            beginBoundaryHold('maximum', onMaximumHold, maximumHoldDelay)
-          } else {
-            cancelBoundaryHold()
+    <Tooltip label={`${ariaLabel}. Drag or use the arrow keys.`}>
+      <div
+        className={`horizontal-resizer${className ? ` ${className}` : ''}${
+          resisting ? ' is-resisting' : ''
+        }`}
+        role="separator"
+        aria-label={ariaLabel}
+        aria-orientation="vertical"
+        aria-valuemin={minimum}
+        aria-valuemax={Math.round(maximum())}
+        aria-valuenow={Math.round(bounded(value))}
+        tabIndex={0}
+        onKeyDown={onKeyDown}
+        onPointerDown={event => {
+          pointerStart.current = {
+            pointerID: event.pointerId,
+            pointerX: event.clientX,
+            value: bounded(value),
           }
-        }
-      }}
-      onPointerUp={finishPointerResize}
-      onPointerCancel={finishPointerResize}
-    />
+          event.currentTarget.setPointerCapture?.(event.pointerId)
+          event.preventDefault()
+        }}
+        onPointerMove={event => {
+          const start = pointerStart.current
+          if (start?.pointerID === event.pointerId) {
+            const nextValue = start.value + event.clientX - start.pointerX
+            onResize(bounded(nextValue))
+            if (nextValue < minimum) {
+              beginBoundaryHold('minimum', onMinimumHold, minimumHoldDelay)
+            } else if (nextValue > maximum()) {
+              beginBoundaryHold('maximum', onMaximumHold, maximumHoldDelay)
+            } else {
+              cancelBoundaryHold()
+            }
+          }
+        }}
+        onPointerUp={finishPointerResize}
+        onPointerCancel={finishPointerResize}
+      />
+    </Tooltip>
   )
 }

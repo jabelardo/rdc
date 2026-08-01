@@ -17,7 +17,9 @@ For both the local macOS `.app` and installable Linux bundle:
 - Add the generated `populated` scenario, select it, quit the entire process, relaunch and confirm
   persistence.
 - Smoke status/diff, commit, History, branch checkout, Fetch/Pull/Push and Clone.
-- Exercise menus, dialogs, close/relaunch and external editor/terminal/file-manager integration.
+- Repeat the focused packaged-build states from `menu-mvp-alignment-checklist.md` (empty, selected
+  repository, remote-enabled and second focused window); exercise menus, dialogs, close/relaunch and
+  external editor/terminal/file-manager integration.
 - Confirm no Desktop Plus/GitHub Desktop identity or destination appears.
 - Confirm all packaged resources and executable sidecars are present with the permissions the target
   requires; the development checkout must not be needed at runtime.

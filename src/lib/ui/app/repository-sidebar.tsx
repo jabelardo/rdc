@@ -22,6 +22,7 @@ import {
   visibleSidebarSections,
 } from '../sidebar-sections'
 import { VirtualList } from '../virtual-list'
+import { Tooltip } from '../tooltip'
 
 const mvpSidebarSections = visibleSidebarSections(MvpSidebarCapabilities)
 type BranchGroup = 'default' | 'recent' | 'other'
@@ -148,19 +149,20 @@ export function RepositorySidebar({
       aria-label="Navigation"
     >
       <div className="sidebar-command-bar flex items-center border-b border-[var(--color-border)]">
-        <button
-          type="button"
-          className="sidebar-collapse"
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-expanded={!collapsed}
-          onClick={onToggleCollapsed}
-        >
-          <FontAwesomeIcon
-            icon={collapsed ? faChevronRight : faChevronLeft}
-            aria-hidden="true"
-          />
-        </button>
+        <Tooltip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
+          <button
+            type="button"
+            className="sidebar-collapse"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
+            onClick={onToggleCollapsed}
+          >
+            <FontAwesomeIcon
+              icon={collapsed ? faChevronRight : faChevronLeft}
+              aria-hidden="true"
+            />
+          </button>
+        </Tooltip>
       </div>
       {collapsed ? (
         <nav className="sidebar-icon-rail" aria-label="Navigation sections">
@@ -173,17 +175,17 @@ export function RepositorySidebar({
                 : (branchState.currentBranch ?? 'No branch selected')
             const description = `${section.label}: ${value}`
             return (
-              <button
-                type="button"
-                key={section.id}
-                aria-label={description}
-                title={description}
-                onClick={() => activateSection(section.id)}
-              >
-                {icon !== null && (
-                  <FontAwesomeIcon icon={icon} aria-hidden="true" />
-                )}
-              </button>
+              <Tooltip label={description} key={section.id}>
+                <button
+                  type="button"
+                  aria-label={description}
+                  onClick={() => activateSection(section.id)}
+                >
+                  {icon !== null && (
+                    <FontAwesomeIcon icon={icon} aria-hidden="true" />
+                  )}
+                </button>
+              </Tooltip>
             )
           })}
         </nav>
@@ -312,28 +314,29 @@ export function RepositorySidebar({
                                     }
                                   />
                                 </label>
-                                <button
-                                  type="button"
-                                  className="new-branch-button"
-                                  aria-label="New branch"
-                                  title="Create and check out a new branch"
-                                  aria-expanded={showBranchCreation}
-                                  aria-controls="new-branch-form"
-                                  disabled={branchActionsDisabled}
-                                  onClick={() => {
-                                    setShowBranchCreation(true)
-                                    requestAnimationFrame(() =>
-                                      document
-                                        .getElementById('new-branch-name')
-                                        ?.focus()
-                                    )
-                                  }}
-                                >
-                                  <FontAwesomeIcon
-                                    icon={faPlus}
-                                    aria-hidden="true"
-                                  />
-                                </button>
+                                <Tooltip label="Create and check out a new branch">
+                                  <button
+                                    type="button"
+                                    className="new-branch-button"
+                                    aria-label="New branch"
+                                    aria-expanded={showBranchCreation}
+                                    aria-controls="new-branch-form"
+                                    disabled={branchActionsDisabled}
+                                    onClick={() => {
+                                      setShowBranchCreation(true)
+                                      requestAnimationFrame(() =>
+                                        document
+                                          .getElementById('new-branch-name')
+                                          ?.focus()
+                                      )
+                                    }}
+                                  >
+                                    <FontAwesomeIcon
+                                      icon={faPlus}
+                                      aria-hidden="true"
+                                    />
+                                  </button>
+                                </Tooltip>
                               </div>
                               {showBranchCreation && (
                                 <form
@@ -376,28 +379,32 @@ export function RepositorySidebar({
                                       )
                                     }
                                   />
-                                  <button
-                                    type="submit"
-                                    aria-label="Create branch"
-                                    title="Create and check out branch"
-                                    disabled={branchActionsDisabled}
-                                  >
-                                    <FontAwesomeIcon
-                                      icon={faPlus}
-                                      aria-hidden="true"
-                                    />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    aria-label="Cancel creating branch"
-                                    title="Cancel creating branch"
-                                    onClick={() => setShowBranchCreation(false)}
-                                  >
-                                    <FontAwesomeIcon
-                                      icon={faXmark}
-                                      aria-hidden="true"
-                                    />
-                                  </button>
+                                  <Tooltip label="Create and check out branch">
+                                    <button
+                                      type="submit"
+                                      aria-label="Create branch"
+                                      disabled={branchActionsDisabled}
+                                    >
+                                      <FontAwesomeIcon
+                                        icon={faPlus}
+                                        aria-hidden="true"
+                                      />
+                                    </button>
+                                  </Tooltip>
+                                  <Tooltip label="Cancel creating branch">
+                                    <button
+                                      type="button"
+                                      aria-label="Cancel creating branch"
+                                      onClick={() =>
+                                        setShowBranchCreation(false)
+                                      }
+                                    >
+                                      <FontAwesomeIcon
+                                        icon={faXmark}
+                                        aria-hidden="true"
+                                      />
+                                    </button>
+                                  </Tooltip>
                                 </form>
                               )}
                               {branchListEntries.length === 0 ? (

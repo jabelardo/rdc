@@ -60,7 +60,7 @@ describe('working tree', () => {
     assert.equal(
       await changedFile
         .findElement(By.css('[role="img"][aria-label="New"]'))
-        .getAttribute('title'),
+        .getAttribute('data-tooltip'),
       'New'
     )
     const diff = await driver.wait(

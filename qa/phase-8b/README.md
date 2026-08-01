@@ -27,7 +27,8 @@ agreed MVP blocker.
 2. Select the generated `populated` scenario and complete all five gates in
    `selected-repository-baseline-checklist.md`. Do not spend visual or functional checklist budget on
    a toolbar/navigation/workspace frame whose structure is still expected to change.
-3. Once both foundation checklists pass, complete the visual matrix before functional workflows.
+3. Once both foundation checklists pass, complete the visual matrix, then
+   `menu-mvp-alignment-checklist.md`, before functional workflows.
 4. Run the platform checklist's functional groups in dependency order: read-only, reversible local,
    mutating local, remote, failure/recovery, integrations/accessibility/lifecycle. After every
    mutating group, verify the claimed result with Git CLI commands as well as the UI.
@@ -56,7 +57,8 @@ Linux machine/session:
    functional tests.
 4. Complete the macOS rows of `visual-matrix.md`: normal, default and compact Light first, then
    Dark/System and accessibility variants. Do not repeat every workflow in every visual cell.
-5. Complete `macos-checklist.md` in its numbered functional order.
+5. Complete `menu-mvp-alignment-checklist.md`, then `macos-checklist.md` in its numbered functional
+   order. The menu gate verifies the product inventory before the later journeys exercise it.
 6. Classify and fix macOS findings. Any code change invalidates the recorded green prerequisite:
    rerun all of Phase 8a and repeat every affected macOS check before moving on.
 7. On a real Ubuntu 26.04 Wayland session, create a new Linux-specific fixture, repeat both
