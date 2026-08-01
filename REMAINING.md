@@ -28,7 +28,7 @@ the next MVP phase and the only human-blocked phase.**
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --check` | clean |
 | Windows `git-ops --all-targets` compile guard | clean |
-| `pnpm test:e2e` (Linux container) | 27 tests / 14 suites passing |
+| `pnpm test:e2e` (Linux container) | 28 tests / 14 suites passing |
 | `pnpm qualify:phase8a` | green, `"errors": []` |
 
 ---

@@ -39,6 +39,11 @@ pub async fn set_native_menu(
 }
 
 /// Show renderer-defined contextual items and return the selected nested index path.
+///
+/// When `x` and `y` are supplied the popup is anchored there (CSS-pixel
+/// coordinates relative to the webview, as reported by the click event that
+/// triggered the menu).  Without them the popup falls back to the current
+/// cursor position — which may be stale on Wayland.
 #[tauri::command]
 pub async fn show_contextual_menu(
     app: AppHandle,
@@ -46,6 +51,8 @@ pub async fn show_contextual_menu(
     context_menu_state: State<'_, ContextMenuState>,
     items: Vec<ContextMenuItemModel>,
     add_spell_check_menu: bool,
+    x: Option<f64>,
+    y: Option<f64>,
 ) -> Result<Option<Vec<usize>>, CommandError> {
     if add_spell_check_menu {
         return Err(CommandError::message(
@@ -53,7 +60,13 @@ pub async fn show_contextual_menu(
         ));
     }
 
-    context_menu::show_contextual_menu(&app, &window, context_menu_state.inner(), &items)
-        .await
-        .map_err(CommandError::message)
+    context_menu::show_contextual_menu(
+        &app,
+        &window,
+        context_menu_state.inner(),
+        &items,
+        x.zip(y).map(|(x, y)| tauri::LogicalPosition::new(x, y)),
+    )
+    .await
+    .map_err(CommandError::message)
 }

@@ -31,6 +31,15 @@ fn create_window_from_main_template(
         main_process_config.title_bar_style,
     );
 
+    // Linux and Windows render the menu as an in-window bar (`.app-menu-bar-container`,
+    // 2rem tall) instead of a native system menu, so the minimum window height must
+    // leave room for it or the content area can shrink below its own minimum. The value
+    // deliberately tracks the CSS `2rem` (32px at the default 16px root) — keep in sync.
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    if let Some(min_height) = window_config.min_height.as_mut() {
+        *min_height += 32.0;
+    }
+
     let builder = tauri::WebviewWindowBuilder::from_config(app, &window_config)?
         .decorations(title_bar.decorations)
         .on_navigation(security::is_allowed_navigation);

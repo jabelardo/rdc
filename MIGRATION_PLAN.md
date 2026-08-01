@@ -3265,6 +3265,40 @@ reports `finalPackagesProduced: false`, so automated produced-package metadata/r
 must be added after final identity and bundle targets are chosen. Neither gap is allowed to turn into
 ad hoc human setup or a nominal package check.
 
+**Linux QA cycle 2026-08-01 (Fedora 44 Wayland, WebKitGTK 2.52.5, git 2.55):**
+
+First human QA pass on real Wayland. The in-app menu bar (File/View/Repository/Help) renders as a
+2 rem bar above the webview on Linux and Windows; `min_height` is adjusted by 32 px to keep the
+content area from shrinking below its own minimum.  The native menu bar remains on macOS.
+
+Light-theme gate round passed (baseline, Gate A minus one context-menu finding, Gate D, Gate E).
+Two theme-agnostic UI defects found and fixed:
+
+- **F1 — branch-create form input/button mismatch:** the new-branch `input` had no explicit
+  `height`, letting it default to the submit button's content-box height while the cancel button
+  inherited a visible 1px border.  Fixed: input forced to 2.25 rem, both buttons borderless with
+  `--color-accent` / `--color-accent-soft` hover, matching the filter row's `+` button.
+- **F2 — discard-icon reveal on unfocused rows:** the old `li:focus-within` selector revealed the
+  trash icon on any focused child, not just the discard button.  Replaced with
+  `li:has(.working-tree-file-discard:focus-visible)` so the icon appears only on row hover or when
+  the discard button itself has keyboard focus.
+
+Additional fixes in the same pass:
+
+- Left-panel `input:focus-visible` outline was cropped by `overflow: auto`; replaced with an inset
+  box-shadow on `.sidebar-panel-content input:focus-visible`.
+- `Preferences` `<select>` forced to theme with `appearance: none` plus an inline SVG chevron
+  because WebKitGTK draws native-light selects regardless of CSS color.
+
+Context-menu positioning on Wayland: `popup_menu` queries the current cursor position at the time
+of the IPC round-trip; on Wayland this is stale.  Fixed by capturing the click coordinates
+(`pointerdown` listener + `getBoundingClientRect` of the trigger element) and passing them through
+to a new `popup_menu_at` call.  A `47 px` CSD titlebar offset converts webview-viewport
+coordinates to GTK-window coordinates.  The trigger's CSS `:hover` tooltip is dismissed via
+`blur()` before the native menu opens so it does not linger behind the popup.
+
+All seven gates green after each change: 952 Vitest, tsc, oxfmt, oxlint, 884 Rust, clippy, rustfmt.
+
 Record before/after evidence, accepted non-blocking deviations and the final results for both
 platforms. Phase 8b closes only after the last fix has passed 8a again, its affected human checks
 have been repeated, and the final packages pass their focused acceptance pass. Signing,

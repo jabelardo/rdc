@@ -6,6 +6,8 @@ import {
   faPlus,
 } from '@fortawesome/free-solid-svg-icons'
 import { showFolderContents } from '../../platform/files'
+import { openRepositoryInNewWindow } from '../../platform/window'
+import { showApplicationLogs } from '../../resilience/logs'
 import { HorizontalResizer } from '../horizontal-resizer'
 import { AppDialogs } from './app-dialogs'
 import { ChangesWorkspace } from './changes-workspace'
@@ -15,6 +17,8 @@ import { RepositorySidebar } from './repository-sidebar'
 import { RepositoryToolbar } from './repository-toolbar'
 import type { AppController } from './use-app-controller'
 import { WindowDragStrip } from './window-drag-strip'
+import { currentMenuPlatform } from '../../menu/default-menu'
+import { MenuBar } from './menu-bar'
 
 type AppShellProps = {
   readonly controller: AppController
@@ -90,6 +94,8 @@ export function AppShell({ controller }: AppShellProps) {
     toggleSidebarSection,
     activateSidebarSection,
   } = controller
+  const platform = currentMenuPlatform()
+  const showMenuBar = platform === 'linux' || platform === 'windows'
   // Once a repository is selected, reserve the strictest accepted workspace minimum for every
   // view. If this followed the active view (Changes 490 px, History 560 px), CSS would re-clamp the
   // same stored sidebar width on every Changes/History switch and make navigation visibly jump.
@@ -100,7 +106,9 @@ export function AppShell({ controller }: AppShellProps) {
       ref={shellRef}
       className={`application-shell grid h-screen${
         showWindowDragRegion ? ' webview-titlebar' : ''
-      }${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
+      }${sidebarCollapsed ? ' sidebar-collapsed' : ''}${
+        showMenuBar ? ' has-menu-bar' : ''
+      }`}
       style={
         {
           '--sidebar-width': `${sidebarWidth}px`,
@@ -109,6 +117,47 @@ export function AppShell({ controller }: AppShellProps) {
       }
     >
       {showWindowDragRegion && <WindowDragStrip />}
+      {showMenuBar && (
+        <div className="app-menu-bar-container">
+          <MenuBar
+            onCreateRepository={() => void createRepository()}
+            onAddExistingRepository={() => void addExistingRepository()}
+            onCloneRepository={openCloneDialog}
+            onShowPreferences={() => setShowPreferencesDialog(true)}
+            onShowAbout={() => setShowAboutDialog(true)}
+            onSelectView={setRepositoryView}
+            repositoryView={repositoryView}
+            onOpenInNewWindow={() =>
+              runRepositoryAction(() =>
+                openRepositoryInNewWindow(appState.selectedRepository!.path)
+              )
+            }
+            onShowFiles={() =>
+              runRepositoryAction(() =>
+                showFolderContents(appState.selectedRepository!.path)
+              )
+            }
+            onOpenEditor={() =>
+              runRepositoryAction(() =>
+                openInExternalEditor(appState.selectedRepository!.path)
+              )
+            }
+            onOpenShell={() =>
+              runRepositoryAction(() =>
+                openInShell(appState.selectedRepository!.path)
+              )
+            }
+            onFetch={() => void refreshAfterFetch()}
+            onPush={() => void refreshAfterPush()}
+            onPull={() => void refreshAfterPull()}
+            onShowLogs={() => void showApplicationLogs()}
+            hasRepository={appState.selectedRepository !== null}
+            hasEditor={preferencesStore.selectedEditor !== null}
+            hasShell={preferencesStore.selectedShell !== null}
+            hasRemote={remoteState.currentRemote !== null}
+          />
+        </div>
+      )}
       <RepositorySidebar
         collapsed={sidebarCollapsed}
         expandedSections={expandedSidebarSections}
@@ -121,8 +170,8 @@ export function AppShell({ controller }: AppShellProps) {
         onToggleSection={toggleSidebarSection}
         onActivateSection={activateSidebarSection}
         onSelectRepository={repository => void selectRepository(repository)}
-        onRepositoryContextMenu={repository =>
-          void openRepositoryContextMenu(repository)
+        onRepositoryContextMenu={(repository, triggerRect) =>
+          void openRepositoryContextMenu(repository, triggerRect)
         }
         onBranchNameChange={setNewBranchName}
         onBranchChange={refreshAfterBranchChange}

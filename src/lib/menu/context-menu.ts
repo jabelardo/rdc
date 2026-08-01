@@ -2,16 +2,18 @@ import type {
   ContextMenuItem,
   SerializableContextMenuItem,
 } from '../../models/context-menu'
-import { invokeContextualMenu } from '../platform/menu'
+import { invokeContextualMenu, type TriggerRect } from '../platform/menu'
 
 /** Show a native contextual menu and invoke the renderer callback it selects. */
 export async function showContextualMenu(
   items: ReadonlyArray<ContextMenuItem>,
-  addSpellCheckMenu = false
+  addSpellCheckMenu = false,
+  triggerRect?: TriggerRect
 ): Promise<void> {
   const indices = await invokeContextualMenu(
     serializeContextMenuItems(items),
-    addSpellCheckMenu
+    addSpellCheckMenu,
+    triggerRect
   )
 
   if (indices === null) {

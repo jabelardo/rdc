@@ -5,7 +5,7 @@ import {
   faEllipsisVertical,
   faExclamation,
   faFolder,
-  faRotateLeft,
+  faTrashCan,
   faSquareCaretUp,
   faSquareMinus,
   faSquarePlus,
@@ -21,6 +21,7 @@ import {
 import { mapStatus } from '../status'
 import { handleListNavigation } from './list-navigation'
 import { Tooltip } from './tooltip'
+import type { TriggerRect } from '../platform/menu'
 import type { VirtualListRow } from './virtual-list'
 
 function formatBranchModifiedDate(date: Date): string {
@@ -36,7 +37,10 @@ type RepositoryListRowProps = {
   readonly repository: Repository
   readonly row: VirtualListRow
   readonly selectedRepository: Repository | null
-  readonly onContextMenu: (repository: Repository) => void
+  readonly onContextMenu: (
+    repository: Repository,
+    triggerRect?: TriggerRect
+  ) => void
   readonly onSelect: (repository: Repository) => void
 }
 
@@ -81,7 +85,14 @@ export function RepositoryListRow({
           }
           onContextMenu={event => {
             event.preventDefault()
-            onContextMenu(repository)
+            const r = event.currentTarget.getBoundingClientRect()
+            onContextMenu(repository, {
+              x: r.x,
+              y: r.y,
+              width: r.width,
+              height: r.height,
+            })
+            event.currentTarget.blur()
           }}
         >
           <FontAwesomeIcon
@@ -97,7 +108,18 @@ export function RepositoryListRow({
           type="button"
           className="repository-list-actions"
           aria-label={`More actions for ${repository.name}`}
-          onClick={() => onContextMenu(repository)}
+          onClick={e => {
+            const r = e.currentTarget.getBoundingClientRect()
+            onContextMenu(repository, {
+              x: r.x,
+              y: r.y,
+              width: r.width,
+              height: r.height,
+            })
+            // Dismiss the CSS :hover tooltip so it does not linger behind the
+            // native context menu that pops up over the webview.
+            e.currentTarget.blur()
+          }}
         >
           <FontAwesomeIcon icon={faEllipsisVertical} aria-hidden="true" />
         </button>
@@ -295,7 +317,7 @@ export function WorkingTreeFileRow({
             aria-label={`Discard ${file.path}`}
             onClick={() => onDiscard(file.id)}
           >
-            <FontAwesomeIcon icon={faRotateLeft} aria-hidden="true" />
+            <FontAwesomeIcon icon={faTrashCan} aria-hidden="true" />
             <span className="sr-only">Discard {file.path}</span>
           </button>
         </Tooltip>

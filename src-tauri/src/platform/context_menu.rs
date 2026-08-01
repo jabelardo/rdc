@@ -224,11 +224,42 @@ fn append_item<R: Runtime>(menu: &Submenu<R>, item: &BuiltContextItem<R>) -> Res
     result.map_err(|error| error.to_string())
 }
 
+/// Convert webview-viewport coordinates to GTK-window coordinates.
+///
+/// On Linux with CSD (client-side decorations) the webview sits below the
+/// native title bar, so the viewport origin is offset vertically by the
+/// chrome height.  `popup_menu_at` expects coordinates relative to the
+/// GTK window, so we must add that offset.
+///
+/// On other platforms (macOS, Windows) the webview fills the window and no
+/// adjustment is needed.
+#[cfg(target_os = "linux")]
+fn adjust_for_csd(pos: tauri::LogicalPosition<f64>) -> tauri::LogicalPosition<f64> {
+    // Convert webview-viewport coordinates to GTK-window coordinates.  The JS
+    // side passes the trigger's bottom-left (y = element.y + element.height)
+    // in viewport coords, but popup_at_rect expects coordinates relative to the
+    // GTK window.  On Linux with CSD the viewport starts below the native
+    // headerbar; the offset is its height.
+    //
+    // On Wayland, outer_position / inner_position queries are denied by the
+    // compositor, so we fall back to a GNOME-default constant.  A more robust
+    // path would add `gtk` as a direct dependency and call
+    // `header_bar().allocated_height()`; this constant is good enough for now.
+    const VIEWPORT_TO_WINDOW_Y: f64 = 47.0;
+    tauri::LogicalPosition::new(pos.x, pos.y + VIEWPORT_TO_WINDOW_Y)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn adjust_for_csd(pos: tauri::LogicalPosition<f64>) -> tauri::LogicalPosition<f64> {
+    pos
+}
+
 pub async fn show_contextual_menu<R: Runtime>(
     app: &AppHandle<R>,
     window: &WebviewWindow<R>,
     state: &ContextMenuState,
     items: &[ContextMenuItemModel],
+    position: Option<tauri::LogicalPosition<f64>>,
 ) -> Result<Option<Vec<usize>>, String> {
     let StartedMenu {
         token,
@@ -256,7 +287,23 @@ pub async fn show_contextual_menu<R: Runtime>(
         }
     }
 
-    if let Err(error) = window.popup_menu(&root) {
+    // When explicit coordinates are supplied (captured from the click event
+    // that triggered this menu), anchor the popup there instead of relying on
+    // the current cursor position, which is stale on Wayland after the IPC
+    // round-trip.
+    //
+    // The coordinates from JavaScript are relative to the webview viewport, but
+    // popup_menu_at expects GTK window coordinates.  On Linux with CSD
+    // (client-side decorations) the viewport starts below the title bar, so we
+    // must add the CSD chrome height to convert.
+    let popup_result = match position {
+        Some(pos) => {
+            let adjusted = adjust_for_csd(pos);
+            window.popup_menu_at(&root, adjusted)
+        }
+        None => window.popup_menu(&root),
+    };
+    if let Err(error) = popup_result {
         state.finish(token, None);
         return Err(error.to_string());
     }

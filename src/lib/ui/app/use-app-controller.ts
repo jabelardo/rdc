@@ -81,7 +81,7 @@ export function useAppController() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [expandedSidebarSections, setExpandedSidebarSections] = useState<
     ReadonlySet<SidebarSectionID>
-  >(() => new Set<SidebarSectionID>(['repositories']))
+  >(() => new Set<SidebarSectionID>())
   const [error, setError] = useState<string | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
   const [newBranchName, setNewBranchName] = useState('')
@@ -489,33 +489,40 @@ export function useAppController() {
     }
   }
 
-  async function openRepositoryContextMenu(repository: Repository) {
+  async function openRepositoryContextMenu(
+    repository: Repository,
+    triggerRect?: import('../../platform/menu').TriggerRect
+  ) {
     if (appState.selectedRepository?.id !== repository.id) {
       await selectRepository(repository)
     }
-    await showContextualMenu([
-      {
-        label: 'Open in New Window',
-        action: () => {
-          void runRepositoryAction(() =>
-            openRepositoryInNewWindow(repository.path)
-          )
+    await showContextualMenu(
+      [
+        {
+          label: 'Open in New Window',
+          action: () => {
+            void runRepositoryAction(() =>
+              openRepositoryInNewWindow(repository.path)
+            )
+          },
         },
-      },
-      {
-        label: 'Show in File Manager',
-        action: () => {
-          void runRepositoryAction(() => showFolderContents(repository.path))
+        {
+          label: 'Show in File Manager',
+          action: () => {
+            void runRepositoryAction(() => showFolderContents(repository.path))
+          },
         },
-      },
-      { type: 'separator' },
-      {
-        label: 'Remove',
-        action: () => {
-          requestRemoveRepository(repository)
+        { type: 'separator' },
+        {
+          label: 'Remove',
+          action: () => {
+            requestRemoveRepository(repository)
+          },
         },
-      },
-    ])
+      ],
+      false,
+      triggerRect
+    )
   }
 
   async function runRepositoryAction(action: () => Promise<void>) {

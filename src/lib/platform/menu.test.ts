@@ -57,6 +57,8 @@ describe('native macOS menu bridge', () => {
     expect(invoke).toHaveBeenCalledWith('show_contextual_menu', {
       items,
       addSpellCheckMenu: false,
+      x: null,
+      y: null,
     })
   })
 

@@ -122,6 +122,100 @@ button:disabled {
   grid-template-rows: 2.4rem minmax(0, 1fr);
 }
 
+.app-menu-bar-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10001;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  padding: 0 0.5rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  -webkit-app-region: no-drag;
+  user-select: none;
+}
+
+.app-menu-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 100%;
+}
+
+.app-menu-trigger {
+  position: relative;
+  height: 100%;
+}
+
+.app-menu-trigger > button {
+  height: 100%;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  -webkit-app-region: no-drag;
+}
+
+.app-menu-trigger > button:hover,
+.app-menu-trigger > button[aria-expanded='true'] {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.app-menu-dropdown {
+  position: fixed;
+  z-index: 10002;
+  min-width: 14rem;
+  padding: 0.35rem 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-small);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-dialog);
+}
+
+.app-menu-dropdown button {
+  display: block;
+  width: 100%;
+  padding: 0.35rem 0.75rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text);
+  font-size: 0.8rem;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-menu-dropdown button:hover:not(:disabled) {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.app-menu-dropdown button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.app-menu-separator {
+  height: 1px;
+  margin: 0.3rem 0.5rem;
+  background: var(--color-border);
+}
+
+.has-menu-bar {
+  padding-top: 2rem;
+}
+
 .window-drag-region {
   -webkit-app-region: drag;
 }
@@ -353,6 +447,15 @@ button:disabled {
   max-height: none;
 }
 
+/* The filter and new-branch inputs sit flush against the scroll container's
+ * content box, so the global `outline-offset: 2px` focus ring is clipped by
+ * `overflow: auto` on `.sidebar-panel-content`. An inset ring can't be clipped
+ * and keeps the same 2px accent treatment (it also follows border-radius). */
+.sidebar-panel-content input:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
 .repository-list-item {
   position: relative;
   min-width: 0;
@@ -570,7 +673,7 @@ button:disabled {
   box-shadow: none;
 }
 
-.repository-view-navigation button:hover:not([aria-current='page']) {
+:root .repository-view-navigation button:hover:not([aria-current='page']) {
   color: var(--color-accent);
   background: var(--color-accent-soft);
   border-color: transparent;
@@ -613,7 +716,7 @@ button:disabled {
 .branch-filter-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.5rem;
+  gap: 0.25rem;
 }
 
 .branch-filter {
@@ -637,6 +740,10 @@ button:disabled {
   padding-left: 2rem;
 }
 
+.new-branch-form input {
+  height: 2.25rem;
+}
+
 .new-branch-button {
   display: grid;
   width: 2.25rem;
@@ -658,7 +765,7 @@ button:disabled {
 .new-branch-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 0.4rem;
+  gap: 0.25rem;
 }
 
 .new-branch-form label {
@@ -694,6 +801,15 @@ button:disabled {
   height: 100%;
   place-items: center;
   padding: 0;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.new-branch-form button:hover:not(:disabled) {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-color: transparent;
 }
 
 .branches-panel-content p {
@@ -1082,6 +1198,12 @@ button:disabled {
   color: var(--color-danger);
 }
 
+.discard-selected-lines:hover {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-color: transparent;
+}
+
 .working-tree-diff-content {
   min-height: 0;
   flex: 1 1 auto;
@@ -1310,13 +1432,18 @@ button:disabled {
 }
 
 .working-tree-files li:hover .working-tree-file-status,
-.working-tree-files li:focus-within .working-tree-file-status {
+.working-tree-files
+  li:has(.working-tree-file-discard:focus-visible)
+  .working-tree-file-status {
   opacity: 0;
 }
 
 .working-tree-files li:hover .working-tree-file-discard,
-.working-tree-files li:focus-within .working-tree-file-discard {
+.working-tree-files li .working-tree-file-discard:focus-visible {
   opacity: 1;
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  border-color: transparent;
 }
 
 .history {
@@ -1638,12 +1765,21 @@ button:disabled {
 .preferences-fields select {
   box-sizing: border-box;
   min-width: 0;
-  padding: 0.5rem 0.65rem;
+  padding: 0.5rem 2rem 0.5rem 0.65rem;
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-small);
-  color: inherit;
-  background: var(--color-surface);
+  color: var(--color-text);
+  background-color: var(--color-surface);
   font: inherit;
+  /* WebKitGTK draws `appearance: auto` selects as the system GTK widget, which
+   * ignores CSS color/background and stays light in dark mode. Rendering the
+   * control from CSS (with a chevron in place of the native arrow) is what
+   * makes the closed control follow the theme. */
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%23556070' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
 }
 
 .preferences-fields fieldset {
@@ -1842,6 +1978,12 @@ button:disabled {
   background: var(--color-accent-soft);
 }
 
+:root[data-theme='dark']
+  .repository-view-navigation
+  button:hover:not([aria-current='page']) {
+  background: var(--color-accent-soft);
+}
+
 :root[data-theme='dark'] .commit-form button[type='submit'] {
   border-color: var(--color-accent-button);
   color: #fff;
@@ -1906,7 +2048,8 @@ button:disabled {
 :root[data-theme='dark'] .preferences-fields select {
   border-color: var(--color-border);
   color: var(--color-text);
-  background: var(--color-surface);
+  background-color: var(--color-surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%23aeb6c6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 :root[data-theme='dark'] .preferences-fields fieldset {

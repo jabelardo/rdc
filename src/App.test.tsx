@@ -674,7 +674,7 @@ describe('App', () => {
 
     expect(
       screen.getByRole('button', { name: 'Repositories' })
-    ).toHaveAttribute('aria-expanded', 'true')
+    ).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Branches' })).toHaveAttribute(
       'aria-expanded',
       'false'
@@ -913,6 +913,7 @@ describe('App', () => {
         })
       }
     })
+    await user.click(screen.getByRole('button', { name: 'Repositories' }))
     await user.click(screen.getByRole('button', { name: 'Select rdc' }))
 
     expect(screen.getByRole('button', { name: 'Select rdc' })).toHaveAttribute(
@@ -934,6 +935,7 @@ describe('App', () => {
     }
     const user = userEvent.setup()
     render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Repositories' }))
     const first = screen.getByRole('button', { name: 'Select rdc' })
     const second = screen.getByRole('button', {
       name: 'Select desktop-plus',
@@ -965,6 +967,7 @@ describe('App', () => {
     }
     const user = userEvent.setup()
     render(<App />)
+    await user.click(screen.getByRole('button', { name: 'Repositories' }))
 
     const filter = screen.getByRole('searchbox', {
       name: 'Filter repositories',
@@ -1989,6 +1992,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
+    await user.click(screen.getByRole('button', { name: 'Repositories' }))
     await user.pointer({
       target: screen.getByRole('button', { name: 'Select rdc' }),
       keys: '[MouseRight]',
@@ -2016,6 +2020,7 @@ describe('App', () => {
     const user = userEvent.setup()
     render(<App />)
 
+    await user.click(screen.getByRole('button', { name: 'Repositories' }))
     await user.pointer({
       target: screen.getByRole('button', { name: 'Select rdc' }),
       keys: '[MouseRight]',
