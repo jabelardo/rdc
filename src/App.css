@@ -1199,7 +1199,6 @@ button:disabled {
 }
 
 .discard-selected-lines:hover {
-  color: var(--color-accent);
   background: var(--color-accent-soft);
   border-color: transparent;
 }
@@ -1441,7 +1440,6 @@ button:disabled {
 .working-tree-files li:hover .working-tree-file-discard,
 .working-tree-files li .working-tree-file-discard:focus-visible {
   opacity: 1;
-  color: var(--color-accent);
   background: var(--color-accent-soft);
   border-color: transparent;
 }
