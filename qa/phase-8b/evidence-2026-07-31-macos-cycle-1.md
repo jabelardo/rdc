@@ -1,6 +1,7 @@
 # Phase 8b evidence record — macOS cycle 1
 
-- Commit: `a2e32c9168f0e9e6e22aaf3eb8ae5a1193371e04`
+- Starting commit: `a2e32c9168f0e9e6e22aaf3eb8ae5a1193371e04`
+- Accepted foundation through: `de5758c` (`Complete the macOS resizing baseline`)
 - Tester: Jose Gutierrez, assisted by Codex
 - Date/time: 2026-07-31T13:26:29+02:00
 - Platform and version: macOS 26.5.2 (25F84), WebKit framework 21624
@@ -81,7 +82,7 @@ recorded in `REMAINING.md` and the E2E harness documentation.
   and every new History transition still reloads so commits/fetches/pulls cannot leave stale data.
   Jose accepted the completed resizing and prepared-view behavior as the macOS baseline on
   2026-08-01.
-- Visual matrix: pending — macOS normal and compact rows in `visual-matrix.md`
+- Visual matrix: pending — macOS normal, default and compact rows in `visual-matrix.md`
 - Platform checklist: pending — `macos-checklist.md`
 - Final package smoke: not started; packaging is deliberately last
 
@@ -105,7 +106,8 @@ recorded in `REMAINING.md` and the E2E harness documentation.
 
 ## Decision
 
-- [ ] No agreed MVP blocker remains; selected-repository foundation and later QA are still pending.
+- [ ] No agreed MVP blocker remains; foundation is accepted, but visual/functional/Linux/package QA
+      remains pending.
 - [x] Every preparation fix passed Phase 8a again.
-- [x] Every affected baseline-layout human check was repeated on macOS.
+- [x] Every affected shell and selected-repository foundation check was repeated on macOS.
 - [ ] Final packages passed the focused smoke pass.

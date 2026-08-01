@@ -13,16 +13,27 @@ principles and native platform conventions without copying its layout or values.
 | Platform/session | Viewport | Light | Dark | System |
 |---|---|---|---|---|
 | macOS native WKWebView | normal (at least 1100×720) | pending | pending | pending |
-| macOS native WKWebView | compact (620×720) | pending | pending | pending |
+| macOS native WKWebView | default (800×600) | pending | pending | pending |
+| macOS native WKWebView | compact width (715×720) | pending | pending | pending |
 | Ubuntu 26.04 native Wayland | normal (at least 1100×720) | pending | pending | pending |
-| Ubuntu 26.04 native Wayland | compact (620×720) | pending | pending | pending |
+| Ubuntu 26.04 native Wayland | default (800×600) | pending | pending | pending |
+| Ubuntu 26.04 native Wayland | compact width (715×720) | pending | pending | pending |
 
-Review the cells in this order per platform: normal Light, compact Light, normal Dark/System, compact
-Dark/System. For each cell capture representative presentation states rather than repeating every
-functional workflow:
+Gate E separately owns the 715×356 native floor and continuous transitions. The compact visual row
+keeps enough height to judge hierarchy while using the narrowest supported width; do not resurrect
+the obsolete, unreachable 620 px endpoint.
+
+Review the cells in this order per platform: normal Light, default Light, compact Light, then normal,
+default and compact Dark/System. For each cell capture representative presentation states rather
+than repeating every functional workflow:
 
 - Empty repository and populated fixture states.
 - Changes list, selected text diff, commit form and progress/error presentation.
 - History list, commit metadata, changed files and selected diff.
 - Sidebar panel disclosure, whole-sidebar collapse and long repository/file names.
 - Keyboard focus, Reduce Motion and increased-contrast/forced-colors behavior where the OS exposes it.
+
+Use reproducible states rather than trying to catch transient UI by eye: an empty repository for the
+clean Changes/History states; the generated fixture for populated and long-name states; its local
+bare remote for progress; a failing hook for terminal/error presentation; and an unreachable remote
+or missing integration for actionable failure presentation. Record which state backs each capture.

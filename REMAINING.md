@@ -20,11 +20,11 @@ the next MVP phase and the only human-blocked phase.**
 
 | Gate | State |
 |---|---|
-| `pnpm test` (Vitest) | 941 passing |
+| `pnpm test` (Vitest) | 950 passing |
 | `pnpm exec tsc --noEmit` | clean |
 | `pnpm format:check` / `pnpm lint` | clean |
 | `pnpm build` / `pnpm check:bundle-boundary` | clean; 108 browser-reachable modules, no Node built-ins |
-| `cargo test --workspace` | 1,180 passing |
+| `cargo test --workspace` | 1,179 passing |
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --check` | clean |
 | Windows `git-ops --all-targets` compile guard | clean |
@@ -67,7 +67,22 @@ items, unchanged; do not restate them here, satisfy them there.
 
 ## Open engineering items
 
-1. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
+1. **Expand the Phase 8b fixture before functional QA.** The generator currently supplies one
+   `primary` repository, a publisher and a local bare remote. That is enough for the read-only and
+   remote happy paths but not for the checklist's promise that a human never constructs state by
+   hand: line discard, whole-file discard, commit/hook failure and merge-conflict recovery need
+   independent disposable repositories; the visual matrix also needs a clean/empty repository and
+   a deterministic way to hold at least one progress/loading state long enough to inspect. Extend the
+   generated manifest with those named scenarios (an optional delay belongs in the fixture's bare-
+   remote hook, never in product code) and pin them in the generator's Node test before beginning the
+   macOS functional checklist.
+2. **Produced-package inspection is not automated yet.** `pnpm qualify:phase8a` deliberately audits
+   inputs and reports `finalPackagesProduced: false`; no current command opens the macOS/Linux bundle
+   outputs and checks identity, resources, sidecar permissions and legacy destinations. Phase 8b's
+   plan explicitly requires automated metadata/resource/package smoke. Add that reproducible check
+   after final icon/identifier and concrete bundle targets are chosen, before treating the manual
+   `final-package-smoke.md` pass as sufficient.
+3. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
    seams themselves are done (`AGENTS.md` rule 11): `rdc-printenvz`'s two arms now share a
    signature, `cli_installer`'s symlink is behind a per-OS `link` module with both arms real, and
    `custom_integration`'s unix code is in a gated inner module. What is left is a genuine Phase 10

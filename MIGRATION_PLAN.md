@@ -3223,14 +3223,18 @@ The human checks cover:
   (repository/branch context, toolbar and Changes/History navigation), Gate B (expanded left-pane
   design), Gate C (Changes workspace frame), Gate D (History workspace frame and cross-frame
   stability), then Gate E (continuous top-level resizing across the settled frames) in
-  `qa/phase-8b/selected-repository-baseline-checklist.md`. Cycle one
-  accepted the macOS shell/empty-state level on 2026-07-31; it deliberately did not transfer
-  acceptance to the selected-repository level or another OS.
+  `qa/phase-8b/selected-repository-baseline-checklist.md`. Cycle one accepted the macOS shell/empty-
+  state level on 2026-07-31 and all five selected-repository gates by 2026-08-01. Those results open
+  the macOS visual/functional pass; they deliberately do not transfer acceptance to Linux or Windows.
 - Refine hierarchy, proportions, density, alignment, labels, sidebar disclosure, toolbar grouping,
   empty/loading/error states, diff readability and commit/history details on macOS and real Wayland
-  Linux at normal and compact sizes in Light, Dark and System themes. Validate against Desktop Plus's
-  successful visual principles and native platform conventions without copying its layout or values.
-- Settle the final MVP icon, bundle identifier and preview presentation before packaging.
+  Linux at normal, default and compact sizes in Light, Dark and System themes. Validate against
+  Desktop Plus's successful visual principles and native platform conventions without copying its
+  layout or values.
+- Settle the final MVP icon, bundle identifier and preview presentation before packaging. “Preview
+  presentation” is a concrete release-identity decision: whether this MVP is labelled Preview/Beta
+  in About and package-facing metadata, what exact label is used and how it relates to version 0.1.0;
+  it is not a vague extra visual pass.
 - Run the complete repository, commit, branch and local-bare-remote journey in both development
   builds. On macOS also exercise the native menu, dialogs, window drag/double-click, close/relaunch,
   editor/shell launch, persisted state and keyboard/accessibility checklist. WKWebView has no
@@ -3243,6 +3247,15 @@ The human checks cover:
   then a focused installed-artifact pass for clean launch, configuration/log locations, persistence,
   relaunch and platform integration. A packaging-only defect returns through its fix, the complete
   8a gate, repackaging and the affected installed-artifact checks.
+
+**QA reconciliation 2026-08-01:** the accepted macOS foundation exposed two preparation claims that
+were stronger than the tooling. The fixture generator creates one mutable `primary`, so it cannot
+independently back discard, commit/hook and conflict journeys or a deterministic transient visual
+state; extend it with named disposable scenarios before functional QA. Also,
+`qualify:phase8a` intentionally audits packaging inputs and reports `finalPackagesProduced: false`,
+so the automated produced-package metadata/resource inspection promised above still has to be added
+after final identity and bundle targets are chosen. Both are explicit in `REMAINING.md`; neither is
+allowed to turn into ad hoc human setup or a nominal package check.
 
 Record before/after evidence, accepted non-blocking deviations and the final results for both
 platforms. Phase 8b closes only after the last fix has passed 8a again, its affected human checks
