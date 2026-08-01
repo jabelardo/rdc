@@ -97,11 +97,13 @@ describe('RemoteStore', () => {
       },
     ])
     const fastForwardBranches = vi.fn(async () => undefined)
+    const updateRemoteHEAD = vi.fn(async () => undefined)
     const store = new RemoteStore({
       getRemotes,
       getBranches,
       getStatus,
       fetch,
+      updateRemoteHEAD,
       getBranchesDifferingFromUpstream,
       fastForwardBranches,
     })
@@ -118,6 +120,10 @@ describe('RemoteStore', () => {
     expect(fetch.mock.calls.map(call => call.slice(0, 2))).toEqual([
       ['/repo', 'upstream'],
       ['/repo', 'origin'],
+    ])
+    expect(updateRemoteHEAD.mock.calls).toEqual([
+      ['/repo', 'upstream', false],
+      ['/repo', 'origin', false],
     ])
     expect(observedProgress).toContain(0.225)
     expect(fastForwardBranches).toHaveBeenCalledWith('/repo', [
@@ -169,6 +175,7 @@ describe('RemoteStore', () => {
       getStatus: vi.fn(async () => ({ currentBranch: 'topic' })),
       push,
       fetch,
+      updateRemoteHEAD: vi.fn(async () => undefined),
       getBranchesDifferingFromUpstream: vi.fn(async () => []),
       fastForwardBranches: vi.fn(async () => undefined),
     })
@@ -203,6 +210,28 @@ describe('RemoteStore', () => {
     expect(store.state.operation).toBeNull()
   })
 
+  it('does not turn a remote HEAD refresh failure into a failed fetch', async () => {
+    const store = new RemoteStore({
+      getRemotes: vi.fn(async () => [origin]),
+      getBranches: vi.fn(async () => [branch('main', 'origin/main')]),
+      getStatus: vi.fn(async () => ({ currentBranch: 'main' })),
+      fetch: vi.fn(async () => undefined),
+      updateRemoteHEAD: vi.fn(async () => {
+        throw new Error('remote did not advertise HEAD')
+      }),
+      getBranchesDifferingFromUpstream: vi.fn(async () => []),
+      fastForwardBranches: vi.fn(async () => undefined),
+    })
+    await store.load('/repo')
+
+    await expect(store.fetch()).resolves.toBe(true)
+    expect(store.state).toMatchObject({
+      operation: null,
+      progress: null,
+      operationError: null,
+    })
+  })
+
   it('sets upstream when pushing an unpublished current branch', async () => {
     const push = vi.fn(async () => undefined)
     const getBranches = vi
@@ -215,6 +244,7 @@ describe('RemoteStore', () => {
       getStatus: vi.fn(async () => ({ currentBranch: 'new-topic' })),
       push,
       fetch: vi.fn(async () => undefined),
+      updateRemoteHEAD: vi.fn(async () => undefined),
       getBranchesDifferingFromUpstream: vi.fn(async () => []),
       fastForwardBranches: vi.fn(async () => undefined),
     })
@@ -256,6 +286,7 @@ describe('RemoteStore', () => {
       getStatus: vi.fn(async () => ({ currentBranch: 'main' })),
       pull,
       fetch,
+      updateRemoteHEAD: vi.fn(async () => undefined),
       getBranchesDifferingFromUpstream: vi.fn(async () => []),
       fastForwardBranches: vi.fn(async () => undefined),
     })
@@ -377,6 +408,7 @@ describe('RemoteStore', () => {
       getBranches: vi.fn(async () => [branch('main', 'origin/main')]),
       getStatus: vi.fn(async () => ({ currentBranch: 'main' })),
       fetch,
+      updateRemoteHEAD: vi.fn(async () => undefined),
     })
     await store.load('/repo')
 

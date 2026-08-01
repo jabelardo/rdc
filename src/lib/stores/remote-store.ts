@@ -19,6 +19,7 @@ import {
   getRemotes,
   pull as pullRemote,
   push as pushRemote,
+  updateRemoteHEAD,
 } from '../remote-ipc'
 
 export type RemoteOperation = 'fetch' | 'pull' | 'push'
@@ -54,6 +55,7 @@ type RemoteStoreDependencies = {
     progressCallback?: (progress: IFetchProgress) => void,
     isBackgroundTask?: boolean
   ) => Promise<void>
+  readonly updateRemoteHEAD: typeof updateRemoteHEAD
   readonly push: (
     repositoryPath: string,
     remoteName: string,
@@ -85,6 +87,7 @@ const defaultDependencies: RemoteStoreDependencies = {
   getBranches,
   getStatus,
   fetch: fetchRemote,
+  updateRemoteHEAD,
   push: pushRemote,
   pull: pullRemote,
   getBranchesDifferingFromUpstream,
@@ -263,6 +266,7 @@ export class RemoteStore {
           },
           false
         )
+        await this.updateRemoteHeadQuietly(repositoryPath, remote.name)
       }
 
       if (!this.isCurrentOperation(requestID, operationID)) {
@@ -376,6 +380,7 @@ export class RemoteStore {
         },
         false
       )
+      await this.updateRemoteHeadQuietly(repositoryPath, currentRemote.name)
 
       if (!this.isCurrentOperation(requestID, operationID)) {
         return false
@@ -484,6 +489,7 @@ export class RemoteStore {
         },
         false
       )
+      await this.updateRemoteHeadQuietly(repositoryPath, currentRemote.name)
 
       if (!this.isCurrentOperation(requestID, operationID)) {
         return false
@@ -561,6 +567,24 @@ export class RemoteStore {
       )
     } catch (error) {
       log.error('Branch fast-forwarding failed after remote operation', error)
+    }
+  }
+
+  private async updateRemoteHeadQuietly(
+    repositoryPath: string,
+    remoteName: string
+  ): Promise<void> {
+    try {
+      // A successful fetch gives us a trustworthy opportunity to record the remote's advertised
+      // default branch. This mirrors upstream: failure is diagnostic only and must not turn the
+      // completed transport operation into a false failure.
+      await this.dependencies.updateRemoteHEAD(
+        repositoryPath,
+        remoteName,
+        false
+      )
+    } catch (error) {
+      log.error(`Failed updating ${remoteName} HEAD`, error)
     }
   }
 

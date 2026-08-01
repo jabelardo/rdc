@@ -218,6 +218,114 @@ describe('visual layout', () => {
     }
   })
 
+  it('keeps compact controls and file statuses visually semantic in Dark', async () => {
+    await driver.executeScript(() => {
+      document.documentElement.dataset.theme = 'dark'
+      const branches = document.querySelector(
+        '[aria-controls="sidebar-branches"]'
+      )
+      if (branches?.getAttribute('aria-expanded') !== 'true') {
+        branches?.click()
+      }
+    })
+    await driver.wait(
+      async () =>
+        await driver.executeScript(
+          () => document.querySelector('.new-branch-button') !== null
+        ),
+      5_000,
+      'the Branches panel did not expose its compact actions'
+    )
+
+    const snapshot = await driver.executeScript(() => {
+      const styles = selector =>
+        getComputedStyle(document.querySelector(selector))
+      const resolveColor = value => {
+        const probe = document.createElement('span')
+        probe.style.color = value
+        document.body.append(probe)
+        const color = getComputedStyle(probe).color
+        probe.remove()
+        return color
+      }
+      const transparent = 'rgba(0, 0, 0, 0)'
+      const status = document.querySelector('.working-tree-file-status')
+      const statusStyles = getComputedStyle(status)
+      return {
+        transparent,
+        toolbarButton: styles(
+          '.repository-toolbar [aria-label="New repository"]'
+        ).backgroundColor,
+        collapseButton: styles('.sidebar-collapse').backgroundColor,
+        newBranchButton: styles('.new-branch-button').backgroundColor,
+        newBranchIcon: document
+          .querySelector('.new-branch-button svg')
+          ?.getAttribute('data-icon'),
+        currentBranch: styles('.branch-list-selection[aria-current="true"]')
+          .backgroundColor,
+        statusKind: [...status.classList].find(name =>
+          name.startsWith('status-')
+        ),
+        statusColor: statusStyles.color,
+        semanticSuccess: resolveColor('var(--color-success)'),
+        semanticDanger: resolveColor('var(--color-danger)'),
+        discardBackground: styles('.discard-selected-lines').backgroundColor,
+        discardColor: styles('.discard-selected-lines').color,
+      }
+    })
+    assert.equal(snapshot.toolbarButton, snapshot.transparent)
+    assert.equal(snapshot.collapseButton, snapshot.transparent)
+    assert.equal(snapshot.newBranchButton, snapshot.transparent)
+    assert.equal(snapshot.newBranchIcon, 'arrows-split-up-and-left')
+    assert.notEqual(snapshot.currentBranch, snapshot.transparent)
+    assert.match(snapshot.statusKind, /^status-(new|untracked|copied)$/)
+    assert.equal(snapshot.statusColor, snapshot.semanticSuccess)
+    assert.equal(snapshot.discardBackground, snapshot.transparent)
+    assert.equal(snapshot.discardColor, snapshot.semanticDanger)
+
+    await driver.executeScript(() =>
+      document
+        .querySelector('.repository-view-navigation [aria-label="History"]')
+        .click()
+    )
+    await driver.wait(
+      async () =>
+        await driver.executeScript(
+          () => document.querySelector('.history-file-status') !== null
+        ),
+      5_000,
+      'History did not expose its shared semantic file-status icon'
+    )
+    const historyStatus = await driver.executeScript(() => {
+      const status = document.querySelector('.history-file-status')
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--color-success)'
+      document.body.append(probe)
+      const snapshot = {
+        kind: [...status.classList].find(name => name.startsWith('status-')),
+        color: getComputedStyle(status).color,
+        semanticSuccess: getComputedStyle(probe).color,
+      }
+      probe.remove()
+      return snapshot
+    })
+    assert.equal(historyStatus.kind, 'status-new')
+    assert.equal(historyStatus.color, historyStatus.semanticSuccess)
+
+    await driver.executeScript(() => {
+      document
+        .querySelector('.repository-view-navigation [aria-label="Changes"]')
+        .click()
+      const repositories = document.querySelector(
+        '[aria-controls="sidebar-repositories"]'
+      )
+      if (repositories?.getAttribute('aria-expanded') !== 'true') {
+        repositories?.click()
+      }
+      delete document.documentElement.dataset.theme
+    })
+  })
+
   it('keeps every Changes region bounded and reachable at compact width', async () => {
     const originalRect = await driver.manage().window().getRect()
     try {

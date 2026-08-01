@@ -81,6 +81,15 @@ test('creates independent deterministic scenarios for every mutable QA journey',
       git(scenarios.populated.repository, 'branch', '--show-current'),
       'main'
     )
+    assert.equal(
+      git(
+        scenarios.populated.repository,
+        'symbolic-ref',
+        '--short',
+        'refs/remotes/origin/HEAD'
+      ),
+      'origin/main'
+    )
     assert.match(
       git(scenarios.populated.repository, 'status', '--short'),
       /modified\.txt.*untracked\.txt/s

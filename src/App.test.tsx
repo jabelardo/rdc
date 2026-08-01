@@ -792,10 +792,11 @@ describe('App', () => {
     expect(panel).toContainElement(
       screen.getByRole('button', { name: 'main — current branch' })
     )
-    expect(screen.getByRole('button', { name: 'New branch' })).toHaveAttribute(
-      'aria-expanded',
-      'false'
-    )
+    const newBranchButton = screen.getByRole('button', { name: 'New branch' })
+    expect(newBranchButton).toHaveAttribute('aria-expanded', 'false')
+    expect(
+      newBranchButton.querySelector('[data-icon="arrows-split-up-and-left"]')
+    ).toBeInTheDocument()
     expect(setWindowTitle).toHaveBeenLastCalledWith('RDC — rdc — main')
     const toolbar = screen.getByRole('toolbar', {
       name: 'Repository actions',

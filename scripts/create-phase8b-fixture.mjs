@@ -56,6 +56,10 @@ function createBareRemote(remote) {
 function publishMain(repository, remote) {
   git(['remote', 'add', 'origin', remote], repository)
   git(['push', '--quiet', '--set-upstream', 'origin', 'main'], repository)
+  // `push --set-upstream` records the tracking branch but not the remote's HEAD symref. The branch
+  // sidebar deliberately refuses to guess a default branch, so every QA repository with a known
+  // remote default must record the same fact a successful application fetch records.
+  git(['remote', 'set-head', '-a', 'origin'], repository)
 }
 
 function createPublisher(remote, publisher) {

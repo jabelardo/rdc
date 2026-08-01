@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
+  faArrowsSplitUpAndLeft,
   faChevronLeft,
   faChevronRight,
   faCodeBranch,
@@ -332,7 +333,7 @@ export function RepositorySidebar({
                                     }}
                                   >
                                     <FontAwesomeIcon
-                                      icon={faPlus}
+                                      icon={faArrowsSplitUpAndLeft}
                                       aria-hidden="true"
                                     />
                                   </button>

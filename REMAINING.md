@@ -20,7 +20,7 @@ the next MVP phase and the only human-blocked phase.**
 
 | Gate | State |
 |---|---|
-| `pnpm test` (Vitest) | 951 passing |
+| `pnpm test` (Vitest) | 952 passing |
 | `pnpm exec tsc --noEmit` | clean |
 | `pnpm format:check` / `pnpm lint` | clean |
 | `pnpm build` / `pnpm check:bundle-boundary` | clean; 108 browser-reachable modules, no Node built-ins |

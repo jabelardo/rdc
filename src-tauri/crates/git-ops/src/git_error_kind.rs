@@ -233,7 +233,7 @@ fatal: clone of '.+' into submodule path '(.+)' failed",
     ),
     (r"fatal: bad revision '(.*)'", GitErrorKind::BadRevision),
     (
-        r"fatal: [Nn]ot a git repository \(or any of the parent directories\): (.*)",
+        r"fatal: [Nn]ot a git repository \(or any (?:of the parent directories|parent up to mount point .+)\)",
         GitErrorKind::NotAGitRepository,
     ),
     (
