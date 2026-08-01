@@ -96,9 +96,16 @@ button:disabled {
 }
 
 .application-shell {
+  position: relative;
   height: 100vh;
   min-height: 0;
-  grid-template-columns: clamp(15rem, 24vw, 21rem) minmax(0, 1fr);
+  grid-template-columns:
+    clamp(
+      125px,
+      var(--sidebar-width, 264px),
+      calc(100vw - var(--workspace-min-width, 490px))
+    )
+    minmax(var(--workspace-min-width, 490px), 1fr);
 }
 
 .application-shell.sidebar-collapsed {
@@ -113,6 +120,61 @@ button:disabled {
 
 .window-drag-region {
   -webkit-app-region: drag;
+}
+
+.horizontal-resizer {
+  position: absolute;
+  z-index: 8;
+  width: 9px;
+  min-width: 9px;
+  cursor: col-resize;
+  touch-action: none;
+  transform: translateX(-50%);
+  -webkit-app-region: no-drag;
+}
+
+.horizontal-resizer::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: var(--color-border);
+  content: '';
+  transform: translateX(-50%);
+}
+
+.horizontal-resizer:hover::after,
+.horizontal-resizer:focus-visible::after,
+.horizontal-resizer.is-resisting::after {
+  width: 2px;
+  background: var(--color-accent);
+}
+
+.horizontal-resizer.is-resisting::after {
+  opacity: 0.72;
+}
+
+.horizontal-resizer:focus-visible {
+  outline: none;
+}
+
+.sidebar-resizer {
+  top: 0;
+  bottom: 0;
+  left: clamp(
+    125px,
+    var(--sidebar-width, 264px),
+    calc(100vw - var(--workspace-min-width, 490px))
+  );
+}
+
+.application-shell.webview-titlebar .sidebar-resizer {
+  top: 2.4rem;
+}
+
+.application-shell.sidebar-collapsed .sidebar-resizer {
+  left: 3.25rem;
 }
 
 .repository-sidebar {
@@ -657,11 +719,20 @@ button:disabled {
 }
 
 .changes-workspace {
-  grid-template-columns: minmax(18rem, 22rem) minmax(0, 1fr);
+  position: relative;
+  grid-template-columns:
+    clamp(190px, var(--changes-pane-width, 352px), calc(100% - 300px))
+    minmax(300px, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
     'files diff'
     'commit diff';
+}
+
+.changes-resizer {
+  top: 0;
+  bottom: 0;
+  left: clamp(190px, var(--changes-pane-width, 352px), calc(100% - 300px));
 }
 
 .changes-workspace[hidden] {
@@ -839,12 +910,12 @@ button:disabled {
 }
 
 .working-tree-file-status:is(
-    .status-new,
-    .status-untracked,
-    .status-copied,
-    .status-modified,
-    .status-deleted
-  ) {
+  .status-new,
+  .status-untracked,
+  .status-copied,
+  .status-modified,
+  .status-deleted
+) {
   border: 0;
   border-radius: 0;
 }
@@ -1149,8 +1220,17 @@ button:disabled {
 }
 
 .history {
-  grid-template-columns: minmax(16rem, 21rem) minmax(0, 1fr);
+  position: relative;
+  grid-template-columns:
+    clamp(190px, var(--history-list-width, 270px), calc(100% - 370px))
+    minmax(370px, 1fr);
   margin: 0;
+}
+
+.history-list-resizer {
+  top: 0;
+  bottom: 0;
+  left: clamp(190px, var(--history-list-width, 270px), calc(100% - 370px));
 }
 
 .history[hidden] {
@@ -1289,11 +1369,20 @@ button:disabled {
 }
 
 .history-change-workspace {
+  position: relative;
   display: grid;
   min-height: 0;
   flex: 1 1 auto;
-  grid-template-columns: minmax(7rem, 38%) minmax(0, 1fr);
+  grid-template-columns:
+    clamp(150px, var(--history-files-width, 240px), calc(100% - 220px))
+    minmax(220px, 1fr);
   overflow: hidden;
+}
+
+.history-files-resizer {
+  top: 0;
+  bottom: 0;
+  left: clamp(150px, var(--history-files-width, 240px), calc(100% - 220px));
 }
 
 .history-file-section {
@@ -1496,9 +1585,8 @@ button:disabled {
   gap: 0.75rem;
 }
 
-@media (max-width: 52rem) {
+@media (max-width: 46rem) {
   .changes-workspace {
-    grid-template-columns: minmax(11rem, 42%) minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) minmax(0, auto);
     grid-template-areas:
       'files diff'
@@ -1521,11 +1609,6 @@ button:disabled {
 
   .working-tree-diff-empty {
     margin-top: 4rem;
-  }
-
-  .history {
-    grid-template-columns: minmax(11rem, 40%) minmax(0, 1fr);
-    overflow: hidden;
   }
 
   .history-change-summary {

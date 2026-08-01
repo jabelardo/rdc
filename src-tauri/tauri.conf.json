@@ -16,6 +16,8 @@
         "title": "RDC",
         "width": 800,
         "height": 600,
+        "minWidth": 715,
+        "minHeight": 356,
         "visible": false
       }
     ],

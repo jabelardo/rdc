@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { join } from '@tauri-apps/api/path'
 import type { Repository } from '../../../models/repository'
 import { getCloneDirectoryName } from '../../clone-destination'
@@ -73,8 +73,11 @@ export function useAppController() {
   const [conflictState, setConflictState] = useState<ConflictState>(
     conflictStore.state
   )
-  const [repositoryView, setRepositoryView] =
+  const [repositoryView, setActiveRepositoryView] =
     useState<RepositoryView>('changes')
+  const activeRepositoryView = useRef<RepositoryView>('changes')
+  const pendingRepositoryView = useRef<RepositoryView | null>(null)
+  const repositoryViewTransitionID = useRef(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [expandedSidebarSections, setExpandedSidebarSections] = useState<
     ReadonlySet<SidebarSectionID>
@@ -177,8 +180,8 @@ export function useAppController() {
           )
           ?.focus()
       },
-      showChanges: () => setRepositoryView('changes'),
-      showHistory: () => setRepositoryView('history'),
+      showChanges: () => selectRepositoryView('changes'),
+      showHistory: () => selectRepositoryView('history'),
       openRepositoryInNewWindow,
       showFolderContents,
       fetch: refreshAfterFetch,
@@ -278,6 +281,8 @@ export function useAppController() {
     setPermanentlyDiscard(false)
     setDiscardSelection(false)
     setSelectedLinesDiscard(null)
+    repositoryViewTransitionID.current++
+    pendingRepositoryView.current = null
     historyStore.clear()
     if (repository === null) {
       branchStore.clear()
@@ -289,6 +294,20 @@ export function useAppController() {
       void conflictStore.load(repository.path)
       void remoteStore.load(repository.path)
       void workingTreeStore.load(repository.path)
+      if (activeRepositoryView.current === 'history') {
+        // Keep a valid frame visible while preparing History for the newly selected repository.
+        activeRepositoryView.current = 'changes'
+        setActiveRepositoryView('changes')
+        const transitionID = ++repositoryViewTransitionID.current
+        pendingRepositoryView.current = 'history'
+        void historyStore.load(repository.path).then(() => {
+          if (repositoryViewTransitionID.current === transitionID) {
+            pendingRepositoryView.current = null
+            activeRepositoryView.current = 'history'
+            setActiveRepositoryView('history')
+          }
+        })
+      }
     }
     return unsubscribe
   }, [
@@ -341,15 +360,6 @@ export function useAppController() {
   useEffect(() => branchStore.onDidUpdate(setBranchState), [branchStore])
 
   useEffect(() => conflictStore.onDidUpdate(setConflictState), [conflictStore])
-
-  useEffect(() => {
-    const repository = appState.selectedRepository
-    if (repository === null) {
-      historyStore.clear()
-    } else if (repositoryView === 'history') {
-      void historyStore.load(repository.path)
-    }
-  }, [appState.selectedRepository, historyStore, repositoryView])
 
   useEffect(() => {
     let disposed = false
@@ -707,6 +717,46 @@ export function useAppController() {
     setExpandedSidebarSections(new Set<SidebarSectionID>([section]))
   }
 
+  function selectRepositoryView(view: RepositoryView): void {
+    if (view === 'changes') {
+      repositoryViewTransitionID.current++
+      pendingRepositoryView.current = null
+      if (activeRepositoryView.current !== 'changes') {
+        activeRepositoryView.current = 'changes'
+        setActiveRepositoryView('changes')
+      }
+      return
+    }
+    if (
+      activeRepositoryView.current === 'history' ||
+      pendingRepositoryView.current === 'history'
+    ) {
+      return
+    }
+
+    const repository = appStore.state.selectedRepository
+    if (repository === null) {
+      return
+    }
+    const transitionID = ++repositoryViewTransitionID.current
+    pendingRepositoryView.current = 'history'
+
+    // HistoryWorkspace stays mounted but hidden, so its store updates build the complete commit,
+    // file and diff tree off-screen. Reveal it only after `load` has finished that chain; exposing
+    // it first made the browser paint the empty/loading/details/diff states in sequence. Reload on
+    // every transition to preserve the former freshness contract after commits, fetches and pulls.
+    void historyStore.load(repository.path).then(() => {
+      if (
+        repositoryViewTransitionID.current === transitionID &&
+        appStore.state.selectedRepository?.path === repository.path
+      ) {
+        pendingRepositoryView.current = null
+        activeRepositoryView.current = 'history'
+        setActiveRepositoryView('history')
+      }
+    })
+  }
+
   return {
     appState,
     branchState,
@@ -722,7 +772,7 @@ export function useAppController() {
     workingTreeState,
     workingTreeStore,
     repositoryView,
-    setRepositoryView,
+    setRepositoryView: selectRepositoryView,
     sidebarCollapsed,
     setSidebarCollapsed,
     expandedSidebarSections,

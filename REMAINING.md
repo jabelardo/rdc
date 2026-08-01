@@ -28,7 +28,7 @@ the next MVP phase and the only human-blocked phase.**
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --check` | clean |
 | Windows `git-ops --all-targets` compile guard | clean |
-| `pnpm test:e2e` (Linux container) | 23 tests / 14 suites passing |
+| `pnpm test:e2e` (Linux container) | 27 tests / 14 suites passing |
 | `pnpm qualify:phase8a` | green, `"errors": []` |
 
 ---
@@ -46,12 +46,12 @@ affected human check. Package **last**, only once no agreed blocker remains.
 Cycle one now has two explicit foundation levels. The shell/empty-state gate in
 `qa/phase-8b/baseline-layout-checklist.md` was accepted on macOS on 2026-07-31 after three annotated
 refinement rounds. Gates A and B established the macOS repository toolbar and left-pane baselines on
-2026-07-31. Gates C and D are accepted; **next:** complete the new Gate E continuous-resizing pass
-in `qa/phase-8b/selected-repository-baseline-checklist.md`. Gate E deliberately follows the
-individually accepted Changes and History frames so resize findings do not conceal frame-design decisions.
-Only after all five gates pass should macOS enter the
-visual matrix and functional checklist. Linux repeats all foundation gates in real-Wayland QA; the
-macOS result is a reference, not transferable evidence. Windows repeats them in Phase 10.
+2026-07-31. Gates C and D are accepted. **Gate E was accepted on macOS on 2026-08-01:** it established
+the native 715×356 floor, resizable sidebar/Changes/History panes, stable sidebar geometry across
+views, and a prepared History transition without intermediate repainting. All five selected-
+repository foundation gates now pass, so macOS proceeds to the visual matrix and functional
+checklist. Linux repeats all foundation gates in real-Wayland QA; the macOS result is a reference,
+not transferable evidence. Windows repeats them in Phase 10.
 
 Human judgement is required for: visual refinement (hierarchy, density, alignment, empty/loading/
 error states, diff readability) at normal and compact sizes in Light/Dark/System; the final icon,

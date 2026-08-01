@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -1120,13 +1120,13 @@ describe('App', () => {
     expect(conflictStore.load).toHaveBeenCalledWith(repository.path)
   })
 
-  it('loads and renders the selected repository history on demand', async () => {
+  it('prepares complete repository history before changing the visible view', async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
     }
     historyStore.state = {
-      repositoryPath: repository.path,
+      repositoryPath: null,
       commits: [
         {
           sha: 'a'.repeat(40),
@@ -1185,14 +1185,38 @@ describe('App', () => {
       diffLoading: false,
       diffError: null,
     }
+    let finishHistoryLoad: (() => void) | undefined
+    historyStore.load.mockReturnValue(
+      new Promise<void>(resolve => {
+        finishHistoryLoad = resolve
+      })
+    )
     const user = userEvent.setup()
     render(<App />)
 
     await user.click(screen.getByRole('button', { name: 'History' }))
 
     expect(historyStore.load).toHaveBeenCalledWith(repository.path)
+    expect(screen.getByRole('button', { name: 'Changes' })).toHaveAttribute(
+      'aria-current',
+      'page'
+    )
+    expect(document.querySelector('.history')).toHaveAttribute('hidden')
+    await act(async () => finishHistoryLoad?.())
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'History' })).toHaveAttribute(
+        'aria-current',
+        'page'
+      )
+    )
     const history = screen.getByRole('region', { name: 'History' })
     expect(history.querySelector('.history-list-pane')).not.toBeNull()
+    expect(
+      screen.getByRole('separator', { name: 'Resize History commit list' })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('separator', { name: 'Resize History changed files' })
+    ).toBeInTheDocument()
     expect(
       screen
         .getByRole('region', { name: 'Selected commit details' })
@@ -1754,7 +1778,7 @@ describe('App', () => {
         name: 'Bypass hooks',
       })
     )
-    await user.click(screen.getByRole('button', { name: /Commit 1 file to/ }))
+    await user.click(screen.getByRole('button', { name: 'Commit 1 file' }))
 
     expect(workingTreeStore.commit).toHaveBeenCalledWith(
       'Commit from rdc',

@@ -5,13 +5,14 @@ import {
   faRotateLeft,
 } from '@fortawesome/free-solid-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { useState } from 'react'
+import { useRef, useState, type CSSProperties } from 'react'
 import { DiffLineType, DiffType } from '../../../models/diff'
 import type { ConflictStore } from '../../stores/conflict-store'
 import type {
   WorkingTreeState,
   WorkingTreeStore,
 } from '../../stores/working-tree-store'
+import { HorizontalResizer } from '../horizontal-resizer'
 import { WorkingTreeFileRow } from '../mvp-list-rows'
 import { VirtualList } from '../virtual-list'
 
@@ -34,7 +35,6 @@ type ChangesWorkspaceProps = {
   readonly state: WorkingTreeState
   readonly store: WorkingTreeStore
   readonly conflictStore: ConflictStore
-  readonly branchName: string | null
   readonly commitMessage: string
   readonly bypassHooks: boolean
   readonly commitTerminalOutput: string
@@ -68,7 +68,6 @@ export function ChangesWorkspace({
   state,
   store,
   conflictStore,
-  branchName,
   commitMessage,
   bypassHooks,
   commitTerminalOutput,
@@ -76,7 +75,9 @@ export function ChangesWorkspace({
   onBypassHooksChange,
   onDiscard,
 }: ChangesWorkspaceProps) {
+  const workspaceRef = useRef<HTMLDivElement>(null)
   const [fileFilter, setFileFilter] = useState('')
+  const [changesPaneWidth, setChangesPaneWidth] = useState(352)
   const files = state.workingDirectory?.files ?? []
   const normalizedFilter = fileFilter.trim().toLocaleLowerCase()
   const filteredFiles =
@@ -104,13 +105,27 @@ export function ChangesWorkspace({
   const allFilesIncluded =
     changedFileCount > 0 && includedFileCount === changedFileCount
   const { summary, description } = splitCommitMessage(commitMessage)
-  const commitTarget = branchName ?? 'current branch'
 
   return (
     <div
+      ref={workspaceRef}
       className="changes-workspace grid min-h-0 min-w-0 overflow-hidden bg-[var(--color-surface)]"
       hidden={!visible}
+      style={
+        {
+          '--changes-pane-width': `${changesPaneWidth}px`,
+        } as CSSProperties
+      }
     >
+      <HorizontalResizer
+        ariaLabel="Resize Changes file pane"
+        className="changes-resizer"
+        containerRef={workspaceRef}
+        minimum={190}
+        oppositeMinimum={300}
+        value={changesPaneWidth}
+        onResize={setChangesPaneWidth}
+      />
       <section
         className="working-tree min-h-0 min-w-0 overflow-hidden border-r border-[var(--color-border)] text-left"
         aria-label="Changes"
@@ -376,7 +391,7 @@ export function ChangesWorkspace({
                   ? 'Committing…'
                   : `Commit ${includedFileCount} ${
                       includedFileCount === 1 ? 'file' : 'files'
-                    } to ${commitTarget}`}
+                    }`}
               </button>
             </div>
             {state.commitError !== null && (

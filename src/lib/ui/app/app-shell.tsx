@@ -1,5 +1,7 @@
+import { useRef, useState, type CSSProperties } from 'react'
 import { showFolderContents } from '../../platform/files'
 import { openRepositoryInNewWindow } from '../../platform/window'
+import { HorizontalResizer } from '../horizontal-resizer'
 import { AppDialogs } from './app-dialogs'
 import { ChangesWorkspace } from './changes-workspace'
 import { HistoryWorkspace } from './history-workspace'
@@ -15,6 +17,8 @@ type AppShellProps = {
 
 /** Layout composition for the application; state orchestration stays in the controller hook. */
 export function AppShell({ controller }: AppShellProps) {
+  const shellRef = useRef<HTMLElement>(null)
+  const [sidebarWidth, setSidebarWidth] = useState(264)
   const {
     appState,
     branchState,
@@ -81,12 +85,23 @@ export function AppShell({ controller }: AppShellProps) {
     toggleSidebarSection,
     activateSidebarSection,
   } = controller
+  // Once a repository is selected, reserve the strictest accepted workspace minimum for every
+  // view. If this followed the active view (Changes 490 px, History 560 px), CSS would re-clamp the
+  // same stored sidebar width on every Changes/History switch and make navigation visibly jump.
+  const workspaceMinimum = appState.selectedRepository === null ? 490 : 560
 
   return (
     <main
+      ref={shellRef}
       className={`application-shell grid h-screen${
         showWindowDragRegion ? ' webview-titlebar' : ''
       }${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
+      style={
+        {
+          '--sidebar-width': `${sidebarWidth}px`,
+          '--workspace-min-width': `${workspaceMinimum}px`,
+        } as CSSProperties
+      }
     >
       {showWindowDragRegion && <WindowDragStrip />}
       <RepositorySidebar
@@ -107,6 +122,30 @@ export function AppShell({ controller }: AppShellProps) {
         onBranchNameChange={setNewBranchName}
         onBranchChange={refreshAfterBranchChange}
       />
+      {sidebarCollapsed ? (
+        <HorizontalResizer
+          ariaLabel="Expand navigation sidebar"
+          className="sidebar-resizer"
+          containerRef={shellRef}
+          minimum={52}
+          maximum={52}
+          oppositeMinimum={workspaceMinimum}
+          value={52}
+          onResize={() => undefined}
+          onMaximumHold={() => setSidebarCollapsed(false)}
+        />
+      ) : (
+        <HorizontalResizer
+          ariaLabel="Resize navigation sidebar"
+          className="sidebar-resizer"
+          containerRef={shellRef}
+          minimum={125}
+          oppositeMinimum={workspaceMinimum}
+          value={sidebarWidth}
+          onResize={setSidebarWidth}
+          onMinimumHold={() => setSidebarCollapsed(true)}
+        />
+      )}
 
       <section
         className="repository-workspace min-h-0 min-w-0 overflow-hidden"
@@ -186,7 +225,6 @@ export function AppShell({ controller }: AppShellProps) {
               store={workingTreeStore}
               conflictStore={conflictStore}
               commitMessage={commitMessage}
-              branchName={branchState.currentBranch}
               bypassHooks={bypassHooks}
               commitTerminalOutput={commitTerminalOutput}
               onCommitMessageChange={setCommitMessage}

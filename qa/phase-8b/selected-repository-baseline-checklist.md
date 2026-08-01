@@ -6,9 +6,9 @@ populated repository produce a stable application frame whose controls can be te
 expected redesign moving or regrouping them?
 
 Use the generated `primary` fixture in Light theme. Begin at normal size (at least 1100×720), then
-repeat at the default 800×600 window and compact 620×720 window, with the sidebar expanded and
-collapsed. Do not perform discard, commit, branch or remote mutations during this gate. Capture a
-full-window before/after image for every structural revision.
+repeat at the default 800×600 window and the native minimum 715×356 window, with the sidebar expanded
+and collapsed. Do not perform discard, commit, branch or remote mutations during this gate. Capture
+a full-window before/after image for every structural revision.
 
 ## Gate A — repository context, toolbar and navigation
 
@@ -31,7 +31,7 @@ full-window before/after image for every structural revision.
   locale-specific breakpoints. It does not remove localized text: every icon retains a localized
   accessible name and contextual tooltip, and an action without a clear icon keeps a visible label.
 - Base compact behavior on the space actually available to the repository workspace. Verify normal,
-  800×600 and 620×720 widths with both sidebar widths; controls may condense or move to overflow but
+  800×600 and 715×356 sizes with both sidebar states; controls may condense or move to overflow but
   must not clip, create accidental horizontal scrolling or wrap unpredictably.
 
 Gate A passes only when:
@@ -164,7 +164,8 @@ file-list/diff relationships are shared, but this approval does not prescribe pl
 Run this only after Gates A–D are individually accepted. It validates the transitions between the
 settled frames rather than redesigning any one frame during the resize pass.
 
-- Resize continuously from at least 1100×720 down to 620×720 and back in both Changes and History,
+- Resize continuously from at least 1100×720 down to the native 715×356 minimum and back in both
+  Changes and History,
   with the sidebar expanded and collapsed. The toolbar, workspace top edge and window drag region
   remain fixed while internal proportions respond deliberately.
 - Cross every responsive threshold slowly and repeatedly. Controls must not overlap, disappear,
@@ -172,18 +173,42 @@ settled frames rather than redesigning any one frame during the resize pass.
 - Verify the outer shell owns the available viewport without document-level scrolling. Sidebar,
   lists, commit dock, metadata, file navigation and diffs retain their established independent
   scrolling and minimum useful sizes.
+- In History, drag the two nested separators independently. The commit list stops at 190 px; the
+  changed-file list stops at 150 px; and the historical diff retains at least 220 px. These panes
+  keep their left-to-right order at the existing 715×356 native window floor; they do not establish
+  a new global minimum.
+- Dragging the navigation separator left stops at the 125 px expanded-sidebar minimum. Continued
+  pressure beyond that boundary collapses the sidebar only after a short dwell; releasing or
+  reversing direction during the resistance period cancels the collapse. The collapsed rail keeps
+  the same separator at its right edge: continued rightward pressure uses the same dwell to expand,
+  while release or reversal cancels. The chevron remains the immediate button alternative.
 - Maximize, restore and resize after switching views and sidebar state. Each still-valid repository,
   branch, view, commit and file selection remains intact, and no stale or blank frame appears.
+- Switch repeatedly between Changes and History. History's commits, details, changed files and
+  selected diff are prepared while its mounted tree remains hidden, then revealed as one frame;
+  intermediate loading/empty/detail paints must not flicker through the visible workspace.
 - Repeat with representative long repository, branch, commit and file names so truncation changes
   continuously rather than forcing a late geometry jump.
 
+Automation samples 1100, 900, 740, 736, 730 and 715 px in both directions for Changes and History
+with both sidebar states. It asserts the native 715×356 floor, viewport ownership, toolbar
+reachability, the fixed top edge, both left/right pane relationships and selection retention, then
+maximizes and restores. Changes additionally pins a 125 px sidebar minimum, 190 px file/commit-pane
+minimum and 300 px diff minimum. History pins a 190 px commit-list minimum, 150 px changed-file-list
+minimum and 220 px diff minimum. This is a regression floor, not a substitute for watching the
+native transition or judging whether the result remains useful.
+
 Gate E passes only when:
 
-- [ ] Continuous normal → compact → normal resizing is stable in Changes and History.
-- [ ] Expanded and collapsed sidebar states preserve toolbar reachability and workspace direction.
-- [ ] No responsive threshold introduces document scrolling, overlap, reordering or unreachable UI.
-- [ ] Maximize/restore and cross-view resizing preserve valid selections and repaint correctly.
-- [ ] Normal/default/compact end states still match the accepted Gates A–D baselines.
+- [x] Continuous normal → compact → normal resizing is stable in Changes and History.
+- [x] Expanded and collapsed sidebar states preserve toolbar reachability and workspace direction.
+- [x] No responsive threshold introduces document scrolling, overlap, reordering or unreachable UI.
+- [x] Maximize/restore and cross-view resizing preserve valid selections and repaint correctly.
+- [x] Normal/default/compact end states still match the accepted Gates A–D baselines.
+
+Accepted as the macOS Gate E baseline by Jose on 2026-08-01. Linux and Windows repeat this gate
+independently; the values above remain the reference unless a documented native constraint requires
+a platform-specific adjustment.
 
 ## Platform ownership
 

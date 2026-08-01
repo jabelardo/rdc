@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { after, before, describe, it } from 'node:test'
+import { By, Key } from 'selenium-webdriver'
 import {
   commitWorkingTreeBaseline,
   createFixtureRoot,
@@ -64,8 +65,7 @@ describe('visual layout', () => {
         toolbarButtons: toolbarElement.querySelectorAll('button').length,
         selectedView: selectedView.getAttribute('aria-label'),
         selectedViewHasTreatment:
-          getComputedStyle(selectedView).backgroundColor !==
-          'rgba(0, 0, 0, 0)',
+          getComputedStyle(selectedView).backgroundColor !== 'rgba(0, 0, 0, 0)',
       }
     })
     assert.equal(normal.fontSize, '13px')
@@ -83,11 +83,20 @@ describe('visual layout', () => {
 
     const originalRect = await driver.manage().window().getRect()
     try {
-      await driver.manage().window().setRect({ width: 620, height: 720 })
+      await driver.manage().window().setRect({ width: 600, height: 300 })
+      const minimumRect = await driver.manage().window().getRect()
+      assert.ok(
+        minimumRect.width >= 715,
+        'window width escaped its 715px floor'
+      )
+      assert.ok(
+        minimumRect.height >= 356,
+        'window height escaped its 356px floor'
+      )
       await driver.wait(
         async () =>
           await driver.executeScript(
-            () => matchMedia('(max-width: 52rem)').matches
+            () => matchMedia('(max-width: 46rem)').matches
           ),
         5_000,
         'compact workspace breakpoint did not activate'
@@ -96,6 +105,7 @@ describe('visual layout', () => {
         await driver.executeScript(() => {
           const shell = document.querySelector('.application-shell')
           const toolbar = document.querySelector('.repository-toolbar')
+          const sidebarResizer = document.querySelector('.sidebar-resizer')
           const viewLabels = [
             ...document.querySelectorAll('.repository-view-label'),
           ]
@@ -106,6 +116,7 @@ describe('visual layout', () => {
               document.querySelector('.changes-workspace')
             ).gridTemplateColumns.split(' ').length,
             toolbarFits: toolbar.scrollWidth <= toolbar.clientWidth,
+            sidebarResizerLabel: sidebarResizer.getAttribute('aria-label'),
             viewLabelsHidden: viewLabels.every(
               label => getComputedStyle(label).display === 'none'
             ),
@@ -132,12 +143,14 @@ describe('visual layout', () => {
           shellColumns: 2,
           workspaceColumns: 2,
           toolbarFits: true,
+          sidebarResizerLabel: 'Resize navigation sidebar',
           viewLabelsHidden: true,
         },
         collapsed: {
           shellColumns: 2,
           workspaceColumns: 2,
           toolbarFits: true,
+          sidebarResizerLabel: 'Expand navigation sidebar',
           viewLabelsHidden: true,
         },
       })
@@ -155,20 +168,24 @@ describe('visual layout', () => {
   it('keeps every Changes region bounded and reachable at compact width', async () => {
     const originalRect = await driver.manage().window().getRect()
     try {
-      await driver.manage().window().setRect({ width: 620, height: 600 })
+      await driver.manage().window().setRect({ width: 715, height: 356 })
       await driver.wait(
         async () =>
           await driver.executeScript(
-            () => matchMedia('(max-width: 52rem)').matches
+            () => matchMedia('(max-width: 46rem)').matches
           ),
         5_000,
         'compact Changes breakpoint did not activate'
       )
       const layout = await driver.executeScript(() => {
         const workspace = document.querySelector('.changes-workspace')
+        const sidebar = document.querySelector('.repository-sidebar')
         const files = document.querySelector('.working-tree')
         const diff = document.querySelector('.working-tree-diff')
         const commit = document.querySelector('.commit-form')
+        const separators = [
+          ...document.querySelectorAll('.horizontal-resizer'),
+        ].filter(separator => separator.getBoundingClientRect().height > 0)
         const workspaceRect = workspace.getBoundingClientRect()
         const regions = [files, diff, commit].map(element => {
           const rect = element.getBoundingClientRect()
@@ -200,6 +217,13 @@ describe('visual layout', () => {
             getComputedStyle(diff.querySelector('.working-tree-diff-content'))
               .overflowY === 'auto',
           commitPresent: commit !== null,
+          sidebarMeetsMinimum: sidebar.getBoundingClientRect().width >= 125 - 1,
+          filesMeetMinimum: regions[0].right - regions[0].left >= 190 - 1,
+          diffMeetsMinimum: regions[1].right - regions[1].left >= 300 - 1,
+          resizersPresent: separators.length === 2,
+          resizersUseColumnCursor: separators.every(
+            separator => getComputedStyle(separator).cursor === 'col-resize'
+          ),
         }
       })
       assert.deepEqual(layout, {
@@ -212,6 +236,11 @@ describe('visual layout', () => {
         filesScrollIndependently: true,
         diffScrollsIndependently: true,
         commitPresent: true,
+        sidebarMeetsMinimum: true,
+        filesMeetMinimum: true,
+        diffMeetsMinimum: true,
+        resizersPresent: true,
+        resizersUseColumnCursor: true,
       })
     } finally {
       await driver.manage().window().setRect(originalRect)
@@ -221,7 +250,12 @@ describe('visual layout', () => {
   it('keeps History side by side with independently bounded regions', async () => {
     const originalRect = await driver.manage().window().getRect()
     try {
-      await driver.manage().window().setRect({ width: 620, height: 600 })
+      await driver.manage().window().setRect({ width: 715, height: 356 })
+      const sidebarWidthBeforeViewSwitch = await driver.executeScript(
+        () =>
+          document.querySelector('.repository-sidebar').getBoundingClientRect()
+            .width
+      )
       await driver.executeScript(() =>
         document
           .querySelector('.repository-view-navigation [aria-label="History"]')
@@ -240,10 +274,8 @@ describe('visual layout', () => {
         async () =>
           await driver.executeScript(
             () =>
-              document.querySelector(
-                '.history-files [aria-current="true"]'
-              ) !== null &&
-              document.querySelector('.history-diff-content') !== null
+              document.querySelector('.history-files [aria-current="true"]') !==
+                null && document.querySelector('.history-diff-content') !== null
           ),
         5_000,
         'History details did not finish loading'
@@ -265,9 +297,14 @@ describe('visual layout', () => {
           const selectedFile = history.querySelector(
             '.history-files [aria-current="true"]'
           )
+          const separators = [
+            ...document.querySelectorAll('.horizontal-resizer'),
+          ].filter(separator => separator.getBoundingClientRect().height > 0)
           const historyRect = history.getBoundingClientRect()
           const commitRect = commits.getBoundingClientRect()
           const detailsRect = details.getBoundingClientRect()
+          const fileSectionRect = fileSection.getBoundingClientRect()
+          const diffRegionRect = diffRegion.getBoundingClientRect()
           const regionFits = element => {
             const rect = element.getBoundingClientRect()
             return (
@@ -279,15 +316,14 @@ describe('visual layout', () => {
           }
 
           return {
-            columns: getComputedStyle(history).gridTemplateColumns.split(' ')
-              .length,
+            columns:
+              getComputedStyle(history).gridTemplateColumns.split(' ').length,
             historyOwnsOverflow:
               getComputedStyle(history).overflowY === 'hidden',
             historyFits: history.scrollHeight <= history.clientHeight,
             listStaysLeftOfDetails: commitRect.right <= detailsRect.left + 1,
             filesStayLeftOfDiff:
-              fileSection.getBoundingClientRect().right <=
-              diffRegion.getBoundingClientRect().left + 1,
+              fileSectionRect.right <= diffRegionRect.left + 1,
             regionsFit: [
               commits,
               details,
@@ -303,6 +339,13 @@ describe('visual layout', () => {
               getComputedStyle(files).overflowY === 'auto',
             diffScrollsIndependently:
               getComputedStyle(diff).overflowY === 'auto',
+            commitListMeetsMinimum: commitRect.width >= 190 - 1,
+            changedFilesMeetMinimum: fileSectionRect.width >= 150 - 1,
+            diffMeetsMinimum: diffRegionRect.width >= 220 - 1,
+            resizersPresent: separators.length === 3,
+            resizersUseColumnCursor: separators.every(
+              separator => getComputedStyle(separator).cursor === 'col-resize'
+            ),
             selectedCommit: selectedCommit?.getAttribute('data-commit-sha'),
             selectedFile: selectedFile?.getAttribute('aria-label'),
           }
@@ -322,6 +365,11 @@ describe('visual layout', () => {
           fileListScrollsIndependently:
             beforeSwitch.fileListScrollsIndependently,
           diffScrollsIndependently: beforeSwitch.diffScrollsIndependently,
+          commitListMeetsMinimum: beforeSwitch.commitListMeetsMinimum,
+          changedFilesMeetMinimum: beforeSwitch.changedFilesMeetMinimum,
+          diffMeetsMinimum: beforeSwitch.diffMeetsMinimum,
+          resizersPresent: beforeSwitch.resizersPresent,
+          resizersUseColumnCursor: beforeSwitch.resizersUseColumnCursor,
         },
         {
           columns: 2,
@@ -333,10 +381,49 @@ describe('visual layout', () => {
           commitListScrollsIndependently: true,
           fileListScrollsIndependently: true,
           diffScrollsIndependently: true,
+          commitListMeetsMinimum: true,
+          changedFilesMeetMinimum: true,
+          diffMeetsMinimum: true,
+          resizersPresent: true,
+          resizersUseColumnCursor: true,
         }
       )
       assert.ok(beforeSwitch.selectedCommit)
       assert.ok(beforeSwitch.selectedFile)
+      const sidebarWidthAfterViewSwitch = await driver.executeScript(
+        () =>
+          document.querySelector('.repository-sidebar').getBoundingClientRect()
+            .width
+      )
+      assert.ok(
+        Math.abs(sidebarWidthAfterViewSwitch - sidebarWidthBeforeViewSwitch) <=
+          1,
+        'sidebar width changed while switching from Changes to History'
+      )
+
+      // Exercise the application wiring as well as the shared resizer's unit contract. The wider
+      // window gives both History seams room to move; returning to the native floor below proves
+      // their remembered values are clamped by the layout rather than forcing horizontal overflow.
+      await driver.manage().window().setRect({ width: 900, height: 356 })
+      const commitListResizer = await driver.findElement(
+        By.css('[aria-label="Resize History commit list"]')
+      )
+      await commitListResizer.sendKeys(Key.HOME, Key.ARROW_RIGHT)
+      const changedFilesResizer = await driver.findElement(
+        By.css('[aria-label="Resize History changed files"]')
+      )
+      await changedFilesResizer.sendKeys(Key.HOME, Key.ARROW_RIGHT)
+      const resizedWidths = await driver.executeScript(() => ({
+        commits: document
+          .querySelector('.history-list-pane')
+          .getBoundingClientRect().width,
+        files: document
+          .querySelector('.history-file-section')
+          .getBoundingClientRect().width,
+      }))
+      assert.ok(Math.abs(resizedWidths.commits - 200) <= 1)
+      assert.ok(Math.abs(resizedWidths.files - 160) <= 1)
+      await driver.manage().window().setRect({ width: 715, height: 356 })
 
       await driver.executeScript(() =>
         document
@@ -368,10 +455,8 @@ describe('visual layout', () => {
         async () =>
           await driver.executeScript(
             () =>
-              document.querySelector(
-                '.history-files [aria-current="true"]'
-              ) !== null &&
-              document.querySelector('.history-diff-content') !== null
+              document.querySelector('.history-files [aria-current="true"]') !==
+                null && document.querySelector('.history-diff-content') !== null
           ),
         5_000,
         'History details did not restore after switching back'
@@ -385,6 +470,279 @@ describe('visual layout', () => {
           .querySelector('.repository-view-navigation [aria-label="Changes"]')
           .click()
       )
+      await driver.manage().window().setRect(originalRect)
+    }
+  })
+
+  it('keeps the settled frames stable through continuous resize and restore', async () => {
+    const originalRect = await driver.manage().window().getRect()
+    const widths = [1100, 900, 740, 736, 730, 715, 730, 736, 740, 900, 1100]
+
+    const selectView = async view => {
+      await driver.executeScript(selectedView => {
+        document
+          .querySelector(
+            `.repository-view-navigation [aria-label="${selectedView}"]`
+          )
+          .click()
+      }, view)
+      await driver.wait(
+        async () =>
+          await driver.executeScript(selectedView => {
+            const selector =
+              selectedView === 'Changes' ? '.changes-workspace' : '.history'
+            const workspace = document.querySelector(selector)
+            return workspace !== null && !workspace.hidden
+          }, view),
+        5_000,
+        `${view} did not become visible during the resize loop`
+      )
+    }
+
+    const setSidebarCollapsed = async collapsed => {
+      const needsToggle = await driver.executeScript(
+        expected =>
+          document
+            .querySelector('.application-shell')
+            .classList.contains('sidebar-collapsed') !== expected,
+        collapsed
+      )
+      if (needsToggle) {
+        await driver.executeScript(() =>
+          document.querySelector('.sidebar-collapse').click()
+        )
+      }
+      await driver.wait(
+        async () =>
+          await driver.executeScript(
+            expected =>
+              document
+                .querySelector('.application-shell')
+                .classList.contains('sidebar-collapsed') === expected,
+            collapsed
+          ),
+        5_000,
+        `sidebar did not become ${collapsed ? 'collapsed' : 'expanded'}`
+      )
+    }
+
+    const snapshot = () =>
+      driver.executeScript(() => {
+        const shell = document.querySelector('.application-shell')
+        const dragRegion = document.querySelector('.window-drag-region')
+        const toolbar = document.querySelector('.repository-toolbar')
+        const selectedView = document
+          .querySelector('.repository-view-navigation [aria-current="page"]')
+          .getAttribute('aria-label')
+        const workspace =
+          selectedView === 'Changes'
+            ? document.querySelector('.changes-workspace')
+            : document.querySelector('.history')
+        const shellRect = shell.getBoundingClientRect()
+        const toolbarRect = toolbar.getBoundingClientRect()
+        const workspaceRect = workspace.getBoundingClientRect()
+        const visibleToolbarButtons = [...toolbar.querySelectorAll('button')]
+          .filter(button => getComputedStyle(button).display !== 'none')
+          .map(button => button.getBoundingClientRect())
+
+        const common = {
+          selectedView,
+          documentFits:
+            document.documentElement.scrollWidth <= window.innerWidth &&
+            document.documentElement.scrollHeight <= window.innerHeight &&
+            document.body.scrollWidth <= window.innerWidth &&
+            document.body.scrollHeight <= window.innerHeight,
+          shellFitsViewport:
+            shellRect.left >= -1 &&
+            shellRect.top >= -1 &&
+            shellRect.right <= window.innerWidth + 1 &&
+            shellRect.bottom <= window.innerHeight + 1,
+          toolbarFits: toolbar.scrollWidth <= toolbar.clientWidth,
+          toolbarButtonsReachable: visibleToolbarButtons.every(
+            rect =>
+              rect.width > 0 &&
+              rect.height > 0 &&
+              rect.left >= toolbarRect.left - 1 &&
+              rect.right <= toolbarRect.right + 1 &&
+              rect.top >= toolbarRect.top - 1 &&
+              rect.bottom <= toolbarRect.bottom + 1
+          ),
+          workspaceStartsBelowToolbar:
+            Math.abs(workspaceRect.top - toolbarRect.bottom) <= 1,
+          dragRegionFits:
+            dragRegion === null ||
+            (dragRegion.getBoundingClientRect().left >= -1 &&
+              dragRegion.getBoundingClientRect().right <=
+                window.innerWidth + 1),
+        }
+
+        if (selectedView === 'Changes') {
+          const files = workspace.querySelector('.working-tree')
+          const diff = workspace.querySelector('.working-tree-diff')
+          const commit = workspace.querySelector('.commit-form')
+          const filesRect = files.getBoundingClientRect()
+          const diffRect = diff.getBoundingClientRect()
+          const commitRect = commit.getBoundingClientRect()
+          return {
+            ...common,
+            paneDirectionStable:
+              filesRect.right <= diffRect.left + 1 &&
+              commitRect.right <= diffRect.left + 1 &&
+              filesRect.bottom <= commitRect.top + 1,
+            workspaceFits:
+              workspace.scrollWidth <= workspace.clientWidth &&
+              workspace.scrollHeight <= workspace.clientHeight,
+            paneMinimumsHold:
+              filesRect.width >= 190 - 1 && diffRect.width >= 300 - 1,
+            selectedCommit: null,
+            selectedFile: workspace
+              .querySelector('.working-tree-files [aria-current="true"]')
+              ?.closest('[data-changed-file-path]')
+              ?.getAttribute('data-changed-file-path'),
+          }
+        }
+
+        const commits = workspace.querySelector('.history-list-pane')
+        const details = workspace.querySelector('.history-details')
+        const files = workspace.querySelector('.history-file-section')
+        const diff = workspace.querySelector('.history-diff')
+        const commitsRect = commits.getBoundingClientRect()
+        const filesRect = files.getBoundingClientRect()
+        const diffRect = diff.getBoundingClientRect()
+        return {
+          ...common,
+          paneDirectionStable:
+            commits.getBoundingClientRect().right <=
+              details.getBoundingClientRect().left + 1 &&
+            files.getBoundingClientRect().right <=
+              diff.getBoundingClientRect().left + 1,
+          workspaceFits:
+            workspace.scrollWidth <= workspace.clientWidth &&
+            workspace.scrollHeight <= workspace.clientHeight,
+          paneMinimumsHold:
+            commitsRect.width >= 190 - 1 &&
+            filesRect.width >= 150 - 1 &&
+            diffRect.width >= 220 - 1,
+          selectedCommit: workspace
+            .querySelector('.history-commits [aria-current="true"]')
+            ?.getAttribute('data-commit-sha'),
+          selectedFile: workspace
+            .querySelector('.history-files [aria-current="true"]')
+            ?.getAttribute('aria-label'),
+        }
+      })
+
+    try {
+      const selections = new Map()
+      for (const view of ['Changes', 'History']) {
+        await selectView(view)
+        if (view === 'Changes') {
+          const hasSelection = await driver.executeScript(
+            () =>
+              document.querySelector(
+                '.working-tree-files [aria-current="true"]'
+              ) !== null
+          )
+          if (!hasSelection) {
+            await driver.executeScript(() =>
+              document.querySelector('.working-tree-file-selection').click()
+            )
+          }
+          await driver.wait(
+            async () =>
+              await driver.executeScript(
+                () =>
+                  document.querySelector(
+                    '.working-tree-files [aria-current="true"]'
+                  ) !== null
+              ),
+            5_000,
+            'Changes selection did not load before the resize loop'
+          )
+        } else {
+          await driver.wait(
+            async () =>
+              await driver.executeScript(
+                () =>
+                  document.querySelector(
+                    '.history-files [aria-current="true"]'
+                  ) !== null
+              ),
+            5_000,
+            'History selection did not load before the resize loop'
+          )
+        }
+
+        for (const collapsed of [false, true]) {
+          await setSidebarCollapsed(collapsed)
+          for (const width of widths) {
+            await driver.manage().window().setRect({ width, height: 720 })
+            const state = await snapshot()
+            assert.deepEqual(
+              {
+                documentFits: state.documentFits,
+                shellFitsViewport: state.shellFitsViewport,
+                toolbarFits: state.toolbarFits,
+                toolbarButtonsReachable: state.toolbarButtonsReachable,
+                workspaceStartsBelowToolbar: state.workspaceStartsBelowToolbar,
+                dragRegionFits: state.dragRegionFits,
+                paneDirectionStable: state.paneDirectionStable,
+                workspaceFits: state.workspaceFits,
+                paneMinimumsHold: state.paneMinimumsHold,
+              },
+              {
+                documentFits: true,
+                shellFitsViewport: true,
+                toolbarFits: true,
+                toolbarButtonsReachable: true,
+                workspaceStartsBelowToolbar: true,
+                dragRegionFits: true,
+                paneDirectionStable: true,
+                workspaceFits: true,
+                paneMinimumsHold: true,
+              },
+              `${view}, sidebar ${collapsed ? 'collapsed' : 'expanded'}, ${width}px`
+            )
+
+            const selectionKey = `${view}-${collapsed}`
+            const currentSelection = `${state.selectedCommit ?? ''}|${
+              state.selectedFile ?? ''
+            }`
+            if (selections.has(selectionKey)) {
+              assert.equal(
+                currentSelection,
+                selections.get(selectionKey),
+                `${view} selection changed while resizing at ${width}px`
+              )
+            } else {
+              assert.notEqual(
+                currentSelection,
+                '|',
+                `${view} had no selection before resizing`
+              )
+              selections.set(selectionKey, currentSelection)
+            }
+          }
+        }
+      }
+
+      await driver.manage().window().maximize()
+      const maximized = await snapshot()
+      assert.equal(maximized.documentFits, true)
+      assert.equal(maximized.paneDirectionStable, true)
+
+      await driver.manage().window().setRect({ width: 800, height: 600 })
+      const restored = await snapshot()
+      assert.equal(restored.documentFits, true)
+      assert.equal(restored.paneDirectionStable, true)
+      assert.equal(
+        `${restored.selectedCommit ?? ''}|${restored.selectedFile ?? ''}`,
+        selections.get('History-true'),
+        'History selection changed through maximize and restore'
+      )
+    } finally {
+      await selectView('Changes')
+      await setSidebarCollapsed(false)
       await driver.manage().window().setRect(originalRect)
     }
   })

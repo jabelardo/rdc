@@ -1,7 +1,9 @@
+import { useRef, useState, type CSSProperties } from 'react'
 import { DiffLineType, DiffType } from '../../../models/diff'
 import { formatRelative } from '../../format-relative'
 import type { HistoryState, HistoryStore } from '../../stores/history-store'
 import { handleListNavigation } from '../list-navigation'
+import { HorizontalResizer } from '../horizontal-resizer'
 import { FileStatusIcon } from '../mvp-list-rows'
 
 function diffLineClassName(type: DiffLineType): string {
@@ -29,6 +31,10 @@ export function HistoryWorkspace({
   state,
   store,
 }: HistoryWorkspaceProps) {
+  const historyRef = useRef<HTMLElement>(null)
+  const changeWorkspaceRef = useRef<HTMLDivElement>(null)
+  const [commitListWidth, setCommitListWidth] = useState(270)
+  const [changedFilesWidth, setChangedFilesWidth] = useState(240)
   const selectedCommit =
     state.commits.find(commit => commit.sha === state.selectedCommitSHA) ?? null
   const selectedFile =
@@ -41,6 +47,12 @@ export function HistoryWorkspace({
       aria-label="History"
       aria-busy={state.loading || state.detailsLoading || state.diffLoading}
       hidden={!visible}
+      ref={historyRef}
+      style={
+        {
+          '--history-list-width': `${commitListWidth}px`,
+        } as CSSProperties
+      }
     >
       <div className="history-list-pane min-h-0 min-w-0 overflow-auto border-r border-[var(--color-border)]">
         {state.loading ? (
@@ -92,7 +104,9 @@ export function HistoryWorkspace({
                       dateTime={commit.author.date.toISOString()}
                       title={commit.author.date.toLocaleString()}
                     >
-                      {formatRelative(commit.author.date.getTime() - Date.now())}
+                      {formatRelative(
+                        commit.author.date.getTime() - Date.now()
+                      )}
                     </time>
                   </small>
                 </button>
@@ -101,6 +115,16 @@ export function HistoryWorkspace({
           </ul>
         )}
       </div>
+
+      <HorizontalResizer
+        ariaLabel="Resize History commit list"
+        className="history-list-resizer"
+        containerRef={historyRef}
+        minimum={190}
+        oppositeMinimum={370}
+        value={commitListWidth}
+        onResize={setCommitListWidth}
+      />
 
       <section
         className="history-details min-h-0 min-w-0 overflow-hidden bg-[var(--color-canvas)]"
@@ -135,7 +159,15 @@ export function HistoryWorkspace({
                 </>
               )}
             </p>
-            <div className="history-change-workspace">
+            <div
+              className="history-change-workspace"
+              ref={changeWorkspaceRef}
+              style={
+                {
+                  '--history-files-width': `${changedFilesWidth}px`,
+                } as CSSProperties
+              }
+            >
               <section
                 className="history-file-section"
                 aria-label="Changed files"
@@ -156,8 +188,7 @@ export function HistoryWorkspace({
                   <>
                     <p className="history-change-summary">
                       <span className="history-change-count">
-                        {state.changeset.files.length}{' '}
-                        changed{' '}
+                        {state.changeset.files.length} changed{' '}
                         {state.changeset.files.length === 1 ? 'file' : 'files'}
                       </span>
                     </p>
@@ -217,6 +248,15 @@ export function HistoryWorkspace({
                   </>
                 )}
               </section>
+              <HorizontalResizer
+                ariaLabel="Resize History changed files"
+                className="history-files-resizer"
+                containerRef={changeWorkspaceRef}
+                minimum={150}
+                oppositeMinimum={220}
+                value={changedFilesWidth}
+                onResize={setChangedFilesWidth}
+              />
               <section className="history-diff" aria-label="Commit file diff">
                 <header className="history-diff-header">
                   <strong title={selectedFile?.path}>
