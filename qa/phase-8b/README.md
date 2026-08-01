@@ -13,19 +13,18 @@ agreed MVP blocker.
    pnpm fixture:phase8b -- /tmp/rdc-phase8b-macos-cycle-1
    ```
 
-3. Read that target's `fixture-manifest.json`, but do not add `primary` until the clean
-   shell/empty-state gate has been captured. The fixture contains local modified/untracked files, a
-   bare `origin` one commit ahead, a separate publisher, and the unpublished `publish-me` branch.
-   Never reuse a fixture after a discard, commit, pull, push or conflict-resolution journey for a
-   check that assumes the initial manifest. Create a new uniquely named target instead—the generator
-   deliberately refuses to replace an existing directory. Linux always gets its own fixture.
+3. Read that target's `fixture-manifest.json` and this directory's `fixture-scenarios.md`, but do not
+   add the `populated` scenario until the clean shell/empty-state gate has been captured. The manifest
+   owns independent paths for every mutating journey plus clean, populated, delayed-progress and
+   failure states. Treat a scenario as consumed after its journey; generate a new uniquely named
+   target to repeat it rather than repairing it by hand. Linux always gets its own fixture.
 4. Copy `evidence-template.md` for the run. Record the commit, OS, desktop/session, build mode,
    display scale and fixture path before testing.
 
 ## Cycle
 
 1. Complete `baseline-layout-checklist.md` first for the shell and empty state.
-2. Select the generated fixture and complete all five gates in
+2. Select the generated `populated` scenario and complete all five gates in
    `selected-repository-baseline-checklist.md`. Do not spend visual or functional checklist budget on
    a toolbar/navigation/workspace frame whose structure is still expected to change.
 3. Once both foundation checklists pass, complete the visual matrix before functional workflows.
@@ -52,7 +51,7 @@ Linux machine/session:
    green commit recorded in that evidence.
 2. With no registered repositories, complete the empty-state `baseline-layout-checklist.md`; the
    2026-07-31 macOS record already owns the first accepted result.
-3. Select `primary` and complete Gate A, Gate B, Gate C, Gate D, then Gate E, in
+3. Select `populated` and complete Gate A, Gate B, Gate C, Gate D, then Gate E, in
    `selected-repository-baseline-checklist.md`. These are blocking foundational design passes, not
    functional tests.
 4. Complete the macOS rows of `visual-matrix.md`: normal, default and compact Light first, then
@@ -69,10 +68,9 @@ Linux machine/session:
 Do not wait for the Linux session before starting macOS evidence, and do not interpret a clean macOS
 cycle as permission to package: both native-platform records are required.
 
-Before steps 4–5, close `REMAINING.md`'s fixture-expansion item. The current single-primary manifest
-does not yet provide independent discard/commit/conflict scenarios or a deterministic transient state,
-so proceeding as written would force the human tester to invent setup and would make the evidence
-non-reproducible.
+The fixture-expansion prerequisite is complete: schema 2 provides independent discard, commit,
+conflict and remote repositories plus a bare-remote delay for deterministic progress inspection. Use
+the named scenario mapping in `fixture-scenarios.md`; ad hoc state construction is not QA evidence.
 
 The phase closes only when the evidence record links all completed matrices/checklists, every blocker
 is resolved, accepted deviations are explicit, and the final packages pass their focused smoke pass.

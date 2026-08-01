@@ -57,7 +57,7 @@ gaps — read [`REMAINING.md`](./REMAINING.md). Plan and map are the historical 
 | `pnpm lint` | Run the blocking Oxlint correctness and React-hooks rules |
 | `pnpm test:e2e` | Run the E2E suite — always inside the Linux container, see below |
 | `pnpm qualify:phase8a` | Audit MVP build/package inputs and exercise the deterministic Phase 8b fixture generator |
-| `pnpm fixture:phase8b -- <new-directory>` | Create fresh local/remote Git repositories for the human QA cycle |
+| `pnpm fixture:phase8b -- <new-directory>` | Create isolated named Git scenarios for the human QA cycle; see `qa/phase-8b/fixture-scenarios.md` |
 | `pnpm tauri <cmd>` | Passthrough to the Tauri CLI |
 
 Rust-side, from `src-tauri/`:

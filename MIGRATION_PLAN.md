@@ -3161,9 +3161,10 @@ deferred to human QA.
   bundle resources/icons, startup-window ownership, hardened security, scoped capabilities and the
   executable CLI resource. CI runs the audit and its fixture-generator contract. `org.rdc` and the
   current icon remain explicitly provisional human decisions for 8b.
-- `scripts/create-phase8b-fixture.mjs` creates a fresh, local-only and ambient-config-independent
-  repository topology: modified and untracked files, an unpublished branch, a local bare remote one
-  commit ahead and a separate publisher. Its topology is pinned by an automated test.
+- `scripts/create-phase8b-fixture.mjs` creates fresh, local-only and ambient-config-independent named
+  scenarios for clean/read-only, branch, discard, hook, conflict, fetch/pull, push, clone, progress
+  and unreachable-network checks. Every mutating journey owns a separate working tree; the topology,
+  expected bytes, refs, hook failure and delayed bare-remote hook are pinned by an automated test.
 - `qa/phase-8b/` contains the entry/cycle instructions, normal/compact and Light/Dark/System visual
   matrix, macOS and real-Wayland checklists, common evidence record and package-last smoke pass.
 
@@ -3249,13 +3250,14 @@ The human checks cover:
   8a gate, repackaging and the affected installed-artifact checks.
 
 **QA reconciliation 2026-08-01:** the accepted macOS foundation exposed two preparation claims that
-were stronger than the tooling. The fixture generator creates one mutable `primary`, so it cannot
-independently back discard, commit/hook and conflict journeys or a deterministic transient visual
-state; extend it with named disposable scenarios before functional QA. Also,
-`qualify:phase8a` intentionally audits packaging inputs and reports `finalPackagesProduced: false`,
-so the automated produced-package metadata/resource inspection promised above still has to be added
-after final identity and bundle targets are chosen. Both are explicit in `REMAINING.md`; neither is
-allowed to turn into ad hoc human setup or a nominal package check.
+were stronger than the tooling. The fixture gap is now closed: schema 2 creates independent clean,
+populated, branch, line-discard, whole-file-discard, hook-failure, conflict, fetch/pull, push, clone,
+delayed-push and unreachable-remote scenarios. The delayed state lives in a local bare-remote hook,
+never product code, and the generator test pins every topology and oracle. The remaining package gap
+is still explicit in `REMAINING.md`: `qualify:phase8a` intentionally audits packaging inputs and
+reports `finalPackagesProduced: false`, so automated produced-package metadata/resource inspection
+must be added after final identity and bundle targets are chosen. Neither gap is allowed to turn into
+ad hoc human setup or a nominal package check.
 
 Record before/after evidence, accepted non-blocking deviations and the final results for both
 platforms. Phase 8b closes only after the last fix has passed 8a again, its affected human checks

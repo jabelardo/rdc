@@ -27,13 +27,13 @@ Review the cells in this order per platform: normal Light, default Light, compac
 default and compact Dark/System. For each cell capture representative presentation states rather
 than repeating every functional workflow:
 
-- Empty repository and populated fixture states.
+- `clean` and `populated` scenario states.
 - Changes list, selected text diff, commit form and progress/error presentation.
 - History list, commit metadata, changed files and selected diff.
 - Sidebar panel disclosure, whole-sidebar collapse and long repository/file names.
 - Keyboard focus, Reduce Motion and increased-contrast/forced-colors behavior where the OS exposes it.
 
-Use reproducible states rather than trying to catch transient UI by eye: an empty repository for the
-clean Changes/History states; the generated fixture for populated and long-name states; its local
-bare remote for progress; a failing hook for terminal/error presentation; and an unreachable remote
-or missing integration for actionable failure presentation. Record which state backs each capture.
+Use the manifest's named reproducible states rather than trying to catch transient UI by eye:
+`clean` for clean Changes/History; `populated` for working-tree and long-name states; `delayedPush`
+for progress; `commitHook` for terminal/error presentation; and `unreachableRemote` or a missing
+integration for actionable failure presentation. Record which scenario backs each capture.

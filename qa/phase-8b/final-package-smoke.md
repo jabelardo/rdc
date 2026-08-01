@@ -14,7 +14,7 @@ For both the local macOS `.app` and installable Linux bundle:
 - Confirm the installed window enforces the 715×356 floor, keeps sidebar width stable across views
   and reveals prepared History without intermediate loading paints.
 - Confirm configuration and logs use the final identifier-scoped platform directories.
-- Add the generated `primary` fixture, select it, quit the entire process, relaunch and confirm
+- Add the generated `populated` scenario, select it, quit the entire process, relaunch and confirm
   persistence.
 - Smoke status/diff, commit, History, branch checkout, Fetch/Pull/Push and Clone.
 - Exercise menus, dialogs, close/relaunch and external editor/terminal/file-manager integration.

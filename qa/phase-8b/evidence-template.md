@@ -8,6 +8,7 @@
 - Architecture and display scale:
 - Development build command or package SHA-256:
 - Fixture manifest path(s) and purpose:
+- Fixture schema version and scenarios consumed:
 
 ## Automated prerequisite
 

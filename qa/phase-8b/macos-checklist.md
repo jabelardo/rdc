@@ -6,7 +6,7 @@ native acceptance record; do not label it automated.
 ## 1. Foundation prerequisites
 
 - Run `baseline-layout-checklist.md` in expanded and collapsed states at 800×600.
-- With the generated `primary` fixture selected, pass Gates A, B, C, D and E in
+- With the generated `populated` scenario selected, pass Gates A, B, C, D and E in
   `selected-repository-baseline-checklist.md` before testing toolbar actions or repository workflows.
 - Move, resize, maximize and restore the overlay-titlebar window. Double-click the persistent drag
   strip under each available `AppleActionOnDoubleClick` behavior; no rejected promise may appear.
@@ -14,7 +14,7 @@ native acceptance record; do not label it automated.
 
 ## 2. Read-only repository journey
 
-- Launch with clean config/data, add `primary`, inspect status and text diff, switch to History and
+- Launch with clean config/data, add `populated`, inspect status and text diff, switch to History and
   inspect commit metadata/files/diff, then quit and relaunch. Repository registration and selection
   persist; workspace geometry returns coherently to its defined defaults (individual pane widths are
   not currently a persistence promise). Back up and restore any existing rdc config rather than
@@ -25,35 +25,35 @@ native acceptance record; do not label it automated.
 
 ## 3. Reversible local journey
 
-- Include/exclude a file and individual diff lines, then restore the fixture's intended selection.
-- Create and check out a branch, then return to the original branch.
+- In `populated`, include/exclude a file and individual diff lines, then restore the intended
+  selection without changing repository bytes.
+- In `branch`, create and check out `branchToCreate`, then return to `initialBranch`.
 - Confirm both branch transitions with `git branch --show-current`; UI success alone is not evidence.
 
 ## 4. Mutating local journey
 
-- Discard a selected line and a whole file using separate freshly generated fixture targets. Verify
-  the surviving bytes and `git status --short` after each; do not feed the discarded fixture into
+- Use `lineDiscard` and `wholeFileDiscard` for their single named operations. Compare the surviving
+  bytes with each scenario's `expectedContent` and run `git status --short`; never feed either into
   the commit journey.
-- Commit the intended selection, exercise the hook prompt/terminal output, and complete the minimum
-  supported merge-conflict resolution without leaving the repository stranded. Use fresh fixtures
-  for commit and conflict work, then verify the resulting commit/tree and absence of merge state with
-  Git CLI commands.
+- In `commitHook`, exercise the failing hook prompt/terminal output and **Bypass hooks** path. Resolve
+  the already-prepared `mergeConflict` state without leaving the repository stranded. Verify the
+  resulting commit/tree and absence of unmerged paths and `MERGE_HEAD` with Git CLI commands.
 
 ## 5. Remote journey
 
-- Using the generated local bare remote, run Fetch before Pull, then unpublished-branch Push, and
-  finally Clone into a fresh destination. Verify progress, disabled/running/error presentation does
-  not disturb the accepted toolbar/workspace frame.
+- Use `remoteFetchPull`, `remotePush` and `remoteClone` for their named operations. Use `delayedPush`
+  to inspect progress/busy presentation without racing it; confirm that presentation does not disturb
+  the accepted toolbar/workspace frame.
 - Against a disposable tester-controlled remote, complete one HTTPS or SSH operation using credentials
   already available to system Git, its credential manager or the SSH agent. Record only transport and
   outcome—never a URL containing credentials, tokens, helper output or secret-bearing logs.
-- In a separate disposable fixture, point `origin` at an unreachable endpoint and at an endpoint that
-  rejects authentication. Fetch must fail with actionable network/authentication copy, leave refs and
-  the working tree intact, and write no secret value to the log.
+- Use `unreachableRemote` for the deterministic network failure. Use a separate tester-controlled
+  endpoint for authentication rejection. Fetch must fail with actionable network/authentication copy,
+  leave refs and the working tree intact, and write no secret value to the log.
 
 ## 6. Failure and recovery presentation
 
-- Exercise a clean repository, a missing external integration, a failing hook, an unreachable remote
+- Exercise `clean`, a missing external integration, `commitHook`, `unreachableRemote`
   and an authentication rejection. Confirm each empty/loading/error/progress state names the failed
   operation, remains bounded at default and compact widths and offers only valid recovery actions.
 - After each failure, perform a successful read-only refresh or operation without restarting. The app

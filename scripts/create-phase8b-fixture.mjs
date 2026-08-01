@@ -1,5 +1,11 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -19,13 +25,286 @@ function git(arguments_, cwd) {
   })
 }
 
+function gitText(arguments_, cwd) {
+  return String(git(arguments_, cwd)).trim()
+}
+
 function configureIdentity(repository) {
   git(['config', 'user.name', 'rdc Phase 8b QA'], repository)
   git(['config', 'user.email', 'rdc-phase8b@example.invalid'], repository)
 }
 
+function initializeRepository(
+  repository,
+  files = { 'stable.txt': 'stable line\n' }
+) {
+  git(['init', '--quiet', '--initial-branch=main', repository])
+  configureIdentity(repository)
+  for (const [name, contents] of Object.entries(files)) {
+    writeFileSync(path.join(repository, name), contents)
+  }
+  git(['add', '.'], repository)
+  git(['commit', '--quiet', '-m', 'Initial QA state'], repository)
+  return gitText(['rev-parse', 'HEAD'], repository)
+}
+
+function createBareRemote(remote) {
+  git(['init', '--bare', '--quiet', remote])
+  git(['--git-dir', remote, 'symbolic-ref', 'HEAD', 'refs/heads/main'])
+}
+
+function publishMain(repository, remote) {
+  git(['remote', 'add', 'origin', remote], repository)
+  git(['push', '--quiet', '--set-upstream', 'origin', 'main'], repository)
+}
+
+function createPublisher(remote, publisher) {
+  git(['clone', '--quiet', remote, publisher])
+  configureIdentity(publisher)
+}
+
+function writeExecutable(file, contents) {
+  writeFileSync(file, contents, { mode: 0o755 })
+  chmodSync(file, 0o755)
+}
+
+function createPopulatedScenario(target) {
+  const repository = path.join(target, 'populated')
+  const remote = path.join(target, 'populated-remote.git')
+  const publisher = path.join(target, 'populated-publisher')
+  createBareRemote(remote)
+  initializeRepository(repository, {
+    'modified.txt': 'base line\n',
+    'stable.txt': 'stable line\n',
+    'a-very-long-file-name-for-visual-truncation-and-density-review.txt':
+      'long-name fixture\n',
+  })
+  publishMain(repository, remote)
+  createPublisher(remote, publisher)
+  writeFileSync(
+    path.join(publisher, 'remote-ahead.txt'),
+    'arrived from the fixture publisher\n'
+  )
+  git(['add', 'remote-ahead.txt'], publisher)
+  git(['commit', '--quiet', '-m', 'Advance fixture remote'], publisher)
+  git(['push', '--quiet', 'origin', 'main'], publisher)
+
+  writeFileSync(
+    path.join(repository, 'modified.txt'),
+    'base line\nlocal modification\n'
+  )
+  writeFileSync(path.join(repository, 'untracked.txt'), 'untracked QA file\n')
+  git(['branch', 'publish-me'], repository)
+  git(
+    ['branch', 'qa/a-very-long-branch-name-for-sidebar-truncation-review'],
+    repository
+  )
+
+  return {
+    repository,
+    remote,
+    publisher,
+    initialBranch: 'main',
+    unpublishedBranch: 'publish-me',
+    expectedWorkingTreeFiles: ['modified.txt', 'untracked.txt'],
+    expectedRemoteAhead: 1,
+  }
+}
+
+function createCleanScenario(target) {
+  const repository = path.join(target, 'clean')
+  const head = initializeRepository(repository)
+  return { repository, initialBranch: 'main', expectedHead: head }
+}
+
+function createBranchScenario(target) {
+  const repository = path.join(target, 'branch')
+  initializeRepository(repository)
+  return {
+    repository,
+    initialBranch: 'main',
+    branchToCreate: 'qa-created-branch',
+  }
+}
+
+function createLineDiscardScenario(target) {
+  const repository = path.join(target, 'discard-line')
+  const file = 'line-discard.txt'
+  const baselineLines = [
+    'first original',
+    ...Array.from({ length: 12 }, (_, index) => `unchanged ${index + 1}`),
+    'last original',
+  ]
+  const baselineContent = `${baselineLines.join('\n')}\n`
+  initializeRepository(repository, { [file]: baselineContent })
+  const modifiedLines = [...baselineLines]
+  modifiedLines[0] = 'first changed — discard this hunk'
+  modifiedLines[modifiedLines.length - 1] = 'last changed — keep this hunk'
+  const modifiedContent = `${modifiedLines.join('\n')}\n`
+  writeFileSync(path.join(repository, file), modifiedContent)
+
+  return {
+    repository,
+    file,
+    instruction: 'Discard the first hunk and keep the last hunk.',
+    baselineContent,
+    modifiedContent,
+    expectedContent: `${[baselineLines[0], ...modifiedLines.slice(1)].join(
+      '\n'
+    )}\n`,
+  }
+}
+
+function createWholeFileDiscardScenario(target) {
+  const repository = path.join(target, 'discard-file')
+  const file = 'whole-file-discard.txt'
+  const expectedContent = 'whole-file baseline\n'
+  initializeRepository(repository, { [file]: expectedContent })
+  writeFileSync(
+    path.join(repository, file),
+    'discard this entire replacement\n'
+  )
+  return { repository, file, expectedContent }
+}
+
+function createCommitHookScenario(target) {
+  const repository = path.join(target, 'commit-hook')
+  initializeRepository(repository)
+  const file = 'commit-me.txt'
+  writeFileSync(
+    path.join(repository, file),
+    'commit after reviewing hook output\n'
+  )
+  const hook = path.join(repository, '.git', 'hooks', 'pre-commit')
+  writeExecutable(
+    hook,
+    '#!/bin/sh\necho "rdc Phase 8b hook says no" >&2\nexit 7\n'
+  )
+  return {
+    repository,
+    file,
+    hookExitCode: 7,
+    expectedGitExitCode: 1,
+    expectedHookMessage: 'rdc Phase 8b hook says no',
+    commitSummary: 'Phase 8b hook-bypass commit',
+  }
+}
+
+function createMergeConflictScenario(target) {
+  const repository = path.join(target, 'merge-conflict')
+  const file = 'merge-conflict.txt'
+  initializeRepository(repository, { [file]: 'common value\n' })
+  git(['checkout', '--quiet', '-b', 'conflict-side'], repository)
+  writeFileSync(path.join(repository, file), 'conflict-side value\n')
+  git(['add', file], repository)
+  git(['commit', '--quiet', '-m', 'Change value on conflict side'], repository)
+  git(['checkout', '--quiet', 'main'], repository)
+  writeFileSync(path.join(repository, file), 'main-side value\n')
+  git(['add', file], repository)
+  git(['commit', '--quiet', '-m', 'Change value on main'], repository)
+  try {
+    git(['merge', '--quiet', 'conflict-side'], repository)
+    throw new Error('Expected the QA merge to conflict')
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message === 'Expected the QA merge to conflict'
+    ) {
+      throw error
+    }
+  }
+  if (
+    gitText(['diff', '--name-only', '--diff-filter=U'], repository) !== file
+  ) {
+    throw new Error(
+      'The generated QA merge did not leave the expected conflict'
+    )
+  }
+  return {
+    repository,
+    file,
+    initialBranch: 'main',
+    mergedBranch: 'conflict-side',
+    expectedResolution: 'resolved during rdc Phase 8b QA\n',
+  }
+}
+
+function createFetchPullScenario(target) {
+  const repository = path.join(target, 'remote-fetch-pull')
+  const remote = path.join(target, 'remote-fetch-pull.git')
+  const publisher = path.join(target, 'remote-fetch-pull-publisher')
+  createBareRemote(remote)
+  const localHead = initializeRepository(repository)
+  publishMain(repository, remote)
+  createPublisher(remote, publisher)
+  const file = 'pulled-from-publisher.txt'
+  const expectedContent = 'remote fetch/pull QA content\n'
+  writeFileSync(path.join(publisher, file), expectedContent)
+  git(['add', file], publisher)
+  git(['commit', '--quiet', '-m', 'Advance fetch/pull remote'], publisher)
+  git(['push', '--quiet', 'origin', 'main'], publisher)
+  return {
+    repository,
+    remote,
+    publisher,
+    initialBranch: 'main',
+    localHeadBeforeFetch: localHead,
+    remoteHead: gitText(['--git-dir', remote, 'rev-parse', 'refs/heads/main']),
+    expectedPulledFile: file,
+    expectedPulledContent: expectedContent,
+  }
+}
+
+function createPushScenario(target, name, delaySeconds = 0) {
+  const repository = path.join(target, name)
+  const remote = path.join(target, `${name}.git`)
+  createBareRemote(remote)
+  initializeRepository(repository)
+  publishMain(repository, remote)
+  git(['checkout', '--quiet', '-b', 'publish-me'], repository)
+  const file = 'push-me.txt'
+  writeFileSync(path.join(repository, file), `${name} QA content\n`)
+  git(['add', file], repository)
+  git(['commit', '--quiet', '-m', `Prepare ${name}`], repository)
+
+  if (delaySeconds > 0) {
+    writeExecutable(
+      path.join(remote, 'hooks', 'pre-receive'),
+      `#!/bin/sh\nsleep ${delaySeconds}\n`
+    )
+  }
+
+  return {
+    repository,
+    remote,
+    unpublishedBranch: 'publish-me',
+    localHead: gitText(['rev-parse', 'HEAD'], repository),
+    ...(delaySeconds > 0 ? { delaySeconds } : {}),
+  }
+}
+
+function createCloneScenario(target) {
+  const source = path.join(target, 'clone-source')
+  const remote = path.join(target, 'clone-source.git')
+  const destination = path.join(target, 'clone-destination')
+  createBareRemote(remote)
+  const expectedHead = initializeRepository(source, {
+    'cloned-content.txt': 'content expected in the QA clone\n',
+  })
+  publishMain(source, remote)
+  return { source, remote, destination, expectedHead }
+}
+
+function createUnreachableRemoteScenario(target) {
+  const repository = path.join(target, 'unreachable-remote')
+  initializeRepository(repository)
+  const remoteUrl = 'http://127.0.0.1:9/rdc-phase8b-unreachable.git'
+  git(['remote', 'add', 'origin', remoteUrl], repository)
+  return { repository, remoteUrl, expectedOperation: 'fetch' }
+}
+
 /**
- * Create fresh local-only Git state for human QA without relying on the
+ * Create named, independent Git states for human QA without relying on the
  * developer's identity, default branch, network, or existing repositories.
  */
 export function createPhase8bFixture(requestedTarget) {
@@ -35,54 +314,45 @@ export function createPhase8bFixture(requestedTarget) {
   }
   mkdirSync(target, { recursive: true })
 
-  const primary = path.join(target, 'primary')
-  const remote = path.join(target, 'remote.git')
-  const publisher = path.join(target, 'publisher')
-
-  git(['init', '--bare', '--quiet', remote])
-  git(['init', '--quiet', '--initial-branch=main', primary])
-  configureIdentity(primary)
-  writeFileSync(path.join(primary, 'modified.txt'), 'base line\n')
-  writeFileSync(path.join(primary, 'stable.txt'), 'stable line\n')
-  git(['add', '.'], primary)
-  git(['commit', '--quiet', '-m', 'Initial QA state'], primary)
-  git(['remote', 'add', 'origin', remote], primary)
-  git(['push', '--quiet', '--set-upstream', 'origin', 'main'], primary)
-  git(['--git-dir', remote, 'symbolic-ref', 'HEAD', 'refs/heads/main'])
-
-  git(['clone', '--quiet', remote, publisher])
-  configureIdentity(publisher)
-  writeFileSync(
-    path.join(publisher, 'remote-ahead.txt'),
-    'arrived from the fixture publisher\n'
-  )
-  git(['add', 'remote-ahead.txt'], publisher)
-  git(['commit', '--quiet', '-m', 'Advance fixture remote'], publisher)
-  git(['push', '--quiet', 'origin', 'main'], publisher)
-
-  git(['fetch', '--quiet', 'origin'], primary)
-  writeFileSync(
-    path.join(primary, 'modified.txt'),
-    'base line\nlocal modification\n'
-  )
-  writeFileSync(path.join(primary, 'untracked.txt'), 'untracked QA file\n')
-  git(['branch', 'publish-me'], primary)
-
-  const manifest = {
-    target,
-    primary,
-    remote,
-    publisher,
-    initialBranch: 'main',
-    unpublishedBranch: 'publish-me',
-    expectedWorkingTreeFiles: ['modified.txt', 'untracked.txt'],
-    expectedRemoteAhead: 1,
+  try {
+    const scenarios = {
+      clean: createCleanScenario(target),
+      populated: createPopulatedScenario(target),
+      branch: createBranchScenario(target),
+      lineDiscard: createLineDiscardScenario(target),
+      wholeFileDiscard: createWholeFileDiscardScenario(target),
+      commitHook: createCommitHookScenario(target),
+      mergeConflict: createMergeConflictScenario(target),
+      remoteFetchPull: createFetchPullScenario(target),
+      remotePush: createPushScenario(target, 'remote-push'),
+      remoteClone: createCloneScenario(target),
+      delayedPush: createPushScenario(target, 'delayed-push', 3),
+      unreachableRemote: createUnreachableRemoteScenario(target),
+    }
+    const populated = scenarios.populated
+    const manifest = {
+      schemaVersion: 2,
+      target,
+      scenarios,
+      // Transitional aliases keep the accepted foundation checklist and any
+      // local notes from the original single-repository fixture valid.
+      primary: populated.repository,
+      remote: populated.remote,
+      publisher: populated.publisher,
+      initialBranch: populated.initialBranch,
+      unpublishedBranch: populated.unpublishedBranch,
+      expectedWorkingTreeFiles: populated.expectedWorkingTreeFiles,
+      expectedRemoteAhead: populated.expectedRemoteAhead,
+    }
+    writeFileSync(
+      path.join(target, 'fixture-manifest.json'),
+      `${JSON.stringify(manifest, null, 2)}\n`
+    )
+    return manifest
+  } catch (error) {
+    rmSync(target, { recursive: true, force: true })
+    throw error
   }
-  writeFileSync(
-    path.join(target, 'fixture-manifest.json'),
-    `${JSON.stringify(manifest, null, 2)}\n`
-  )
-  return manifest
 }
 
 /**

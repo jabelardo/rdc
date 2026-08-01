@@ -5,7 +5,7 @@ gates below before the visual matrix or functional workflow QA. Their question i
 populated repository produce a stable application frame whose controls can be tested without an
 expected redesign moving or regrouping them?
 
-Use the generated `primary` fixture in Light theme. Begin at normal size (at least 1100×720), then
+Use the generated `populated` scenario in Light theme. Begin at normal size (at least 1100×720), then
 repeat at the default 800×600 window and the native minimum 715×356 window, with the sidebar expanded
 and collapsed. Do not perform discard, commit, branch or remote mutations during this gate. Capture
 a full-window before/after image for every structural revision.

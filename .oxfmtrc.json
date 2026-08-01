@@ -11,6 +11,7 @@
   "endOfLine": "lf",
 
   "ignorePatterns": [
+    ".pnpm-store/**",
     "src-tauri/crates/git-ops/tests/fixtures/**",
     "src/lib/__generated__/**",
     "**/*.md",
