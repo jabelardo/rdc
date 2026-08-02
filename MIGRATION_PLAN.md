@@ -3299,6 +3299,23 @@ coordinates to GTK-window coordinates.  The trigger's CSS `:hover` tooltip is di
 
 All seven gates green after each change: 952 Vitest, tsc, oxfmt, oxlint, 884 Rust, clippy, rustfmt.
 
+**Linux visual-matrix automation.** Because input injection and screen capture are impossible from
+inside the Fedora-44-on-Bluefin toolbox (device-cgroup blocks `/dev/uinput` to root; GNOME offers no
+wlr-screencopy; the Shell screenshot DBus method is denied for container peers), the matrix is driven
+by a **debug-only** Rust state driver polled from a script, with the host capturing via PrtScn into
+the shared `~/Pictures/Screenshots`. Full mechanics and the environment constraints are recorded in
+`MIGRATION_MAP.md` §8 (Debug-only QA state driver); the driver is `scripts/qa/qa-linux-matrix.sh`
+and the reviewing instructions are `scripts/qa/qa-linux-visual-matrix-runbook.md`.
+
+**Native window title on Linux — deferred to the tao 0.36 upgrade.** The title fails to update
+on Linux/Wayland because `tao` (≤ 0.35) forces a custom `HeaderBar` whose title is fixed at
+window creation. The fix is upstream in tao v0.36.0 (tao#1218) but tauri stable still pins
+`^0.35`, so it cannot be taken yet. **Decision: wait for the next tauri stable** (a plain
+`cargo update` pulls it in; no code change makes it work earlier). Full root cause, reading of the
+fix, and the to-do list (re-measure the 47 px context-menu CSD offset, confirm the title updates,
+verify startup maximize/window-state restore and the frameless Custom style) are recorded in
+`MIGRATION_MAP.md` §8.
+
 Record before/after evidence, accepted non-blocking deviations and the final results for both
 platforms. Phase 8b closes only after the last fix has passed 8a again, its affected human checks
 have been repeated, and the final packages pass their focused acceptance pass. Signing,

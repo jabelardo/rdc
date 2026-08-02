@@ -6,6 +6,8 @@ mod blob_protocol;
 mod config;
 mod hook_state;
 mod platform;
+#[cfg(debug_assertions)]
+mod qa_driver;
 mod resilience;
 mod security;
 
@@ -113,6 +115,10 @@ pub fn run() {
             resilience::install_panic_logging();
             app.state::<platform::window::LaunchTimingState>()
                 .mark_main_ready();
+            // Debug-only Phase 8b state driver for the Wayland visual matrix;
+            // compiled out of release builds entirely. See the module docs.
+            #[cfg(debug_assertions)]
+            qa_driver::spawn(app.handle().clone());
             #[cfg(not(target_os = "macos"))]
             let _ = app;
             #[cfg(target_os = "macos")]

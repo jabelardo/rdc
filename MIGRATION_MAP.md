@@ -1536,3 +1536,89 @@ desired later, expose it as a dev-only Tauri command rather than a global.
 needs a certificate type supplied by the Rust side, which belongs with the Phase 5
 security/`webRequest` redesign. Extracting the three enums above is necessary but **not
 sufficient** to unblock it.
+
+### Debug-only QA state driver (Phase 8b Linux/Wayland visual matrix)
+
+The Phase 8b visual matrix must be reviewed on real Wayland, and the Linux QA runs from a Fedora
+44 toolbox container on a Bluefin host. Two environment facts shape how that QA is automated:
+
+- **Input injection is impossible from inside the container.** `/dev/uinput` exists but the device
+  cgroup denies it even to root (errno 13), it cannot be changed on a running container, and `podman`
+  is not present to host a fresh container with `--device /dev/uinput`. `wtype` is inert because
+  GNOME/Mutter keeps the virtual-keyboard Wayland protocol off. So the app cannot be driven by
+  fake mouse/keyboard from inside the toolbox.
+- **Screen capture is impossible from inside the container too.** `grim` has no wlr-screencopy on
+  GNOME; the Shell screenshot DBus method is access-denied for container peers; the
+  xdg-desktop-portal `Screenshot` needs an interactive consent prompt. What reliably works is the
+  **host** PrtScn → host `~/Pictures/Screenshots`, which is shared into the container at
+  `/var/home/joseg/Pictures/Screenshots`.
+
+Because the app cannot be driven (input) or observed (capture) natively, both concerns are routed
+through shared host resources:
+
+- A **debug-only Rust state driver** (`src-tauri/src/qa_driver.rs`, compiled only under
+  `#[cfg(debug_assertions)]`) polls a driver file (`$RDC_QA_DRIVER`, default
+  `/tmp/rdc-qa-driver.json`) and applies the requested state: window size natively (Rust owns
+  geometry) and the rest — theme, view, sidebar, repository — via a `qa-drive` event.
+- A **debug-only frontend hook** (`src/lib/ui/app/use-qa-state-driver.ts`) listens for `qa-drive`
+  and applies it through the existing stores. It is gated on `__DEV__` **and** a runtime
+  `__TAURI_INTERNALS__` check, so it is dead code in release builds and never subscribes in jsdom
+  unit tests (the 952-test gate catches any regression).
+- A **driver script** (`scripts/qa/qa-linux-matrix.sh`) writes each matrix cell's state and prompts
+  the host operator to press PrtScn, then tags the newest screenshot into an evidence dir.
+- A **vision-LLM runbook** (`scripts/qa/qa-linux-visual-matrix-runbook.md`) tells an image-capable
+  LLM what each capture must show and how to record findings.
+
+The driver's IPC surface is deliberately minimal: no `#[tauri::command]` is added to the release
+invoke handler, and the only channel is the `qa-drive` event consumed solely by a debug-only
+listener. When the next tauri stable ships with tao 0.36 (see the title-bar note in §8), the only
+anticipated touchpoint is re-measuring the 47 px context-menu CSD offset — the driver itself needs
+no change.
+
+### Deferred: native window title on Linux/Wayland — waiting on tao 0.36 (next tauri release)
+
+The native window title does not update on Linux/Wayland. The frontend calls
+`getCurrentWindow().setTitle()` via `setWindowTitle` (`src/lib/platform/window.ts:60`) on every
+repository/branch change, and on macOS this updates the real title. On Linux it silently does
+nothing, so the CSD headerbar keeps showing "RDC".
+
+**Root cause:** not rdc. `tao` forces a custom `HeaderBar` onto every Wayland window (its `WlHeader`
+in `src/platform_impl/linux/wayland/header.rs`) with `decoration_layout("menu:minimize,maximize,close")`
+and `.title(title)` **set once at window creation**. Because the titlebar is a bespoke widget rather
+than GTK's default CSD, later `Window::set_title` calls never reach the visible title. This is
+tao-apps/tao#979 that broke Wayland decoration handling (issues #1046, tauri#13749, #14251, #14748).
+
+**Fix tracking:** tao PR #1218 / **tao v0.36.0** *"Title bar buttons and changing of the title
+should now work as expected"*. It reverts the custom `WlHeader`, restoring GTK's default CSD, makes
+window mouse events propagate again (reverts #941: `Propagation::Stop` → `Proceed` on
+motion/press/release), and only forces an empty `EventBox` titlebar when `decorations == false` so
+compositors with server-side-decoration support (e.g. KDE) don't force SSD. It also defers
+`maximize()`/`set_resizable()` to the first GTK configure event to avoid a Wayland
+`xdg_surface_buffer` size protocol error.
+
+**Why we cannot take it now:** `tao` is pinned transitively by `tauri-runtime-wry` to
+`^0.35.0`; the caret on a 0.x means patch-only, so 0.36 is excluded. `[patch.crates-io]` on tao
+0.36 can't satisfy that requirement either. Stable tauri (2.11.5 → tauri-runtime-wry 2.11.4 →
+tao 0.35.3) is current; tauri's `dev` branch has already bumped tauri-runtime-wry to `tao = "0.36.0"`.
+**Decision: wait for the next tauri stable release** (option 1); a plain `cargo update` then pulls
+it in. The 0.36 breaking changes are Android-JNI-only, so there is no Linux/webview impact.
+Do not patch to the `dev` branch: it commits the app to a pre-release runtime for a cosmetic fix.
+
+**Work to do when the next tauri stable ships** (a `cargo update -p tao` first; then re-run the
+Linux gates and this list):
+
+1. **Re-measure the context-menu 47 px CSD offset** — `VIEWPORT_TO_WINDOW_Y` in
+   `src-tauri/src/platform/context_menu.rs:248` (`adjust_for_csd`) was tuned for the removed
+   `WlHeader` headerbar. GTK's default CSD chrome height may differ. Prefer replacing the constant
+   with the already-noted robust path (`header_bar().allocated_height()`) or re-verify the value on
+   GNOME Wayland. The fix's `Stop` → `Proceed` propagation change is orthogonal to our coordinate
+   capture (we pass coordinates explicitly), so only the chrome-height constant needs checking.
+2. **Confirm the title updates** — with `decorations: true` (default Native/NativeWithoutMenuBar),
+   `setWindowTitle` → `"RDC — <repo> — <branch>"` should now visibly update on repository and branch
+   switches. No frontend change required.
+3. **Verify startup maximize / window-state restore** — tao now defers `maximize`/`set_resizable`
+   to the first configure event; re-check `tauri-plugin-window-state` restore and initial maximize.
+4. **Verify the frameless Custom style** — on Linux `TitleBarStyle::Custom` sets `decorations:
+   false` and shows `WindowDragStrip`. The fix now forces an empty CSD titlebar to block SSD;
+   confirm it adds no stray chrome to the frameless layout.
+5. Re-run the full seven-gate set and the Wayland context-menu human check.

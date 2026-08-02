@@ -17,6 +17,7 @@ import { showFolderContents } from '../../platform/files'
 import { installDefaultCloseRequestHandler } from '../../platform/lifetime'
 import { launchShell } from '../../platform/shells'
 import { onNativeThemeUpdated } from '../../platform/theme'
+import { useQaStateDriver } from './use-qa-state-driver'
 import {
   openRepositoryInNewWindow,
   sendReady,
@@ -763,6 +764,28 @@ export function useAppController() {
       }
     })
   }
+
+  // Debug-only Phase 8b visual-matrix driver. Inert unless a real Tauri
+  // webview is running in dev; see the hook. Repository selection reuses the
+  // store's own lookup, falling back to add-on-demand for the QA fixtures.
+  useQaStateDriver({
+    applyTheme: theme => preferencesStore.setTheme(theme),
+    setRepositoryView: view => selectRepositoryView(view),
+    setSidebarCollapsed,
+    selectRepositoryByPath: async path => {
+      const existing = appStore.state.repositories.find(
+        repository =>
+          repository.path === path ||
+          repository.path.replace(/\/+$/, '') === path.replace(/\/+$/, '')
+      )
+      if (existing !== undefined) {
+        await appStore.selectRepository(existing)
+        return true
+      }
+      await appStore.addRepository(path)
+      return true
+    },
+  })
 
   return {
     appState,
