@@ -11,6 +11,7 @@ import {
   readRepositoryFixtures,
   removeFixtureRoot,
   repositorySelector,
+  expandRepositoriesPanel,
   resetRepositoryFixtures,
   seedRepositoryFixture,
   startApplication,
@@ -43,6 +44,7 @@ describe('working tree', () => {
       persisted.map(repository => repository.path),
       [fixture.canonical]
     )
+    await expandRepositoriesPanel(driver)
     await driver.wait(
       until.elementLocated(repositorySelector(fixture.canonical)),
       5_000

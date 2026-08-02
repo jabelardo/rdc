@@ -509,10 +509,41 @@ export async function seedRepositoryScaleFixture(driver, count) {
  * @param {import('selenium-webdriver').WebDriver} driver
  * @param {string} repositoryPath
  */
+/**
+ * Expands the Repositories accordion panel. The MVP sidebar starts with every
+ * section collapsed (recorded in the visual-matrix F1 note), so repository
+ * rows are not in the DOM until the heading is clicked. Specs that wait for
+ * `[data-repository-path]` must establish this precondition themselves.
+ *
+ * @param {import('selenium-webdriver').WebDriver} driver
+ */
+export async function expandRepositoriesPanel(driver) {
+  const heading = await driver.wait(
+    until.elementLocated(By.css('#sidebar-repositories-heading')),
+    5_000,
+    'the Repositories heading did not render'
+  )
+  if ((await heading.getAttribute('aria-expanded')) !== 'true') {
+    await heading.click()
+  }
+  await driver.wait(
+    async () => (await heading.getAttribute('aria-expanded')) === 'true',
+    5_000,
+    'the Repositories panel did not expand'
+  )
+}
+
+/**
+ * Opens the application with one seeded repository and waits for its row.
+ *
+ * @param {import('selenium-webdriver').WebDriver} driver
+ * @param {string} repositoryPath
+ */
 export async function openSeededRepository(driver, repositoryPath) {
   await resetRepositoryFixtures(driver)
   await seedRepositoryFixture(driver, repositoryPath)
   await driver.navigate().refresh()
+  await expandRepositoriesPanel(driver)
   await driver.wait(
     until.elementLocated(repositorySelector(repositoryPath)),
     5_000
@@ -528,6 +559,7 @@ export async function openSeededRepository(driver, repositoryPath) {
  * @param {string} repositoryPath
  */
 export async function selectRepository(driver, repositoryPath) {
+  await expandRepositoriesPanel(driver)
   const row = await driver.wait(
     until.elementLocated(repositorySelector(repositoryPath)),
     5_000

@@ -18,6 +18,7 @@ import {
   initSimpleRepository,
   removeFixtureRoot,
   repositorySelector,
+  expandRepositoriesPanel,
   resetRepositoryFixtures,
   seedRepositoryFixture,
   selectRepository,
@@ -58,6 +59,7 @@ describe('restart recovery', () => {
     await driver.quit().catch(() => undefined)
 
     driver = await startApplication()
+    await expandRepositoriesPanel(driver)
     await driver.wait(
       until.elementLocated(repositorySelector(secondRepository, true)),
       5_000

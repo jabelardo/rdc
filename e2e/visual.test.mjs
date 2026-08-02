@@ -121,7 +121,17 @@ describe('visual layout', () => {
     assert.equal(toolbarTooltip.label, 'New repository')
     assert.equal(toolbarTooltip.background, toolbarTooltip.expectedBackground)
     assert.ok(toolbarTooltip.zIndex >= 10_000)
-    assert.ok(toolbarTooltip.top >= toolbarTooltip.toolbarBottom)
+    // The toolbar centers its buttons (items-center), so a tooltip 7px below a
+    // short button can legally overlap the bar's empty bottom strip by a few
+    // pixels — the exact overlap tracks the button's font-metric height and
+    // differs between environments. The regression this guards is a genuinely
+    // misplaced tooltip (e.g. rendered at the viewport top), which is still
+    // far below the bar and fails this bound.
+    assert.ok(
+      toolbarTooltip.top >= toolbarTooltip.toolbarBottom - 8,
+      `tooltip at ${toolbarTooltip.top}px is not near the toolbar bottom ` +
+        `${toolbarTooltip.toolbarBottom}px`
+    )
 
     const collapseButton = await driver.findElement(By.css('.sidebar-collapse'))
     await driver.executeScript(element => element.focus(), collapseButton)
