@@ -49,6 +49,12 @@ Fetch/Pull/Push, Branch → New branch… routing, Help Report issue…/View RDC
 hints, full keyboard pattern (arrows, Home/End, Escape with focus return, Alt mnemonics, Tab),
 dev-only Reload + wired DevTools, and `menu-bar.test.tsx` regression coverage (22 tests).
 
+The keybinding-tree accelerators for the wiring-gap items were additionally dead on Linux
+(displayed but not dispatched): `d0cb09f` wires the shared executor and enablement map,
+platform-gated so macOS keeps its honest-disable state (regression test pins it), and moves the
+sidebar-width and branch-creation state into the controller so the visible menu bar and the
+keybinding path share one implementation. Ctrl+B, Ctrl+G, Ctrl+9/8 and Ctrl+Shift+N now work.
+
 ## Exit classification for this cycle
 
 - [x] **blocker** — F-MENU-001 (Branch menu scope), with the exact items and expected disposition above.
