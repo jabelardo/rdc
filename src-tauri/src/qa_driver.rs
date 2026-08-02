@@ -139,6 +139,11 @@ fn apply_geometry(app: &AppHandle, state: &QaState) -> Result<(), String> {
         window
             .unmaximize()
             .map_err(|e| format!("unmaximize: {e}"))?;
+        // unmaximize is async — the Wayland compositor processes the request
+        // on its own frame clock. A set_size that arrives before the
+        // unmaximize transition finishes is silently dropped by GNOME/Mutter,
+        // so we wait for one frame (~16 ms at 60 Hz) plus margin.
+        thread::sleep(Duration::from_millis(64));
     }
 
     // The script always provides both width and height, so the outer_size
