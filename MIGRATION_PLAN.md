@@ -1437,7 +1437,7 @@ the paired contract tests prevent drift without duplicating domain types.
 ### Phase 3 — IPC surface → Tauri commands — **COMPLETE — 104 COMMANDS AT CLOSURE**
 
 The phase started with `get_status` wired end to end from Rust to React and closed with **104 registered
-commands**. Later platform phases use the same pattern; the repository currently has **142 registered
+commands**. Later platform phases use the same pattern; the repository currently has **146 registered
 commands**, each with a typed wrapper.
 
 #### What this phase is, measured
@@ -1465,7 +1465,7 @@ job. A number in a plan that nobody can re-derive is a claim, not a measurement.
 
 | | Count | Note |
 |---|---|---|
-| Has a command | 98 | of 142 currently registered |
+| Has a command | 98 | of 146 currently registered |
 | Lives in TypeScript by design | 8 | the script verifies the named file exports it |
 | Owned by a later phase | 3 | `envForRemoteOperation` (Phase 5c for proxy, Phase 7d/7f for remote/account consumers); `getConfigValueWithOrigin`, `getFilesDiffText` (Phase 7) |
 | **Not covered** | 0 | the classification is exhaustive |
@@ -1561,11 +1561,11 @@ Measured by `scripts/measure-store-surface.mjs`; all implementation criteria are
   TypeScript by design**, or **names the later phase that owns it** — the same rule Phase 2 closed on.
   **109 of 109**, with zero uncovered.
 - ✅ **No command without a consumer.** Phase 3 closed at 104/104; the current reverse audit is
-  **142 of 142** — 98 answer store imports and 44 name a consumer outside that import set.
+  **146 of 146** — 98 answer store imports and 48 name a consumer outside that import set.
 - ✅ Every shape that crosses is in the snapshot, with a TypeScript fixture annotated against
   `src/models/**`. **57 keys, every one referenced from a test** — checked by walking the snapshot rather
   than by inspection, since an unused key is invisible.
-- ✅ Every command has an actual typed TypeScript `invoke()` wrapper. **142 of 142 currently.**
+- ✅ Every command has an actual typed TypeScript `invoke()` wrapper. **146 of 146 currently.**
 - ✅ The 82 channels are each routed, so Phase 4/6/7/9 inherit a list rather than a search —
   `MIGRATION_MAP.md` §7.1. The script checks all **53 request** and **29 request/response** names against
   upstream rather than accepting a matching total, and checks each row's direction against the type that

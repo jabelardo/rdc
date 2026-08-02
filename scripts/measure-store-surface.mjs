@@ -215,6 +215,10 @@ const CONSUMER_OUTSIDE_STORES = new Map([
   ],
   ['install_darwin_cli', 'Phase 4 CLI adapter — lib/platform/cli.ts'],
   [
+    'init_repository',
+    'ui/app/use-app-controller.ts — initializes a fresh repository after add-local-repository',
+  ],
+  [
     'is_in_application_folder',
     'Phase 4 application-folder adapter — lib/platform/application-folder.ts',
   ],
@@ -249,6 +253,10 @@ const CONSUMER_OUTSIDE_STORES = new Map([
   [
     'set_window_zoom_factor',
     'Phase 4 platform adapter — lib/platform/window.ts',
+  ],
+  [
+    'toggle_devtools',
+    'Phase 8b in-window menu bar — lib/platform/window.ts toggleDevTools, consumed by the Dev-only menu item and the startup executor',
   ],
   [
     'show_notification',
