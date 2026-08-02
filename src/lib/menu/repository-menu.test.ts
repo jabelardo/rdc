@@ -32,6 +32,7 @@ const remoteState = {
 
 const preferencesState = {
   theme: 'system',
+  zoomFactor: 1.0,
   confirmRepositoryRemoval: true,
   confirmDiscardChanges: true,
   confirmDiscardChangesPermanently: true,

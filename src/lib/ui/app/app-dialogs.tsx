@@ -5,6 +5,7 @@ import type {
   PreferencesState,
   PreferencesStore,
 } from '../../stores/preferences-store'
+import { setWindowZoomFactor } from '../../platform/window'
 import type {
   HookFailureState,
   WorkingTreeStore,
@@ -236,6 +237,27 @@ export function AppDialogs({
               <option value="system">System</option>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
+            </select>
+
+            <label htmlFor="zoom-preference">Zoom</label>
+            <select
+              id="zoom-preference"
+              value={preferencesState.zoomFactor}
+              onChange={event => {
+                const value = Number.parseFloat(event.currentTarget.value)
+                if (!Number.isNaN(value) && value > 0) {
+                  preferencesStore.setZoomFactor(value)
+                  void setWindowZoomFactor(value)
+                }
+              }}
+            >
+              {[0.67, 0.75, 0.8, 0.9, 1, 1.15, 1.25, 1.5, 1.75, 2].map(
+                factor => (
+                  <option key={factor} value={factor}>
+                    {factor === 1 ? '100%' : `${Math.round(factor * 100)}%`}
+                  </option>
+                )
+              )}
             </select>
 
             <label htmlFor="editor-preference">External editor</label>

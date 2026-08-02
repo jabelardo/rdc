@@ -140,6 +140,7 @@ describe('PreferencesStore', () => {
     expect(setTheme).toHaveBeenLastCalledWith('light')
     expect(JSON.parse(localStorage.getItem(PreferencesStorageKey)!)).toEqual({
       theme: 'light',
+      zoomFactor: 1.15,
       confirmRepositoryRemoval: false,
       confirmDiscardChanges: false,
       confirmDiscardChangesPermanently: false,

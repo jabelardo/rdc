@@ -193,6 +193,7 @@ const conflictStore = vi.hoisted(() => ({
 const preferencesStore = vi.hoisted(() => ({
   state: {
     theme: 'system' as 'light' | 'dark' | 'system',
+    zoomFactor: 1.0,
     confirmRepositoryRemoval: true,
     confirmDiscardChanges: true,
     confirmDiscardChangesPermanently: true,
@@ -219,6 +220,7 @@ const preferencesStore = vi.hoisted(() => ({
   setConfirmDiscardChangesPermanently: vi.fn(),
   setSelectedExternalEditor: vi.fn(),
   setSelectedShell: vi.fn(),
+  setZoomFactor: vi.fn(),
   onDidUpdate: vi.fn(),
 }))
 
@@ -438,6 +440,7 @@ describe('App', () => {
     conflictStore.onDidUpdate.mockReturnValue(vi.fn())
     preferencesStore.state = {
       theme: 'system',
+      zoomFactor: 1.0,
       confirmRepositoryRemoval: true,
       confirmDiscardChanges: true,
       confirmDiscardChangesPermanently: true,

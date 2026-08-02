@@ -24,6 +24,7 @@ import {
   setWindowTitle,
 } from '../../platform/window'
 import { shouldShowWindowDragRegion } from '../../platform/window-drag-region'
+import { setWindowZoomFactor } from '../../platform/window'
 import type { AppStoreState } from '../../stores/app-store'
 import type { BranchState } from '../../stores/branch-store'
 import type { CloneState } from '../../stores/clone-store'
@@ -340,7 +341,14 @@ export function useAppController() {
 
   useEffect(() => {
     const unsubscribe = preferencesStore.onDidUpdate(setPreferencesState)
-    void preferencesStore.load()
+    void preferencesStore.load().then(() => {
+      // Apply persisted zoom after preferences load. The startup executor
+      // initializes to 1.0; preferences may hold a different value.
+      const zoom = preferencesStore.state.zoomFactor
+      if (zoom !== 1.0) {
+        void setWindowZoomFactor(zoom)
+      }
+    })
     let disposed = false
     let unlistenTheme: (() => void) | undefined
     void onNativeThemeUpdated(() => {

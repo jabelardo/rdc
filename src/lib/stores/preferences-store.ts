@@ -12,6 +12,7 @@ export const PreferencesStorageKey = 'rdc-preferences-v1'
 
 export type PreferencesState = {
   readonly theme: ThemeSource
+  readonly zoomFactor: number
   readonly confirmRepositoryRemoval: boolean
   readonly confirmDiscardChanges: boolean
   readonly confirmDiscardChangesPermanently: boolean
@@ -26,6 +27,7 @@ export type PreferencesState = {
 type PersistedPreferences = Pick<
   PreferencesState,
   | 'theme'
+  | 'zoomFactor'
   | 'confirmRepositoryRemoval'
   | 'confirmDiscardChanges'
   | 'confirmDiscardChangesPermanently'
@@ -42,6 +44,7 @@ type PreferencesStoreDependencies = {
 
 const DefaultPreferences: PersistedPreferences = {
   theme: 'system',
+  zoomFactor: __LINUX__ ? 1.15 : 1.0,
   confirmRepositoryRemoval: true,
   confirmDiscardChanges: true,
   confirmDiscardChangesPermanently: true,
@@ -108,6 +111,10 @@ function readPreferences(): PersistedPreferences {
         ? record.selectedExternalEditor
         : null,
     selectedShell: isShell(record.selectedShell) ? record.selectedShell : null,
+    zoomFactor:
+      typeof record.zoomFactor === 'number' && record.zoomFactor > 0
+        ? record.zoomFactor
+        : DefaultPreferences.zoomFactor,
   }
 }
 
@@ -262,6 +269,13 @@ export class PreferencesStore {
     this.updateAndPersist({ selectedShell: value })
   }
 
+  public setZoomFactor(value: number): void {
+    if (value <= 0) {
+      return
+    }
+    this.updateAndPersist({ zoomFactor: value })
+  }
+
   private updateAndPersist(update: Partial<PersistedPreferences>): void {
     this.update({ ...this.currentState, ...update })
     this.persist()
@@ -275,11 +289,13 @@ export class PreferencesStore {
       confirmDiscardChangesPermanently,
       selectedExternalEditor,
       selectedShell,
+      zoomFactor,
     } = this.currentState
     localStorage.setItem(
       PreferencesStorageKey,
       JSON.stringify({
         theme,
+        zoomFactor,
         confirmRepositoryRemoval,
         confirmDiscardChanges,
         confirmDiscardChangesPermanently,
