@@ -67,7 +67,7 @@ accelerators.
 
 | Item ID | Linux label (upstream) | Accelerator | Classification | Notes |
 |---|---|---|---|---|
-| *(undo, redo, cut, copy, paste)* | &Undo, &Redo, Cu&t, &Copy, &Paste | OS role defaults | **Native OS role** | Work natively in the webview |
+| *(undo, redo, cut, copy, paste)* | &Undo, &Redo, Cu&t, &Copy, &Paste | Ctrl+Z, Ctrl+Y, Ctrl+X, Ctrl+C, Ctrl+V | **Native OS role** | Webview-native edit commands; hints shown in the menu |
 | `select-all` | Select &all | Ctrl+A | **MVP** | `select-all` dispatched through the keybinding tree |
 
 ### View menu
@@ -103,9 +103,11 @@ accelerators.
 |---|---|---|---|---|
 | `create-branch` | New &branch… | Ctrl+Shift+N | **MVP — wiring gap** | Phase 7c — create from HEAD and checkout is implemented in the sidebar; the menu entry must route to the same flow |
 
-The Branch menu is intentionally single-item in the MVP. The rest of upstream's Branch menu is
-removed (see the "Removed" table). A single-item menu is acceptable only when its only item is this
-one; do not pad it with disabled placeholders.
+**QA blocker for MVP release:** the Branch menu is single-item because rename/delete/discard/merge
+are not implemented, but fundamental branch management is required for an MVP. See the finding
+`qa/phase-8b/evidence/menu-mvp-alignment-findings.md` — the menu must not be padded with dead
+items; development must implement the operations and the baseline then promotes them (membership
+rule (b)).
 
 ### Help menu
 
@@ -143,12 +145,12 @@ becomes implemented, the membership rule (b) promotes it to MVP automatically.
 | `create-worktree` | New work&tree… | Worktrees post-MVP; upstream flag-gates it too | post-MVP (7f) |
 | `show-repository-settings` | Repository &settings… | Advanced repository settings | post-MVP (7f) |
 | `manage-remotes` | Manage remotes… | Advanced remote management | post-MVP (7f) |
-| `rename-branch` / `delete-branch` | &Rename… / &Delete… | Branch rename/delete not implemented | post-MVP (7f) |
-| `discard-all-changes` / `permanently-discard-all-changes` | Discard all changes… / Permanently discard all changes… | Only file/line discard is implemented. File/line discard is MVP via the Changes surface; whole-tree discard is not | post-MVP (7f) |
+| `rename-branch` / `delete-branch` | &Rename… / &Delete… | **MVP-required — blocked** | Fundamental branch lifecycle; see the QA finding | development (MVP blocker) |
+| `discard-all-changes` / `permanently-discard-all-changes` | Discard all changes… / Permanently discard all changes… | **MVP-required — blocked** | Only file/line discard is implemented; whole-tree discard is a fundamental recovery operation, see the QA finding | development (MVP blocker) |
 | `stash-all-changes` | &Stash all changes… | No stash support | post-MVP (7f) |
-| `update-branch-with-contribution-target-branch` | &Update from &lt;branch&gt; | Contribution-target policy | post-MVP (7f) |
+| `update-branch-with-contribution-target-branch` | &Update from &lt;branch&gt; | **MVP-required — blocked** | Bringing a branch up to date with its default branch is a fundamental sync operation; see the QA finding | development (MVP blocker) |
 | `compare-to-branch` | &Compare to branch | Compare post-MVP | post-MVP (7f) |
-| `merge-branch` / `squash-and-merge-branch` / `rebase-branch` | &Merge into current branch… / Squas&h and merge… / R&ebase current branch… | Merge *initiation* from the menu is post-MVP; conflict *recovery* is MVP (Phase 7c) and lives in the Changes surface | post-MVP (7f) |
+| `merge-branch` / `squash-and-merge-branch` / `rebase-branch` | &Merge into current branch… / Squas&h and merge… / R&ebase current branch… | Merge *initiation* is **MVP-required — blocked** (conflict *recovery* is MVP and lives in the Changes surface); squash/rebase remain post-MVP | development (MVP blocker) |
 | `compare-on-github` / `branch-on-github` | Compare on GitHub / View branch on GitHub | No GitHub networking | post-MVP (5b/7f) |
 | `preview-pull-request` / `create-pull-request` | Preview pull request / Create &pull request | No GitHub networking | post-MVP (5b/7f) |
 

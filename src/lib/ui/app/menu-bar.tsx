@@ -343,12 +343,12 @@ function buildMenu(
     {
       label: '&Edit',
       items: [
-        item('undo', '&Undo', undefined, { type: 'undo' }),
-        item('redo', '&Redo', undefined, { type: 'redo' }),
+        item('undo', '&Undo', 'Ctrl+Z', { type: 'undo' }),
+        item('redo', '&Redo', 'Ctrl+Y', { type: 'redo' }),
         separator(),
-        item('cut', 'Cu&t', undefined, { type: 'cut' }),
-        item('copy', '&Copy', undefined, { type: 'copy' }),
-        item('paste', '&Paste', undefined, { type: 'paste' }),
+        item('cut', 'Cu&t', 'Ctrl+X', { type: 'cut' }),
+        item('copy', '&Copy', 'Ctrl+C', { type: 'copy' }),
+        item('paste', '&Paste', 'Ctrl+V', { type: 'paste' }),
         item('select-all', 'Select &all', 'Ctrl+A', { type: 'select-all' }),
       ],
     },

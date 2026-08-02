@@ -130,7 +130,7 @@ describe('menu bar inventory', () => {
     ).toHaveTextContent('Ctrl+Alt+N')
   })
 
-  it('renders the baseline Edit menu roles', async () => {
+  it('renders the baseline Edit menu roles with native accelerators', async () => {
     render(<MenuBar {...baseProps()} />)
     const menu = await openMenu('Edit')
     const names = within(menu)
@@ -144,6 +144,13 @@ describe('menu bar inventory', () => {
       'Paste',
       'Select all',
     ])
+    const hint = (name: string) => within(menu).getByRole('menuitem', { name })
+    expect(hint('Undo')).toHaveTextContent('Ctrl+Z')
+    expect(hint('Redo')).toHaveTextContent('Ctrl+Y')
+    expect(hint('Cut')).toHaveTextContent('Ctrl+X')
+    expect(hint('Copy')).toHaveTextContent('Ctrl+C')
+    expect(hint('Paste')).toHaveTextContent('Ctrl+V')
+    expect(hint('Select all')).toHaveTextContent('Ctrl+A')
   })
 
   it('renders the baseline View menu including wiring-gap items', async () => {
