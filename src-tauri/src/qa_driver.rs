@@ -141,11 +141,22 @@ fn apply_geometry(app: &AppHandle, state: &QaState) -> Result<(), String> {
             .map_err(|e| format!("unmaximize: {e}"))?;
     }
 
-    let current = window
-        .outer_size()
-        .map_err(|e| format!("read outer size: {e}"))?;
-    let width = state.width.unwrap_or(current.width as f64);
-    let height = state.height.unwrap_or(current.height as f64);
+    // The script always provides both width and height, so the outer_size
+    // fallback is only needed when a dimension is intentionally omitted.
+    // Reading outer_size on Wayland can return stale physical values or fail,
+    // so we skip it entirely when both are present.
+    let (width, height) = match (state.width, state.height) {
+        (Some(w), Some(h)) => (w, h),
+        (w, h) => {
+            let current = window
+                .outer_size()
+                .map_err(|e| format!("read outer size: {e}"))?;
+            let scale = window.scale_factor().unwrap_or(1.0);
+            let logical = current.to_logical::<f64>(scale);
+            (w.unwrap_or(logical.width), h.unwrap_or(logical.height))
+        }
+    };
+
     let size = tauri::LogicalSize::new(width, height);
     window.set_size(size).map_err(|e| format!("set size: {e}"))
 }
