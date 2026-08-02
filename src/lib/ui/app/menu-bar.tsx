@@ -7,6 +7,10 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { quitApp } from '../../platform/lifetime'
+import {
+  getCurrentWindowZoomFactor,
+  setWindowZoomFactor,
+} from '../../platform/window'
 
 type MenuBarAction =
   | { type: 'create-repository' }
@@ -53,6 +57,29 @@ type MenuBarProps = {
   readonly hasEditor: boolean
   readonly hasShell: boolean
   readonly hasRemote: boolean
+}
+
+const ZoomFactors = [0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
+
+async function handleZoom(
+  direction: 'zoom-in' | 'zoom-out' | 'zoom-reset'
+): Promise<void> {
+  const current = await getCurrentWindowZoomFactor()
+  let next = current
+  if (direction === 'zoom-reset') {
+    next = 1
+  } else {
+    const closest = ZoomFactors.reduce((prev, cur) =>
+      Math.abs(cur - current) < Math.abs(prev - current) ? cur : prev
+    )
+    const ordered =
+      direction === 'zoom-in' ? ZoomFactors : [...ZoomFactors].reverse()
+    next =
+      ordered.find(f =>
+        direction === 'zoom-in' ? f > closest : f < closest
+      ) ?? closest
+  }
+  await setWindowZoomFactor(next)
 }
 
 function executeAction(
@@ -108,6 +135,11 @@ function executeAction(
       break
     case 'quit':
       void quitApp()
+      break
+    case 'zoom-in':
+    case 'zoom-out':
+    case 'zoom-reset':
+      void handleZoom(action.type)
       break
   }
 }
