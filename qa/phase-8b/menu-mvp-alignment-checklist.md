@@ -83,7 +83,7 @@ accelerators.
 | `decrease-active-resizable-width` | Contract active resizable | Ctrl+8 | **MVP — wiring gap** | Same |
 | `reset-zoom` / `zoom-in` / `zoom-out` | Reset zoom / Zoom in / Zoom out | Ctrl+0 / Ctrl+= / Ctrl+- | **MVP** | |
 | `reload-window` | &Reload | Ctrl+Alt+R | **Dev-only** | `__RELEASE_CHANNEL__ === 'development'` |
-| `show-devtools` | &Toggle developer tools | Ctrl+Shift+I | **Dev-only** | Currently unwired (returns false); dev-only gap |
+| `show-devtools` | &Toggle developer tools | Ctrl+Shift+I | **Dev-only** | Wired through `toggle_devtools` (debug builds); hidden in production |
 
 ### Repository menu
 
@@ -197,38 +197,36 @@ Recorded here rather than in the per-item tables when they span multiple items o
 
 The visible Linux surface is the in-window menu bar (`src/lib/ui/app/menu-bar.tsx`); the full tree
 is simultaneously installed as the keybinding dispatcher's state. These two surfaces must agree
-with the baseline above and with each other. Code reading at the start of this cycle found the
-following divergences; verify each on the live build and fix or explicitly record it.
+with the baseline above and with each other. The divergences below were found by code reading at
+the start of the cycle and **implemented in the alignment commit**; the remaining work is to verify
+each on the live Wayland build and fix anything the code reading missed.
 
-1. **File → Open new window is missing.** The in-window bar has no `new-window` entry under File;
-   it appears as "Open in New Window" under Repository instead. Baseline: File, label "Open new
-   window", Ctrl+Alt+N, enabled with selection.
-2. **The Edit menu is entirely missing.** Baseline: Undo, Redo, Cut, Copy, Paste, Select All.
-   The roles work natively in the webview; the menu surface must still exist.
-3. **View menu lacks Repository &list, &Branches list, Go to &Summary, Expand/Contract active
-   resizable.** Three of these are wiring gaps (branches list, Go to Summary, Expand/Contract);
-   `show-repository-list` already dispatches (focuses the active repository row) and only needs
-   the visible entry.
-4. **Repository menu lacks &Remove…** and uses static labels "Open in Editor" / "Open in Terminal"
-   instead of the dynamic `&Open in <editor>` / `O&pen in <shell>` labels.
-5. **Repository menu has no busy-state enablement.** `hasRemote` ignores `remoteState.loading` and
-   `remoteState.operation`, so Fetch/Pull/Push stay enabled during an operation. The tree's
-   `canFetch`/`canPush`/`canPull` require `!loading && operation === null`. The visible surface and
-   the keybinding tree must agree.
-6. **The Branch menu is missing** — must contain only New &branch…, routed to the same
-   create-and-checkout flow as the sidebar.
-7. **Help menu lacks Report issue… and View RDC on GitHub.**
-8. **No accelerator hints are displayed** in the in-window bar. Accelerators shown must match the
-   action they invoke; either display the baseline accelerators or record why they are omitted.
-9. **No keyboard access / Escape dismissal.** The dropdown has only pointer events (click, outside
-   pointerdown, mouse-enter). Arrow-key navigation, Escape dismiss and focus return are required by
-   the Platform rendering section below.
-10. **No automated coverage of the in-window menu bar.** The zoom-controls defect shipped because
-    `menu-bar.tsx` has no test file. Add regression coverage for inventory, enablement, labels and
-    zoom once the surface is settled.
-11. **Labels diverge from upstream shape** (no access keys; "Show in File Manager" vs "Show in your
-    File Manager", "Show Logs" vs "S&how logs in your File Manager", etc.). Align with the baseline
-    tables.
+1. ~~File → Open new window missing~~ — implemented: File → “Open new window”, Ctrl+Alt+N,
+   enabled with selection. The old “Open in New Window” entry under Repository was removed.
+2. ~~The Edit menu is entirely missing~~ — implemented: Undo, Redo, Cut, Copy, Paste, Select All.
+   The roles dispatch `document.execCommand` on the focused element; Select All routes through
+   `selectAllWindowContents`.
+3. ~~View menu lacks Repository &list, &Branches list, Go to &Summary, Expand/Contract~~ —
+   implemented: Repository list focuses the active repository row; Branches list expands and
+   focuses the Branches section; Go to Summary switches to Changes and focuses the summary field;
+   Expand/Contract step the stored sidebar width (±16 px, clamped).
+4. ~~Repository menu lacks &Remove… and uses static labels~~ — implemented: &Remove… routes through
+   the same confirmation policy as the sidebar context menu; shell/editor labels are dynamic
+   (`O&pen in <shell>`, `&Open in <editor>`).
+5. ~~No busy-state enablement~~ — implemented: `canFetch`/`canPush`/`canPull` require
+   `!loading && operation === null` and a matching repository, agreeing with the tree's map.
+6. ~~The Branch menu is missing~~ — implemented: Branch → New &branch…, routed to the same
+   create-and-checkout flow as the sidebar (expands Branches, opens the form, focuses the name).
+7. ~~Help lacks Report issue… and View RDC on GitHub~~ — implemented with rdc-owned destinations.
+8. ~~No accelerator hints~~ — implemented: right-aligned hints for every baseline accelerator.
+9. ~~No keyboard access / Escape dismissal~~ — implemented: roving-tabindex menubar, arrow-key
+   item navigation, Home/End, Arrow Left/Right menu switching, Escape close with focus return,
+   Alt+mnemonic open, in-menu mnemonic activation, Tab close. Verify on the live build.
+10. ~~No automated coverage of the in-window menu bar~~ — implemented: `menu-bar.test.tsx` (22
+    tests) pins inventory, labels/access keys, accelerators, enablement, actions, zoom wiring and
+    keyboard navigation.
+11. ~~Labels diverge from upstream shape~~ — implemented: labels carry upstream access keys with
+    underlined mnemonics and upstream wording (e.g. “Show in your File Manager”).
 
 ## State matrix
 

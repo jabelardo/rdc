@@ -15,7 +15,7 @@ import { buildStartupMenu, createStartupMenuActionExecutor } from './startup'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { quitApp } from '../platform/lifetime'
 import { selectAllWindowContents } from '../platform/menu'
-import { setWindowZoomFactor } from '../platform/window'
+import { setWindowZoomFactor, toggleDevTools } from '../platform/window'
 import { showApplicationLogs } from '../resilience/logs'
 
 type MenuDispatcherState = {
@@ -146,6 +146,7 @@ function defaultDependencies(
     selectAll: selectAllWindowContents,
     showLogs: showApplicationLogs,
     setZoom: setWindowZoomFactor,
+    toggleDevTools,
   })
   return {
     platform,

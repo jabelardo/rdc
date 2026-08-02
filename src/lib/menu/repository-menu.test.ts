@@ -202,6 +202,7 @@ describe('repository application menu', () => {
         selectAll: vi.fn(),
         showLogs: vi.fn(),
         setZoom: vi.fn(),
+        toggleDevTools: vi.fn(),
       })
       const enabledActions = allItems(menu.items).flatMap(item =>
         item.type !== 'separator' &&

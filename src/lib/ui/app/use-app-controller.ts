@@ -838,6 +838,7 @@ export function useAppController() {
     submitClone,
     selectRepository,
     openRepositoryContextMenu,
+    requestRemoveRepository,
     runRepositoryAction,
     confirmRemoveRepository,
     openInShell,

@@ -54,6 +54,8 @@ type RepositorySidebarProps = {
   readonly branchStore: BranchStore
   readonly conflictState: ConflictState
   readonly newBranchName: string
+  readonly showBranchCreation: boolean
+  readonly onShowBranchCreation: (show: boolean) => void
   readonly onToggleCollapsed: () => void
   readonly onToggleSection: (section: SidebarSectionID) => void
   readonly onActivateSection: (section: SidebarSectionID) => void
@@ -75,6 +77,8 @@ export function RepositorySidebar({
   branchStore,
   conflictState,
   newBranchName,
+  showBranchCreation,
+  onShowBranchCreation,
   onToggleCollapsed,
   onToggleSection,
   onActivateSection,
@@ -85,7 +89,6 @@ export function RepositorySidebar({
 }: RepositorySidebarProps) {
   const [repositoryFilter, setRepositoryFilter] = useState('')
   const [branchFilter, setBranchFilter] = useState('')
-  const [showBranchCreation, setShowBranchCreation] = useState(false)
   const filteredRepositories = useMemo(() => {
     const query = repositoryFilter.trim().toLocaleLowerCase()
     if (query === '') {
@@ -327,7 +330,7 @@ export function RepositorySidebar({
                                     aria-controls="new-branch-form"
                                     disabled={branchActionsDisabled}
                                     onClick={() => {
-                                      setShowBranchCreation(true)
+                                      onShowBranchCreation(true)
                                       requestAnimationFrame(() =>
                                         document
                                           .getElementById('new-branch-name')
@@ -359,7 +362,7 @@ export function RepositorySidebar({
                                         null
                                       ) {
                                         onBranchNameChange('')
-                                        setShowBranchCreation(false)
+                                        onShowBranchCreation(false)
                                       }
                                     })
                                   }}
@@ -374,7 +377,7 @@ export function RepositorySidebar({
                                     disabled={branchActionsDisabled}
                                     onKeyDown={event => {
                                       if (event.key === 'Escape') {
-                                        setShowBranchCreation(false)
+                                        onShowBranchCreation(false)
                                       }
                                     }}
                                     onChange={event =>
@@ -400,7 +403,7 @@ export function RepositorySidebar({
                                       type="button"
                                       aria-label="Cancel creating branch"
                                       onClick={() =>
-                                        setShowBranchCreation(false)
+                                        onShowBranchCreation(false)
                                       }
                                     >
                                       <FontAwesomeIcon

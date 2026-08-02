@@ -22,6 +22,7 @@ function isStartupActionSupported(action: MenuAction): boolean {
     action.type === 'show-logs' ||
     action.type === 'zoom' ||
     action.type === 'reload-window' ||
+    action.type === 'show-devtools' ||
     action.type === 'quit' ||
     (action.type === 'menu-event' && action.event === 'select-all')
   )
@@ -66,6 +67,7 @@ type StartupActionEnvironment = {
   readonly selectAll: () => void
   readonly showLogs: () => void | Promise<void>
   readonly setZoom: (factor: number) => void | Promise<void>
+  readonly toggleDevTools: () => void | Promise<void>
 }
 
 /** Create the small action executor used before Phase 7's dispatcher exists. */
@@ -114,6 +116,8 @@ export function createStartupMenuActionExecutor(
         await environment.showLogs()
         return true
       case 'show-devtools':
+        await environment.toggleDevTools()
+        return true
       case 'crash-main-process':
         return false
     }

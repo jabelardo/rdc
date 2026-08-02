@@ -153,6 +153,11 @@ export function setWindowZoomFactor(zoomFactor: number): Promise<void> {
   return invoke('set_window_zoom_factor', { zoomFactor })
 }
 
+/** Toggle the webview inspector; dev-only surface (see the Rust command). */
+export function toggleDevTools(): Promise<void> {
+  return invoke('toggle_devtools')
+}
+
 export function onWindowZoomFactorChanged(
   callback: (zoomFactor: number) => void
 ): Promise<UnlistenFn> {

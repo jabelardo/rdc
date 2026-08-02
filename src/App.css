@@ -182,7 +182,10 @@ button:disabled {
 }
 
 .app-menu-dropdown button {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
   width: 100%;
   padding: 0.35rem 0.75rem;
   border: 0;
@@ -196,14 +199,26 @@ button:disabled {
   cursor: pointer;
 }
 
-.app-menu-dropdown button:hover:not(:disabled) {
+.app-menu-dropdown button:hover:not(:disabled),
+.app-menu-dropdown button:focus-visible {
   color: var(--color-accent);
   background: var(--color-accent-soft);
+  outline: none;
 }
 
 .app-menu-dropdown button:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.app-menu-accelerator {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.app-menu-access-key {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .app-menu-separator {

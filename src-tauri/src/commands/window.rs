@@ -81,6 +81,28 @@ pub fn set_window_zoom_factor(
         .map_err(|error| CommandError::message(error.to_string()))
 }
 
+/// Toggle the webview inspector (developer tools). Dev-only surface: the
+/// frontend only exposes the menu item in development builds, so release
+/// builds without the `devtools` feature flag report an explicit error rather
+/// than a silent no-op.
+#[tauri::command]
+pub fn toggle_devtools(window: WebviewWindow) -> Result<(), CommandError> {
+    #[cfg(any(debug_assertions, feature = "devtools"))]
+    {
+        // Opening an already-open inspector focuses it, which is the closest
+        // Tauri offers to a true toggle without a state API.
+        window.open_devtools();
+        Ok(())
+    }
+    #[cfg(not(any(debug_assertions, feature = "devtools")))]
+    {
+        let _ = window;
+        Err(CommandError::message(
+            "developer tools are not available in this build",
+        ))
+    }
+}
+
 #[tauri::command]
 pub fn renderer_ready(
     window: WebviewWindow,

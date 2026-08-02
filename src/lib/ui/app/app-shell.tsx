@@ -28,6 +28,7 @@ type AppShellProps = {
 export function AppShell({ controller }: AppShellProps) {
   const shellRef = useRef<HTMLElement>(null)
   const [sidebarWidth, setSidebarWidth] = useState(264)
+  const [showBranchCreation, setShowBranchCreation] = useState(false)
   const {
     appState,
     branchState,
@@ -79,6 +80,7 @@ export function AppShell({ controller }: AppShellProps) {
     submitClone,
     selectRepository,
     openRepositoryContextMenu,
+    requestRemoveRepository,
     runRepositoryAction,
     confirmRemoveRepository,
     openInShell,
@@ -100,6 +102,59 @@ export function AppShell({ controller }: AppShellProps) {
   // view. If this followed the active view (Changes 490 px, History 560 px), CSS would re-clamp the
   // same stored sidebar width on every Changes/History switch and make navigation visibly jump.
   const workspaceMinimum = appState.selectedRepository === null ? 490 : 560
+  const hasSelection = appState.selectedRepository !== null
+  const remoteMatchesSelection =
+    remoteState.repositoryPath === appState.selectedRepository?.path
+  const remoteReady =
+    hasSelection &&
+    remoteMatchesSelection &&
+    remoteState.currentRemote !== null &&
+    !remoteState.loading &&
+    remoteState.operation === null
+  const canFetch = remoteReady
+  const canPush = canFetch && remoteState.currentBranch !== null
+  const canPull =
+    canPush && typeof remoteState.currentBranch?.upstream === 'string'
+  const canCreateBranch =
+    hasSelection &&
+    branchState.operation === null &&
+    !conflictState.mergeInProgress
+  // Same DOM focus policy as the keybinding tree's choose-repository handler.
+  const focusRepositoryList = () => {
+    document
+      .querySelector<HTMLElement>(
+        '[aria-label="Repositories"] [aria-current="true"]'
+      )
+      ?.focus()
+  }
+  const showBranchesList = () => {
+    activateSidebarSection('branches')
+    requestAnimationFrame(() =>
+      document.getElementById('sidebar-branches-heading')?.focus()
+    )
+  }
+  const goToCommitMessage = () => {
+    if (repositoryView !== 'changes') {
+      setRepositoryView('changes')
+    }
+    requestAnimationFrame(() =>
+      document.getElementById('commit-message')?.focus()
+    )
+  }
+  const expandSidebar = () => {
+    setSidebarCollapsed(false)
+    setSidebarWidth(width => Math.min(width + 16, 640))
+  }
+  const contractSidebar = () => {
+    setSidebarWidth(width => Math.max(width - 16, 125))
+  }
+  const startBranchCreation = () => {
+    setShowBranchCreation(true)
+    activateSidebarSection('branches')
+    requestAnimationFrame(() =>
+      document.getElementById('new-branch-name')?.focus()
+    )
+  }
 
   return (
     <main
@@ -126,12 +181,16 @@ export function AppShell({ controller }: AppShellProps) {
             onShowPreferences={() => setShowPreferencesDialog(true)}
             onShowAbout={() => setShowAboutDialog(true)}
             onSelectView={setRepositoryView}
-            repositoryView={repositoryView}
-            onOpenInNewWindow={() =>
+            onOpenNewWindow={() =>
               runRepositoryAction(() =>
                 openRepositoryInNewWindow(appState.selectedRepository!.path)
               )
             }
+            onShowRepositoryList={focusRepositoryList}
+            onShowBranchesList={showBranchesList}
+            onGoToCommitMessage={goToCommitMessage}
+            onExpandSidebar={expandSidebar}
+            onContractSidebar={contractSidebar}
             onShowFiles={() =>
               runRepositoryAction(() =>
                 showFolderContents(appState.selectedRepository!.path)
@@ -150,11 +209,23 @@ export function AppShell({ controller }: AppShellProps) {
             onFetch={() => void refreshAfterFetch()}
             onPush={() => void refreshAfterPush()}
             onPull={() => void refreshAfterPull()}
+            onRemoveRepository={() => {
+              if (appState.selectedRepository !== null) {
+                requestRemoveRepository(appState.selectedRepository)
+              }
+            }}
+            onNewBranch={startBranchCreation}
             onShowLogs={() => void showApplicationLogs()}
-            hasRepository={appState.selectedRepository !== null}
+            hasRepository={hasSelection}
+            hasRepositories={appState.repositories.length > 0}
             hasEditor={preferencesStore.selectedEditor !== null}
             hasShell={preferencesStore.selectedShell !== null}
-            hasRemote={remoteState.currentRemote !== null}
+            canFetch={canFetch}
+            canPush={canPush}
+            canPull={canPull}
+            canCreateBranch={canCreateBranch}
+            selectedShell={preferencesStore.selectedShell?.shell ?? null}
+            selectedEditor={preferencesStore.selectedEditor?.editor ?? null}
           />
         </div>
       )}
@@ -166,6 +237,8 @@ export function AppShell({ controller }: AppShellProps) {
         branchStore={branchStore}
         conflictState={conflictState}
         newBranchName={newBranchName}
+        showBranchCreation={showBranchCreation}
+        onShowBranchCreation={setShowBranchCreation}
         onToggleCollapsed={() => setSidebarCollapsed(collapsed => !collapsed)}
         onToggleSection={toggleSidebarSection}
         onActivateSection={activateSidebarSection}

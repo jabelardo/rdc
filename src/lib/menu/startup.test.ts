@@ -44,6 +44,7 @@ describe('startup menu actions', () => {
       selectAll: vi.fn(),
       showLogs: vi.fn(async () => undefined),
       setZoom: vi.fn(async () => undefined),
+      toggleDevTools: vi.fn(async () => undefined),
     }
     const execute = createStartupMenuActionExecutor(environment)
 
@@ -62,6 +63,7 @@ describe('startup menu actions', () => {
     )
     await expect(execute({ type: 'reload-window' })).resolves.toBe(true)
     await expect(execute({ type: 'show-logs' })).resolves.toBe(true)
+    await expect(execute({ type: 'show-devtools' })).resolves.toBe(true)
     await expect(execute({ type: 'quit' })).resolves.toBe(true)
 
     expect(environment.openExternal).toHaveBeenCalledWith('https://example.com')
@@ -69,6 +71,7 @@ describe('startup menu actions', () => {
     expect(environment.setZoom.mock.calls).toEqual([[1.1], [1], [1]])
     expect(environment.reload).toHaveBeenCalledOnce()
     expect(environment.showLogs).toHaveBeenCalledOnce()
+    expect(environment.toggleDevTools).toHaveBeenCalledOnce()
     expect(environment.quit).toHaveBeenCalledOnce()
   })
 
@@ -80,11 +83,12 @@ describe('startup menu actions', () => {
       selectAll: vi.fn(),
       showLogs: vi.fn(),
       setZoom: vi.fn(),
+      toggleDevTools: vi.fn(),
     })
 
     await expect(execute({ type: 'menu-event', event: 'pull' })).resolves.toBe(
       false
     )
-    await expect(execute({ type: 'show-devtools' })).resolves.toBe(false)
+    await expect(execute({ type: 'crash-main-process' })).resolves.toBe(false)
   })
 })

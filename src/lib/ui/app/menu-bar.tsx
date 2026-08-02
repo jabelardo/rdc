@@ -2,61 +2,170 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { quitApp } from '../../platform/lifetime'
 import {
   getCurrentWindowZoomFactor,
   setWindowZoomFactor,
+  toggleDevTools,
 } from '../../platform/window'
+import { selectAllWindowContents } from '../../platform/menu'
+
+/**
+ * The Linux/Windows in-window application menu, aligned with the MVP baseline
+ * in qa/phase-8b/menu-mvp-alignment-checklist.md: the legacy upstream non-Darwin
+ * template (labels with access keys, order, accelerators) minus everything not
+ * ready for the MVP, plus every implemented product action. The full
+ * `default-menu.ts` tree still backs keybindings; this component is the visible
+ * surface and must agree with it on inventory, labels, accelerators and
+ * enablement policy.
+ */
 
 type MenuBarAction =
   | { type: 'create-repository' }
+  | { type: 'open-new-window' }
   | { type: 'add-local-repository' }
   | { type: 'clone-repository' }
   | { type: 'show-preferences' }
-  | { type: 'show-about' }
+  | { type: 'quit' }
+  | { type: 'undo' }
+  | { type: 'redo' }
+  | { type: 'cut' }
+  | { type: 'copy' }
+  | { type: 'paste' }
+  | { type: 'select-all' }
   | { type: 'show-changes' }
   | { type: 'show-history' }
+  | { type: 'show-repository-list' }
+  | { type: 'show-branches-list' }
+  | { type: 'go-to-commit-message' }
   | { type: 'zoom-in' }
   | { type: 'zoom-out' }
   | { type: 'zoom-reset' }
-  | { type: 'open-in-new-window' }
-  | { type: 'show-files' }
-  | { type: 'open-editor' }
-  | { type: 'open-shell' }
-  | { type: 'fetch' }
+  | { type: 'expand-sidebar' }
+  | { type: 'contract-sidebar' }
+  | { type: 'reload' }
+  | { type: 'toggle-devtools' }
   | { type: 'push' }
   | { type: 'pull' }
+  | { type: 'fetch' }
+  | { type: 'remove-repository' }
+  | { type: 'open-in-shell' }
+  | { type: 'open-working-directory' }
+  | { type: 'open-external-editor' }
+  | { type: 'create-branch' }
+  | { type: 'report-issue' }
+  | { type: 'view-rdc-on-github' }
   | { type: 'show-logs' }
-  | { type: 'quit' }
+  | { type: 'show-about' }
 
 type MenuItem =
-  | { type: 'item'; label: string; action?: MenuBarAction; disabled?: boolean }
-  | { type: 'separator' }
+  | {
+      readonly type: 'item'
+      readonly id: string
+      readonly label: string
+      readonly accelerator?: string
+      readonly action?: MenuBarAction
+      readonly disabled?: boolean
+    }
+  | { readonly type: 'separator' }
 
-type MenuBarProps = {
+type MenuDefinition = {
+  readonly label: string
+  readonly items: ReadonlyArray<MenuItem>
+}
+
+export type MenuBarProps = {
   readonly onCreateRepository: () => void
   readonly onAddExistingRepository: () => void
   readonly onCloneRepository: () => void
   readonly onShowPreferences: () => void
   readonly onShowAbout: () => void
   readonly onSelectView: (view: 'changes' | 'history') => void
-  readonly repositoryView: 'changes' | 'history'
-  readonly onOpenInNewWindow: () => void
+  readonly onOpenNewWindow: () => void
+  readonly onShowRepositoryList: () => void
+  readonly onShowBranchesList: () => void
+  readonly onGoToCommitMessage: () => void
+  readonly onExpandSidebar: () => void
+  readonly onContractSidebar: () => void
   readonly onShowFiles: () => void
   readonly onOpenEditor: () => void
   readonly onOpenShell: () => void
   readonly onFetch: () => void
   readonly onPush: () => void
   readonly onPull: () => void
+  readonly onRemoveRepository: () => void
+  readonly onNewBranch: () => void
   readonly onShowLogs: () => void
   readonly hasRepository: boolean
+  readonly hasRepositories: boolean
   readonly hasEditor: boolean
   readonly hasShell: boolean
-  readonly hasRemote: boolean
+  readonly canFetch: boolean
+  readonly canPush: boolean
+  readonly canPull: boolean
+  readonly canCreateBranch: boolean
+  readonly selectedShell: string | null
+  readonly selectedEditor: string | null
+  readonly isDevelopment?: boolean
+}
+
+const separator = (): MenuItem => ({ type: 'separator' })
+
+function item(
+  id: string,
+  label: string,
+  accelerator: string | undefined,
+  action: MenuBarAction,
+  disabled = false
+): MenuItem {
+  return { type: 'item', id, label, accelerator, action, disabled }
+}
+
+/**
+ * Split an access-key label ('New &repository…') into the text before the
+ * mnemonic, the mnemonic character itself, and the text after it. Labels
+ * without a mnemonic return `accessKey: null` and the whole label in `before`.
+ */
+export function parseAccessKeyLabel(label: string): {
+  readonly before: string
+  readonly accessKey: string | null
+  readonly after: string
+} {
+  const index = label.indexOf('&')
+  if (index === -1 || index === label.length - 1) {
+    return { before: label, accessKey: null, after: '' }
+  }
+  return {
+    before: label.slice(0, index),
+    accessKey: label[index + 1],
+    after: label.slice(index + 2),
+  }
+}
+
+/** The plain label with its mnemonic marker removed, for aria-label text. */
+export function accessKeyStrippedLabel(label: string): string {
+  const { before, accessKey, after } = parseAccessKeyLabel(label)
+  return accessKey === null ? before : `${before}${accessKey}${after}`
+}
+
+function AccessKeyText({ label }: { label: string }) {
+  const { before, accessKey, after } = parseAccessKeyLabel(label)
+  if (accessKey === null) {
+    return <>{label}</>
+  }
+  return (
+    <>
+      {before}
+      <u className="app-menu-access-key">{accessKey}</u>
+      {after}
+    </>
+  )
 }
 
 const ZoomFactors = [0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
@@ -82,11 +191,20 @@ async function handleZoom(
   await setWindowZoomFactor(next)
 }
 
+/** Native Edit roles operate on the focused element, like their OS roles. */
+function runEditCommand(
+  command: 'undo' | 'redo' | 'cut' | 'copy' | 'paste'
+): void {
+  document.execCommand(command)
+}
+
 function executeAction(
   action: MenuBarAction | undefined,
   props: MenuBarProps
 ): void {
-  if (action === undefined) return
+  if (action === undefined) {
+    return
+  }
   switch (action.type) {
     case 'create-repository':
       props.onCreateRepository()
@@ -109,16 +227,31 @@ function executeAction(
     case 'show-history':
       props.onSelectView('history')
       break
-    case 'open-in-new-window':
-      props.onOpenInNewWindow()
+    case 'open-new-window':
+      props.onOpenNewWindow()
       break
-    case 'show-files':
+    case 'show-repository-list':
+      props.onShowRepositoryList()
+      break
+    case 'show-branches-list':
+      props.onShowBranchesList()
+      break
+    case 'go-to-commit-message':
+      props.onGoToCommitMessage()
+      break
+    case 'expand-sidebar':
+      props.onExpandSidebar()
+      break
+    case 'contract-sidebar':
+      props.onContractSidebar()
+      break
+    case 'open-working-directory':
       props.onShowFiles()
       break
-    case 'open-editor':
+    case 'open-external-editor':
       props.onOpenEditor()
       break
-    case 'open-shell':
+    case 'open-in-shell':
       props.onOpenShell()
       break
     case 'fetch':
@@ -130,138 +263,270 @@ function executeAction(
     case 'pull':
       props.onPull()
       break
+    case 'remove-repository':
+      props.onRemoveRepository()
+      break
+    case 'create-branch':
+      props.onNewBranch()
+      break
     case 'show-logs':
       props.onShowLogs()
       break
     case 'quit':
       void quitApp()
       break
+    case 'undo':
+    case 'redo':
+    case 'cut':
+    case 'copy':
+    case 'paste':
+      runEditCommand(action.type)
+      break
+    case 'select-all':
+      selectAllWindowContents()
+      break
     case 'zoom-in':
     case 'zoom-out':
     case 'zoom-reset':
       void handleZoom(action.type)
       break
+    case 'reload':
+      window.location.reload()
+      break
+    case 'toggle-devtools':
+      void toggleDevTools().catch(() => undefined)
+      break
+    case 'report-issue':
+      void openUrl('https://github.com/jabelardo/rdc/issues/new')
+      break
+    case 'view-rdc-on-github':
+      void openUrl('https://github.com/jabelardo/rdc')
+      break
   }
 }
 
 function buildMenu(
-  props: MenuBarProps
-): readonly { label: string; items: readonly MenuItem[] }[] {
-  const currentView = props.repositoryView
+  props: MenuBarProps,
+  isDevelopment: boolean
+): readonly MenuDefinition[] {
+  const shellLabel = props.selectedShell ?? 'shell'
+  const editorLabel = props.selectedEditor ?? 'external editor'
   return [
     {
-      label: 'File',
+      label: '&File',
       items: [
-        {
-          type: 'item',
-          label: 'New Repository…',
-          action: { type: 'create-repository' },
-        },
-        {
-          type: 'item',
-          label: 'Add Local Repository…',
-          action: { type: 'add-local-repository' },
-        },
-        {
-          type: 'item',
-          label: 'Clone Repository…',
-          action: { type: 'clone-repository' },
-        },
-        { type: 'separator' },
-        {
-          type: 'item',
-          label: 'Options…',
-          action: { type: 'show-preferences' },
-        },
-        { type: 'separator' },
-        { type: 'item', label: 'Exit', action: { type: 'quit' } },
+        item('new-repository', 'New &repository…', 'Ctrl+N', {
+          type: 'create-repository',
+        }),
+        item(
+          'new-window',
+          'Open new window',
+          'Ctrl+Alt+N',
+          { type: 'open-new-window' },
+          !props.hasRepository
+        ),
+        separator(),
+        item('add-local-repository', 'Add &local repository…', 'Ctrl+O', {
+          type: 'add-local-repository',
+        }),
+        item('clone-repository', 'Clo&ne repository…', 'Ctrl+Shift+O', {
+          type: 'clone-repository',
+        }),
+        separator(),
+        item('preferences', '&Options…', 'Ctrl+,', {
+          type: 'show-preferences',
+        }),
+        separator(),
+        item('quit', 'E&xit', 'Ctrl+Q', { type: 'quit' }),
       ],
     },
     {
-      label: 'View',
+      label: '&Edit',
       items: [
-        {
-          type: 'item',
-          label: 'Changes',
-          action: { type: 'show-changes' },
-          disabled: currentView === 'changes',
-        },
-        {
-          type: 'item',
-          label: 'History',
-          action: { type: 'show-history' },
-          disabled: currentView === 'history',
-        },
-        { type: 'separator' },
-        { type: 'item', label: 'Zoom In', action: { type: 'zoom-in' } },
-        { type: 'item', label: 'Zoom Out', action: { type: 'zoom-out' } },
-        { type: 'item', label: 'Reset Zoom', action: { type: 'zoom-reset' } },
+        item('undo', '&Undo', undefined, { type: 'undo' }),
+        item('redo', '&Redo', undefined, { type: 'redo' }),
+        separator(),
+        item('cut', 'Cu&t', undefined, { type: 'cut' }),
+        item('copy', '&Copy', undefined, { type: 'copy' }),
+        item('paste', '&Paste', undefined, { type: 'paste' }),
+        item('select-all', 'Select &all', 'Ctrl+A', { type: 'select-all' }),
       ],
     },
     {
-      label: 'Repository',
+      label: '&View',
       items: [
-        {
-          type: 'item',
-          label: 'Open in New Window',
-          action: { type: 'open-in-new-window' },
-          disabled: !props.hasRepository,
-        },
-        {
-          type: 'item',
-          label: 'Show in File Manager',
-          action: { type: 'show-files' },
-          disabled: !props.hasRepository,
-        },
-        {
-          type: 'item',
-          label: 'Open in Editor',
-          action: { type: 'open-editor' },
-          disabled: !props.hasEditor,
-        },
-        {
-          type: 'item',
-          label: 'Open in Terminal',
-          action: { type: 'open-shell' },
-          disabled: !props.hasShell,
-        },
-        { type: 'separator' },
-        {
-          type: 'item',
-          label: 'Fetch',
-          action: { type: 'fetch' },
-          disabled: !props.hasRemote,
-        },
-        {
-          type: 'item',
-          label: 'Pull',
-          action: { type: 'pull' },
-          disabled: !props.hasRemote,
-        },
-        {
-          type: 'item',
-          label: 'Push',
-          action: { type: 'push' },
-          disabled: !props.hasRemote,
-        },
+        item(
+          'show-changes',
+          '&Changes',
+          'Ctrl+1',
+          { type: 'show-changes' },
+          !props.hasRepository
+        ),
+        item(
+          'show-history',
+          '&History',
+          'Ctrl+2',
+          { type: 'show-history' },
+          !props.hasRepository
+        ),
+        item(
+          'show-repository-list',
+          'Repository &list',
+          'Ctrl+T',
+          { type: 'show-repository-list' },
+          !props.hasRepositories
+        ),
+        item(
+          'show-branches-list',
+          '&Branches list',
+          'Ctrl+B',
+          { type: 'show-branches-list' },
+          !props.hasRepository
+        ),
+        separator(),
+        item(
+          'go-to-commit-message',
+          'Go to &Summary',
+          'Ctrl+G',
+          { type: 'go-to-commit-message' },
+          !props.hasRepository
+        ),
+        separator(),
+        item('reset-zoom', 'Reset zoom', 'Ctrl+0', { type: 'zoom-reset' }),
+        item('zoom-in', 'Zoom in', 'Ctrl+=', { type: 'zoom-in' }),
+        item('zoom-out', 'Zoom out', 'Ctrl+-', { type: 'zoom-out' }),
+        item(
+          'increase-active-resizable-width',
+          'Expand active resizable',
+          'Ctrl+9',
+          { type: 'expand-sidebar' }
+        ),
+        item(
+          'decrease-active-resizable-width',
+          'Contract active resizable',
+          'Ctrl+8',
+          { type: 'contract-sidebar' }
+        ),
+        ...(isDevelopment
+          ? [
+              separator(),
+              item('reload-window', '&Reload', 'Ctrl+Alt+R', {
+                type: 'reload',
+              }),
+              item('show-devtools', '&Toggle developer tools', 'Ctrl+Shift+I', {
+                type: 'toggle-devtools',
+              }),
+            ]
+          : []),
       ],
     },
     {
-      label: 'Help',
+      label: '&Repository',
       items: [
-        { type: 'item', label: 'Show Logs', action: { type: 'show-logs' } },
-        { type: 'separator' },
-        { type: 'item', label: 'About RDC', action: { type: 'show-about' } },
+        item('push', 'P&ush', 'Ctrl+P', { type: 'push' }, !props.canPush),
+        item('pull', 'Pu&ll', 'Ctrl+Shift+P', { type: 'pull' }, !props.canPull),
+        item(
+          'fetch',
+          '&Fetch',
+          'Ctrl+Shift+T',
+          { type: 'fetch' },
+          !props.canFetch
+        ),
+        item(
+          'remove-repository',
+          '&Remove…',
+          'Ctrl+Backspace',
+          { type: 'remove-repository' },
+          !props.hasRepository
+        ),
+        separator(),
+        item(
+          'open-in-shell',
+          `O&pen in ${shellLabel}`,
+          'Ctrl+`',
+          { type: 'open-in-shell' },
+          !props.hasShell || !props.hasRepository
+        ),
+        item(
+          'open-working-directory',
+          'Show in your File Manager',
+          'Ctrl+Shift+F',
+          { type: 'open-working-directory' },
+          !props.hasRepository
+        ),
+        item(
+          'open-external-editor',
+          `&Open in ${editorLabel}`,
+          'Ctrl+Shift+A',
+          { type: 'open-external-editor' },
+          !props.hasEditor || !props.hasRepository
+        ),
+      ],
+    },
+    {
+      label: '&Branch',
+      items: [
+        item(
+          'create-branch',
+          'New &branch…',
+          'Ctrl+Shift+N',
+          { type: 'create-branch' },
+          !props.canCreateBranch
+        ),
+      ],
+    },
+    {
+      label: '&Help',
+      items: [
+        item('report-issue', 'Report issue…', undefined, {
+          type: 'report-issue',
+        }),
+        item('view-rdc-on-github', 'View RDC on &GitHub', undefined, {
+          type: 'view-rdc-on-github',
+        }),
+        item('show-logs', 'S&how logs in your File Manager', undefined, {
+          type: 'show-logs',
+        }),
+        separator(),
+        item('about', '&About RDC', undefined, { type: 'show-about' }),
       ],
     },
   ]
 }
 
 export function MenuBar(props: MenuBarProps) {
+  const isDevelopment =
+    props.isDevelopment ?? __RELEASE_CHANNEL__ === 'development'
+  const menus = buildMenu(props, isDevelopment)
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  const [activeTriggerIndex, setActiveTriggerIndex] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const triggerRefs = useRef<Array<HTMLButtonElement | null>>([])
+
+  const openMenuAt = useCallback(
+    (index: number, viaKeyboard: boolean) => {
+      setActiveTriggerIndex(index)
+      setAnchor(triggerRefs.current[index])
+      setOpenMenu(menus[index].label)
+      if (viaKeyboard) {
+        requestAnimationFrame(() => {
+          const buttons =
+            dropdownRef.current?.querySelectorAll<HTMLButtonElement>(
+              '[role="menuitem"]:not(:disabled)'
+            )
+          buttons?.[0]?.focus()
+        })
+      }
+    },
+    [menus]
+  )
+
+  const closeMenu = useCallback(() => {
+    setOpenMenu(null)
+    triggerRefs.current[activeTriggerIndex]?.focus()
+  }, [activeTriggerIndex])
 
   const closeIfOutside = useCallback((event: PointerEvent) => {
     const target = event.target as Node
@@ -280,6 +545,45 @@ export function MenuBar(props: MenuBarProps) {
     return () => window.removeEventListener('pointerdown', closeIfOutside)
   }, [openMenu, closeIfOutside])
 
+  const focusTrigger = useCallback((index: number) => {
+    setActiveTriggerIndex(index)
+    triggerRefs.current[index]?.focus()
+  }, [])
+
+  const switchMenu = useCallback(
+    (direction: 1 | -1, viaKeyboard: boolean) => {
+      const openIndex = menus.findIndex(menu => menu.label === openMenu)
+      const base = openIndex === -1 ? activeTriggerIndex : openIndex
+      const next = (base + direction + menus.length) % menus.length
+      openMenuAt(next, viaKeyboard)
+    },
+    [menus, openMenu, activeTriggerIndex, openMenuAt]
+  )
+
+  const onContainerKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (
+      event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey &&
+      event.key.length === 1
+    ) {
+      const key = event.key.toLowerCase()
+      const index = menus.findIndex(
+        menu => parseAccessKeyLabel(menu.label).accessKey?.toLowerCase() === key
+      )
+      if (index !== -1) {
+        event.preventDefault()
+        if (openMenu === menus[index].label) {
+          setOpenMenu(null)
+          triggerRefs.current[index]?.focus()
+        } else {
+          openMenuAt(index, true)
+        }
+      }
+    }
+  }
+
   const toggleMenu = (
     label: string,
     event: React.MouseEvent<HTMLButtonElement>
@@ -288,11 +592,11 @@ export function MenuBar(props: MenuBarProps) {
       setOpenMenu(null)
       return
     }
+    const index = menus.findIndex(menu => menu.label === label)
+    setActiveTriggerIndex(index)
     setAnchor(event.currentTarget)
     setOpenMenu(label)
   }
-
-  const menus = buildMenu(props)
 
   return (
     <div
@@ -300,23 +604,64 @@ export function MenuBar(props: MenuBarProps) {
       className="app-menu-bar"
       role="menubar"
       aria-label="Application menu"
+      onKeyDown={onContainerKeyDown}
     >
-      {menus.map(menu => (
+      {menus.map((menu, index) => (
         <div key={menu.label} className="app-menu-trigger" role="none">
           <button
+            ref={element => {
+              triggerRefs.current[index] = element
+            }}
             type="button"
             role="menuitem"
             aria-haspopup="true"
             aria-expanded={openMenu === menu.label}
-            onClick={e => toggleMenu(menu.label, e)}
-            onMouseEnter={e => {
+            aria-label={accessKeyStrippedLabel(menu.label)}
+            tabIndex={index === activeTriggerIndex ? 0 : -1}
+            onClick={event => toggleMenu(menu.label, event)}
+            onMouseEnter={event => {
               if (openMenu !== null) {
-                setAnchor(e.currentTarget)
+                const hovered = menus.findIndex(
+                  candidate => candidate.label === menu.label
+                )
+                setActiveTriggerIndex(hovered)
+                setAnchor(event.currentTarget)
                 setOpenMenu(menu.label)
               }
             }}
+            onKeyDown={event => {
+              switch (event.key) {
+                case 'ArrowDown':
+                case 'Enter':
+                case ' ':
+                  event.preventDefault()
+                  openMenuAt(index, true)
+                  break
+                case 'ArrowRight':
+                  event.preventDefault()
+                  focusTrigger((index + 1) % menus.length)
+                  if (openMenu !== null) {
+                    openMenuAt((index + 1) % menus.length, true)
+                  }
+                  break
+                case 'ArrowLeft':
+                  event.preventDefault()
+                  focusTrigger((index - 1 + menus.length) % menus.length)
+                  if (openMenu !== null) {
+                    openMenuAt((index - 1 + menus.length) % menus.length, true)
+                  }
+                  break
+                case 'Escape':
+                  if (openMenu !== null) {
+                    event.preventDefault()
+                    setOpenMenu(null)
+                    triggerRefs.current[index]?.focus()
+                  }
+                  break
+              }
+            }}
           >
-            {menu.label}
+            <AccessKeyText label={menu.label} />
           </button>
           {openMenu === menu.label && (
             <MenuDropdown
@@ -327,6 +672,8 @@ export function MenuBar(props: MenuBarProps) {
                 executeAction(action, props)
                 setOpenMenu(null)
               }}
+              onClose={closeMenu}
+              onSwitchMenu={switchMenu}
             />
           )}
         </div>
@@ -336,10 +683,12 @@ export function MenuBar(props: MenuBarProps) {
 }
 
 type MenuDropdownProps = {
-  readonly items: readonly MenuItem[]
+  readonly items: ReadonlyArray<MenuItem>
   readonly anchor: HTMLElement | null
   readonly dropdownRef: React.Ref<HTMLDivElement>
   readonly onAction: (action: MenuBarAction | undefined) => void
+  readonly onClose: () => void
+  readonly onSwitchMenu: (direction: 1 | -1, viaKeyboard: boolean) => void
 }
 
 function MenuDropdown({
@@ -347,11 +696,23 @@ function MenuDropdown({
   anchor,
   dropdownRef,
   onAction,
+  onClose,
+  onSwitchMenu,
 }: MenuDropdownProps) {
   const [position, setPosition] = useState<{
     top: number
     left: number
   } | null>(null)
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
+
+  const focusableIndices = useMemo(
+    () =>
+      items.flatMap((candidate, index) =>
+        candidate.type === 'item' && !candidate.disabled ? [index] : []
+      ),
+    [items]
+  )
 
   useLayoutEffect(() => {
     if (!anchor || !dropdownRef) return
@@ -374,16 +735,90 @@ function MenuDropdown({
     setPosition({ top, left })
   }, [anchor, dropdownRef])
 
+  const moveFocus = (direction: 1 | -1) => {
+    if (focusableIndices.length === 0) return
+    const current = focusedIndex === null ? -1 : focusedIndex
+    const positionInList = focusableIndices.indexOf(current)
+    const nextPosition =
+      direction === 1
+        ? (positionInList + 1) % focusableIndices.length
+        : (positionInList - 1 + focusableIndices.length) %
+          focusableIndices.length
+    itemRefs.current[focusableIndices[nextPosition]]?.focus()
+  }
+
   return createPortal(
     <div
       ref={dropdownRef}
       className="app-menu-dropdown"
       role="menu"
       style={position ?? { visibility: 'hidden' }}
-      onClick={e => e.stopPropagation()}
+      onClick={event => event.stopPropagation()}
+      onKeyDown={event => {
+        switch (event.key) {
+          case 'ArrowDown':
+            event.preventDefault()
+            moveFocus(1)
+            break
+          case 'ArrowUp':
+            event.preventDefault()
+            moveFocus(-1)
+            break
+          case 'Home':
+            event.preventDefault()
+            itemRefs.current[focusableIndices[0]]?.focus()
+            break
+          case 'End':
+            event.preventDefault()
+            itemRefs.current[
+              focusableIndices[focusableIndices.length - 1]
+            ]?.focus()
+            break
+          case 'ArrowRight':
+            event.preventDefault()
+            onSwitchMenu(1, true)
+            break
+          case 'ArrowLeft':
+            event.preventDefault()
+            onSwitchMenu(-1, true)
+            break
+          case 'Escape':
+            event.preventDefault()
+            onClose()
+            break
+          case 'Tab':
+            event.preventDefault()
+            onClose()
+            break
+          default:
+            if (
+              !event.ctrlKey &&
+              !event.metaKey &&
+              !event.altKey &&
+              event.key.length === 1
+            ) {
+              const key = event.key.toLowerCase()
+              const index = items.findIndex(
+                candidate =>
+                  candidate.type === 'item' &&
+                  !candidate.disabled &&
+                  parseAccessKeyLabel(
+                    candidate.label
+                  ).accessKey?.toLowerCase() === key
+              )
+              if (index !== -1) {
+                event.preventDefault()
+                onAction(
+                  items[index].type === 'item' ? items[index].action : undefined
+                )
+              }
+            }
+            break
+        }
+      }}
     >
-      {items.map((item, index) => {
-        if (item.type === 'separator') {
+      {items.map((candidate, index) => {
+        if (candidate.type === 'separator') {
           return (
             <div key={index} className="app-menu-separator" role="separator" />
           )
@@ -391,12 +826,24 @@ function MenuDropdown({
         return (
           <button
             key={index}
+            ref={element => {
+              itemRefs.current[index] = element
+            }}
             type="button"
             role="menuitem"
-            disabled={item.disabled}
-            onClick={() => onAction(item.action)}
+            aria-label={accessKeyStrippedLabel(candidate.label)}
+            disabled={candidate.disabled}
+            onFocus={() => setFocusedIndex(index)}
+            onClick={() => onAction(candidate.action)}
           >
-            {item.label}
+            <span>
+              <AccessKeyText label={candidate.label} />
+            </span>
+            {candidate.accelerator !== undefined && (
+              <span className="app-menu-accelerator" aria-hidden="true">
+                {candidate.accelerator}
+              </span>
+            )}
           </button>
         )
       })}

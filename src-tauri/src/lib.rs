@@ -212,6 +212,7 @@ pub fn run() {
             commands::window::open_repository_in_new_window,
             commands::window::get_current_window_zoom_factor,
             commands::window::set_window_zoom_factor,
+            commands::window::toggle_devtools,
             commands::window::renderer_ready,
             commands::files::classify_folder_open,
             commands::files::move_item_to_trash,

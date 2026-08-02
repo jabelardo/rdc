@@ -350,6 +350,7 @@ export function buildDefaultMenu(
         id: 'show-devtools',
         label: mac ? 'Toggle Developer Tools' : '&Toggle developer tools',
         action: { type: 'show-devtools' },
+        visible: __RELEASE_CHANNEL__ === 'development',
       },
     ],
   })
