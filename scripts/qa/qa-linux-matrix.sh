@@ -121,6 +121,15 @@ main() {
     exit 1
   fi
 
+  # Wait for the app to fully load: the window-state plugin restores the saved
+  # maximized flag during the renderer_ready handshake, which runs after the
+  # window is created. If we write the driver file before that completes, the
+  # driver applies geometry first and renderer_ready re-maximizes it afterwards,
+  # leaving the first cell captured still maximized. A one-time settle avoids
+  # that race without a timer loop in the driver.
+  echo "Waiting for app to settle..."
+  sleep 3
+
   IFS=':' read -r -a theme_list <<< "$THEMES"
   for theme in "${theme_list[@]}"; do
     [[ -n "$theme" ]] || continue
