@@ -65,11 +65,18 @@ echo "Themes         : ${THEMES//:/, }"
 
 # Waits for a newly-created file to appear in the screenshot dir after writing
 # a driver state, then copies it to the evidence dir under the cell name.
+#
+# The host screenshot dir may contain old files (including a non-PrtScn
+# `screenshot.png` that sorts alphabetically after `Screenshot From…`). We
+# therefore detect new files by modification time (`ls -1t`) rather than
+# alphabetical order, and compare against a baseline mtime captured before the
+# driver state is written.
 capture_cell() {
   local name="$1" w="$2" h="$3" view="$4" sidebar="$5" theme="$6"
-  local before newest
+  local before_ts newest
 
-  before="$(ls -1 "$QA_SHOT_DIR" 2>/dev/null | sort)"
+  # Baseline: most-recently-modified file's mtime before we write.
+  before_ts=$(stat -c %Y "$QA_SHOT_DIR"/* 2>/dev/null | sort -rn | head -1 || echo 0)
 
   cat > "$DRIVER_FILE" <<JSON
 {
@@ -90,11 +97,16 @@ JSON
   local deadline=$((SECONDS + 120))
   while (( SECONDS < deadline )); do
     sleep 1
-    newest="$(ls -1 "$QA_SHOT_DIR" 2>/dev/null | sort | tail -1 || true)"
-    if [[ -n "$newest" && "$(ls -1 "$QA_SHOT_DIR" | sort)" != "$before" ]]; then
-      cp "$QA_SHOT_DIR/$newest" "$QA_EVIDENCE_DIR/$name.png"
-      echo "Captured -> $QA_EVIDENCE_DIR/$name.png"
-      return 0
+    # Find the most-recently-modified file newer than our baseline.
+    newest=$(ls -1t "$QA_SHOT_DIR" 2>/dev/null | head -1 || true)
+    if [[ -n "$newest" ]]; then
+      local newest_ts
+      newest_ts=$(stat -c %Y "$QA_SHOT_DIR/$newest" 2>/dev/null || echo 0)
+      if (( newest_ts > before_ts )); then
+        cp "$QA_SHOT_DIR/$newest" "$QA_EVIDENCE_DIR/$name.png"
+        echo "Captured -> $QA_EVIDENCE_DIR/$name.png  ($newest)"
+        return 0
+      fi
     fi
   done
   echo "WARN: no new screenshot within 120s for $name (skipping)" >&2
