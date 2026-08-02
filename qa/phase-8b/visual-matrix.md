@@ -15,9 +15,9 @@ principles and native platform conventions without copying its layout or values.
 | macOS native WKWebView | normal (at least 1100×720) | pending | pending | pending |
 | macOS native WKWebView | default (800×600) | pending | pending | pending |
 | macOS native WKWebView | compact width (715×720) | pending | pending | pending |
-| Ubuntu 26.04 native Wayland | normal (at least 1100×720) | pending | pending | pending |
-| Ubuntu 26.04 native Wayland | default (800×600) | pending | pending | pending |
-| Ubuntu 26.04 native Wayland | compact width (715×720) | pending | pending | pending |
+| Fedora 44 Wayland (Bluefin host) | normal (at least 1100×720) | approved 2026-08-02 | approved 2026-08-02 | — |
+| Fedora 44 Wayland (Bluefin host) | default (800×600) | approved 2026-08-02 | approved 2026-08-02 | — |
+| Fedora 44 Wayland (Bluefin host) | compact width (715×720) | approved 2026-08-02 | approved 2026-08-02 | — |
 
 Gate E separately owns the 715×356 native floor and continuous transitions. The compact visual row
 keeps enough height to judge hierarchy while using the narrowest supported width; do not resurrect
@@ -37,3 +37,10 @@ Use the manifest's named reproducible states rather than trying to catch transie
 `clean` for clean Changes/History; `populated` for working-tree and long-name states; `delayedPush`
 for progress; `commitHook` for terminal/error presentation; and `unreachableRemote` or a missing
 integration for actionable failure presentation. Record which scenario backs each capture.
+
+## Post-MVP follow-ups from the Linux Wayland cycle
+
+- **Sidebar section disclosure in expanded cells**: the REPOSITORIES and BRANCHES sections
+  remained collapsed in every "expanded" cell. The driver does not explicitly expand them; the
+  sidebar is visible but empty. Verify whether the matrix intends section content to be visible
+  when the sidebar is "expanded", and if so, drive the sections open. Non-blocking for MVP.
