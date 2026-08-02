@@ -33,22 +33,26 @@ QA_SHOT_DIR="${QA_SHOT_DIR:-/var/home/joseg/Pictures/Screenshots}"
 QA_EVIDENCE_DIR="${QA_EVIDENCE_DIR:-/tmp/rdc-qa-evidence}"
 DRIVER_FILE="${RDC_QA_DRIVER:-/tmp/rdc-qa-driver.json}"
 REPO_PATH="${RDC_QA_REPO:-/tmp/rdc-phase8b-fedora-cycle-1/populated}"
-THEME="${RDC_QA_THEME:-light}"
+# Colon-separated list of themes to capture; extend or narrow per run, e.g.
+# RDC_QA_THEMES=dark. Defaults to the two explicit matrix themes (Light and
+# Dark); "system" is intentionally excluded — it depends on the host's global
+# scheme, and the matrix reviews each theme deterministically instead.
+THEMES="${RDC_QA_THEMES:-light:dark}"
 
-# The matrix viewports (width x height) and the review order from
-# qa/phase-8b/visual-matrix.md, per theme: normal -> default -> compact, then
-# the sidebar-collapsed passes. Each row: name width height view sidebar.
-# name                      w     h     view      sidebar
+# The matrix viewports x views x sidebar states, per qa/phase-8b/visual-matrix.md.
+# Each theme repeats these in order: normal -> default -> compact, then the
+# sidebar-collapsed and history passes. Each row: name-suffix width height view sidebar.
+# name-suffix               w     h     view      sidebar
 CELLS=(
-  "normal-light"            1100  720   changes   expanded
-  "default-light"           800   600   changes   expanded
-  "compact-light"           715   720   changes   expanded
-  "normal-light-collapsed"  1100  720   changes   collapsed
-  "default-light-collapsed" 800   600   changes   collapsed
-  "compact-light-collapsed" 715   720   changes   collapsed
-  "normal-light-history"    1100  720   history   expanded
-  "default-light-history"   800   600   history   expanded
-  "compact-light-history"   715   720   history   expanded
+  "normal-expanded"         1100  720   changes   expanded
+  "default-expanded"        800   600   changes   expanded
+  "compact-expanded"        715   720   changes   expanded
+  "normal-collapsed"        1100  720   changes   collapsed
+  "default-collapsed"       800   600   changes   collapsed
+  "compact-collapsed"       715   720   changes   collapsed
+  "normal-history"          1100  720   history   expanded
+  "default-history"         800   600   history   expanded
+  "compact-history"         715   720   history   expanded
 )
 
 mkdir -p "$QA_EVIDENCE_DIR"
@@ -57,12 +61,12 @@ echo "QA driver file : $DRIVER_FILE"
 echo "Screenshot dir : $QA_SHOT_DIR"
 echo "Evidence dir   : $QA_EVIDENCE_DIR"
 echo "Repository     : $REPO_PATH"
-echo "Theme          : $THEME"
+echo "Themes         : ${THEMES//:/, }"
 
 # Waits for a newly-created file to appear in the screenshot dir after writing
 # a driver state, then copies it to the evidence dir under the cell name.
 capture_cell() {
-  local name="$1" w="$2" h="$3" view="$4" sidebar="$5"
+  local name="$1" w="$2" h="$3" view="$4" sidebar="$5" theme="$6"
   local before newest
 
   before="$(ls -1 "$QA_SHOT_DIR" 2>/dev/null | sort)"
@@ -71,7 +75,7 @@ capture_cell() {
 {
   "width": $w,
   "height": $h,
-  "theme": "$THEME",
+  "theme": "$theme",
   "view": "$view",
   "sidebarCollapsed": $([ "$sidebar" = collapsed ] && echo true || echo false),
   "repository": "$REPO_PATH"
@@ -79,7 +83,7 @@ capture_cell() {
 JSON
 
   echo
-  echo "=== Cell: $name  (${w}x${h}, view=$view, sidebar=$sidebar) ==="
+  echo "=== Cell: $name  (${w}x${h}, view=$view, sidebar=$sidebar, theme=$theme) ==="
   echo "State written to $DRIVER_FILE"
   echo ">>> PRESS PrtScn on the HOST now to capture this cell <<<"
 
@@ -105,9 +109,16 @@ main() {
     exit 1
   fi
 
-  for (( i=0; i<${#CELLS[@]}; i+=5 )); do
-    capture_cell "${CELLS[$i]}" "${CELLS[$i+1]}" "${CELLS[$i+2]}" \
-      "${CELLS[$i+3]}" "${CELLS[$i+4]}"
+  IFS=':' read -r -a theme_list <<< "$THEMES"
+  for theme in "${theme_list[@]}"; do
+    [[ -n "$theme" ]] || continue
+    echo
+    echo "########## Theme: $theme ##########"
+    for (( i=0; i<${#CELLS[@]}; i+=5 )); do
+      local suffix="${CELLS[$i]}" w="${CELLS[$i+1]}" h="${CELLS[$i+2]}" \
+        view="${CELLS[$i+3]}" sidebar="${CELLS[$i+4]}"
+      capture_cell "${suffix}-${theme}" "$w" "$h" "$view" "$sidebar" "$theme"
+    done
   done
 
   echo

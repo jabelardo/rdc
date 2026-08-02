@@ -19,7 +19,11 @@ findings. It pairs with the driver script `scripts/qa/qa-linux-matrix.sh`.
 ## Your inputs
 
 1. **Captures** — PNGs in `$QA_EVIDENCE_DIR` (default `/tmp/rdc-qa-evidence`),
-   named like `normal-light.png`, `compact-light-history.png`, etc.
+   named like `normal-expanded-light.png`, `compact-history-light.png`,
+   `normal-collapsed-dark.png`, etc. The driver runs the full viewport/view/
+   sidebar set once per theme (Light then Dark). "System" is intentionally not
+   captured — it resolves to Light or Dark per the host scheme, and the matrix
+   reviews each theme deterministically instead.
 2. **Checklist** — `qa/phase-8b/visual-matrix.md` (the expected presentation
    states per cell).
 3. **Fixture** — each capture uses the `populated` repository, which exercises
@@ -28,17 +32,18 @@ findings. It pairs with the driver script `scripts/qa/qa-linux-matrix.sh`.
 
 ## Cell naming -> what to expect
 
-| Suffix        | Meaning                                        |
-|---------------|------------------------------------------------|
-| `normal`      | window ≥ 1100×720 (full-width hierarchy)        |
-| `default`     | window 800×600                                |
-| `compact`     | window 715×720 (narrowest supported width)     |
-| `light`       | Light theme (the current driver default)       |
-| `history`     | History view loaded (commit list + diff)       |
-| `collapsed`   | Repositories/Branches sidebar is collapsed     |
-| (no such tag) | Changes view, sidebar expanded                 |
+| Suffix      | Meaning                                   |
+|-------------|-------------------------------------------|
+| `normal`    | window ≥ 1100×720 (full-width hierarchy)   |
+| `default`   | window 800×600                           |
+| `compact`   | window 715×720 (narrowest supported width)|
+| `light`     | Light theme                              |
+| `dark`      | Dark theme                               |
+| `history`   | History view loaded (commit list + diff)  |
+| `collapsed` | Repositories/Branches sidebar is collapsed|
+| `expanded`  | sidebar expanded (the default/untagged)   |
 
-If the file name lacks a tag, assume Changes + sidebar expanded.
+If the file name lacks a view/sidebar tag, assume Changes + sidebar expanded.
 
 ## What to verify in every cell
 
