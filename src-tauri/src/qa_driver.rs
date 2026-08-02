@@ -57,14 +57,11 @@ fn driver_path_from_env() -> PathBuf {
 
 /// Start the QA driver watcher. Debug builds only; call from `setup`.
 ///
-/// Reads the driver file each poll and remembers the last parsed state. When
-/// the file's content changes the full state is applied (geometry natively,
-/// the rest as an event); additionally, geometry is *re-asserted on every poll*
-/// while the window is maximized but the recorded state asked for a specific
-/// size. That self-heal matters because the window-state plugin restores the
-/// saved maximized flag on launch and may re-maximize the window *after* the
-/// initial apply, at which point the file content no longer changes and a
-/// one-shot apply would never fire again.
+/// Reads the driver file each poll and applies the state **once** when the
+/// content changes (geometry natively, the rest as an event). Geometry is
+/// deliberately *not* re-asserted on a timer: re-running `set_size` every poll
+/// would fight a human resizing the window by hand during a QA session. The
+/// driver is a one-shot state setter, not a geometry lock.
 pub fn spawn(app: AppHandle) {
     let path = driver_path_from_env();
     let path = Arc::new(path);
@@ -86,10 +83,6 @@ pub fn spawn(app: AppHandle) {
                             log::warn!("qa-driver: failed to apply state: {error}");
                         }
                     }
-                } else if let Some(state) = parsed {
-                    // No file change: still re-assert geometry in case the
-                    // window drifted maximized (see the self-heal note above).
-                    let _ = apply_geometry(&app, &state);
                 }
             }
             None => {
@@ -129,8 +122,7 @@ fn apply_full(app: &AppHandle, state: &QaState) -> Result<(), String> {
 }
 
 /// Resize the main window to the requested logical size, unmaximizing first
-/// when needed. Idempotent and cheap, so safe to call every poll: it becomes a
-/// no-op once the window is unmaximized and already at the requested size.
+/// when needed. Runs once per file change, not on a timer.
 fn apply_geometry(app: &AppHandle, state: &QaState) -> Result<(), String> {
     if state.width.is_none() && state.height.is_none() {
         return Ok(());
@@ -139,33 +131,21 @@ fn apply_geometry(app: &AppHandle, state: &QaState) -> Result<(), String> {
         return Ok(());
     };
 
-    let window_is_maximized = window.is_maximized().unwrap_or(false);
-    let current = window
-        .outer_size()
-        .map_err(|e| format!("read outer size: {e}"))?;
-    let current_logical = current.to_logical::<f64>(window.scale_factor().unwrap_or(1.0));
-
-    let width = state.width.unwrap_or(current_logical.width);
-    let height = state.height.unwrap_or(current_logical.height);
-
-    // Nothing to do if the window is already unmaximized at the requested size.
-    if !window_is_maximized
-        && (current_logical.width - width).abs() < 1.0
-        && (current_logical.height - height).abs() < 1.0
-    {
-        return Ok(());
-    }
-
     // A maximized window ignores set_size (the compositor owns its geometry),
     // and the window-state plugin restores the saved maximized flag on every
     // launch. Unmaximize before resizing so the matrix's exact viewports
     // actually take effect.
-    if window_is_maximized {
+    if window.is_maximized().unwrap_or(false) {
         window
             .unmaximize()
             .map_err(|e| format!("unmaximize: {e}"))?;
     }
 
+    let current = window
+        .outer_size()
+        .map_err(|e| format!("read outer size: {e}"))?;
+    let width = state.width.unwrap_or(current.width as f64);
+    let height = state.height.unwrap_or(current.height as f64);
     let size = tauri::LogicalSize::new(width, height);
     window.set_size(size).map_err(|e| format!("set size: {e}"))
 }

@@ -1562,12 +1562,9 @@ through shared host resources:
   geometry) and the rest — theme, view, sidebar, repository — via a `qa-drive` event. A maximized
   window ignores `set_size` (the compositor owns its geometry), and the window-state plugin
   restores the saved maximized flag on every launch, so the driver unmaximizes before resizing —
-  without that, the matrix's exact viewports silently never apply. Because the plugin can
-  re-maximize the window *after* the first apply (while the driver file content no longer
-  changes), geometry is also re-asserted every poll while the window is maximized but the
-  recorded state requested a size; without that self-heal, the first matrix cell could be
-  captured still maximized. The re-assertion is a no-op once the window is unmaximized at the
-  requested size.
+  without that, the matrix's exact viewports silently never apply. The driver applies each state
+  **once** on file change and never re-asserts geometry on a timer, so it never fights a human
+  resizing the window by hand during a QA session.
 - A **debug-only frontend hook** (`src/lib/ui/app/use-qa-state-driver.ts`) listens for `qa-drive`
   and applies it through the existing stores. It is gated on `__DEV__` **and** a runtime
   `__TAURI_INTERNALS__` check, so it is dead code in release builds and never subscribes in jsdom
