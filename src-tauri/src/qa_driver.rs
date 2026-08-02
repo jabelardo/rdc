@@ -108,6 +108,15 @@ fn apply(app: &AppHandle, contents: &str) -> Result<(), String> {
     // Apply the native-owned portion (window geometry) first.
     if let Some(window) = app.get_webview_window("main") {
         if state.width.is_some() || state.height.is_some() {
+            // A maximized window ignores set_size (the compositor owns its
+            // geometry), and the window-state plugin restores the saved
+            // maximized flag on every launch. Unmaximize before resizing so
+            // the matrix's exact viewports actually take effect.
+            if window.is_maximized().unwrap_or(false) {
+                window
+                    .unmaximize()
+                    .map_err(|e| format!("unmaximize: {e}"))?;
+            }
             let current = window
                 .outer_size()
                 .map_err(|e| format!("read outer size: {e}"))?;

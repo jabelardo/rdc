@@ -1559,7 +1559,10 @@ through shared host resources:
 - A **debug-only Rust state driver** (`src-tauri/src/qa_driver.rs`, compiled only under
   `#[cfg(debug_assertions)]`) polls a driver file (`$RDC_QA_DRIVER`, default
   `/tmp/rdc-qa-driver.json`) and applies the requested state: window size natively (Rust owns
-  geometry) and the rest — theme, view, sidebar, repository — via a `qa-drive` event.
+  geometry) and the rest — theme, view, sidebar, repository — via a `qa-drive` event. A maximized
+  window ignores `set_size` (the compositor owns its geometry), and the window-state plugin
+  restores the saved maximized flag on every launch, so the driver unmaximizes before resizing —
+  without that, the matrix's exact viewports silently never apply.
 - A **debug-only frontend hook** (`src/lib/ui/app/use-qa-state-driver.ts`) listens for `qa-drive`
   and applies it through the existing stores. It is gated on `__DEV__` **and** a runtime
   `__TAURI_INTERNALS__` check, so it is dead code in release builds and never subscribes in jsdom
