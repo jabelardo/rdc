@@ -29,6 +29,16 @@ type RepositoryMenuEnvironment = {
   readonly removeRepository?: (repository: Repository) => void | Promise<void>
   readonly openInShell?: (path: string) => void | Promise<void>
   readonly openInExternalEditor?: (path: string) => void | Promise<void>
+  // Linux/Windows in-window-menu companions: these route the keybinding-tree
+  // accelerators (Ctrl+B, Ctrl+G, Ctrl+9/8, Ctrl+Shift+N) to the same actions
+  // as the visible menu bar. They are required because the enablement map
+  // below enables the corresponding items on non-macOS platforms; macOS keeps
+  // those items disabled and so never reaches these callbacks.
+  readonly showBranches: () => void
+  readonly goToCommitMessage: () => void
+  readonly increaseActiveResizableWidth: () => void
+  readonly decreaseActiveResizableWidth: () => void
+  readonly createBranch: () => void
 }
 
 function withEnablement(
@@ -107,6 +117,21 @@ export function buildRepositoryMenu(
     ['push', canPush],
     ['pull', canPull],
   ])
+  // macOS keeps the keybinding-tree items for these actions honestly disabled
+  // (this host cannot run macOS; see the QA findings), so the native menu is
+  // unchanged. The Linux/Windows keybinding dispatcher needs them enabled for
+  // the accelerators the in-window menu bar displays (Ctrl+B, Ctrl+G, Ctrl+9,
+  // Ctrl+8, Ctrl+Shift+N); each routes to a `RepositoryMenuEnvironment`
+  // callback that mirrors the visible menu bar's handler. `create-branch` is
+  // deliberately only selection-gated here; the visible menu bar applies the
+  // stricter operation/merge guards and the sidebar form disables its submit.
+  if (platform !== 'macos') {
+    enabledByID.set('show-branches-list', hasSelection)
+    enabledByID.set('go-to-commit-message', hasSelection)
+    enabledByID.set('increase-active-resizable-width', true)
+    enabledByID.set('decrease-active-resizable-width', true)
+    enabledByID.set('create-branch', hasSelection)
+  }
   const menu = buildStartupMenu(
     platform,
     preferencesState === undefined
@@ -226,6 +251,30 @@ export function createRepositoryMenuEventExecutor(
           return false
         }
         await environment.pull()
+        return true
+      case 'show-branches':
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        environment.showBranches()
+        return true
+      case 'go-to-commit-message':
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        environment.goToCommitMessage()
+        return true
+      case 'increase-active-resizable-width':
+        environment.increaseActiveResizableWidth()
+        return true
+      case 'decrease-active-resizable-width':
+        environment.decreaseActiveResizableWidth()
+        return true
+      case 'create-branch':
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        environment.createBranch()
         return true
       default:
         return false

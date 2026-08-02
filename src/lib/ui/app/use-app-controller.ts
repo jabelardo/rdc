@@ -86,6 +86,8 @@ export function useAppController() {
   const [error, setError] = useState<string | null>(null)
   const [commitMessage, setCommitMessage] = useState('')
   const [newBranchName, setNewBranchName] = useState('')
+  const [showBranchCreation, setShowBranchCreation] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState(264)
   const [bypassHooks, setBypassHooks] = useState(false)
   const [commitTerminalOutput, setCommitTerminalOutput] = useState('')
   const [discardFileID, setDiscardFileID] = useState<string | null>(null)
@@ -194,6 +196,11 @@ export function useAppController() {
       removeRepository: requestRemoveRepository,
       openInShell,
       openInExternalEditor,
+      showBranches,
+      goToCommitMessage,
+      increaseActiveResizableWidth,
+      decreaseActiveResizableWidth,
+      createBranch,
     })
     const replaceMenu = () => {
       if (controller === undefined) {
@@ -725,6 +732,44 @@ export function useAppController() {
     setExpandedSidebarSections(new Set<SidebarSectionID>([section]))
   }
 
+  // The five in-window-menu companions. They are the single implementation for
+  // both the visible Linux/Windows menu bar and the keybinding-tree
+  // accelerators (Ctrl+B, Ctrl+G, Ctrl+9/8, Ctrl+Shift+N), so both surfaces
+  // route to the same behavior. macOS never reaches them (its tree keeps those
+  // items disabled).
+  function showBranches(): void {
+    activateSidebarSection('branches')
+    requestAnimationFrame(() =>
+      document.getElementById('sidebar-branches-heading')?.focus()
+    )
+  }
+
+  function goToCommitMessage(): void {
+    if (activeRepositoryView.current !== 'changes') {
+      selectRepositoryView('changes')
+    }
+    requestAnimationFrame(() =>
+      document.getElementById('commit-message')?.focus()
+    )
+  }
+
+  function increaseActiveResizableWidth(): void {
+    setSidebarCollapsed(false)
+    setSidebarWidth(width => Math.min(width + 16, 640))
+  }
+
+  function decreaseActiveResizableWidth(): void {
+    setSidebarWidth(width => Math.max(width - 16, 125))
+  }
+
+  function createBranch(): void {
+    setShowBranchCreation(true)
+    activateSidebarSection('branches')
+    requestAnimationFrame(() =>
+      document.getElementById('new-branch-name')?.focus()
+    )
+  }
+
   function selectRepositoryView(view: RepositoryView): void {
     if (view === 'changes') {
       repositoryViewTransitionID.current++
@@ -853,6 +898,15 @@ export function useAppController() {
     cancelDiscard,
     toggleSidebarSection,
     activateSidebarSection,
+    showBranches,
+    goToCommitMessage,
+    increaseActiveResizableWidth,
+    decreaseActiveResizableWidth,
+    createBranch,
+    sidebarWidth,
+    setSidebarWidth,
+    showBranchCreation,
+    setShowBranchCreation,
   }
 }
 

@@ -193,6 +193,11 @@ describe('repository application menu', () => {
           removeRepository: vi.fn(),
           openInShell: vi.fn(),
           openInExternalEditor: vi.fn(),
+          showBranches: vi.fn(),
+          goToCommitMessage: vi.fn(),
+          increaseActiveResizableWidth: vi.fn(),
+          decreaseActiveResizableWidth: vi.fn(),
+          createBranch: vi.fn(),
         }
       )
       const executeStartupAction = createStartupMenuActionExecutor({
@@ -253,6 +258,11 @@ describe('repository application menu actions', () => {
       showPreferences: vi.fn(),
       openInShell: vi.fn(async () => undefined),
       openInExternalEditor: vi.fn(async () => undefined),
+      showBranches: vi.fn(),
+      goToCommitMessage: vi.fn(),
+      increaseActiveResizableWidth: vi.fn(),
+      decreaseActiveResizableWidth: vi.fn(),
+      createBranch: vi.fn(),
     }
     const execute = createRepositoryMenuEventExecutor(store, environment)
 
@@ -272,6 +282,11 @@ describe('repository application menu actions', () => {
     await expect(execute('show-preferences')).resolves.toBe(true)
     await expect(execute('open-in-shell')).resolves.toBe(true)
     await expect(execute('open-external-editor')).resolves.toBe(true)
+    await expect(execute('show-branches')).resolves.toBe(true)
+    await expect(execute('go-to-commit-message')).resolves.toBe(true)
+    await expect(execute('increase-active-resizable-width')).resolves.toBe(true)
+    await expect(execute('decrease-active-resizable-width')).resolves.toBe(true)
+    await expect(execute('create-branch')).resolves.toBe(true)
 
     expect(environment.createRepository).toHaveBeenCalledOnce()
     expect(environment.addLocalRepository).toHaveBeenCalledOnce()
@@ -293,6 +308,11 @@ describe('repository application menu actions', () => {
     )
     expect(store.removeRepository).toHaveBeenCalledWith(repository)
     expect(environment.showFolderContents).toHaveBeenCalledWith(repository.path)
+    expect(environment.showBranches).toHaveBeenCalledOnce()
+    expect(environment.goToCommitMessage).toHaveBeenCalledOnce()
+    expect(environment.increaseActiveResizableWidth).toHaveBeenCalledOnce()
+    expect(environment.decreaseActiveResizableWidth).toHaveBeenCalledOnce()
+    expect(environment.createBranch).toHaveBeenCalledOnce()
   })
 
   it('refuses repository actions when the selection disappeared', async () => {
@@ -316,6 +336,11 @@ describe('repository application menu actions', () => {
       showPreferences: vi.fn(),
       openInShell: vi.fn(async () => undefined),
       openInExternalEditor: vi.fn(async () => undefined),
+      showBranches: vi.fn(),
+      goToCommitMessage: vi.fn(),
+      increaseActiveResizableWidth: vi.fn(),
+      decreaseActiveResizableWidth: vi.fn(),
+      createBranch: vi.fn(),
     }
     const execute = createRepositoryMenuEventExecutor(store, environment)
 
@@ -333,6 +358,11 @@ describe('repository application menu actions', () => {
     await expect(execute('fetch')).resolves.toBe(false)
     await expect(execute('push')).resolves.toBe(false)
     await expect(execute('pull')).resolves.toBe(false)
+    await expect(execute('show-branches')).resolves.toBe(false)
+    await expect(execute('go-to-commit-message')).resolves.toBe(false)
+    await expect(execute('create-branch')).resolves.toBe(false)
+    await expect(execute('increase-active-resizable-width')).resolves.toBe(true)
+    await expect(execute('decrease-active-resizable-width')).resolves.toBe(true)
 
     expect(store.removeRepository).not.toHaveBeenCalled()
     expect(environment.openRepositoryInNewWindow).not.toHaveBeenCalled()
@@ -343,5 +373,60 @@ describe('repository application menu actions', () => {
     expect(environment.showClone).toHaveBeenCalledOnce()
     expect(environment.showAbout).toHaveBeenCalledOnce()
     expect(environment.showPreferences).toHaveBeenCalledOnce()
+    expect(environment.showBranches).not.toHaveBeenCalled()
+    expect(environment.goToCommitMessage).not.toHaveBeenCalled()
+    expect(environment.createBranch).not.toHaveBeenCalled()
+    expect(environment.increaseActiveResizableWidth).toHaveBeenCalledOnce()
+    expect(environment.decreaseActiveResizableWidth).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the wiring-gap actions disabled on macOS (untested platform safety)', () => {
+    const menu = buildRepositoryMenu(
+      {
+        repositories: [repository],
+        selectedRepository: repository,
+      },
+      'macos',
+      remoteState,
+      preferencesState
+    )
+    const items = menu.items.flatMap(item =>
+      item.type === 'submenuItem' ? [item, ...item.menu.items] : [item]
+    )
+    const byId = (id: string) => items.find(item => item.id === id)
+
+    for (const id of [
+      'show-branches-list',
+      'go-to-commit-message',
+      'increase-active-resizable-width',
+      'decrease-active-resizable-width',
+      'create-branch',
+    ]) {
+      expect(byId(id)).toMatchObject({ enabled: false })
+    }
+  })
+
+  it('enables the wiring-gap accelerators on Linux for a selection', () => {
+    const menu = buildRepositoryMenu(
+      {
+        repositories: [repository],
+        selectedRepository: repository,
+      },
+      'linux'
+    )
+    const items = menu.items.flatMap(item =>
+      item.type === 'submenuItem' ? [item, ...item.menu.items] : [item]
+    )
+    const byId = (id: string) => items.find(item => item.id === id)
+
+    expect(byId('show-branches-list')).toMatchObject({ enabled: true })
+    expect(byId('go-to-commit-message')).toMatchObject({ enabled: true })
+    expect(byId('increase-active-resizable-width')).toMatchObject({
+      enabled: true,
+    })
+    expect(byId('decrease-active-resizable-width')).toMatchObject({
+      enabled: true,
+    })
+    expect(byId('create-branch')).toMatchObject({ enabled: true })
   })
 })

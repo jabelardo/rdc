@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties } from 'react'
+import { useRef, type CSSProperties } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faClone,
@@ -27,8 +27,6 @@ type AppShellProps = {
 /** Layout composition for the application; state orchestration stays in the controller hook. */
 export function AppShell({ controller }: AppShellProps) {
   const shellRef = useRef<HTMLElement>(null)
-  const [sidebarWidth, setSidebarWidth] = useState(264)
-  const [showBranchCreation, setShowBranchCreation] = useState(false)
   const {
     appState,
     branchState,
@@ -95,6 +93,15 @@ export function AppShell({ controller }: AppShellProps) {
     cancelDiscard,
     toggleSidebarSection,
     activateSidebarSection,
+    showBranches,
+    goToCommitMessage,
+    increaseActiveResizableWidth,
+    decreaseActiveResizableWidth,
+    createBranch,
+    sidebarWidth,
+    setSidebarWidth,
+    showBranchCreation,
+    setShowBranchCreation,
   } = controller
   const platform = currentMenuPlatform()
   const showMenuBar = platform === 'linux' || platform === 'windows'
@@ -126,34 +133,6 @@ export function AppShell({ controller }: AppShellProps) {
         '[aria-label="Repositories"] [aria-current="true"]'
       )
       ?.focus()
-  }
-  const showBranchesList = () => {
-    activateSidebarSection('branches')
-    requestAnimationFrame(() =>
-      document.getElementById('sidebar-branches-heading')?.focus()
-    )
-  }
-  const goToCommitMessage = () => {
-    if (repositoryView !== 'changes') {
-      setRepositoryView('changes')
-    }
-    requestAnimationFrame(() =>
-      document.getElementById('commit-message')?.focus()
-    )
-  }
-  const expandSidebar = () => {
-    setSidebarCollapsed(false)
-    setSidebarWidth(width => Math.min(width + 16, 640))
-  }
-  const contractSidebar = () => {
-    setSidebarWidth(width => Math.max(width - 16, 125))
-  }
-  const startBranchCreation = () => {
-    setShowBranchCreation(true)
-    activateSidebarSection('branches')
-    requestAnimationFrame(() =>
-      document.getElementById('new-branch-name')?.focus()
-    )
   }
 
   return (
@@ -187,10 +166,10 @@ export function AppShell({ controller }: AppShellProps) {
               )
             }
             onShowRepositoryList={focusRepositoryList}
-            onShowBranchesList={showBranchesList}
+            onShowBranchesList={showBranches}
             onGoToCommitMessage={goToCommitMessage}
-            onExpandSidebar={expandSidebar}
-            onContractSidebar={contractSidebar}
+            onExpandSidebar={increaseActiveResizableWidth}
+            onContractSidebar={decreaseActiveResizableWidth}
             onShowFiles={() =>
               runRepositoryAction(() =>
                 showFolderContents(appState.selectedRepository!.path)
@@ -214,7 +193,7 @@ export function AppShell({ controller }: AppShellProps) {
                 requestRemoveRepository(appState.selectedRepository)
               }
             }}
-            onNewBranch={startBranchCreation}
+            onNewBranch={createBranch}
             onShowLogs={() => void showApplicationLogs()}
             hasRepository={hasSelection}
             hasRepositories={appState.repositories.length > 0}
