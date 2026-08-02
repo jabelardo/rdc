@@ -507,7 +507,7 @@ describe('menu bar actions', () => {
       })
     )
     await vi.waitFor(() => {
-      expect(setWindowZoomFactor).toHaveBeenCalledWith(1.1)
+      expect(setWindowZoomFactor).toHaveBeenCalledWith(1.05)
     })
 
     await openMenu('View')

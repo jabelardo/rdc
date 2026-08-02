@@ -68,7 +68,7 @@ describe('startup menu actions', () => {
 
     expect(environment.openExternal).toHaveBeenCalledWith('https://example.com')
     expect(environment.selectAll).toHaveBeenCalledOnce()
-    expect(environment.setZoom.mock.calls).toEqual([[1.1], [1], [1]])
+    expect(environment.setZoom.mock.calls).toEqual([[1.05], [1], [1]])
     expect(environment.reload).toHaveBeenCalledOnce()
     expect(environment.showLogs).toHaveBeenCalledOnce()
     expect(environment.toggleDevTools).toHaveBeenCalledOnce()

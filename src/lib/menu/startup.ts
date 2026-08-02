@@ -6,7 +6,9 @@ import {
   type MenuPlatform,
 } from './default-menu'
 
-const ZoomFactors = [0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
+const ZOOM_STEP = 0.05
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 2.0
 
 const initialLabels = {
   selectedShell: null,
@@ -90,18 +92,10 @@ export function createStartupMenuActionExecutor(
       case 'zoom': {
         if (action.direction === 'reset') {
           zoomFactor = 1
+        } else if (action.direction === 'in') {
+          zoomFactor = Math.min(ZOOM_MAX, zoomFactor + ZOOM_STEP)
         } else {
-          const closest = ZoomFactors.reduce((previous, current) =>
-            Math.abs(current - zoomFactor) < Math.abs(previous - zoomFactor)
-              ? current
-              : previous
-          )
-          const ordered =
-            action.direction === 'in' ? ZoomFactors : [...ZoomFactors].reverse()
-          zoomFactor =
-            ordered.find(factor =>
-              action.direction === 'in' ? factor > closest : factor < closest
-            ) ?? closest
+          zoomFactor = Math.max(ZOOM_MIN, zoomFactor - ZOOM_STEP)
         }
         await environment.setZoom(zoomFactor)
         return true

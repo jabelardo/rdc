@@ -239,26 +239,36 @@ export function AppDialogs({
               <option value="dark">Dark</option>
             </select>
 
-            <label htmlFor="zoom-preference">Zoom</label>
-            <select
-              id="zoom-preference"
-              value={preferencesState.zoomFactor}
-              onChange={event => {
-                const value = Number.parseFloat(event.currentTarget.value)
-                if (!Number.isNaN(value) && value > 0) {
-                  preferencesStore.setZoomFactor(value)
-                  void setWindowZoomFactor(value)
-                }
-              }}
-            >
-              {[0.67, 0.75, 0.8, 0.9, 1, 1.15, 1.25, 1.5, 1.75, 2].map(
-                factor => (
-                  <option key={factor} value={factor}>
-                    {factor === 1 ? '100%' : `${Math.round(factor * 100)}%`}
-                  </option>
-                )
-              )}
-            </select>
+            <label>Zoom</label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = Math.max(0.5, preferencesState.zoomFactor - 0.05)
+                  preferencesStore.setZoomFactor(next)
+                  void setWindowZoomFactor(next)
+                }}
+                disabled={preferencesState.zoomFactor <= 0.5}
+                aria-label="Decrease zoom"
+              >
+                −
+              </button>
+              <span aria-live="polite">
+                {Math.round(preferencesState.zoomFactor * 100)}%
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = Math.min(2.0, preferencesState.zoomFactor + 0.05)
+                  preferencesStore.setZoomFactor(next)
+                  void setWindowZoomFactor(next)
+                }}
+                disabled={preferencesState.zoomFactor >= 2.0}
+                aria-label="Increase zoom"
+              >
+                +
+              </button>
+            </div>
 
             <label htmlFor="editor-preference">External editor</label>
             <select

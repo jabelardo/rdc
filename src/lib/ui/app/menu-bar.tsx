@@ -168,7 +168,9 @@ function AccessKeyText({ label }: { label: string }) {
   )
 }
 
-const ZoomFactors = [0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
+const ZOOM_STEP = 0.05
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 2.0
 
 async function handleZoom(
   direction: 'zoom-in' | 'zoom-out' | 'zoom-reset'
@@ -177,16 +179,10 @@ async function handleZoom(
   let next = current
   if (direction === 'zoom-reset') {
     next = 1
+  } else if (direction === 'zoom-in') {
+    next = Math.min(ZOOM_MAX, current + ZOOM_STEP)
   } else {
-    const closest = ZoomFactors.reduce((prev, cur) =>
-      Math.abs(cur - current) < Math.abs(prev - current) ? cur : prev
-    )
-    const ordered =
-      direction === 'zoom-in' ? ZoomFactors : [...ZoomFactors].reverse()
-    next =
-      ordered.find(f =>
-        direction === 'zoom-in' ? f > closest : f < closest
-      ) ?? closest
+    next = Math.max(ZOOM_MIN, current - ZOOM_STEP)
   }
   await setWindowZoomFactor(next)
 }
