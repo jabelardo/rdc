@@ -106,7 +106,7 @@ pub fn run() {
         .manage(platform::notification::NotificationState::new())
         .manage(platform::context_menu::ContextMenuState::new())
         .manage(platform::window::WindowRoutingState::default())
-        .manage(platform::window::WindowZoomState::default())
+        .manage(platform::window::WindowZoomState::new())
         .manage(platform::window::LaunchTimingState::new())
         // Blobs the app has decided the webview may read. A URL is a capability: the frontend can fetch
         // what it was handed and cannot name anything else — see src/blob_protocol.rs.
@@ -115,6 +115,13 @@ pub fn run() {
             resilience::install_panic_logging();
             app.state::<platform::window::LaunchTimingState>()
                 .mark_main_ready();
+            // Load persisted zoom factors from the app config dir so the
+            // user's last zoom level survives restarts (the in-memory
+            // HashMap previously reset to 1.0 on every launch).
+            if let Ok(dir) = app.path().app_config_dir() {
+                app.state::<platform::window::WindowZoomState>()
+                    .load_from_config_dir(dir);
+            }
             // Debug-only Phase 8b state driver for the Wayland visual matrix;
             // compiled out of release builds entirely. See the module docs.
             #[cfg(debug_assertions)]

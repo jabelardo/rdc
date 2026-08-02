@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    path::PathBuf,
     sync::{
         atomic::{AtomicU64, Ordering},
         Mutex,
@@ -15,9 +16,10 @@ const DEFAULT_ZOOM_FACTOR: f64 = 1.0;
 
 /// Zoom is a webview property that Tauri can set but cannot read. Keep the
 /// last successful value per webview so the frontend retains Electron's getter.
-#[derive(Default)]
+/// Persisted to `<config_dir>/zoom-state.json` so the value survives restarts.
 pub struct WindowZoomState {
     factors: Mutex<HashMap<String, f64>>,
+    config_dir: Mutex<Option<PathBuf>>,
 }
 
 #[derive(Default)]
@@ -141,6 +143,28 @@ fn duration_milliseconds(duration: Duration) -> f64 {
 }
 
 impl WindowZoomState {
+    pub fn new() -> Self {
+        Self {
+            factors: Mutex::new(HashMap::new()),
+            config_dir: Mutex::new(None),
+        }
+    }
+
+    /// Load persisted zoom factors from the given config directory.
+    /// Called once from the Tauri setup closure where the path is known.
+    pub fn load_from_config_dir(&self, dir: std::path::PathBuf) {
+        if let Some(factors) = Self::load_from_file(&dir) {
+            *self
+                .factors
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = factors;
+        }
+        *self
+            .config_dir
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(dir);
+    }
+
     pub fn get(&self, label: &str) -> f64 {
         *self
             .factors
@@ -155,6 +179,31 @@ impl WindowZoomState {
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .insert(label.to_owned(), factor);
+        self.save_to_file();
+    }
+
+    fn load_from_file(dir: &std::path::Path) -> Option<HashMap<String, f64>> {
+        let path = dir.join("zoom-state.json");
+        let data = std::fs::read(&path).ok()?;
+        serde_json::from_slice(&data).ok()
+    }
+
+    fn save_to_file(&self) {
+        let config_dir = self
+            .config_dir
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        if let Some(dir) = config_dir {
+            let path = dir.join("zoom-state.json");
+            let _ = std::fs::create_dir_all(&dir);
+            let factors = self
+                .factors
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone();
+            let _ = std::fs::write(&path, serde_json::to_string(&factors).unwrap_or_default());
+        }
     }
 }
 
@@ -282,7 +331,7 @@ mod tests {
 
     #[test]
     fn each_webview_starts_at_electrons_default_zoom() {
-        let state = WindowZoomState::default();
+        let state = WindowZoomState::new();
 
         assert_eq!(state.get("main"), 1.0);
         assert_eq!(state.get("other"), 1.0);
@@ -290,13 +339,33 @@ mod tests {
 
     #[test]
     fn zoom_values_are_scoped_by_webview_label() {
-        let state = WindowZoomState::default();
+        let state = WindowZoomState::new();
 
         state.set("main", 1.25);
         state.set("other", 0.8);
 
         assert_eq!(state.get("main"), 1.25);
         assert_eq!(state.get("other"), 0.8);
+    }
+
+    #[test]
+    fn zoom_persists_to_and_loads_from_a_config_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let config_dir = Some(dir.path().to_path_buf());
+        {
+            let state = WindowZoomState::new();
+            *state.config_dir.lock().unwrap() = config_dir.clone();
+            state.set("main", 1.25);
+            state.set("repository-1", 0.9);
+        }
+        {
+            let state = WindowZoomState::new();
+            if let Some(factors) = WindowZoomState::load_from_file(dir.path()) {
+                *state.factors.lock().unwrap() = factors;
+            }
+            assert_eq!(state.get("main"), 1.25);
+            assert_eq!(state.get("repository-1"), 0.9);
+        }
     }
 
     #[test]
