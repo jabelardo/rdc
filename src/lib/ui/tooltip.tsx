@@ -38,10 +38,13 @@ type TooltipProps = {
  * Marks an element a tooltip must clear entirely, not merely its trigger.
  *
  * A control centred in a command bar sits above the bar's own bottom padding, so clearing only the
- * control still leaves the bubble overlapping the bar — measured at 1.95px on
- * `.repository-toolbar`, enough to cover its bottom rule. Tuning the gap constant instead only
- * works until someone changes the bar's padding, which is exactly how that regression survived one
- * fix attempt. Put this attribute on the bar and the clearance follows the bar's real geometry.
+ * control can leave the bubble inside the bar, abutting or covering its bottom rule. Marking the
+ * bar makes the clearance follow the bar's real geometry, rather than a gap constant that is
+ * correct only for today's padding.
+ *
+ * This is a presentation choice, not a bug fix. The 1.95px overlap the visual E2E once reported
+ * came from `tooltip-appear` being held at `translateY(-0.15rem)` while a stray
+ * `opacity: 1 !important` kept the bubble visible through the animation delay — see App.css.
  */
 const boundarySelector = '[data-tooltip-boundary]'
 

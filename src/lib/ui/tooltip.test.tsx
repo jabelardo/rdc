@@ -3,10 +3,15 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Tooltip } from './tooltip'
 
-// jsdom reports every rect as zero, so the geometry under test has to be supplied. These are the
-// real measurements taken from the Linux container when the overlap was first diagnosed: the
-// command bar ends at 68.25 while its centred button ends at 59.3, i.e. ~9px of bottom slack —
-// more than the 7px gap, which is why clearing only the trigger left the bubble on the bar.
+// jsdom reports every rect as zero, so the geometry under test has to be supplied. Illustrative
+// numbers, not measurements: a bar whose centred control leaves bottom slack larger than the 7px
+// gap, which is the case this boundary logic exists for.
+//
+// Worth knowing, because it was originally misread: the 1.95px the visual E2E once reported was
+// *not* bar padding. It was `tooltip-appear` held at `translateY(-0.15rem)` while a stray
+// `opacity: 1 !important` kept the bubble visible through the animation delay. That is fixed in
+// App.css. This boundary behaviour is a separate, deliberate choice — clearance from the bar reads
+// better than a bubble abutting its bottom rule — and these tests pin it on its own terms.
 const barRect = {
   top: 40,
   bottom: 68.25,
@@ -66,8 +71,8 @@ describe('Tooltip', () => {
 
     await userEvent.hover(screen.getByRole('button', { name: 'Fetch' }))
 
-    // The bar's bottom plus the 7px gap — not the button's bottom, which would be 66.3px and would
-    // leave the bubble covering the bar's bottom rule by ~2px.
+    // The bar's bottom plus the 7px gap, rather than the button's bottom plus the same gap, which
+    // would put the bubble inside the bar's lower padding.
     expect(bubbleTop()).toBe('75.25px')
   })
 
