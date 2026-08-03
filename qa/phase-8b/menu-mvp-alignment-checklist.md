@@ -114,6 +114,7 @@ accelerators.
 | `create-branch` | New &branch… | Ctrl+Shift+N | **MVP** | Phase 7c — create from HEAD and checkout; enabled on every MVP platform (macOS label: New Branch…) |
 | `rename-branch` | &Rename… | Ctrl+Shift+R | **MVP** | Renames the current branch (upstream behaviour); preserved upstream on rename |
 | `delete-branch` | &Delete… | Ctrl+Shift+D | **MVP** | Targets the current branch; the store refuses current/default/unborn/detached. The functional path for a **non-current** branch is the branch-row context menu |
+| `merge-branch` | &Merge into current branch… | Ctrl+Shift+M | **MVP** | Branch picker → `determineMergeability` pre-check → `merge_branch`; a conflict hands off to the existing conflict-recovery surface |
 | `discard-all-changes` | Discard all changes… | Ctrl+Shift+Backspace | **MVP** | Enabled when the working tree is dirty and no merge is in progress; whole-tree discard reuses `discardChanges(files[])` |
 | `permanently-discard-all-changes` | Permanently discard all changes… | — | **MVP** | Same enablement as discard-all; skips the OS trash |
 
@@ -124,11 +125,11 @@ F-MENU-001 for the exact six items and their owning slices. The blocker is **sco
 it was first recorded during the Linux cycle, but macOS is missing exactly the same operations, so
 implementing them clears it for both and neither platform ships until it is cleared.
 
-**Progress (BRANCH_OPERATIONS_PLAN.md):** Slice 1 (discard-all-changes and
-permanently-discard-all-changes) landed — promoted here under membership rule (b). Slice 2
-(rename-branch, delete-branch) also landed — promoted here; delete's non-current-branch path is the
-branch-row context menu. The remaining blocker items are merge initiation (Slice 3) and
-**update-from-default, now deferred to Phase 7f** — see the plan's scope decision.
+**Progress (BRANCH_OPERATIONS_PLAN.md):** Slices 1–3 (discard-all-changes and
+permanently-discard-all-changes, rename-branch, delete-branch, merge-branch) have landed — promoted
+here under membership rule (b); delete's non-current-branch path is the branch-row context menu. The
+remaining blocker item is **update-from-default, now deferred to Phase 7f** — see the plan's scope
+decision.
 
 The menu must not be padded with dead items in the meantime: development implements the operations
 and the baseline promotes them automatically under membership rule (b).
@@ -172,7 +173,7 @@ becomes implemented, the membership rule (b) promotes it to MVP automatically.
 | `stash-all-changes` | &Stash all changes… | No stash support | post-MVP (7f) |
 | `update-branch-with-contribution-target-branch` | &Update from &lt;branch&gt; | **Deferred to Phase 7f** | A convenience over fetch + merge/rebase, both already MVP; needs a persisted `updateBranchStrategy` preference and a dynamic contribution-target label | post-MVP (7f) — see BRANCH_OPERATIONS_PLAN.md scope decision |
 | `compare-to-branch` | &Compare to branch | Compare post-MVP | post-MVP (7f) |
-| `merge-branch` / `squash-and-merge-branch` / `rebase-branch` | &Merge into current branch… / Squas&h and merge… / R&ebase current branch… | Merge *initiation* is **MVP-required — blocked** (conflict *recovery* is MVP and lives in the Changes surface); squash/rebase remain post-MVP | development (MVP blocker) |
+| `squash-and-merge-branch` / `rebase-branch` | Squas&h and merge… / R&ebase current branch… | Squash/rebase remain post-MVP | post-MVP (7f) |
 | `compare-on-github` / `branch-on-github` | Compare on GitHub / View branch on GitHub | No GitHub networking | post-MVP (5b/7f) |
 | `preview-pull-request` / `create-pull-request` | Preview pull request / Create &pull request | No GitHub networking | post-MVP (5b/7f) |
 
@@ -220,8 +221,9 @@ Recorded here rather than in the per-item tables when they span multiple items o
    `view-rdc-on-github` entry pointing at the rdc repository. No enabled Help item points at
    Desktop Plus or GitHub Desktop.
 3. **Merge conflict recovery** — the *initiation* of a merge from the Branch menu (`merge-branch`)
-   is post-MVP; the *recovery* from a merge-conflict state (reached via `pull` or external merge)
-   is MVP. The conflict-store and working-tree-store handle resolution and staging.
+   is **MVP** (Slice 3, in-app branch picker); the *recovery* from a merge-conflict state (reached
+   from that merge, via `pull`, or an external merge) is MVP. The conflict-store, merge-conflicts
+   surface and working-tree-store handle resolution and staging.
 4. **`togglefullscreen` absent on Linux** — the native role has no Linux toggle wiring yet. Removed
    until a `setFullScreen` window wrapper lands (trivial wiring); re-promote per membership rule
    (b) when done.

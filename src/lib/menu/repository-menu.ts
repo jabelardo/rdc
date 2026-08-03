@@ -43,6 +43,7 @@ type RepositoryMenuEnvironment = {
   readonly permanentlyDiscardAllChanges: () => void | Promise<void>
   readonly renameBranch: () => void
   readonly deleteBranch: () => void
+  readonly mergeBranch: () => void
 }
 
 function withEnablement(
@@ -152,6 +153,7 @@ export function buildRepositoryMenu(
   // as upstream's Branch menu does.
   enabledByID.set('rename-branch', hasSelection)
   enabledByID.set('delete-branch', hasSelection)
+  enabledByID.set('merge-branch', hasSelection)
   const menu = buildStartupMenu(
     platform,
     preferencesState === undefined
@@ -319,6 +321,12 @@ export function createRepositoryMenuEventExecutor(
           return false
         }
         environment.deleteBranch()
+        return true
+      case 'merge-branch':
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        environment.mergeBranch()
         return true
       default:
         return false

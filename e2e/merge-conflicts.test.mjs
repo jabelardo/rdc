@@ -1,7 +1,10 @@
-// Minimum conflict recovery: surfacing an in-progress merge, refusing to stage an unresolved
-// file, and staging the resolution once the markers are gone.
+// Minimum conflict recovery, reached through the product: the Branch menu's merge
+// initiates a real conflict, the app surfaces the in-progress merge, refuses to
+// stage an unresolved file, and stages the resolution once the markers are gone.
+//
+// This supersedes the previous spec, which started the merge with CLI `git merge`
+// in `before` — the last MVP criterion satisfiable only from a terminal.
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { after, before, describe, it } from 'node:test'
@@ -15,6 +18,57 @@ import {
   removeFixtureRoot,
   startApplication,
 } from './harness.mjs'
+
+async function clickMenuItem(driver, label) {
+  await driver.wait(
+    async () => {
+      try {
+        const item = await driver.findElement(
+          By.css(`[role="menuitem"][aria-label="${label}"]`)
+        )
+        await driver.executeScript(element => element.click(), item)
+        return true
+      } catch {
+        return false
+      }
+    },
+    5_000,
+    `menu item ${label} did not accept the click`
+  )
+}
+
+// React-controlled <select>: go through the native value setter and dispatch a
+// bubbling 'change' so the picker's controlled state actually updates.
+async function selectReactOption(driver, id, value) {
+  await driver.wait(
+    async () => {
+      try {
+        const select = await driver.findElement(By.css(`#${id}`))
+        await driver.executeScript(
+          (element, val) => {
+            const setter = Object.getOwnPropertyDescriptor(
+              window.HTMLSelectElement.prototype,
+              'value'
+            ).set
+            setter.call(element, val)
+            element.dispatchEvent(new Event('change', { bubbles: true }))
+          },
+          select,
+          value
+        )
+        return (
+          (await driver
+            .findElement(By.css(`#${id}`))
+            .getAttribute('value')) === value
+        )
+      } catch {
+        return false
+      }
+    },
+    5_000,
+    `could not select option ${value}`
+  )
+}
 
 describe('merge conflicts', () => {
   let driver
@@ -60,15 +114,7 @@ describe('merge conflicts', () => {
       'Change conflict on other branch'
     )
     git(fixture.canonical, 'checkout', '--quiet', initialBranch)
-    assert.throws(() =>
-      execFileSync('git', [
-        '-C',
-        fixture.canonical,
-        'merge',
-        '--no-edit',
-        conflictBranch,
-      ])
-    )
+    assert.equal(git(fixture.canonical, 'status', '--porcelain'), '')
 
     driver = await startApplication()
     await openSeededRepository(driver, fixture.canonical)
@@ -78,21 +124,40 @@ describe('merge conflicts', () => {
     try {
       git(fixture.canonical, 'merge', '--abort')
     } catch {
-      // Cleanup only: if `before` failed before starting the merge there is nothing to abort,
-      // and throwing here would mask the real failure.
+      // Cleanup only: if `before` failed before the merge there is nothing to
+      // abort, and throwing here would mask the real failure.
     }
     await driver?.quit().catch(() => undefined)
     removeFixtureRoot(fixture)
   })
 
-  it('surfaces the in-progress merge and stages a resolved conflict', async () => {
-    const refreshChanges = await driver.wait(
-      until.elementLocated(
-        By.xpath("//button[normalize-space()='Refresh changes']")
-      ),
+  it('merges from the Branch menu into a conflict and stages the resolution', async () => {
+    await clickMenuItem(driver, 'Branch')
+    await clickMenuItem(driver, 'Merge into current branch…')
+    const picker = await driver.wait(
+      until.elementLocated(By.css('#merge-target-branch')),
       5_000
     )
-    await driver.executeScript(element => element.click(), refreshChanges)
+    await selectReactOption(driver, 'merge-target-branch', 'phase-7c-conflict')
+    await driver.wait(
+      async () => {
+        try {
+          const merge = await driver.findElement(
+            By.xpath("//button[normalize-space()='Merge']")
+          )
+          if (await merge.isEnabled()) {
+            await driver.executeScript(element => element.click(), merge)
+            return true
+          }
+          return false
+        } catch {
+          return false
+        }
+      },
+      5_000,
+      'merge confirm did not accept the click'
+    )
+
     const mergeConflicts = await driver.wait(
       until.elementLocated(By.css('[aria-label="Merge conflicts"]')),
       10_000

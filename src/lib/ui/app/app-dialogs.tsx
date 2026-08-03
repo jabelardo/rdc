@@ -1,6 +1,7 @@
-import type { Branch } from '../../../models/branch'
+import { BranchType, type Branch } from '../../../models/branch'
 import type { Repository } from '../../../models/repository'
 import type { WorkingDirectoryFileChange } from '../../../models/status'
+import type { BranchState } from '../../stores/branch-store'
 import type { CloneState } from '../../stores/clone-store'
 import type {
   PreferencesState,
@@ -57,6 +58,14 @@ type AppDialogsProps = {
   readonly onDeletePruneChange: (value: boolean) => void
   readonly onConfirmDelete: () => void
   readonly onCancelDelete: () => void
+  readonly branchState: BranchState
+  readonly mergePickerOpen: boolean
+  readonly mergeTarget: string
+  readonly onMergeTargetChange: (value: string) => void
+  readonly mergeMessage: string | null
+  readonly mergeRunning: boolean
+  readonly onConfirmMerge: () => void
+  readonly onCancelMerge: () => void
   readonly onDismissAbout: () => void
   readonly onDismissPreferences: () => void
   readonly onDismissClone: () => void
@@ -109,6 +118,14 @@ export function AppDialogs({
   onDeletePruneChange,
   onConfirmDelete,
   onCancelDelete,
+  branchState,
+  mergePickerOpen,
+  mergeTarget,
+  onMergeTargetChange,
+  mergeMessage,
+  mergeRunning,
+  onConfirmMerge,
+  onCancelMerge,
   onDismissAbout,
   onDismissPreferences,
   onDismissClone,
@@ -337,6 +354,78 @@ export function AppDialogs({
               </>
             )
           )}
+        </Modal>
+      )}
+
+      {mergePickerOpen && (
+        <Modal
+          className={confirmationDialogClassName}
+          role="dialog"
+          aria-labelledby="merge-dialog-title"
+          onDismiss={mergeRunning ? undefined : onCancelMerge}
+        >
+          <h2 id="merge-dialog-title">
+            Merge into current branch ({branchState.currentBranch ?? '—'})
+          </h2>
+          {(() => {
+            const candidates = branchState.branches.filter(
+              branch =>
+                branch.type === BranchType.Local &&
+                branch.name !== branchState.currentBranch
+            )
+            if (candidates.length === 0) {
+              return (
+                <>
+                  <p>There are no other branches to merge.</p>
+                  <div className={dialogActionsClassName}>
+                    <button type="button" onClick={onCancelMerge}>
+                      Close
+                    </button>
+                  </div>
+                </>
+              )
+            }
+            return (
+              <>
+                <label htmlFor="merge-target-branch">Branch to merge</label>
+                <select
+                  id="merge-target-branch"
+                  value={mergeTarget}
+                  disabled={mergeRunning}
+                  onChange={event =>
+                    onMergeTargetChange(event.currentTarget.value)
+                  }
+                >
+                  {candidates.map(branch => (
+                    <option key={branch.name} value={branch.name}>
+                      {branch.name}
+                    </option>
+                  ))}
+                </select>
+                {mergeMessage !== null && (
+                  <p className="application-error" role="alert">
+                    {mergeMessage}
+                  </p>
+                )}
+                <div className={dialogActionsClassName}>
+                  <button
+                    type="button"
+                    disabled={mergeRunning || mergeTarget === ''}
+                    onClick={onCancelMerge}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={mergeRunning || mergeTarget === ''}
+                    onClick={onConfirmMerge}
+                  >
+                    {mergeRunning ? 'Merging…' : 'Merge'}
+                  </button>
+                </div>
+              </>
+            )
+          })()}
         </Modal>
       )}
 

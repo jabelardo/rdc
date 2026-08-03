@@ -110,6 +110,14 @@ export function AppShell({ controller }: AppShellProps) {
     renameCurrentBranch,
     deleteCurrentBranch,
     openBranchContextMenu,
+    mergePickerOpen,
+    mergeTarget,
+    setMergeTarget,
+    mergeMessage,
+    mergeRunning,
+    confirmMerge,
+    cancelMerge,
+    requestMerge,
     toggleSidebarSection,
     activateSidebarSection,
     showBranches,
@@ -150,6 +158,13 @@ export function AppShell({ controller }: AppShellProps) {
   // the store refuses current/default-branch deletion.
   const canRenameBranch = canCreateBranch && branchState.currentBranch !== null
   const canDeleteBranch = canRenameBranch
+  // Merge initiation needs a current branch, a clean working tree (git refuses to
+  // merge over uncommitted changes), and no merge already in progress.
+  const canMerge =
+    canCreateBranch &&
+    branchState.currentBranch !== null &&
+    (workingTreeState.workingDirectory?.files.length ?? 0) === 0 &&
+    !conflictState.mergeInProgress
   // Whole-tree discard is only sensible on a dirty tree, and is refused mid-merge
   // (the working-tree store also guards `mergeHeadFound`, so this enablement and
   // the store agree).
@@ -227,6 +242,7 @@ export function AppShell({ controller }: AppShellProps) {
             onNewBranch={createBranch}
             onRenameBranch={renameCurrentBranch}
             onDeleteBranch={deleteCurrentBranch}
+            onMergeBranch={requestMerge}
             onDiscardAll={requestDiscardAll}
             onShowLogs={() => void showApplicationLogs()}
             hasRepository={hasSelection}
@@ -239,6 +255,7 @@ export function AppShell({ controller }: AppShellProps) {
             canCreateBranch={canCreateBranch}
             canRenameBranch={canRenameBranch}
             canDeleteBranch={canDeleteBranch}
+            canMergeBranch={canMerge}
             canDiscardAll={canDiscardAll}
             selectedShell={preferencesStore.selectedShell?.shell ?? null}
             selectedEditor={preferencesStore.selectedEditor?.editor ?? null}
@@ -418,6 +435,14 @@ export function AppShell({ controller }: AppShellProps) {
         onDeletePruneChange={setDeletePruneTrackingRef}
         onConfirmDelete={() => void confirmDelete()}
         onCancelDelete={cancelDelete}
+        branchState={branchState}
+        mergePickerOpen={mergePickerOpen}
+        mergeTarget={mergeTarget}
+        onMergeTargetChange={setMergeTarget}
+        mergeMessage={mergeMessage}
+        mergeRunning={mergeRunning}
+        onConfirmMerge={() => void confirmMerge()}
+        onCancelMerge={cancelMerge}
         onDismissAbout={() => setShowAboutDialog(false)}
         onDismissPreferences={() => setShowPreferencesDialog(false)}
         onDismissClone={dismissCloneDialog}

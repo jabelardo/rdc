@@ -43,6 +43,7 @@ function baseProps(overrides: Partial<MenuBarProps> = {}): MenuBarProps {
     onNewBranch: vi.fn(),
     onRenameBranch: vi.fn(),
     onDeleteBranch: vi.fn(),
+    onMergeBranch: vi.fn(),
     onDiscardAll: vi.fn(),
     onShowLogs: vi.fn(),
     hasRepository: true,
@@ -55,6 +56,7 @@ function baseProps(overrides: Partial<MenuBarProps> = {}): MenuBarProps {
     canCreateBranch: true,
     canRenameBranch: true,
     canDeleteBranch: true,
+    canMergeBranch: true,
     canDiscardAll: true,
     selectedShell: 'Ghostty',
     selectedEditor: 'Zed',
@@ -207,6 +209,7 @@ describe('menu bar inventory', () => {
       'New branch…',
       'Rename…',
       'Delete…',
+      'Merge into current branch…',
       'Discard all changes…',
       'Permanently discard all changes…',
     ])
@@ -267,6 +270,7 @@ describe('menu bar enablement', () => {
           canCreateBranch: false,
           canRenameBranch: false,
           canDeleteBranch: false,
+          canMergeBranch: false,
           canDiscardAll: false,
         })}
       />
@@ -292,6 +296,7 @@ describe('menu bar enablement', () => {
       'New branch…',
       'Rename…',
       'Delete…',
+      'Merge into current branch…',
       'Discard all changes…',
       'Permanently discard all changes…',
     ]) {
@@ -400,6 +405,7 @@ describe('menu bar actions', () => {
     const onNewBranch = vi.fn()
     const onRenameBranch = vi.fn()
     const onDeleteBranch = vi.fn()
+    const onMergeBranch = vi.fn()
     const onDiscardAll = vi.fn()
     render(
       <MenuBar
@@ -417,6 +423,7 @@ describe('menu bar actions', () => {
           onNewBranch,
           onRenameBranch,
           onDeleteBranch,
+          onMergeBranch,
           onDiscardAll,
         })}
       />
@@ -499,6 +506,15 @@ describe('menu bar actions', () => {
     menu = screen.getByRole('menu')
     await user.click(within(menu).getByRole('menuitem', { name: 'Delete…' }))
     expect(onDeleteBranch).toHaveBeenCalledOnce()
+
+    await openMenu('Branch')
+    menu = screen.getByRole('menu')
+    await user.click(
+      within(menu).getByRole('menuitem', {
+        name: 'Merge into current branch…',
+      })
+    )
+    expect(onMergeBranch).toHaveBeenCalledOnce()
 
     await openMenu('Branch')
     menu = screen.getByRole('menu')

@@ -84,7 +84,9 @@ native acceptance record; do not label it automated.
 - **Verify the new branch-lifecycle operations dispatch from the native menu** with a repository
   selected: Branch → Rename… (Cmd+Shift+R) must open the prefilled rename dialog and rename the
   current branch; Branch → Delete… (Cmd+Shift+D) must surface the "cannot delete the current branch"
-  guard. Rename/Delete a **non-current** branch from its row's context menu and verify both land.
+  guard; Branch → Merge into Current Branch… (Cmd+Shift+M) must open the branch picker, merge a clean
+  branch, and surface a conflicting one through the conflict-recovery surface. Rename/Delete a
+  **non-current** branch from its row's context menu and verify both land.
 - Open a second repository window, give each window a different selected repository/view, and repeat
   menu, context-menu and close actions while alternating focus. State and commands must remain scoped
   to the focused window; closing one must not destroy or retarget the other.

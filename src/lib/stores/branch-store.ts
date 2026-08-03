@@ -1,15 +1,22 @@
 import { BranchType, type Branch } from '../../models/branch'
+import { ComputedAction } from '../../models/computed-action'
 import type { ICheckoutProgress } from '../../models/progress'
 import type { IRemote } from '../../models/remote'
 import { getBranches } from '../branch-ipc'
-import { checkoutBranch, getStatus, type IStatusResult } from '../git-ipc'
+import {
+  checkoutBranch,
+  getStatus,
+  mergeBranch,
+  MergeResult,
+  type IStatusResult,
+} from '../git-ipc'
 import {
   createBranch,
   deleteLocalBranch,
   deleteRef,
   renameBranch as renameBranchCommand,
 } from '../branch-ipc'
-import { getRecentBranches } from '../misc-ipc'
+import { determineMergeability, getRecentBranches } from '../misc-ipc'
 import { getRemoteHEAD, getRemotes } from '../remote-ipc'
 import { testForInvalidChars } from '../sanitize-ref-name'
 
@@ -18,6 +25,16 @@ export type BranchOperation =
   | 'checking-out'
   | 'renaming'
   | 'deleting'
+  | 'merging'
+
+/** The outcome of an in-app merge initiation. */
+export type MergeInitiationResult =
+  | 'up-to-date'
+  | 'merged'
+  | 'conflict'
+  | 'invalid'
+  | 'dirty'
+  | 'failed'
 
 export type BranchState = {
   readonly repositoryPath: string | null
@@ -50,6 +67,8 @@ type BranchStoreDependencies = {
   readonly renameBranch: typeof renameBranchCommand
   readonly deleteLocalBranch: typeof deleteLocalBranch
   readonly deleteRef: typeof deleteRef
+  readonly determineMergeability: typeof determineMergeability
+  readonly mergeBranch: typeof mergeBranch
 }
 
 const defaultDependencies: BranchStoreDependencies = {
@@ -63,6 +82,8 @@ const defaultDependencies: BranchStoreDependencies = {
   renameBranch: renameBranchCommand,
   deleteLocalBranch,
   deleteRef,
+  determineMergeability,
+  mergeBranch,
 }
 
 const EmptyState: BranchState = {
@@ -390,6 +411,93 @@ export class BranchStore {
       return await this.finishOperation(repositoryPath, requestID, operationID)
     } catch (error) {
       return this.failOperation(requestID, operationID, error)
+    }
+  }
+
+  /**
+   * Merges a local branch into the current one.
+   *
+   * The mergeability of the two branches is asked first with `merge-tree` (no side
+   * effects), which also reports unrelated histories as `invalid`. A dirty working
+   * tree is refused up front: git will not merge over uncommitted changes, and the
+   * caller's menu is already disabled in that state, so this is the store-level
+   * guard that keeps the precondition honest.
+   *
+   * A merge that produces conflicts (`MergeResult.Failed`) returns `conflict`, and
+   * the caller hands off to the conflict-recovery surface — `ConflictStore` reads
+   * `mergeHeadFound` on its next load, which is exactly what drives that UI.
+   */
+  public async initiateMerge(
+    targetBranchName: string,
+    options: { readonly workingTreeDirty: boolean }
+  ): Promise<MergeInitiationResult> {
+    const repositoryPath = this.currentState.repositoryPath
+    const current = this.currentState.currentBranch
+    const target = this.currentState.branches.find(
+      branch =>
+        branch.type === BranchType.Local && branch.name === targetBranchName
+    )
+    if (
+      repositoryPath === null ||
+      target === undefined ||
+      current === null ||
+      current === targetBranchName
+    ) {
+      return 'failed'
+    }
+    if (options.workingTreeDirty) {
+      return 'dirty'
+    }
+
+    const operationID = ++this.operationID
+    const requestID = this.requestID
+    this.update({
+      ...this.currentState,
+      operation: 'merging',
+      progress: null,
+      operationError: null,
+    })
+    try {
+      const mergeability = await this.dependencies.determineMergeability(
+        repositoryPath,
+        current,
+        targetBranchName
+      )
+      if (!this.isCurrentOperation(requestID, operationID)) {
+        return 'failed'
+      }
+      if (mergeability.kind === ComputedAction.Invalid) {
+        this.finishWithoutRefresh(requestID, operationID)
+        return 'invalid'
+      }
+
+      const result = await this.dependencies.mergeBranch(
+        repositoryPath,
+        targetBranchName
+      )
+      await this.finishOperation(repositoryPath, requestID, operationID)
+      switch (result) {
+        case MergeResult.Success:
+          return 'merged'
+        case MergeResult.AlreadyUpToDate:
+          return 'up-to-date'
+        case MergeResult.Failed:
+          return 'conflict'
+      }
+    } catch (error) {
+      this.failOperation(requestID, operationID, error)
+      return 'failed'
+    }
+  }
+
+  private finishWithoutRefresh(requestID: number, operationID: number): void {
+    if (this.isCurrentOperation(requestID, operationID)) {
+      this.update({
+        ...this.currentState,
+        operation: null,
+        progress: null,
+        operationError: null,
+      })
     }
   }
 

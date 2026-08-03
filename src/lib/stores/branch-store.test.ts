@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Branch, BranchType } from '../../models/branch'
+import { ComputedAction } from '../../models/computed-action'
+import type { MergeTreeResult } from '../../models/merge'
+import { MergeResult } from '../git-ipc'
 import { BranchStore } from './branch-store'
 
 function branch(
@@ -230,6 +233,10 @@ describe('BranchStore', () => {
     const renameBranch = vi.fn(async () => undefined)
     const deleteLocalBranch = vi.fn(async () => undefined)
     const deleteRef = vi.fn(async () => undefined)
+    const determineMergeability = vi.fn(
+      async (): Promise<MergeTreeResult> => ({ kind: ComputedAction.Clean })
+    )
+    const mergeBranch = vi.fn(async () => MergeResult.Success)
     const store = new BranchStore({
       getBranches,
       getStatus,
@@ -239,8 +246,18 @@ describe('BranchStore', () => {
       renameBranch,
       deleteLocalBranch,
       deleteRef,
+      determineMergeability,
+      mergeBranch,
     })
-    return { store, getBranches, renameBranch, deleteLocalBranch, deleteRef }
+    return {
+      store,
+      getBranches,
+      renameBranch,
+      deleteLocalBranch,
+      deleteRef,
+      determineMergeability,
+      mergeBranch,
+    }
   }
 
   it('renames a branch and refreshes branch facts', async () => {
@@ -392,5 +409,104 @@ describe('BranchStore', () => {
 
     expect(deleteLocalBranch).toHaveBeenCalledWith('/repo', 'feature')
     expect(deleteRef).not.toHaveBeenCalled()
+  })
+
+  it('merges a clean local branch and reports merged', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const topic = branch('topic')
+    const feature = branch('feature')
+    const { store, mergeBranch, determineMergeability } = loadTopology(
+      'topic',
+      [main, topic, feature]
+    )
+    await store.load('/repo')
+
+    await expect(
+      store.initiateMerge('feature', { workingTreeDirty: false })
+    ).resolves.toBe('merged')
+
+    expect(determineMergeability).toHaveBeenCalledWith(
+      '/repo',
+      'topic',
+      'feature'
+    )
+    expect(mergeBranch).toHaveBeenCalledWith('/repo', 'feature')
+  })
+
+  it('reports an already-up-to-date merge', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const topic = branch('topic')
+    const feature = branch('feature')
+    const { store, mergeBranch } = loadTopology('topic', [main, topic, feature])
+    mergeBranch.mockResolvedValueOnce(MergeResult.AlreadyUpToDate)
+    await store.load('/repo')
+
+    await expect(
+      store.initiateMerge('feature', { workingTreeDirty: false })
+    ).resolves.toBe('up-to-date')
+  })
+
+  it('reports a merge that produces conflicts', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const topic = branch('topic')
+    const feature = branch('feature')
+    const { store, mergeBranch } = loadTopology('topic', [main, topic, feature])
+    mergeBranch.mockResolvedValueOnce(MergeResult.Failed)
+    await store.load('/repo')
+
+    await expect(
+      store.initiateMerge('feature', { workingTreeDirty: false })
+    ).resolves.toBe('conflict')
+  })
+
+  it('refuses to merge branches with unrelated histories', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const topic = branch('topic')
+    const feature = branch('feature')
+    const { store, determineMergeability, mergeBranch } = loadTopology(
+      'topic',
+      [main, topic, feature]
+    )
+    determineMergeability.mockResolvedValueOnce({
+      kind: ComputedAction.Invalid,
+    })
+    await store.load('/repo')
+
+    await expect(
+      store.initiateMerge('feature', { workingTreeDirty: false })
+    ).resolves.toBe('invalid')
+
+    expect(mergeBranch).not.toHaveBeenCalled()
+  })
+
+  it('refuses to merge over a dirty working tree', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const topic = branch('topic')
+    const feature = branch('feature')
+    const { store, determineMergeability, mergeBranch } = loadTopology(
+      'topic',
+      [main, topic, feature]
+    )
+    await store.load('/repo')
+
+    await expect(
+      store.initiateMerge('feature', { workingTreeDirty: true })
+    ).resolves.toBe('dirty')
+
+    expect(determineMergeability).not.toHaveBeenCalled()
+    expect(mergeBranch).not.toHaveBeenCalled()
+  })
+
+  it('refuses to merge a branch into itself', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const topic = branch('topic')
+    const { store, mergeBranch } = loadTopology('topic', [main, topic])
+    await store.load('/repo')
+
+    await expect(
+      store.initiateMerge('topic', { workingTreeDirty: false })
+    ).resolves.toBe('failed')
+
+    expect(mergeBranch).not.toHaveBeenCalled()
   })
 })

@@ -29,6 +29,7 @@ import { shouldShowWindowDragRegion } from '../../platform/window-drag-region'
 import { setWindowZoomFactor } from '../../platform/window'
 import type { AppStoreState } from '../../stores/app-store'
 import type { BranchState } from '../../stores/branch-store'
+import type { MergeInitiationResult } from '../../stores/branch-store'
 import type { CloneState } from '../../stores/clone-store'
 import type { ConflictState } from '../../stores/conflict-store'
 import { getDefaultAppStore } from '../../stores/default-app-store'
@@ -109,6 +110,10 @@ export function useAppController() {
   const [deleteRefusal, setDeleteRefusal] = useState<string | null>(null)
   const [deleteUnmerged, setDeleteUnmerged] = useState(false)
   const [deletePruneTrackingRef, setDeletePruneTrackingRef] = useState(false)
+  const [mergePickerOpen, setMergePickerOpen] = useState(false)
+  const [mergeTarget, setMergeTarget] = useState('')
+  const [mergeMessage, setMergeMessage] = useState<string | null>(null)
+  const [mergeRunning, setMergeRunning] = useState(false)
   const [showCloneDialog, setShowCloneDialog] = useState(false)
   const [showAboutDialog, setShowAboutDialog] = useState(false)
   const [showPreferencesDialog, setShowPreferencesDialog] = useState(false)
@@ -218,6 +223,7 @@ export function useAppController() {
       permanentlyDiscardAllChanges: () => requestDiscardAll(true),
       renameBranch: renameCurrentBranch,
       deleteBranch: deleteCurrentBranch,
+      mergeBranch: requestMerge,
     })
     const replaceMenu = () => {
       if (controller === undefined) {
@@ -312,6 +318,9 @@ export function useAppController() {
     setDeleteRefusal(null)
     setDeleteUnmerged(false)
     setDeletePruneTrackingRef(false)
+    setMergePickerOpen(false)
+    setMergeMessage(null)
+    setMergeRunning(false)
     repositoryViewTransitionID.current++
     pendingRepositoryView.current = null
     historyStore.clear()
@@ -940,6 +949,68 @@ export function useAppController() {
     )
   }
 
+  function requestMerge(): void {
+    setMergeTarget('')
+    setMergeMessage(null)
+    setMergePickerOpen(true)
+  }
+
+  function mergeMessageFor(
+    result: MergeInitiationResult,
+    target: string
+  ): string {
+    switch (result) {
+      case 'up-to-date':
+        return `${target} is already up to date with the current branch.`
+      case 'invalid':
+        return 'These branches do not share a common ancestor and cannot be merged.'
+      case 'dirty':
+        return 'Clean the working tree before merging.'
+      case 'failed':
+        return 'The merge failed.'
+      case 'merged':
+      case 'conflict':
+        return ''
+    }
+  }
+
+  async function confirmMerge(): Promise<void> {
+    if (mergeTarget === '' || mergeRunning) {
+      return
+    }
+    setMergeRunning(true)
+    setMergeMessage(null)
+    const target = mergeTarget
+    const workingTreeDirty =
+      (workingTreeState.workingDirectory?.files.length ?? 0) > 0
+    try {
+      const result = await branchStore.initiateMerge(target, {
+        workingTreeDirty,
+      })
+      if (result === 'merged' || result === 'conflict') {
+        // Reload the stores that observe the new HEAD and the possibly-now-active
+        // merge (ConflictStore reads mergeHeadFound, which drives the recovery UI).
+        await refreshAfterBranchChange(() => Promise.resolve(true))
+        setMergePickerOpen(false)
+        return
+      }
+      setMergeMessage(mergeMessageFor(result, target))
+    } catch {
+      setMergeMessage('The merge failed.')
+    } finally {
+      setMergeRunning(false)
+    }
+  }
+
+  function cancelMerge(): void {
+    if (mergeRunning) {
+      return
+    }
+    setMergePickerOpen(false)
+    setMergeMessage(null)
+    setMergeTarget('')
+  }
+
   function toggleSidebarSection(section: SidebarSectionID): void {
     setExpandedSidebarSections(current => {
       // The expanded panel owns the sidebar's remaining height. Keeping this exclusive means a
@@ -1141,6 +1212,14 @@ export function useAppController() {
     renameCurrentBranch,
     deleteCurrentBranch,
     openBranchContextMenu,
+    mergePickerOpen,
+    mergeTarget,
+    setMergeTarget,
+    mergeMessage,
+    mergeRunning,
+    confirmMerge,
+    cancelMerge,
+    requestMerge,
     toggleSidebarSection,
     activateSidebarSection,
     showBranches,
