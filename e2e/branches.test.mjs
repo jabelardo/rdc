@@ -59,15 +59,37 @@ describe('branches', () => {
       'new branch was not created and checked out'
     )
 
-    const initialBranchButton = await driver.wait(
+    await driver.wait(
       until.elementLocated(By.css(`[data-branch-name="${initialBranch}"]`)),
       5_000,
       'the original branch did not appear in the branch list'
     )
-    await initialBranchButton.click()
+    // Reacquire and re-click until the checkout is observed, rather than holding the element found
+    // above. Creating a branch makes the branch store reload, which re-renders the virtualized
+    // branch list — so between locating a row and clicking it, React can replace the node and the
+    // click lands on a detached element that does nothing. This passed locally and failed in CI
+    // purely on timing. Same reacquire-the-live-element pattern as discard.test.mjs, and the DOM
+    // click is deliberate: WebKitGTK sometimes accepts WebDriver's synthetic pointer click without
+    // dispatching the handler.
     await driver.wait(
-      () =>
-        git(fixture.canonical, 'branch', '--show-current') === initialBranch,
+      async () => {
+        if (
+          git(fixture.canonical, 'branch', '--show-current') === initialBranch
+        ) {
+          return true
+        }
+        try {
+          const row = await driver.findElement(
+            By.css(`[data-branch-name="${initialBranch}"]`)
+          )
+          await driver.executeScript(element => element.click(), row)
+        } catch {
+          // The row was replaced mid-poll; the next iteration finds the live one.
+        }
+        return (
+          git(fixture.canonical, 'branch', '--show-current') === initialBranch
+        )
+      },
       10_000,
       'existing branch was not checked out'
     )
