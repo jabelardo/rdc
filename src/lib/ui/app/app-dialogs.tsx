@@ -1,3 +1,4 @@
+import type { Branch } from '../../../models/branch'
 import type { Repository } from '../../../models/repository'
 import type { WorkingDirectoryFileChange } from '../../../models/status'
 import type { CloneState } from '../../stores/clone-store'
@@ -44,6 +45,18 @@ type AppDialogsProps = {
   readonly onConfirmDiscardAll: () => void
   readonly onCancelRemoveRepository: () => void
   readonly onConfirmRemoveRepository: () => void
+  readonly branchToRename: Branch | null
+  readonly renameName: string
+  readonly onRenameNameChange: (value: string) => void
+  readonly onConfirmRename: () => void
+  readonly onCancelRename: () => void
+  readonly branchToDelete: Branch | null
+  readonly deleteRefusal: string | null
+  readonly deleteUnmerged: boolean
+  readonly deletePruneTrackingRef: boolean
+  readonly onDeletePruneChange: (value: boolean) => void
+  readonly onConfirmDelete: () => void
+  readonly onCancelDelete: () => void
   readonly onDismissAbout: () => void
   readonly onDismissPreferences: () => void
   readonly onDismissClone: () => void
@@ -84,6 +97,18 @@ export function AppDialogs({
   onConfirmDiscardAll,
   onCancelRemoveRepository,
   onConfirmRemoveRepository,
+  branchToRename,
+  renameName,
+  onRenameNameChange,
+  onConfirmRename,
+  onCancelRename,
+  branchToDelete,
+  deleteRefusal,
+  deleteUnmerged,
+  deletePruneTrackingRef,
+  onDeletePruneChange,
+  onConfirmDelete,
+  onCancelDelete,
   onDismissAbout,
   onDismissPreferences,
   onDismissClone,
@@ -201,6 +226,117 @@ export function AppDialogs({
                   : 'Discard changes'}
             </button>
           </div>
+        </Modal>
+      )}
+
+      {branchToRename !== null && (
+        <Modal
+          className={confirmationDialogClassName}
+          role="dialog"
+          aria-labelledby="rename-branch-title"
+          onDismiss={onCancelRename}
+        >
+          <h2 id="rename-branch-title">Rename branch</h2>
+          <form
+            onSubmit={event => {
+              event.preventDefault()
+              onConfirmRename()
+            }}
+          >
+            <label htmlFor="rename-branch-name">
+              New name for <strong>{branchToRename.name}</strong>
+            </label>
+            <input
+              id="rename-branch-name"
+              value={renameName}
+              autoFocus
+              onChange={event => onRenameNameChange(event.currentTarget.value)}
+            />
+            {branchToRename.upstream !== null && (
+              <p>
+                This branch tracks <strong>{branchToRename.upstream}</strong>.
+                Only the local branch is renamed; the remote branch keeps its
+                current name.
+              </p>
+            )}
+            <div className={dialogActionsClassName}>
+              <button type="button" onClick={onCancelRename}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={
+                  renameName.trim().length === 0 ||
+                  renameName.trim() === branchToRename.name
+                }
+              >
+                Rename
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {(branchToDelete !== null || deleteRefusal !== null) && (
+        <Modal
+          className={confirmationDialogClassName}
+          role="alertdialog"
+          aria-labelledby="delete-branch-title"
+          onDismiss={onCancelDelete}
+        >
+          {deleteRefusal !== null ? (
+            <>
+              <h2 id="delete-branch-title">Cannot delete branch</h2>
+              <p>{deleteRefusal}</p>
+              <div className={dialogActionsClassName}>
+                <button type="button" onClick={onCancelDelete}>
+                  Close
+                </button>
+              </div>
+            </>
+          ) : (
+            branchToDelete !== null && (
+              <>
+                <h2 id="delete-branch-title">Delete branch</h2>
+                <p>
+                  Delete <strong>{branchToDelete.name}</strong>?
+                  {branchToDelete.upstream !== null &&
+                    ` This branch tracks ${branchToDelete.upstream}.`}
+                </p>
+                {deleteUnmerged && (
+                  <p className="application-error" role="alert">
+                    This branch has commits that are not in the current branch.
+                    Deleting it will permanently remove them.
+                  </p>
+                )}
+                {branchToDelete.upstream !== null && (
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={deletePruneTrackingRef}
+                      onChange={event =>
+                        onDeletePruneChange(event.currentTarget.checked)
+                      }
+                    />
+                    Also remove the local record of the remote branch (
+                    {branchToDelete.upstream})
+                  </label>
+                )}
+                <div className={dialogActionsClassName}>
+                  <button type="button" onClick={onCancelDelete}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="destructive-button"
+                    onClick={onConfirmDelete}
+                  >
+                    Delete branch
+                  </button>
+                </div>
+              </>
+            )
+          )}
         </Modal>
       )}
 

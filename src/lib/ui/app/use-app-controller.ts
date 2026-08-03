@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { join } from '@tauri-apps/api/path'
+import { BranchType, type Branch } from '../../../models/branch'
 import type { Repository } from '../../../models/repository'
 import { getCloneDirectoryName } from '../../clone-destination'
+import { getMergedBranches } from '../../branch-ipc'
 import { initRepository } from '../../git-ipc'
 import { installApplicationMenu } from '../../menu/application-menu'
 import { showContextualMenu } from '../../menu/context-menu'
@@ -101,6 +103,12 @@ export function useAppController() {
     readonly permanent: boolean
     readonly fileCount: number
   } | null>(null)
+  const [branchToRename, setBranchToRename] = useState<Branch | null>(null)
+  const [renameName, setRenameName] = useState('')
+  const [branchToDelete, setBranchToDelete] = useState<Branch | null>(null)
+  const [deleteRefusal, setDeleteRefusal] = useState<string | null>(null)
+  const [deleteUnmerged, setDeleteUnmerged] = useState(false)
+  const [deletePruneTrackingRef, setDeletePruneTrackingRef] = useState(false)
   const [showCloneDialog, setShowCloneDialog] = useState(false)
   const [showAboutDialog, setShowAboutDialog] = useState(false)
   const [showPreferencesDialog, setShowPreferencesDialog] = useState(false)
@@ -208,6 +216,8 @@ export function useAppController() {
       createBranch,
       discardAllChanges: () => requestDiscardAll(false),
       permanentlyDiscardAllChanges: () => requestDiscardAll(true),
+      renameBranch: renameCurrentBranch,
+      deleteBranch: deleteCurrentBranch,
     })
     const replaceMenu = () => {
       if (controller === undefined) {
@@ -297,6 +307,11 @@ export function useAppController() {
     setDiscardSelection(false)
     setSelectedLinesDiscard(null)
     setDiscardAll(null)
+    setBranchToRename(null)
+    setBranchToDelete(null)
+    setDeleteRefusal(null)
+    setDeleteUnmerged(false)
+    setDeletePruneTrackingRef(false)
     repositoryViewTransitionID.current++
     pendingRepositoryView.current = null
     historyStore.clear()
@@ -787,6 +802,144 @@ export function useAppController() {
     setDiscardAll(null)
   }
 
+  function requestRename(branch: Branch): void {
+    setBranchToRename(branch)
+    setRenameName(branch.name)
+  }
+
+  function renameCurrentBranch(): void {
+    const current = branchStore.state.currentBranch
+    if (current === null) {
+      return
+    }
+    const branch = branchStore.state.branches.find(
+      branch => branch.type === BranchType.Local && branch.name === current
+    )
+    if (branch !== undefined) {
+      requestRename(branch)
+    }
+  }
+
+  async function confirmRename(): Promise<void> {
+    if (branchToRename === null) {
+      return
+    }
+    const branch = branchToRename
+    await refreshAfterBranchChange(() =>
+      branchStore.renameBranch(branch.name, renameName)
+    )
+    if (branchStore.state.operationError === null) {
+      setBranchToRename(null)
+      setRenameName('')
+    }
+  }
+
+  function cancelRename(): void {
+    if (branchStore.state.operation !== null) {
+      return
+    }
+    setBranchToRename(null)
+    setRenameName('')
+  }
+
+  function deleteCurrentBranch(): void {
+    const current = branchStore.state.currentBranch
+    if (current === null) {
+      return
+    }
+    const branch = branchStore.state.branches.find(
+      branch => branch.type === BranchType.Local && branch.name === current
+    )
+    if (branch !== undefined) {
+      void requestDelete(branch)
+    }
+  }
+
+  async function requestDelete(branch: Branch): Promise<void> {
+    // Surface the refusal inline for branches that cannot be deleted, rather than
+    // burdening the confirmation dialog with a doomed action.
+    if (
+      branch.name === branchState.currentBranch ||
+      branch.name === branchState.defaultBranch
+    ) {
+      setDeleteRefusal(
+        branch.name === branchState.currentBranch
+          ? `You cannot delete the current branch '${branch.name}'.`
+          : `You cannot delete the default branch '${branch.name}'.`
+      )
+      return
+    }
+    const repository = appState.selectedRepository
+    setDeleteRefusal(null)
+    setDeletePruneTrackingRef(false)
+    setDeleteUnmerged(false)
+    if (repository !== null && branchState.currentBranch !== null) {
+      try {
+        const merged = await getMergedBranches(
+          repository.path,
+          branchState.currentBranch
+        )
+        setDeleteUnmerged(!merged.has(`refs/heads/${branch.name}`))
+      } catch {
+        setDeleteUnmerged(false)
+      }
+    }
+    setBranchToDelete(branch)
+  }
+
+  async function confirmDelete(): Promise<void> {
+    if (branchToDelete === null) {
+      return
+    }
+    const branch = branchToDelete
+    await refreshAfterBranchChange(() =>
+      branchStore.deleteBranch(branch.name, {
+        pruneTrackingRef: deletePruneTrackingRef,
+      })
+    )
+    if (branchStore.state.operationError === null) {
+      setBranchToDelete(null)
+      setDeleteUnmerged(false)
+      setDeletePruneTrackingRef(false)
+    }
+  }
+
+  function cancelDelete(): void {
+    if (branchStore.state.operation !== null) {
+      return
+    }
+    setBranchToDelete(null)
+    setDeleteRefusal(null)
+    setDeleteUnmerged(false)
+    setDeletePruneTrackingRef(false)
+  }
+
+  async function openBranchContextMenu(
+    branch: Branch,
+    triggerRect?: import('../../platform/menu').TriggerRect
+  ): Promise<void> {
+    const current = branch.name === branchState.currentBranch
+    const defaultBranch = branch.name === branchState.defaultBranch
+    const canDelete = !current && !defaultBranch
+    await showContextualMenu(
+      [
+        {
+          label: 'Rename…',
+          action: () => requestRename(branch),
+        },
+        {
+          label: 'Delete…',
+          enabled: canDelete,
+          action: () => {
+            void requestDelete(branch)
+          },
+        },
+      ],
+      false,
+      triggerRect
+    )
+  }
+
   function toggleSidebarSection(section: SidebarSectionID): void {
     setExpandedSidebarSections(current => {
       // The expanded panel owns the sidebar's remaining height. Keeping this exclusive means a
@@ -971,6 +1124,23 @@ export function useAppController() {
     requestDiscardAll,
     confirmDiscardAll,
     cancelDiscardAll,
+    branchToRename,
+    renameName,
+    setRenameName,
+    confirmRename,
+    cancelRename,
+    branchToDelete,
+    deleteRefusal,
+    deleteUnmerged,
+    deletePruneTrackingRef,
+    setDeletePruneTrackingRef,
+    confirmDelete,
+    cancelDelete,
+    requestRename,
+    requestDelete,
+    renameCurrentBranch,
+    deleteCurrentBranch,
+    openBranchContextMenu,
     toggleSidebarSection,
     activateSidebarSection,
     showBranches,

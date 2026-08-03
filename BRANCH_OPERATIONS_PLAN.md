@@ -1,7 +1,8 @@
 # Branch operations — closing the MVP menu gap
 
-**Status**: plan, not started. Supersedes the "expected disposition" paragraph of F-MENU-001 in
-`qa/phase-8b/evidence/menu-mvp-alignment-findings.md`.
+**Status**: in progress. Slice 1 (discard-all ×2) and Slice 2 (rename + delete) are landed and promoted
+in the menu baseline. Remaining: Slice 3 (merge initiation). Supersedes the "expected disposition"
+paragraph of F-MENU-001 in `qa/phase-8b/evidence/menu-mvp-alignment-findings.md`.
 **Blocks**: Phase 8b exit, on both MVP platforms.
 **Lead platform**: Linux. See "Why Linux leads" below.
 

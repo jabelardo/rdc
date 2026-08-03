@@ -64,6 +64,10 @@ type RepositorySidebarProps = {
     repository: Repository,
     triggerRect?: import('../../platform/menu').TriggerRect
   ) => void
+  readonly onBranchContextMenu: (
+    branch: Branch,
+    triggerRect?: import('../../platform/menu').TriggerRect
+  ) => void
   readonly onBranchNameChange: (name: string) => void
   readonly onBranchChange: (operation: () => Promise<boolean>) => Promise<void>
 }
@@ -84,6 +88,7 @@ export function RepositorySidebar({
   onActivateSection,
   onSelectRepository,
   onRepositoryContextMenu,
+  onBranchContextMenu,
   onBranchNameChange,
   onBranchChange,
 }: RepositorySidebarProps) {
@@ -455,6 +460,7 @@ export function RepositorySidebar({
                                           branchStore.checkout(branch.name)
                                         )
                                       }
+                                      onContextMenu={onBranchContextMenu}
                                     />
                                   )}
                                 </VirtualList>

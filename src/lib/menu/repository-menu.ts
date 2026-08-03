@@ -41,6 +41,8 @@ type RepositoryMenuEnvironment = {
   readonly createBranch: () => void
   readonly discardAllChanges: () => void | Promise<void>
   readonly permanentlyDiscardAllChanges: () => void | Promise<void>
+  readonly renameBranch: () => void
+  readonly deleteBranch: () => void
 }
 
 function withEnablement(
@@ -144,6 +146,12 @@ export function buildRepositoryMenu(
   // the stricter dirty-tree / mid-merge guards.
   enabledByID.set('discard-all-changes', hasSelection)
   enabledByID.set('permanently-discard-all-changes', hasSelection)
+  // Matching create-branch's coarse, selection-only enablement: these route
+  // through the shared executor, and the store guards current/unborn/detached/
+  // default-branch deletion. Rename and delete target the current branch, exactly
+  // as upstream's Branch menu does.
+  enabledByID.set('rename-branch', hasSelection)
+  enabledByID.set('delete-branch', hasSelection)
   const menu = buildStartupMenu(
     platform,
     preferencesState === undefined
@@ -299,6 +307,18 @@ export function createRepositoryMenuEventExecutor(
           return false
         }
         await environment.permanentlyDiscardAllChanges()
+        return true
+      case 'rename-branch':
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        environment.renameBranch()
+        return true
+      case 'delete-branch':
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        environment.deleteBranch()
         return true
       default:
         return false

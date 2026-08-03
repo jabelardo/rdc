@@ -41,6 +41,8 @@ function baseProps(overrides: Partial<MenuBarProps> = {}): MenuBarProps {
     onPull: vi.fn(),
     onRemoveRepository: vi.fn(),
     onNewBranch: vi.fn(),
+    onRenameBranch: vi.fn(),
+    onDeleteBranch: vi.fn(),
     onDiscardAll: vi.fn(),
     onShowLogs: vi.fn(),
     hasRepository: true,
@@ -51,6 +53,8 @@ function baseProps(overrides: Partial<MenuBarProps> = {}): MenuBarProps {
     canPush: true,
     canPull: true,
     canCreateBranch: true,
+    canRenameBranch: true,
+    canDeleteBranch: true,
     canDiscardAll: true,
     selectedShell: 'Ghostty',
     selectedEditor: 'Zed',
@@ -201,6 +205,8 @@ describe('menu bar inventory', () => {
         .map(item => item.getAttribute('aria-label'))
     ).toEqual([
       'New branch…',
+      'Rename…',
+      'Delete…',
       'Discard all changes…',
       'Permanently discard all changes…',
     ])
@@ -259,6 +265,8 @@ describe('menu bar enablement', () => {
           canPush: false,
           canPull: false,
           canCreateBranch: false,
+          canRenameBranch: false,
+          canDeleteBranch: false,
           canDiscardAll: false,
         })}
       />
@@ -282,6 +290,8 @@ describe('menu bar enablement', () => {
     const branch = await openMenu('Branch')
     for (const name of [
       'New branch…',
+      'Rename…',
+      'Delete…',
       'Discard all changes…',
       'Permanently discard all changes…',
     ]) {
@@ -388,6 +398,8 @@ describe('menu bar actions', () => {
     const onFetch = vi.fn()
     const onRemoveRepository = vi.fn()
     const onNewBranch = vi.fn()
+    const onRenameBranch = vi.fn()
+    const onDeleteBranch = vi.fn()
     const onDiscardAll = vi.fn()
     render(
       <MenuBar
@@ -403,6 +415,8 @@ describe('menu bar actions', () => {
           onFetch,
           onRemoveRepository,
           onNewBranch,
+          onRenameBranch,
+          onDeleteBranch,
           onDiscardAll,
         })}
       />
@@ -475,6 +489,16 @@ describe('menu bar actions', () => {
       within(menu).getByRole('menuitem', { name: 'New branch…' })
     )
     expect(onNewBranch).toHaveBeenCalledOnce()
+
+    await openMenu('Branch')
+    menu = screen.getByRole('menu')
+    await user.click(within(menu).getByRole('menuitem', { name: 'Rename…' }))
+    expect(onRenameBranch).toHaveBeenCalledOnce()
+
+    await openMenu('Branch')
+    menu = screen.getByRole('menu')
+    await user.click(within(menu).getByRole('menuitem', { name: 'Delete…' }))
+    expect(onDeleteBranch).toHaveBeenCalledOnce()
 
     await openMenu('Branch')
     menu = screen.getByRole('menu')

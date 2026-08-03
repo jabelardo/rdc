@@ -137,6 +137,7 @@ type BranchListRowProps = {
   readonly operationDisabled: boolean
   readonly row: VirtualListRow
   readonly onSelect: (branch: Branch) => void
+  readonly onContextMenu?: (branch: Branch, triggerRect?: TriggerRect) => void
 }
 
 export function BranchListRow({
@@ -147,6 +148,7 @@ export function BranchListRow({
   index,
   onSelect,
   operationDisabled,
+  onContextMenu,
   row,
 }: BranchListRowProps) {
   const current = branch.name === currentBranch
@@ -198,6 +200,21 @@ export function BranchListRow({
               row.focusIndex
             )
           }}
+          onContextMenu={
+            onContextMenu === undefined
+              ? undefined
+              : event => {
+                  event.preventDefault()
+                  const r = event.currentTarget.getBoundingClientRect()
+                  onContextMenu(branch, {
+                    x: r.x,
+                    y: r.y,
+                    width: r.width,
+                    height: r.height,
+                  })
+                  event.currentTarget.blur()
+                }
+          }
         >
           <FontAwesomeIcon
             className="branch-list-icon"

@@ -3,11 +3,21 @@ import type { ICheckoutProgress } from '../../models/progress'
 import type { IRemote } from '../../models/remote'
 import { getBranches } from '../branch-ipc'
 import { checkoutBranch, getStatus, type IStatusResult } from '../git-ipc'
-import { createBranch } from '../branch-ipc'
+import {
+  createBranch,
+  deleteLocalBranch,
+  deleteRef,
+  renameBranch as renameBranchCommand,
+} from '../branch-ipc'
 import { getRecentBranches } from '../misc-ipc'
 import { getRemoteHEAD, getRemotes } from '../remote-ipc'
+import { testForInvalidChars } from '../sanitize-ref-name'
 
-export type BranchOperation = 'creating' | 'checking-out'
+export type BranchOperation =
+  | 'creating'
+  | 'checking-out'
+  | 'renaming'
+  | 'deleting'
 
 export type BranchState = {
   readonly repositoryPath: string | null
@@ -37,6 +47,9 @@ type BranchStoreDependencies = {
   readonly getRemoteHEAD: typeof getRemoteHEAD
   readonly createBranch: typeof createBranch
   readonly checkoutBranch: typeof checkoutBranch
+  readonly renameBranch: typeof renameBranchCommand
+  readonly deleteLocalBranch: typeof deleteLocalBranch
+  readonly deleteRef: typeof deleteRef
 }
 
 const defaultDependencies: BranchStoreDependencies = {
@@ -47,6 +60,9 @@ const defaultDependencies: BranchStoreDependencies = {
   getRemoteHEAD,
   createBranch,
   checkoutBranch,
+  renameBranch: renameBranchCommand,
+  deleteLocalBranch,
+  deleteRef,
 }
 
 const EmptyState: BranchState = {
@@ -236,6 +252,141 @@ export class BranchStore {
         branch.name,
         progress => this.publishProgress(requestID, operationID, progress)
       )
+      return await this.finishOperation(repositoryPath, requestID, operationID)
+    } catch (error) {
+      return this.failOperation(requestID, operationID, error)
+    }
+  }
+
+  /**
+   * Renames a local branch, preserving its upstream (git's `branch -m` keeps the
+   * upstream pointing at the remote branch under its old name).
+   *
+   * The new name is validated with git's check-ref-format rules and rejected on
+   * collision with an existing branch, so the failure surfaces as a product
+   * message rather than a raw git error.
+   */
+  public async renameBranch(
+    currentName: string,
+    newName: string
+  ): Promise<boolean> {
+    const repositoryPath = this.currentState.repositoryPath
+    const branch = this.currentState.branches.find(
+      branch => branch.type === BranchType.Local && branch.name === currentName
+    )
+    if (repositoryPath === null || branch === undefined) {
+      return false
+    }
+    const target = newName.trim()
+    if (target.length === 0) {
+      this.update({
+        ...this.currentState,
+        operationError: 'Enter a branch name.',
+      })
+      return false
+    }
+    if (testForInvalidChars(target)) {
+      this.update({
+        ...this.currentState,
+        operationError: `'${target}' is not a valid branch name.`,
+      })
+      return false
+    }
+    // A case-only rename is legitimate, so the collision check excludes the branch
+    // being renamed itself.
+    const collision = this.currentState.branches.some(
+      branch =>
+        branch.name.toLowerCase() === target.toLowerCase() &&
+        branch.name !== currentName
+    )
+    if (collision) {
+      this.update({
+        ...this.currentState,
+        operationError: `A branch named '${target}' already exists.`,
+      })
+      return false
+    }
+
+    const operationID = ++this.operationID
+    const requestID = this.requestID
+    this.update({
+      ...this.currentState,
+      operation: 'renaming',
+      progress: null,
+      operationError: null,
+    })
+    try {
+      await this.dependencies.renameBranch(
+        repositoryPath,
+        currentName,
+        target,
+        undefined
+      )
+      return await this.finishOperation(repositoryPath, requestID, operationID)
+    } catch (error) {
+      return this.failOperation(requestID, operationID, error)
+    }
+  }
+
+  /**
+   * Deletes a local branch (`git branch -D`) that is not the current, default or
+   * unborn/detached one, optionally pruning its remote-tracking ref.
+   *
+   * Deleting the remote branch is out of MVP scope and stays separate; pruning
+   * removes only the local `refs/remotes/<remote>/<branch>` record, never the
+   * remote itself.
+   */
+  public async deleteBranch(
+    branchName: string,
+    options: { readonly pruneTrackingRef?: boolean } = {}
+  ): Promise<boolean> {
+    const repositoryPath = this.currentState.repositoryPath
+    const branch = this.currentState.branches.find(
+      branch => branch.type === BranchType.Local && branch.name === branchName
+    )
+    if (repositoryPath === null || branch === undefined) {
+      return false
+    }
+    const { currentBranch, defaultBranch } = this.currentState
+    if (branch.name === currentBranch) {
+      this.update({
+        ...this.currentState,
+        operationError: `You cannot delete the current branch '${branch.name}'.`,
+      })
+      return false
+    }
+    if (currentBranch === null) {
+      this.update({
+        ...this.currentState,
+        operationError:
+          'You cannot delete a branch while on an unborn or detached HEAD.',
+      })
+      return false
+    }
+    if (branch.name === defaultBranch) {
+      this.update({
+        ...this.currentState,
+        operationError: `You cannot delete the default branch '${branch.name}'.`,
+      })
+      return false
+    }
+
+    const operationID = ++this.operationID
+    const requestID = this.requestID
+    this.update({
+      ...this.currentState,
+      operation: 'deleting',
+      progress: null,
+      operationError: null,
+    })
+    try {
+      await this.dependencies.deleteLocalBranch(repositoryPath, branch.name)
+      if (options.pruneTrackingRef && branch.upstream !== null) {
+        await this.dependencies.deleteRef(
+          repositoryPath,
+          `refs/remotes/${branch.upstream}`
+        )
+      }
       return await this.finishOperation(repositoryPath, requestID, operationID)
     } catch (error) {
       return this.failOperation(requestID, operationID, error)

@@ -95,6 +95,21 @@ export function AppShell({ controller }: AppShellProps) {
     requestDiscardAll,
     confirmDiscardAll,
     cancelDiscardAll,
+    branchToRename,
+    renameName,
+    setRenameName,
+    confirmRename,
+    cancelRename,
+    branchToDelete,
+    deleteRefusal,
+    deleteUnmerged,
+    deletePruneTrackingRef,
+    setDeletePruneTrackingRef,
+    confirmDelete,
+    cancelDelete,
+    renameCurrentBranch,
+    deleteCurrentBranch,
+    openBranchContextMenu,
     toggleSidebarSection,
     activateSidebarSection,
     showBranches,
@@ -130,6 +145,11 @@ export function AppShell({ controller }: AppShellProps) {
     hasSelection &&
     branchState.operation === null &&
     !conflictState.mergeInProgress
+  // Rename/Delete target the current branch (upstream behaviour). Rename works on
+  // any current branch; Delete is only sensible off an unborn/detached HEAD, and
+  // the store refuses current/default-branch deletion.
+  const canRenameBranch = canCreateBranch && branchState.currentBranch !== null
+  const canDeleteBranch = canRenameBranch
   // Whole-tree discard is only sensible on a dirty tree, and is refused mid-merge
   // (the working-tree store also guards `mergeHeadFound`, so this enablement and
   // the store agree).
@@ -205,6 +225,8 @@ export function AppShell({ controller }: AppShellProps) {
               }
             }}
             onNewBranch={createBranch}
+            onRenameBranch={renameCurrentBranch}
+            onDeleteBranch={deleteCurrentBranch}
             onDiscardAll={requestDiscardAll}
             onShowLogs={() => void showApplicationLogs()}
             hasRepository={hasSelection}
@@ -215,6 +237,8 @@ export function AppShell({ controller }: AppShellProps) {
             canPush={canPush}
             canPull={canPull}
             canCreateBranch={canCreateBranch}
+            canRenameBranch={canRenameBranch}
+            canDeleteBranch={canDeleteBranch}
             canDiscardAll={canDiscardAll}
             selectedShell={preferencesStore.selectedShell?.shell ?? null}
             selectedEditor={preferencesStore.selectedEditor?.editor ?? null}
@@ -237,6 +261,9 @@ export function AppShell({ controller }: AppShellProps) {
         onSelectRepository={repository => void selectRepository(repository)}
         onRepositoryContextMenu={(repository, triggerRect) =>
           void openRepositoryContextMenu(repository, triggerRect)
+        }
+        onBranchContextMenu={(branch, triggerRect) =>
+          void openBranchContextMenu(branch, triggerRect)
         }
         onBranchNameChange={setNewBranchName}
         onBranchChange={refreshAfterBranchChange}
@@ -379,6 +406,18 @@ export function AppShell({ controller }: AppShellProps) {
         onConfirmDiscardAll={() => void confirmDiscardAll()}
         onCancelRemoveRepository={() => setRepositoryToRemove(null)}
         onConfirmRemoveRepository={() => void confirmRemoveRepository()}
+        branchToRename={branchToRename}
+        renameName={renameName}
+        onRenameNameChange={setRenameName}
+        onConfirmRename={() => void confirmRename()}
+        onCancelRename={cancelRename}
+        branchToDelete={branchToDelete}
+        deleteRefusal={deleteRefusal}
+        deleteUnmerged={deleteUnmerged}
+        deletePruneTrackingRef={deletePruneTrackingRef}
+        onDeletePruneChange={setDeletePruneTrackingRef}
+        onConfirmDelete={() => void confirmDelete()}
+        onCancelDelete={cancelDelete}
         onDismissAbout={() => setShowAboutDialog(false)}
         onDismissPreferences={() => setShowPreferencesDialog(false)}
         onDismissClone={dismissCloneDialog}

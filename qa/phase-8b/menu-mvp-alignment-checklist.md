@@ -112,6 +112,8 @@ accelerators.
 | Item ID | Linux label (upstream) | Accelerator | Classification | Notes |
 |---|---|---|---|---|
 | `create-branch` | New &branch… | Ctrl+Shift+N | **MVP** | Phase 7c — create from HEAD and checkout; enabled on every MVP platform (macOS label: New Branch…) |
+| `rename-branch` | &Rename… | Ctrl+Shift+R | **MVP** | Renames the current branch (upstream behaviour); preserved upstream on rename |
+| `delete-branch` | &Delete… | Ctrl+Shift+D | **MVP** | Targets the current branch; the store refuses current/default/unborn/detached. The functional path for a **non-current** branch is the branch-row context menu |
 | `discard-all-changes` | Discard all changes… | Ctrl+Shift+Backspace | **MVP** | Enabled when the working tree is dirty and no merge is in progress; whole-tree discard reuses `discardChanges(files[])` |
 | `permanently-discard-all-changes` | Permanently discard all changes… | — | **MVP** | Same enablement as discard-all; skips the OS trash |
 
@@ -123,9 +125,10 @@ it was first recorded during the Linux cycle, but macOS is missing exactly the s
 implementing them clears it for both and neither platform ships until it is cleared.
 
 **Progress (BRANCH_OPERATIONS_PLAN.md):** Slice 1 (discard-all-changes and
-permanently-discard-all-changes) landed — promoted here under membership rule (b). The remaining
-blocker items are rename/delete (Slice 2), merge initiation (Slice 3), and **update-from-default,
-now deferred to Phase 7f** — see the plan's scope decision.
+permanently-discard-all-changes) landed — promoted here under membership rule (b). Slice 2
+(rename-branch, delete-branch) also landed — promoted here; delete's non-current-branch path is the
+branch-row context menu. The remaining blocker items are merge initiation (Slice 3) and
+**update-from-default, now deferred to Phase 7f** — see the plan's scope decision.
 
 The menu must not be padded with dead items in the meantime: development implements the operations
 and the baseline promotes them automatically under membership rule (b).
@@ -166,7 +169,6 @@ becomes implemented, the membership rule (b) promotes it to MVP automatically.
 | `create-worktree` | New work&tree… | Worktrees post-MVP; upstream flag-gates it too | post-MVP (7f) |
 | `show-repository-settings` | Repository &settings… | Advanced repository settings | post-MVP (7f) |
 | `manage-remotes` | Manage remotes… | Advanced remote management | post-MVP (7f) |
-| `rename-branch` / `delete-branch` | &Rename… / &Delete… | **MVP-required — blocked** | Fundamental branch lifecycle; see the QA finding | development (MVP blocker) |
 | `stash-all-changes` | &Stash all changes… | No stash support | post-MVP (7f) |
 | `update-branch-with-contribution-target-branch` | &Update from &lt;branch&gt; | **Deferred to Phase 7f** | A convenience over fetch + merge/rebase, both already MVP; needs a persisted `updateBranchStrategy` preference and a dynamic contribution-target label | post-MVP (7f) — see BRANCH_OPERATIONS_PLAN.md scope decision |
 | `compare-to-branch` | &Compare to branch | Compare post-MVP | post-MVP (7f) |

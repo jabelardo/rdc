@@ -59,6 +59,8 @@ type MenuBarAction =
   | { type: 'open-working-directory' }
   | { type: 'open-external-editor' }
   | { type: 'create-branch' }
+  | { type: 'rename-branch' }
+  | { type: 'delete-branch' }
   | { type: 'discard-all-changes' }
   | { type: 'permanently-discard-all-changes' }
   | { type: 'report-issue' }
@@ -103,6 +105,8 @@ export type MenuBarProps = {
   readonly onPull: () => void
   readonly onRemoveRepository: () => void
   readonly onNewBranch: () => void
+  readonly onRenameBranch: () => void
+  readonly onDeleteBranch: () => void
   readonly onDiscardAll: (permanent: boolean) => void
   readonly onShowLogs: () => void
   readonly hasRepository: boolean
@@ -113,6 +117,8 @@ export type MenuBarProps = {
   readonly canPush: boolean
   readonly canPull: boolean
   readonly canCreateBranch: boolean
+  readonly canRenameBranch: boolean
+  readonly canDeleteBranch: boolean
   readonly canDiscardAll: boolean
   readonly selectedShell: string | null
   readonly selectedEditor: string | null
@@ -268,6 +274,12 @@ function executeAction(
       break
     case 'create-branch':
       props.onNewBranch()
+      break
+    case 'rename-branch':
+      props.onRenameBranch()
+      break
+    case 'delete-branch':
+      props.onDeleteBranch()
       break
     case 'discard-all-changes':
       props.onDiscardAll(false)
@@ -478,6 +490,20 @@ function buildMenu(
           'Ctrl+Shift+N',
           { type: 'create-branch' },
           !props.canCreateBranch
+        ),
+        item(
+          'rename-branch',
+          '&Rename…',
+          'Ctrl+Shift+R',
+          { type: 'rename-branch' },
+          !props.canRenameBranch
+        ),
+        item(
+          'delete-branch',
+          '&Delete…',
+          'Ctrl+Shift+D',
+          { type: 'delete-branch' },
+          !props.canDeleteBranch
         ),
         separator(),
         item(

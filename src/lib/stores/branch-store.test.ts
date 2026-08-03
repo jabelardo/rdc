@@ -212,4 +212,185 @@ describe('BranchStore', () => {
     expect(store.state.branches).toEqual([current])
     expect(store.state.currentBranch).toBe('current')
   })
+
+  function loadTopology(currentBranch: string | undefined, branches: Branch[]) {
+    const getBranches = vi.fn(async () => branches)
+    const getStatus = vi.fn(async () => ({
+      currentBranch,
+      mergeHeadFound: false,
+      squashMsgFound: false,
+      isCherryPickingHeadFound: false,
+      files: [],
+      doConflictedFilesExist: false,
+    }))
+    const getRemoteHEAD = vi.fn(async () => 'main')
+    const getRemotes = vi.fn(async () => [
+      { name: 'origin', url: 'https://example.invalid/repository.git' },
+    ])
+    const renameBranch = vi.fn(async () => undefined)
+    const deleteLocalBranch = vi.fn(async () => undefined)
+    const deleteRef = vi.fn(async () => undefined)
+    const store = new BranchStore({
+      getBranches,
+      getStatus,
+      getRecentBranches: vi.fn(async () => []),
+      getRemotes,
+      getRemoteHEAD,
+      renameBranch,
+      deleteLocalBranch,
+      deleteRef,
+    })
+    return { store, getBranches, renameBranch, deleteLocalBranch, deleteRef }
+  }
+
+  it('renames a branch and refreshes branch facts', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const topic = branch('topic')
+    const other = branch('other')
+    const { store, getBranches, renameBranch } = loadTopology('topic', [
+      main,
+      topic,
+      other,
+    ])
+    await store.load('/repo')
+
+    await expect(store.renameBranch('other', 'renamed')).resolves.toBe(true)
+
+    expect(renameBranch).toHaveBeenCalledWith(
+      '/repo',
+      'other',
+      'renamed',
+      undefined
+    )
+    expect(store.state.operationError).toBeNull()
+    expect(getBranches).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects an invalid branch name without calling git', async () => {
+    const topic = branch('topic')
+    const { store, renameBranch } = loadTopology('topic', [topic])
+    await store.load('/repo')
+
+    await expect(store.renameBranch('topic', 'bad~name')).resolves.toBe(false)
+
+    expect(renameBranch).not.toHaveBeenCalled()
+    expect(store.state.operationError).toContain('not a valid branch name')
+  })
+
+  it('requires a non-empty branch name to rename', async () => {
+    const topic = branch('topic')
+    const { store, renameBranch } = loadTopology('topic', [topic])
+    await store.load('/repo')
+
+    await expect(store.renameBranch('topic', '   ')).resolves.toBe(false)
+
+    expect(renameBranch).not.toHaveBeenCalled()
+    expect(store.state.operationError).toBe('Enter a branch name.')
+  })
+
+  it('rejects a rename that collides with an existing branch', async () => {
+    const main = branch('main')
+    const topic = branch('topic')
+    const { store, renameBranch } = loadTopology('topic', [main, topic])
+    await store.load('/repo')
+
+    await expect(store.renameBranch('topic', 'main')).resolves.toBe(false)
+
+    expect(renameBranch).not.toHaveBeenCalled()
+    expect(store.state.operationError).toContain('already exists')
+  })
+
+  it('deletes a non-current, non-default local branch', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const topic = branch('topic')
+    const other = branch('other')
+    const { store, deleteLocalBranch, deleteRef } = loadTopology('topic', [
+      main,
+      topic,
+      other,
+    ])
+    await store.load('/repo')
+    expect(store.state.defaultBranch).toBe('main')
+
+    await expect(store.deleteBranch('other')).resolves.toBe(true)
+
+    expect(deleteLocalBranch).toHaveBeenCalledWith('/repo', 'other')
+    expect(deleteRef).not.toHaveBeenCalled()
+  })
+
+  it('refuses to delete the current branch', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const topic = branch('topic')
+    const { store, deleteLocalBranch } = loadTopology('topic', [main, topic])
+    await store.load('/repo')
+
+    await expect(store.deleteBranch('topic')).resolves.toBe(false)
+
+    expect(deleteLocalBranch).not.toHaveBeenCalled()
+    expect(store.state.operationError).toContain('current branch')
+  })
+
+  it('refuses to delete the default branch', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const topic = branch('topic')
+    const { store, deleteLocalBranch } = loadTopology('topic', [main, topic])
+    await store.load('/repo')
+    expect(store.state.defaultBranch).toBe('main')
+
+    await expect(store.deleteBranch('main')).resolves.toBe(false)
+
+    expect(deleteLocalBranch).not.toHaveBeenCalled()
+    expect(store.state.operationError).toContain('default branch')
+  })
+
+  it('refuses to delete a branch on an unborn or detached HEAD', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const other = branch('other')
+    const { store, deleteLocalBranch } = loadTopology(undefined, [main, other])
+    await store.load('/repo')
+
+    await expect(store.deleteBranch('other')).resolves.toBe(false)
+
+    expect(deleteLocalBranch).not.toHaveBeenCalled()
+    expect(store.state.operationError).toContain('unborn or detached')
+  })
+
+  it('prunes the tracking ref only when opted in', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const topic = branch('topic')
+    const feature = branch('feature', BranchType.Local, 'origin/feature')
+    const { store, deleteLocalBranch, deleteRef } = loadTopology('topic', [
+      main,
+      topic,
+      feature,
+    ])
+    await store.load('/repo')
+
+    await expect(
+      store.deleteBranch('feature', { pruneTrackingRef: true })
+    ).resolves.toBe(true)
+
+    expect(deleteLocalBranch).toHaveBeenCalledWith('/repo', 'feature')
+    expect(deleteRef).toHaveBeenCalledWith(
+      '/repo',
+      'refs/remotes/origin/feature'
+    )
+  })
+
+  it('does not touch the remote-tracking ref by default', async () => {
+    const main = branch('main', BranchType.Local, 'origin/main')
+    const topic = branch('topic')
+    const feature = branch('feature', BranchType.Local, 'origin/feature')
+    const { store, deleteLocalBranch, deleteRef } = loadTopology('topic', [
+      main,
+      topic,
+      feature,
+    ])
+    await store.load('/repo')
+
+    await expect(store.deleteBranch('feature')).resolves.toBe(true)
+
+    expect(deleteLocalBranch).toHaveBeenCalledWith('/repo', 'feature')
+    expect(deleteRef).not.toHaveBeenCalled()
+  })
 })
