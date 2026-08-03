@@ -90,6 +90,25 @@ impl ContextMenuState {
         };
         self.finish(token, Some(path))
     }
+
+    /// Resolve every pending context menu as dismissed (no selection).
+    ///
+    /// Called when a window loses focus: a native popup can otherwise remain open
+    /// (holding its input grab) if the compositor deactivates the window without
+    /// GTK emitting the menu's cancel signal. Settling every pending caller lets
+    /// the renderer's invoke resolve instead of hanging, and keeps the pending
+    /// and item-path maps from leaking.
+    pub fn dismiss_pending(&self) {
+        let tokens: Vec<u64> = self
+            .pending
+            .lock()
+            .ok()
+            .map(|pending| pending.keys().copied().collect())
+            .unwrap_or_default();
+        for token in tokens {
+            self.finish(token, None);
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -435,5 +454,20 @@ mod tests {
 
         assert!(state.finish(started.token, None));
         assert_eq!(started.receiver.await.expect("sender remains"), None);
+    }
+
+    #[tokio::test]
+    async fn dismiss_pending_resolves_every_open_popup_as_null() {
+        let state = super::ContextMenuState::new();
+        let first = state.start(&[item("A")]).expect("starts");
+        let second = state.start(&[item("B")]).expect("starts");
+
+        state.dismiss_pending();
+
+        assert_eq!(first.receiver.await.expect("sender remains"), None);
+        assert_eq!(second.receiver.await.expect("sender remains"), None);
+        // Both tokens are gone, so neither selection can resolve a second time.
+        assert!(!state.handle_event("rdc-context-menu:1:0"));
+        assert!(!state.handle_event("rdc-context-menu:2:0"));
     }
 }

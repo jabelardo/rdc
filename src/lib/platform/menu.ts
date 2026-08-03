@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { IMenu, MenuAction } from '../../models/app-menu'
 import type { SerializableContextMenuItem } from '../../models/context-menu'
+import { getCurrentWindowZoomFactor } from './window'
 
 // Track the last pointer-down position so context menus open where the user
 // clicked rather than at the (stale) cursor position at IPC round-trip time.
@@ -57,11 +58,21 @@ export function invokeContextualMenu(
   const x = triggerRect ? triggerRect.x : lastPointerX
   const y = triggerRect ? triggerRect.y + triggerRect.height : lastPointerY
 
-  return invoke('show_contextual_menu', {
-    items,
-    addSpellCheckMenu,
-    x,
-    y,
+  // The native `popup_menu_at` takes *logical* window coordinates, while the
+  // trigger rect and pointer positions are CSS (page) pixels. At a non-1 webview
+  // zoom these differ by the zoom factor, so a fixed-CSS anchor would drift
+  // toward the top-left — and the gap grows with page Y, so the farther down the
+  // trigger row, the higher the menu appeared (regression at Linux's 1.15
+  // default zoom). Scale to logical pixels before sending.
+  return getCurrentWindowZoomFactor().then(zoom => {
+    const scaledX = x === null ? null : x * zoom
+    const scaledY = y === null ? null : y * zoom
+    return invoke('show_contextual_menu', {
+      items,
+      addSpellCheckMenu,
+      x: scaledX,
+      y: scaledY,
+    })
   })
 }
 

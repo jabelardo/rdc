@@ -39,6 +39,7 @@ function baseProps(overrides: Partial<MenuBarProps> = {}): MenuBarProps {
     onFetch: vi.fn(),
     onPush: vi.fn(),
     onPull: vi.fn(),
+    onManageRemotes: vi.fn(),
     onRemoveRepository: vi.fn(),
     onNewBranch: vi.fn(),
     onRenameBranch: vi.fn(),
@@ -191,6 +192,7 @@ describe('menu bar inventory', () => {
       'Push',
       'Pull',
       'Fetch',
+      'Manage remotes…',
       'Remove…',
       'Open in Ghostty',
       'Show in your File Manager',
@@ -285,6 +287,7 @@ describe('menu bar enablement', () => {
       'Push',
       'Pull',
       'Fetch',
+      'Manage remotes…',
       'Remove…',
       'Open in Ghostty',
     ]) {
@@ -402,6 +405,7 @@ describe('menu bar actions', () => {
     const onPull = vi.fn()
     const onFetch = vi.fn()
     const onRemoveRepository = vi.fn()
+    const onManageRemotes = vi.fn()
     const onNewBranch = vi.fn()
     const onRenameBranch = vi.fn()
     const onDeleteBranch = vi.fn()
@@ -420,6 +424,7 @@ describe('menu bar actions', () => {
           onPull,
           onFetch,
           onRemoveRepository,
+          onManageRemotes,
           onNewBranch,
           onRenameBranch,
           onDeleteBranch,
@@ -484,6 +489,13 @@ describe('menu bar actions', () => {
     menu = screen.getByRole('menu')
     await user.click(within(menu).getByRole('menuitem', { name: 'Fetch' }))
     expect(onFetch).toHaveBeenCalledOnce()
+
+    await openMenu('Repository')
+    menu = screen.getByRole('menu')
+    await user.click(
+      within(menu).getByRole('menuitem', { name: 'Manage remotes…' })
+    )
+    expect(onManageRemotes).toHaveBeenCalledOnce()
 
     await openMenu('Repository')
     menu = screen.getByRole('menu')

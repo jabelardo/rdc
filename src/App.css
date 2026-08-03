@@ -227,6 +227,56 @@ button:disabled {
   background: var(--color-border);
 }
 
+/* The Linux/Windows in-window context menu (AppContextMenu). Rendered in the
+   webview, not as a native popup, so placement is exact at any zoom and a
+   window focus switch cannot leave a native input grab eating clicks. */
+.app-context-menu {
+  position: fixed;
+  z-index: 10002;
+  min-width: 14rem;
+  padding: 0.35rem 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-small);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-dialog);
+}
+
+.app-context-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  width: 100%;
+  padding: 0.35rem 0.75rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text);
+  font-size: 0.8rem;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-context-menu button:hover:not(:disabled),
+.app-context-menu button:focus-visible {
+  color: var(--color-accent);
+  background: var(--color-accent-soft);
+  outline: none;
+}
+
+.app-context-menu button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.app-context-menu-separator {
+  height: 1px;
+  margin: 0.3rem 0.5rem;
+  background: var(--color-border);
+}
+
 .has-menu-bar {
   padding-top: 2rem;
 }

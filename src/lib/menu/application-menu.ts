@@ -48,10 +48,6 @@ export type ApplicationMenuConfiguration = {
   readonly executeMenuEvent?: (event: MenuEvent) => Promise<boolean>
 }
 
-/**
- * Frontend ownership replaces five Electron channels: menu reads, state and
- * label updates, and execution by item or id all stay in this process.
- */
 export class ApplicationMenuController {
   private currentMenu: AppMenu
   private currentBindings: MenuKeybindings

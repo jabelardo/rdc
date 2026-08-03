@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { join } from '@tauri-apps/api/path'
 import { BranchType, type Branch } from '../../../models/branch'
+import type { ContextMenuItem } from '../../../models/context-menu'
 import type { Repository } from '../../../models/repository'
 import { getCloneDirectoryName } from '../../clone-destination'
 import { getMergedBranches } from '../../branch-ipc'
@@ -114,6 +115,20 @@ export function useAppController() {
   const [mergeTarget, setMergeTarget] = useState('')
   const [mergeMessage, setMergeMessage] = useState<string | null>(null)
   const [mergeRunning, setMergeRunning] = useState(false)
+  const [showManageRemotes, setShowManageRemotes] = useState(false)
+  const [remoteFilter, setRemoteFilter] = useState('')
+  const [showAddRemote, setShowAddRemote] = useState(false)
+  const [addRemoteName, setAddRemoteName] = useState('')
+  const [addRemoteURL, setAddRemoteURL] = useState('')
+  const [manageRemoteError, setManageRemoteError] = useState<string | null>(
+    null
+  )
+  const [manageRunning, setManageRunning] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{
+    readonly items: ReadonlyArray<ContextMenuItem>
+    readonly x: number
+    readonly y: number
+  } | null>(null)
   const [showCloneDialog, setShowCloneDialog] = useState(false)
   const [showAboutDialog, setShowAboutDialog] = useState(false)
   const [showPreferencesDialog, setShowPreferencesDialog] = useState(false)
@@ -224,6 +239,7 @@ export function useAppController() {
       renameBranch: renameCurrentBranch,
       deleteBranch: deleteCurrentBranch,
       mergeBranch: requestMerge,
+      manageRemotes: requestManageRemotes,
     })
     const replaceMenu = () => {
       if (controller === undefined) {
@@ -321,6 +337,12 @@ export function useAppController() {
     setMergePickerOpen(false)
     setMergeMessage(null)
     setMergeRunning(false)
+    setShowManageRemotes(false)
+    setShowAddRemote(false)
+    setRemoteFilter('')
+    setManageRemoteError(null)
+    setManageRunning(false)
+    setContextMenu(null)
     repositoryViewTransitionID.current++
     pendingRepositoryView.current = null
     historyStore.clear()
@@ -543,7 +565,7 @@ export function useAppController() {
     if (appState.selectedRepository?.id !== repository.id) {
       await selectRepository(repository)
     }
-    await showContextualMenu(
+    presentContextMenu(
       [
         {
           label: 'Open in New Window',
@@ -561,15 +583,45 @@ export function useAppController() {
         },
         { type: 'separator' },
         {
+          label: 'Manage remotes…',
+          action: () => {
+            requestManageRemotes()
+          },
+        },
+        {
           label: 'Remove',
           action: () => {
             requestRemoveRepository(repository)
           },
         },
       ],
-      false,
       triggerRect
     )
+  }
+
+  /**
+   * Show a context menu. On macOS this stays a native popup (the platform's
+   * own menu). On Linux/Windows it is rendered in the webview (see
+   * AppContextMenu) so placement is exact at any zoom and a window focus switch
+   * cannot leave a native grab eating input.
+   */
+  function presentContextMenu(
+    items: ReadonlyArray<ContextMenuItem>,
+    triggerRect?: import('../../platform/menu').TriggerRect
+  ): void {
+    if (rendererPlatform === 'macos') {
+      void showContextualMenu(items, false, triggerRect)
+      return
+    }
+    setContextMenu({
+      items,
+      x: triggerRect?.x ?? 0,
+      y: triggerRect ? triggerRect.y + triggerRect.height : 0,
+    })
+  }
+
+  function closeContextMenu(): void {
+    setContextMenu(null)
   }
 
   async function runRepositoryAction(action: () => Promise<void>) {
@@ -930,7 +982,7 @@ export function useAppController() {
     const current = branch.name === branchState.currentBranch
     const defaultBranch = branch.name === branchState.defaultBranch
     const canDelete = !current && !defaultBranch
-    await showContextualMenu(
+    presentContextMenu(
       [
         {
           label: 'Rename…',
@@ -944,7 +996,6 @@ export function useAppController() {
           },
         },
       ],
-      false,
       triggerRect
     )
   }
@@ -1009,6 +1060,93 @@ export function useAppController() {
     setMergePickerOpen(false)
     setMergeMessage(null)
     setMergeTarget('')
+  }
+
+  function requestManageRemotes(): void {
+    setRemoteFilter('')
+    setManageRemoteError(null)
+    setShowManageRemotes(true)
+  }
+
+  function closeManageRemotes(): void {
+    if (manageRunning) {
+      return
+    }
+    setShowManageRemotes(false)
+    setShowAddRemote(false)
+    setRemoteFilter('')
+    setManageRemoteError(null)
+  }
+
+  function openAddRemote(): void {
+    setAddRemoteName('')
+    setAddRemoteURL('')
+    setManageRemoteError(null)
+    setShowAddRemote(true)
+  }
+
+  function closeAddRemote(): void {
+    if (manageRunning) {
+      return
+    }
+    setShowAddRemote(false)
+    setManageRemoteError(null)
+  }
+
+  async function confirmAddRemote(): Promise<void> {
+    if (manageRunning) {
+      return
+    }
+    const name = addRemoteName.trim()
+    const url = addRemoteURL.trim()
+    setManageRemoteError(null)
+    // Git remote names cannot contain whitespace.
+    if (name.length === 0 || /\s/.test(name)) {
+      setManageRemoteError('Remote names cannot be empty or contain spaces.')
+      return
+    }
+    if (url.length === 0) {
+      setManageRemoteError('Enter a remote URL.')
+      return
+    }
+    if (remoteState.remotes.some(remote => remote.name === name)) {
+      setManageRemoteError(`A remote named "${name}" already exists.`)
+      return
+    }
+    const repository = appState.selectedRepository
+    if (repository === null) {
+      return
+    }
+    setManageRunning(true)
+    const added = await remoteStore.addRemote(name, url)
+    setManageRunning(false)
+    if (added) {
+      setShowAddRemote(false)
+      setAddRemoteName('')
+      setAddRemoteURL('')
+      await branchStore.load(repository.path)
+    } else if (remoteStore.state.operationError !== null) {
+      setManageRemoteError(remoteStore.state.operationError)
+    }
+  }
+
+  async function confirmRemoveRemote(name: string): Promise<void> {
+    if (manageRunning) {
+      return
+    }
+    const repository = appState.selectedRepository
+    if (repository === null) {
+      return
+    }
+    setManageRunning(true)
+    setManageRemoteError(null)
+    const removed = await remoteStore.removeRemote(name)
+    setManageRunning(false)
+    if (removed) {
+      await branchStore.load(repository.path)
+    } else if (remoteStore.state.operationError !== null) {
+      setManageRemoteError(remoteStore.state.operationError)
+    }
   }
 
   function toggleSidebarSection(section: SidebarSectionID): void {
@@ -1220,6 +1358,24 @@ export function useAppController() {
     confirmMerge,
     cancelMerge,
     requestMerge,
+    showManageRemotes,
+    remoteFilter,
+    setRemoteFilter,
+    showAddRemote,
+    addRemoteName,
+    setAddRemoteName,
+    addRemoteURL,
+    setAddRemoteURL,
+    manageRemoteError,
+    manageRunning,
+    openAddRemote,
+    closeAddRemote,
+    confirmAddRemote,
+    confirmRemoveRemote,
+    closeManageRemotes,
+    requestManageRemotes,
+    contextMenu,
+    closeContextMenu,
     toggleSidebarSection,
     activateSidebarSection,
     showBranches,

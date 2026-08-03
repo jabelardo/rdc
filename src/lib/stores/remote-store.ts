@@ -14,11 +14,13 @@ import { getBranches, getBranchesDifferingFromUpstream } from '../branch-ipc'
 import { getStatus, type IStatusResult } from '../git-ipc'
 import { describeRemoteError } from '../remote-error'
 import {
+  addRemote as addRemoteCommand,
   fastForwardBranches,
   fetch as fetchRemote,
   getRemotes,
   pull as pullRemote,
   push as pushRemote,
+  removeRemote as removeRemoteCommand,
   updateRemoteHEAD,
 } from '../remote-ipc'
 
@@ -80,6 +82,8 @@ type RemoteStoreDependencies = {
     repositoryPath: string,
     branches: ReadonlyArray<readonly [string, string]>
   ) => Promise<void>
+  readonly addRemote: typeof addRemoteCommand
+  readonly removeRemote: typeof removeRemoteCommand
 }
 
 const defaultDependencies: RemoteStoreDependencies = {
@@ -92,6 +96,8 @@ const defaultDependencies: RemoteStoreDependencies = {
   pull: pullRemote,
   getBranchesDifferingFromUpstream,
   fastForwardBranches,
+  addRemote: addRemoteCommand,
+  removeRemote: removeRemoteCommand,
 }
 
 const EmptyState: RemoteState = {
@@ -210,6 +216,101 @@ export class RemoteStore {
         progress: null,
         operationError: null,
       })
+    }
+  }
+
+  /**
+   * Adds a remote and refreshes the remote facts, so a freshly created repository
+   * (which has none) gains one in-app instead of hitting the enablement wall.
+   */
+  public async addRemote(name: string, url: string): Promise<boolean> {
+    const repositoryPath = this.currentState.repositoryPath
+    const trimmedName = name.trim()
+    const trimmedURL = url.trim()
+    if (
+      repositoryPath === null ||
+      this.currentState.loading ||
+      this.currentState.operation !== null ||
+      trimmedName.length === 0 ||
+      trimmedURL.length === 0
+    ) {
+      return false
+    }
+
+    const operationID = ++this.operationID
+    const requestID = this.requestID
+    this.update({
+      ...this.currentState,
+      operationError: null,
+    })
+    try {
+      await this.dependencies.addRemote(repositoryPath, trimmedName, trimmedURL)
+      const facts = await this.loadFacts(repositoryPath)
+      if (!this.isCurrentOperation(requestID, operationID)) {
+        return false
+      }
+      this.update({
+        repositoryPath,
+        ...facts,
+        loading: false,
+        error: null,
+        operation: null,
+        progress: null,
+        operationError: null,
+      })
+      return true
+    } catch (error) {
+      if (this.isCurrentOperation(requestID, operationID)) {
+        this.update({
+          ...this.currentState,
+          operationError: describeRemoteError(error),
+        })
+      }
+      return false
+    }
+  }
+
+  /** Removes a remote and refreshes the remote facts. */
+  public async removeRemote(name: string): Promise<boolean> {
+    const repositoryPath = this.currentState.repositoryPath
+    if (
+      repositoryPath === null ||
+      this.currentState.loading ||
+      this.currentState.operation !== null
+    ) {
+      return false
+    }
+
+    const operationID = ++this.operationID
+    const requestID = this.requestID
+    this.update({
+      ...this.currentState,
+      operationError: null,
+    })
+    try {
+      await this.dependencies.removeRemote(repositoryPath, name)
+      const facts = await this.loadFacts(repositoryPath)
+      if (!this.isCurrentOperation(requestID, operationID)) {
+        return false
+      }
+      this.update({
+        repositoryPath,
+        ...facts,
+        loading: false,
+        error: null,
+        operation: null,
+        progress: null,
+        operationError: null,
+      })
+      return true
+    } catch (error) {
+      if (this.isCurrentOperation(requestID, operationID)) {
+        this.update({
+          ...this.currentState,
+          operationError: describeRemoteError(error),
+        })
+      }
+      return false
     }
   }
 

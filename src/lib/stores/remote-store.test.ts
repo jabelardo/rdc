@@ -483,4 +483,83 @@ describe('RemoteStore', () => {
     expect(store.state.repositoryPath).toBe('/current')
     expect(store.state.remotes).toEqual([upstream])
   })
+
+  it('adds a remote and refreshes the remote facts', async () => {
+    const addRemote = vi.fn(async () => origin)
+    const getRemotes = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([origin])
+    const store = new RemoteStore({
+      getRemotes,
+      getBranches: vi.fn(async () => [branch('main', null)]),
+      getStatus: vi.fn(async () => ({ currentBranch: 'main' })),
+      addRemote,
+    })
+    await store.load('/repo')
+    expect(store.state.remotes).toEqual([])
+
+    await expect(
+      store.addRemote('origin', '/remotes/origin.git')
+    ).resolves.toBe(true)
+
+    expect(addRemote).toHaveBeenCalledWith(
+      '/repo',
+      'origin',
+      '/remotes/origin.git'
+    )
+    expect(store.state.remotes).toEqual([origin])
+  })
+
+  it('refuses to add a remote without a name and url', async () => {
+    const addRemote = vi.fn(async () => origin)
+    const store = new RemoteStore({
+      getRemotes: vi.fn(async () => []),
+      getBranches: vi.fn(async () => [branch('main', null)]),
+      getStatus: vi.fn(async () => ({ currentBranch: 'main' })),
+      addRemote,
+    })
+    await store.load('/repo')
+
+    await expect(store.addRemote('   ', '/x')).resolves.toBe(false)
+    await expect(store.addRemote('origin', '   ')).resolves.toBe(false)
+    expect(addRemote).not.toHaveBeenCalled()
+  })
+
+  it('removes a remote and refreshes the remote facts', async () => {
+    const removeRemote = vi.fn(async () => undefined)
+    const getRemotes = vi
+      .fn()
+      .mockResolvedValueOnce([origin])
+      .mockResolvedValueOnce([])
+    const store = new RemoteStore({
+      getRemotes,
+      getBranches: vi.fn(async () => [branch('main', null)]),
+      getStatus: vi.fn(async () => ({ currentBranch: 'main' })),
+      removeRemote,
+    })
+    await store.load('/repo')
+    expect(store.state.remotes).toEqual([origin])
+
+    await expect(store.removeRemote('origin')).resolves.toBe(true)
+
+    expect(removeRemote).toHaveBeenCalledWith('/repo', 'origin')
+    expect(store.state.remotes).toEqual([])
+  })
+
+  it('surfaces an add-remote failure through operationError', async () => {
+    const addRemote = vi.fn(async () => {
+      throw new Error('remote exists')
+    })
+    const store = new RemoteStore({
+      getRemotes: vi.fn(async () => []),
+      getBranches: vi.fn(async () => [branch('main', null)]),
+      getStatus: vi.fn(async () => ({ currentBranch: 'main' })),
+      addRemote,
+    })
+    await store.load('/repo')
+
+    await expect(store.addRemote('origin', '/x')).resolves.toBe(false)
+    expect(store.state.operationError).not.toBeNull()
+  })
 })

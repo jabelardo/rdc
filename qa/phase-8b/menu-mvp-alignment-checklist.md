@@ -102,6 +102,7 @@ accelerators.
 | `push` | P&ush | Ctrl+P | **MVP** | Phase 7d — remote and branch exist, not loading |
 | `pull` | Pu&ll | Ctrl+Shift+P | **MVP** | Phase 7d — same as push plus upstream tracking branch |
 | `fetch` | &Fetch | Ctrl+Shift+T | **MVP** | Phase 7d — remote exists, not loading |
+| `manage-remotes` | Manage remotes… | — | **MVP** | List/add/remove remotes; solves the no-remote dead end for locally created repositories |
 | `remove-repository` | &Remove… | Ctrl+Backspace | **MVP** | Phase 7a — enabled when a repo is selected; confirmation follows the preference |
 | `open-in-shell` | O&pen in &lt;shell&gt; | Ctrl+` | **MVP** | Phase 7e — enabled when shell is configured; label carries the shell name |
 | `open-working-directory` | Show in your File Manager | Ctrl+Shift+F | **MVP** | Phase 7a — enabled when a repo is selected |
@@ -169,7 +170,6 @@ becomes implemented, the membership rule (b) promotes it to MVP automatically.
 | `create-issue-in-repository-on-github` | Create &issue on GitHub | No GitHub account/networking | post-MVP (5b/7f) |
 | `create-worktree` | New work&tree… | Worktrees post-MVP; upstream flag-gates it too | post-MVP (7f) |
 | `show-repository-settings` | Repository &settings… | Advanced repository settings | post-MVP (7f) |
-| `manage-remotes` | Manage remotes… | Advanced remote management | post-MVP (7f) |
 | `stash-all-changes` | &Stash all changes… | No stash support | post-MVP (7f) |
 | `update-branch-with-contribution-target-branch` | &Update from &lt;branch&gt; | **Deferred to Phase 7f** | A convenience over fetch + merge/rebase, both already MVP; needs a persisted `updateBranchStrategy` preference and a dynamic contribution-target label | post-MVP (7f) — see BRANCH_OPERATIONS_PLAN.md scope decision |
 | `compare-to-branch` | &Compare to branch | Compare post-MVP | post-MVP (7f) |

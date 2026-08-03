@@ -204,6 +204,7 @@ describe('repository application menu', () => {
           renameBranch: vi.fn(),
           mergeBranch: vi.fn(),
           deleteBranch: vi.fn(),
+          manageRemotes: vi.fn(),
         }
       )
       const executeStartupAction = createStartupMenuActionExecutor({
@@ -274,6 +275,7 @@ describe('repository application menu actions', () => {
       renameBranch: vi.fn(),
       deleteBranch: vi.fn(),
       mergeBranch: vi.fn(),
+      manageRemotes: vi.fn(),
     }
     const execute = createRepositoryMenuEventExecutor(store, environment)
 
@@ -303,6 +305,7 @@ describe('repository application menu actions', () => {
     await expect(execute('rename-branch')).resolves.toBe(true)
     await expect(execute('delete-branch')).resolves.toBe(true)
     await expect(execute('merge-branch')).resolves.toBe(true)
+    await expect(execute('manage-remotes')).resolves.toBe(true)
 
     expect(environment.createRepository).toHaveBeenCalledOnce()
     expect(environment.addLocalRepository).toHaveBeenCalledOnce()
@@ -334,6 +337,7 @@ describe('repository application menu actions', () => {
     expect(environment.renameBranch).toHaveBeenCalledOnce()
     expect(environment.deleteBranch).toHaveBeenCalledOnce()
     expect(environment.mergeBranch).toHaveBeenCalledOnce()
+    expect(environment.manageRemotes).toHaveBeenCalledOnce()
   })
 
   it('refuses repository actions when the selection disappeared', async () => {
@@ -367,6 +371,7 @@ describe('repository application menu actions', () => {
       renameBranch: vi.fn(),
       deleteBranch: vi.fn(),
       mergeBranch: vi.fn(),
+      manageRemotes: vi.fn(),
     }
     const execute = createRepositoryMenuEventExecutor(store, environment)
 
@@ -394,6 +399,7 @@ describe('repository application menu actions', () => {
     await expect(execute('rename-branch')).resolves.toBe(false)
     await expect(execute('delete-branch')).resolves.toBe(false)
     await expect(execute('merge-branch')).resolves.toBe(false)
+    await expect(execute('manage-remotes')).resolves.toBe(false)
     await expect(execute('increase-active-resizable-width')).resolves.toBe(true)
     await expect(execute('decrease-active-resizable-width')).resolves.toBe(true)
 

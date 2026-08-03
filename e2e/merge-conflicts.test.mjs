@@ -1,9 +1,3 @@
-// Minimum conflict recovery, reached through the product: the Branch menu's merge
-// initiates a real conflict, the app surfaces the in-progress merge, refuses to
-// stage an unresolved file, and stages the resolution once the markers are gone.
-//
-// This supersedes the previous spec, which started the merge with CLI `git merge`
-// in `before` — the last MVP criterion satisfiable only from a terminal.
 import assert from 'node:assert/strict'
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -37,8 +31,6 @@ async function clickMenuItem(driver, label) {
   )
 }
 
-// React-controlled <select>: go through the native value setter and dispatch a
-// bubbling 'change' so the picker's controlled state actually updates.
 async function selectReactOption(driver, id, value) {
   await driver.wait(
     async () => {
@@ -133,7 +125,7 @@ describe('merge conflicts', () => {
   it('merges from the Branch menu into a conflict and stages the resolution', async () => {
     await clickMenuItem(driver, 'Branch')
     await clickMenuItem(driver, 'Merge into current branch…')
-    const picker = await driver.wait(
+    await driver.wait(
       until.elementLocated(By.css('#merge-target-branch')),
       5_000
     )

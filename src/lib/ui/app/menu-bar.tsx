@@ -54,6 +54,7 @@ type MenuBarAction =
   | { type: 'push' }
   | { type: 'pull' }
   | { type: 'fetch' }
+  | { type: 'manage-remotes' }
   | { type: 'remove-repository' }
   | { type: 'open-in-shell' }
   | { type: 'open-working-directory' }
@@ -104,6 +105,7 @@ export type MenuBarProps = {
   readonly onFetch: () => void
   readonly onPush: () => void
   readonly onPull: () => void
+  readonly onManageRemotes: () => void
   readonly onRemoveRepository: () => void
   readonly onNewBranch: () => void
   readonly onRenameBranch: () => void
@@ -265,6 +267,9 @@ function executeAction(
       break
     case 'fetch':
       props.onFetch()
+      break
+    case 'manage-remotes':
+      props.onManageRemotes()
       break
     case 'push':
       props.onPush()
@@ -455,6 +460,13 @@ function buildMenu(
           'Ctrl+Shift+T',
           { type: 'fetch' },
           !props.canFetch
+        ),
+        item(
+          'manage-remotes',
+          'Manage remotes…',
+          undefined,
+          { type: 'manage-remotes' },
+          !props.hasRepository
         ),
         item(
           'remove-repository',

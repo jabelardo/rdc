@@ -9,6 +9,7 @@ import { showFolderContents } from '../../platform/files'
 import { openRepositoryInNewWindow } from '../../platform/window'
 import { showApplicationLogs } from '../../resilience/logs'
 import { HorizontalResizer } from '../horizontal-resizer'
+import { AppContextMenu } from './app-context-menu'
 import { AppDialogs } from './app-dialogs'
 import { ChangesWorkspace } from './changes-workspace'
 import { HistoryWorkspace } from './history-workspace'
@@ -18,6 +19,7 @@ import { RepositoryToolbar } from './repository-toolbar'
 import type { AppController } from './use-app-controller'
 import { WindowDragStrip } from './window-drag-strip'
 import { currentMenuPlatform } from '../../menu/default-menu'
+import { remoteEnablement } from '../../remote-enablement'
 import { MenuBar } from './menu-bar'
 
 type AppShellProps = {
@@ -118,6 +120,24 @@ export function AppShell({ controller }: AppShellProps) {
     confirmMerge,
     cancelMerge,
     requestMerge,
+    showManageRemotes,
+    remoteFilter,
+    setRemoteFilter,
+    showAddRemote,
+    addRemoteName,
+    setAddRemoteName,
+    addRemoteURL,
+    setAddRemoteURL,
+    manageRemoteError,
+    manageRunning,
+    openAddRemote,
+    closeAddRemote,
+    confirmAddRemote,
+    confirmRemoveRemote,
+    closeManageRemotes,
+    requestManageRemotes,
+    contextMenu,
+    closeContextMenu,
     toggleSidebarSection,
     activateSidebarSection,
     showBranches,
@@ -132,47 +152,28 @@ export function AppShell({ controller }: AppShellProps) {
   } = controller
   const platform = currentMenuPlatform()
   const showMenuBar = platform === 'linux' || platform === 'windows'
-  // Once a repository is selected, reserve the strictest accepted workspace minimum for every
-  // view. If this followed the active view (Changes 490 px, History 560 px), CSS would re-clamp the
-  // same stored sidebar width on every Changes/History switch and make navigation visibly jump.
   const workspaceMinimum = appState.selectedRepository === null ? 490 : 560
   const hasSelection = appState.selectedRepository !== null
-  const remoteMatchesSelection =
-    remoteState.repositoryPath === appState.selectedRepository?.path
-  const remoteReady =
-    hasSelection &&
-    remoteMatchesSelection &&
-    remoteState.currentRemote !== null &&
-    !remoteState.loading &&
-    remoteState.operation === null
-  const canFetch = remoteReady
-  const canPush = canFetch && remoteState.currentBranch !== null
-  const canPull =
-    canPush && typeof remoteState.currentBranch?.upstream === 'string'
+  const { canFetch, canPush, canPull } = remoteEnablement({
+    hasSelection,
+    selectedRepositoryPath: appState.selectedRepository?.path ?? null,
+    remoteState,
+  })
   const canCreateBranch =
     hasSelection &&
     branchState.operation === null &&
     !conflictState.mergeInProgress
-  // Rename/Delete target the current branch (upstream behaviour). Rename works on
-  // any current branch; Delete is only sensible off an unborn/detached HEAD, and
-  // the store refuses current/default-branch deletion.
   const canRenameBranch = canCreateBranch && branchState.currentBranch !== null
   const canDeleteBranch = canRenameBranch
-  // Merge initiation needs a current branch, a clean working tree (git refuses to
-  // merge over uncommitted changes), and no merge already in progress.
   const canMerge =
     canCreateBranch &&
     branchState.currentBranch !== null &&
     (workingTreeState.workingDirectory?.files.length ?? 0) === 0 &&
     !conflictState.mergeInProgress
-  // Whole-tree discard is only sensible on a dirty tree, and is refused mid-merge
-  // (the working-tree store also guards `mergeHeadFound`, so this enablement and
-  // the store agree).
   const canDiscardAll =
     hasSelection &&
     (workingTreeState.workingDirectory?.files.length ?? 0) > 0 &&
     !workingTreeState.mergeHeadFound
-  // Same DOM focus policy as the keybinding tree's choose-repository handler.
   const focusRepositoryList = () => {
     document
       .querySelector<HTMLElement>(
@@ -243,6 +244,7 @@ export function AppShell({ controller }: AppShellProps) {
             onRenameBranch={renameCurrentBranch}
             onDeleteBranch={deleteCurrentBranch}
             onMergeBranch={requestMerge}
+            onManageRemotes={requestManageRemotes}
             onDiscardAll={requestDiscardAll}
             onShowLogs={() => void showApplicationLogs()}
             hasRepository={hasSelection}
@@ -338,6 +340,9 @@ export function AppShell({ controller }: AppShellProps) {
           <div className="selected-repository relative grid h-full min-h-0 min-w-0 text-left">
             <RepositoryToolbar
               remoteState={remoteState}
+              canFetch={canFetch}
+              canPush={canPush}
+              canPull={canPull}
               hasEditor={preferencesStore.selectedEditor !== null}
               hasShell={preferencesStore.selectedShell !== null}
               repositoryView={repositoryView}
@@ -443,6 +448,22 @@ export function AppShell({ controller }: AppShellProps) {
         mergeRunning={mergeRunning}
         onConfirmMerge={() => void confirmMerge()}
         onCancelMerge={cancelMerge}
+        showManageRemotes={showManageRemotes}
+        remotes={remoteState.remotes}
+        remoteFilter={remoteFilter}
+        onRemoteFilterChange={setRemoteFilter}
+        showAddRemote={showAddRemote}
+        addRemoteName={addRemoteName}
+        onAddRemoteNameChange={setAddRemoteName}
+        addRemoteURL={addRemoteURL}
+        onAddRemoteURLChange={setAddRemoteURL}
+        manageRemoteError={manageRemoteError}
+        manageRunning={manageRunning}
+        onNewRemote={openAddRemote}
+        onConfirmAddRemote={() => void confirmAddRemote()}
+        onConfirmRemoveRemote={name => void confirmRemoveRemote(name)}
+        onCloseAddRemote={closeAddRemote}
+        onCloseManageRemotes={closeManageRemotes}
         onDismissAbout={() => setShowAboutDialog(false)}
         onDismissPreferences={() => setShowPreferencesDialog(false)}
         onDismissClone={dismissCloneDialog}
@@ -450,6 +471,13 @@ export function AppShell({ controller }: AppShellProps) {
         onSubmitClone={() => void submitClone()}
         onCloneURLChange={setCloneURL}
         onClonePathChange={setClonePath}
+      />
+      <AppContextMenu
+        items={contextMenu?.items ?? null}
+        position={
+          contextMenu === null ? null : { x: contextMenu.x, y: contextMenu.y }
+        }
+        onClose={closeContextMenu}
       />
     </main>
   )

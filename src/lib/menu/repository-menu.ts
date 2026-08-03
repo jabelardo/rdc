@@ -4,6 +4,7 @@ import type { Repository } from '../../models/repository'
 import type { AppStoreState } from '../stores/app-store'
 import type { RemoteState } from '../stores/remote-store'
 import type { PreferencesState } from '../stores/preferences-store'
+import { remoteEnablement } from '../remote-enablement'
 import { buildStartupMenu } from './startup'
 import type { MenuPlatform } from './default-menu'
 
@@ -29,11 +30,6 @@ type RepositoryMenuEnvironment = {
   readonly removeRepository?: (repository: Repository) => void | Promise<void>
   readonly openInShell?: (path: string) => void | Promise<void>
   readonly openInExternalEditor?: (path: string) => void | Promise<void>
-  // Linux/Windows in-window-menu companions: these route the keybinding-tree
-  // accelerators (Ctrl+B, Ctrl+G, Ctrl+9/8, Ctrl+Shift+N) to the same actions
-  // as the visible menu bar. They are required because the enablement map
-  // below enables the corresponding items on non-macOS platforms; macOS keeps
-  // those items disabled and so never reaches these callbacks.
   readonly showBranches: () => void
   readonly goToCommitMessage: () => void
   readonly increaseActiveResizableWidth: () => void
@@ -44,6 +40,7 @@ type RepositoryMenuEnvironment = {
   readonly renameBranch: () => void
   readonly deleteBranch: () => void
   readonly mergeBranch: () => void
+  readonly manageRemotes: () => void
 }
 
 function withEnablement(
@@ -67,13 +64,6 @@ function withEnablement(
   return { ...item, enabled }
 }
 
-/**
- * Apply the repository-shell subset of upstream's menu policy.
- *
- * Later vertical slices enable their own commands when their backing state
- * and action handlers land; a selected repository alone must not make an
- * unimplemented command appear usable.
- */
 export function buildRepositoryMenu(
   state: AppStoreState,
   platform: MenuPlatform,
@@ -82,15 +72,11 @@ export function buildRepositoryMenu(
 ): IMenu {
   const hasRepositories = state.repositories.length > 0
   const hasSelection = state.selectedRepository !== null
-  const canFetch =
-    hasSelection &&
-    remoteState?.repositoryPath === state.selectedRepository?.path &&
-    remoteState.currentRemote !== null &&
-    !remoteState.loading &&
-    remoteState.operation === null
-  const canPush = canFetch && remoteState?.currentBranch !== null
-  const canPull =
-    canPush && typeof remoteState?.currentBranch?.upstream === 'string'
+  const { canFetch, canPush, canPull } = remoteEnablement({
+    hasSelection,
+    selectedRepositoryPath: state.selectedRepository?.path ?? null,
+    remoteState,
+  })
   const enabledByID = new Map<string, boolean>([
     ['new-repository', true],
     ['add-local-repository', true],
@@ -120,37 +106,16 @@ export function buildRepositoryMenu(
     ['show-history', hasSelection],
     ['fetch', canFetch],
     ['push', canPush],
+    ['manage-remotes', hasSelection],
     ['pull', canPull],
   ])
-  // Enabled on every platform, deliberately. These five actions are implemented, so membership
-  // rule (b) of the menu baseline makes them MVP — "an implemented capability is MVP by definition
-  // and must be reachable from the menu". They were once gated to non-macOS because the development
-  // host could not run macOS, which left the macOS Branch menu with *no* usable item at all: even
-  // `create-branch`, the one branch operation that exists, was greyed out while Linux offered it.
-  // A menu that hides working features is as wrong as one that offers broken ones.
-  //
-  // Each routes to a `RepositoryMenuEnvironment` callback shared with the Linux in-window menu bar,
-  // and the per-platform executor contract in this module's tests proves macOS has an executor for
-  // every one. What automation still cannot prove is native WKWebView dispatch — there is no
-  // `tauri-driver` backend for it — so the macOS checklist carries an explicit verification item.
-  //
-  // `create-branch` is only selection-gated here, matching what the Linux keybinding tree already
-  // did: the visible menu bar applies the stricter operation/merge guards, and the sidebar form
-  // disables its own submit.
   enabledByID.set('show-branches-list', hasSelection)
   enabledByID.set('go-to-commit-message', hasSelection)
   enabledByID.set('increase-active-resizable-width', true)
   enabledByID.set('decrease-active-resizable-width', true)
   enabledByID.set('create-branch', hasSelection)
-  // Coarse, selection-only enablement, matching `create-branch`: these route
-  // through the shared executor, and the in-window menu bar and the store apply
-  // the stricter dirty-tree / mid-merge guards.
   enabledByID.set('discard-all-changes', hasSelection)
   enabledByID.set('permanently-discard-all-changes', hasSelection)
-  // Matching create-branch's coarse, selection-only enablement: these route
-  // through the shared executor, and the store guards current/unborn/detached/
-  // default-branch deletion. Rename and delete target the current branch, exactly
-  // as upstream's Branch menu does.
   enabledByID.set('rename-branch', hasSelection)
   enabledByID.set('delete-branch', hasSelection)
   enabledByID.set('merge-branch', hasSelection)
@@ -172,7 +137,6 @@ export function buildRepositoryMenu(
   }
 }
 
-/** Execute only menu events whose current application-shell behavior exists. */
 export function createRepositoryMenuEventExecutor(
   store: RepositoryMenuStore,
   environment: RepositoryMenuEnvironment
@@ -327,6 +291,12 @@ export function createRepositoryMenuEventExecutor(
           return false
         }
         environment.mergeBranch()
+        return true
+      case 'manage-remotes':
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        environment.manageRemotes()
         return true
       default:
         return false

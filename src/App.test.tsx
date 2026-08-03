@@ -2001,13 +2001,13 @@ describe('App', () => {
       keys: '[MouseRight]',
     })
 
-    expect(showContextualMenu).toHaveBeenCalledOnce()
-    expect(showContextualMenu.mock.calls[0][0]).toMatchObject([
-      { label: 'Open in New Window' },
-      { label: 'Show in File Manager' },
-      { type: 'separator' },
-      { label: 'Remove' },
-    ])
+    // On Linux the context menu is rendered in the webview, not as a native popup.
+    await screen.findByRole('menu')
+    expect(screen.getByRole('menuitem', { name: 'Open in New Window' }))
+    expect(showContextualMenu).not.toHaveBeenCalled()
+    expect(screen.getByRole('menuitem', { name: 'Show in File Manager' }))
+    expect(screen.getByRole('menuitem', { name: 'Manage remotes…' }))
+    expect(screen.getByRole('menuitem', { name: 'Remove' }))
   })
 
   it('routes contextual repository actions through the owning seams', async () => {
@@ -2015,22 +2015,25 @@ describe('App', () => {
       repositories: [repository],
       selectedRepository: repository,
     }
-    showContextualMenu.mockImplementation(async items => {
-      items[0].action()
-      items[1].action()
-      items[3].action()
-    })
     const user = userEvent.setup()
     render(<App />)
 
     await user.click(screen.getByRole('button', { name: 'Repositories' }))
-    await user.pointer({
-      target: screen.getByRole('button', { name: 'Select rdc' }),
-      keys: '[MouseRight]',
-    })
+    const open = async (name: string) => {
+      await user.pointer({
+        target: screen.getByRole('button', { name: 'Select rdc' }),
+        keys: '[MouseRight]',
+      })
+      await user.click(await screen.findByRole('menuitem', { name }))
+    }
 
+    await open('Open in New Window')
     expect(openRepositoryInNewWindow).toHaveBeenCalledWith(repository.path)
+
+    await open('Show in File Manager')
     expect(showFolderContents).toHaveBeenCalledWith(repository.path)
+
+    await open('Remove')
     expect(
       screen.getByRole('alertdialog', { name: 'Remove repository' })
     ).toBeInTheDocument()

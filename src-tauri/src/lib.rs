@@ -163,6 +163,15 @@ pub fn run() {
                     .state::<platform::notification::NotificationState>()
                     .remove_window(window.label());
             }
+            // A native context menu left open when its window loses focus can hold
+            // an input grab and make the app unresponsive (menu covers Close/Exit).
+            // Dismiss any pending context menu so the renderer's invoke resolves.
+            if matches!(event, tauri::WindowEvent::Focused(false)) {
+                window
+                    .app_handle()
+                    .state::<platform::context_menu::ContextMenuState>()
+                    .dismiss_pending();
+            }
         })
         .on_menu_event(|app, event| {
             if platform::context_menu::handle_menu_event(app, event.id().as_ref()) {

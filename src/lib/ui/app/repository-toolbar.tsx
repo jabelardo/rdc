@@ -17,6 +17,9 @@ import { Tooltip } from '../tooltip'
 
 type RepositoryToolbarProps = {
   readonly remoteState: RemoteState
+  readonly canFetch: boolean
+  readonly canPush: boolean
+  readonly canPull: boolean
   readonly hasEditor: boolean
   readonly hasShell: boolean
   readonly repositoryView: 'changes' | 'history'
@@ -35,6 +38,9 @@ type RepositoryToolbarProps = {
 /** Current-repository identity, local shortcuts, and remote synchronization actions. */
 export function RepositoryToolbar({
   remoteState,
+  canFetch,
+  canPush,
+  canPull,
   hasEditor,
   hasShell,
   repositoryView,
@@ -71,8 +77,6 @@ export function RepositoryToolbar({
 
   return (
     <header
-      // Tooltips for controls in this bar clear the bar itself, not just the control — its buttons
-      // are centred above ~9px of bottom slack, so trigger-only clearance covered the bottom rule.
       data-tooltip-boundary=""
       className="repository-toolbar flex min-w-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface-subtle)] px-3"
       role="toolbar"
@@ -160,11 +164,7 @@ export function RepositoryToolbar({
             <button
               type="button"
               aria-label="Fetch"
-              disabled={
-                remoteState.loading ||
-                remoteState.currentRemote === null ||
-                remoteState.operation !== null
-              }
+              disabled={!canFetch}
               onClick={onFetch}
             >
               <FontAwesomeIcon
@@ -181,13 +181,7 @@ export function RepositoryToolbar({
             <button
               type="button"
               aria-label="Pull"
-              disabled={
-                remoteState.loading ||
-                remoteState.currentRemote === null ||
-                remoteState.currentBranch === null ||
-                remoteState.currentBranch.upstream === null ||
-                remoteState.operation !== null
-              }
+              disabled={!canPull}
               onClick={onPull}
             >
               <FontAwesomeIcon
@@ -204,12 +198,7 @@ export function RepositoryToolbar({
             <button
               type="button"
               aria-label="Push"
-              disabled={
-                remoteState.loading ||
-                remoteState.currentRemote === null ||
-                remoteState.currentBranch === null ||
-                remoteState.operation !== null
-              }
+              disabled={!canPush}
               onClick={onPush}
             >
               <FontAwesomeIcon
