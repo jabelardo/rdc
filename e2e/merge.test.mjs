@@ -54,9 +54,8 @@ async function selectReactOption(driver, id, value) {
           value
         )
         return (
-          (await driver
-            .findElement(By.css(`#${id}`))
-            .getAttribute('value')) === value
+          (await driver.findElement(By.css(`#${id}`)).getAttribute('value')) ===
+          value
         )
       } catch {
         return false
