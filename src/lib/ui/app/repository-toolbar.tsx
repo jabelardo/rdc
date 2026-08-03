@@ -71,6 +71,9 @@ export function RepositoryToolbar({
 
   return (
     <header
+      // Tooltips for controls in this bar clear the bar itself, not just the control — its buttons
+      // are centred above ~9px of bottom slack, so trigger-only clearance covered the bottom rule.
+      data-tooltip-boundary=""
       className="repository-toolbar flex min-w-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface-subtle)] px-3"
       role="toolbar"
       aria-label="Repository actions"

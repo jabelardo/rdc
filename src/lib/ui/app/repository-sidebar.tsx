@@ -152,7 +152,10 @@ export function RepositorySidebar({
       }`}
       aria-label="Navigation"
     >
-      <div className="sidebar-command-bar flex items-center border-b border-[var(--color-border)]">
+      <div
+        data-tooltip-boundary=""
+        className="sidebar-command-bar flex items-center border-b border-[var(--color-border)]"
+      >
         <Tooltip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
           <button
             type="button"
