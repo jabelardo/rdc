@@ -72,13 +72,22 @@ items, unchanged; do not restate them here, satisfy them there.
 
 ## Open engineering items
 
-1. **Produced-package inspection is not automated yet.** `pnpm qualify:phase8a` deliberately audits
+1. **MVP blocker — branch operations missing from the menu.** Rename, delete, discard-all
+   (×2) and merge initiation are unreachable from the application menu on both platforms, so the
+   Branch menu is effectively single-item. **The backend is not the gap**: the git operations, their
+   Tauri commands and their TypeScript IPC wrappers all exist and are tested — only store methods, UI
+   affordances and menu wiring are missing. Plan, slices and per-slice definition of done in
+   [`BRANCH_OPERATIONS_PLAN.md`](./BRANCH_OPERATIONS_PLAN.md); Linux leads, macOS follows by the
+   capability-parity rule. `update-branch-with-contribution-target-branch` is deferred to Phase 7f
+   there, with the reasoning. Finding: `qa/phase-8b/evidence/menu-mvp-alignment-findings.md`
+   F-MENU-001.
+2. **Produced-package inspection is not automated yet.** `pnpm qualify:phase8a` deliberately audits
    inputs and reports `finalPackagesProduced: false`; no current command opens the macOS/Linux bundle
    outputs and checks identity, resources, sidecar permissions and legacy destinations. Phase 8b's
    plan explicitly requires automated metadata/resource/package smoke. Add that reproducible check
    after final icon/identifier and concrete bundle targets are chosen, before treating the manual
    `final-package-smoke.md` pass as sufficient.
-2. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
+3. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
    seams themselves are done (`AGENTS.md` rule 11): `rdc-printenvz`'s two arms now share a
    signature, `cli_installer`'s symlink is behind a per-OS `link` module with both arms real, and
    `custom_integration`'s unix code is in a gated inner module. What is left is a genuine Phase 10
