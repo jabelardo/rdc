@@ -503,8 +503,44 @@ export async function seedRepositoryScaleFixture(driver, count) {
 }
 
 /**
- * Seeds one repository, reloads so the store picks it up, and waits for its row. A lone
- * repository is selected on load, so single-repository specs need nothing further.
+ * Expands one sidebar accordion panel, if it is not already the expanded one.
+ *
+ * **The sidebar deliberately starts with every panel collapsed** — a Phase 8b QA decision, since
+ * the single expanded panel owns the sidebar's remaining height. That state lives in React, so it
+ * resets on every application launch *and* on every `navigate().refresh()`. Any assertion about a
+ * repository row, the Repositories list or the Branches controls therefore has to expand its panel
+ * first; nothing in the sidebar is in the DOM until then.
+ *
+ * Idempotent, and it asserts the panel really opened rather than assuming the click landed.
+ *
+ * @param {import('selenium-webdriver').WebDriver} driver
+ * @param {'repositories' | 'branches'} [section]
+ */
+export async function expandSidebarSection(driver, section = 'repositories') {
+  const heading = await driver.wait(
+    until.elementLocated(By.css(`#sidebar-${section}-heading`)),
+    5_000,
+    `the ${section} sidebar heading never rendered`
+  )
+  if ((await heading.getAttribute('aria-expanded')) !== 'true') {
+    await driver.executeScript(element => element.click(), heading)
+  }
+  await driver.wait(
+    async () => (await heading.getAttribute('aria-expanded')) === 'true',
+    5_000,
+    `the ${section} sidebar panel did not expand`
+  )
+}
+
+/**
+ * Seeds one repository, reloads so the store picks it up, and waits until it is the selected
+ * repository.
+ *
+ * Readiness is the presence of the repository views nav, not a sidebar row: that nav renders only
+ * when `selectedRepository !== null` (see `app-shell.tsx`), so it is both a stronger signal — the
+ * repository is actually selected, not merely listed — and independent of which sidebar panel
+ * happens to be expanded. Waiting on a sidebar row here would force every spec through a panel
+ * expansion it may not want, and would leave the accordion in a state the spec did not choose.
  *
  * @param {import('selenium-webdriver').WebDriver} driver
  * @param {string} repositoryPath
@@ -545,8 +581,9 @@ export async function openSeededRepository(driver, repositoryPath) {
   await driver.navigate().refresh()
   await expandRepositoriesPanel(driver)
   await driver.wait(
-    until.elementLocated(repositorySelector(repositoryPath)),
-    5_000
+    until.elementLocated(By.css('[aria-label="Repository views"]')),
+    5_000,
+    `the seeded repository ${repositoryPath} did not become the selected repository`
   )
 }
 
@@ -555,11 +592,13 @@ export async function openSeededRepository(driver, repositoryPath) {
  * more than one repository is registered, since the selection then decides which repository
  * the workspace is showing.
  *
+ * Expands the Repositories panel first — the row cannot be clicked while it is collapsed.
+ *
  * @param {import('selenium-webdriver').WebDriver} driver
  * @param {string} repositoryPath
  */
 export async function selectRepository(driver, repositoryPath) {
-  await expandRepositoriesPanel(driver)
+  await expandSidebarSection(driver, 'repositories')
   const row = await driver.wait(
     until.elementLocated(repositorySelector(repositoryPath)),
     5_000

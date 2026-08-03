@@ -5,6 +5,7 @@ import { after, before, describe, it } from 'node:test'
 import { By, Key, until } from 'selenium-webdriver'
 import {
   createFixtureRoot,
+  expandSidebarSection,
   git,
   gitRaw,
   initCanonicalRepository,
@@ -44,7 +45,7 @@ describe('working tree', () => {
       persisted.map(repository => repository.path),
       [fixture.canonical]
     )
-    await expandRepositoriesPanel(driver)
+    await expandSidebarSection(driver, 'repositories')
     await driver.wait(
       until.elementLocated(repositorySelector(fixture.canonical)),
       5_000

@@ -601,7 +601,13 @@ button:disabled {
   overflow-wrap: anywhere;
   white-space: pre-line;
   -webkit-app-region: no-drag;
-  opacity: 1 !important;
+
+  /* No `opacity: 1 !important` here. An important declaration outranks a CSS animation, so forcing
+     opacity defeated `tooltip-appear`'s `from { opacity: 0 }` while `animation-fill-mode: both`
+     still held the rest of that keyframe through the delay. The bubble was therefore fully visible
+     for the whole 250ms, parked at `translateY(-0.15rem)`, and then slid down when the animation
+     finally ran — a visible jump, and a phantom 1.95px "overlap" of the command bar in the visual
+     E2E, since 0.15rem is 1.95px at this 13px root. Let the keyframes own opacity. */
   animation: tooltip-appear 80ms ease var(--tooltip-delay) both;
 }
 

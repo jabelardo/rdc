@@ -8,6 +8,7 @@ import { By, Key, until } from 'selenium-webdriver'
 import {
   commitWorkingTreeBaseline,
   createFixtureRoot,
+  expandSidebarSection,
   initCanonicalRepository,
   openSeededRepository,
   removeFixtureRoot,
@@ -62,6 +63,9 @@ describe('large lists', () => {
       10_000,
       'the thousand-file fixture did not reach the virtualized list'
     )
+    // The reload collapsed the accordion; the Repositories list only exists once its panel is
+    // expanded. Kept outside the timed window above, which measures load, not this interaction.
+    await expandSidebarSection(driver, 'repositories')
     const repositoryList = await driver.wait(
       until.elementLocated(
         By.css('[aria-label="Repositories"][data-virtualized="true"]')

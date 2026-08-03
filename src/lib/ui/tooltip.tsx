@@ -35,15 +35,32 @@ type TooltipProps = {
 }
 
 /**
+ * Marks an element a tooltip must clear entirely, not merely its trigger.
+ *
+ * A control centred in a command bar sits above the bar's own bottom padding, so clearing only the
+ * control can leave the bubble inside the bar, abutting or covering its bottom rule. Marking the
+ * bar makes the clearance follow the bar's real geometry, rather than a gap constant that is
+ * correct only for today's padding.
+ *
+ * This is a presentation choice, not a bug fix. The 1.95px overlap the visual E2E once reported
+ * came from `tooltip-appear` being held at `translateY(-0.15rem)` while a stray
+ * `opacity: 1 !important` kept the bubble visible through the animation delay — see App.css.
+ */
+const boundarySelector = '[data-tooltip-boundary]'
+
+/**
  * One application-owned tooltip for pointer and keyboard users.
  *
  * The bubble is portalled to `body`: panes deliberately clip their content, so rendering the
- * bubble beside its trigger would make z-index ineffective at workspace boundaries.
+ * bubble beside its trigger would make z-index ineffective at workspace boundaries. That is also
+ * why every coordinate here is computed by hand — a portalled bubble has no layout relationship to
+ * its trigger.
  */
 export function Tooltip({ label, children }: TooltipProps) {
   const id = useId()
   const tooltipRef = useRef<HTMLSpanElement>(null)
   const anchorRect = useRef<DOMRect | null>(null)
+  const boundaryRect = useRef<DOMRect | null>(null)
   const pointerYRef = useRef<number | null>(null)
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState<TooltipPosition | null>(null)
@@ -51,6 +68,8 @@ export function Tooltip({ label, children }: TooltipProps) {
 
   const show = (target: HTMLElement, clientY?: number) => {
     anchorRect.current = target.getBoundingClientRect()
+    boundaryRect.current =
+      target.closest(boundarySelector)?.getBoundingClientRect() ?? null
     pointerYRef.current = clientY ?? null
     setPosition(null)
     setOpen(true)
@@ -58,6 +77,7 @@ export function Tooltip({ label, children }: TooltipProps) {
   const hide = () => {
     setOpen(false)
     setPosition(null)
+    boundaryRect.current = null
     pointerYRef.current = null
   }
 
@@ -84,11 +104,21 @@ export function Tooltip({ label, children }: TooltipProps) {
         Math.max(titlebarGap, targetY - bubble.height / 2)
       )
     } else {
-      const below = anchor.bottom + gap
+      // Clear the whole boundary when the trigger sits inside one, so the bubble never lands on the
+      // bar hosting it. Falls back to the trigger's own edges, which is the behaviour for any
+      // control outside a bar. Symmetrical: flipping above has to clear the boundary's top for the
+      // same reason it has to clear its bottom going down.
+      const boundary = boundaryRect.current
+      const clearanceBottom = Math.max(
+        anchor.bottom,
+        boundary?.bottom ?? anchor.bottom
+      )
+      const clearanceTop = Math.min(anchor.top, boundary?.top ?? anchor.top)
+      const below = clearanceBottom + gap
       top =
         below + bubble.height <= window.innerHeight - margin
           ? below
-          : Math.max(titlebarGap, anchor.top - bubble.height - gap)
+          : Math.max(titlebarGap, clearanceTop - bubble.height - gap)
     }
     setPosition({ left, top })
   }, [open, label])
