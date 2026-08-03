@@ -91,6 +91,10 @@ export function AppShell({ controller }: AppShellProps) {
     requestDiscard,
     confirmDiscard,
     cancelDiscard,
+    discardAll,
+    requestDiscardAll,
+    confirmDiscardAll,
+    cancelDiscardAll,
     toggleSidebarSection,
     activateSidebarSection,
     showBranches,
@@ -126,6 +130,13 @@ export function AppShell({ controller }: AppShellProps) {
     hasSelection &&
     branchState.operation === null &&
     !conflictState.mergeInProgress
+  // Whole-tree discard is only sensible on a dirty tree, and is refused mid-merge
+  // (the working-tree store also guards `mergeHeadFound`, so this enablement and
+  // the store agree).
+  const canDiscardAll =
+    hasSelection &&
+    (workingTreeState.workingDirectory?.files.length ?? 0) > 0 &&
+    !workingTreeState.mergeHeadFound
   // Same DOM focus policy as the keybinding tree's choose-repository handler.
   const focusRepositoryList = () => {
     document
@@ -194,6 +205,7 @@ export function AppShell({ controller }: AppShellProps) {
               }
             }}
             onNewBranch={createBranch}
+            onDiscardAll={requestDiscardAll}
             onShowLogs={() => void showApplicationLogs()}
             hasRepository={hasSelection}
             hasRepositories={appState.repositories.length > 0}
@@ -203,6 +215,7 @@ export function AppShell({ controller }: AppShellProps) {
             canPush={canPush}
             canPull={canPull}
             canCreateBranch={canCreateBranch}
+            canDiscardAll={canDiscardAll}
             selectedShell={preferencesStore.selectedShell?.shell ?? null}
             selectedEditor={preferencesStore.selectedEditor?.editor ?? null}
           />
@@ -346,6 +359,7 @@ export function AppShell({ controller }: AppShellProps) {
         discardFile={discardFile}
         permanentlyDiscard={permanentlyDiscard}
         discardSelection={discardSelection}
+        discardAll={discardAll}
         discarding={discarding}
         workingTreeError={workingTreeState.error}
         hookFailure={workingTreeState.hookFailure}
@@ -361,6 +375,8 @@ export function AppShell({ controller }: AppShellProps) {
         clonePath={clonePath}
         onCancelDiscard={cancelDiscard}
         onConfirmDiscard={() => void confirmDiscard()}
+        onCancelDiscardAll={cancelDiscardAll}
+        onConfirmDiscardAll={() => void confirmDiscardAll()}
         onCancelRemoveRepository={() => setRepositoryToRemove(null)}
         onConfirmRemoveRepository={() => void confirmRemoveRepository()}
         onDismissAbout={() => setShowAboutDialog(false)}

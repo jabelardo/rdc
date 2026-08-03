@@ -45,9 +45,22 @@ export type WorkingTreeState = {
   readonly hookFailure: HookFailureState | null
   readonly loading: boolean
   readonly error: string | null
+  /**
+   * Whether `HEAD` is currently mid-merge (`MERGE_HEAD` present).
+   *
+   * Mirrors `ConflictStore.mergeInProgress` (which derives it from the same
+   * `IStatusResult.mergeHeadFound` fact) so the working-tree store can refuse
+   * whole-tree discard — which is ill-defined and destructive while a merge is
+   * in progress — without reaching into another store.
+   */
+  readonly mergeHeadFound: boolean
 }
 
-export type DiscardFileResult = 'discarded' | 'trash-failed' | 'failed'
+export type DiscardFileResult =
+  | 'discarded'
+  | 'trash-failed'
+  | 'failed'
+  | 'merge-in-progress'
 
 export type SelectedLinesDiscard = {
   readonly repositoryPath: string
@@ -84,6 +97,7 @@ const EmptyState: WorkingTreeState = {
   hookFailure: null,
   loading: false,
   error: null,
+  mergeHeadFound: false,
 }
 
 function workingDirectoryFromStatus(
@@ -213,6 +227,7 @@ export class WorkingTreeStore {
       hookFailure: null,
       loading: true,
       error: null,
+      mergeHeadFound: false,
     })
 
     try {
@@ -240,6 +255,7 @@ export class WorkingTreeStore {
         hookFailure: null,
         loading: false,
         error: null,
+        mergeHeadFound: status?.mergeHeadFound ?? false,
       })
       await this.loadSelectedDiff(requestID)
     } catch (error) {
@@ -258,6 +274,7 @@ export class WorkingTreeStore {
         hookFailure: null,
         loading: false,
         error: String(error),
+        mergeHeadFound: false,
       })
     }
   }
@@ -353,6 +370,44 @@ export class WorkingTreeStore {
 
     try {
       await this.dependencies.discardChanges(state.repositoryPath, [file], {
+        permanentlyDelete,
+      })
+      await this.load(state.repositoryPath)
+      return 'discarded'
+    } catch (error) {
+      if (error instanceof TrashDiscardError) {
+        return 'trash-failed'
+      }
+      this.update({
+        ...this.currentState,
+        loading: false,
+        error: String(error),
+      })
+      return 'failed'
+    }
+  }
+
+  public async discardAllChanges(
+    permanentlyDelete = false
+  ): Promise<DiscardFileResult> {
+    const state = this.currentState
+    if (state.repositoryPath === null || state.workingDirectory === null) {
+      return 'failed'
+    }
+    // Discarding the whole tree mid-merge is both ill-defined (the index holds
+    // merge entries) and destructive, and "the working tree is dirty" is
+    // trivially true during a conflict. Refuse with a distinct result so the UI
+    // can explain, rather than letting git or the discard path half-apply it.
+    if (state.mergeHeadFound) {
+      return 'merge-in-progress'
+    }
+    const files = state.workingDirectory.files
+    if (files.length === 0) {
+      return 'discarded'
+    }
+
+    try {
+      await this.dependencies.discardChanges(state.repositoryPath, files, {
         permanentlyDelete,
       })
       await this.load(state.repositoryPath)

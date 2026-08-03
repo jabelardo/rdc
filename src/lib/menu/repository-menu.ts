@@ -39,6 +39,8 @@ type RepositoryMenuEnvironment = {
   readonly increaseActiveResizableWidth: () => void
   readonly decreaseActiveResizableWidth: () => void
   readonly createBranch: () => void
+  readonly discardAllChanges: () => void | Promise<void>
+  readonly permanentlyDiscardAllChanges: () => void | Promise<void>
 }
 
 function withEnablement(
@@ -137,6 +139,11 @@ export function buildRepositoryMenu(
   enabledByID.set('increase-active-resizable-width', true)
   enabledByID.set('decrease-active-resizable-width', true)
   enabledByID.set('create-branch', hasSelection)
+  // Coarse, selection-only enablement, matching `create-branch`: these route
+  // through the shared executor, and the in-window menu bar and the store apply
+  // the stricter dirty-tree / mid-merge guards.
+  enabledByID.set('discard-all-changes', hasSelection)
+  enabledByID.set('permanently-discard-all-changes', hasSelection)
   const menu = buildStartupMenu(
     platform,
     preferencesState === undefined
@@ -280,6 +287,18 @@ export function createRepositoryMenuEventExecutor(
           return false
         }
         environment.createBranch()
+        return true
+      case 'discard-all-changes':
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        await environment.discardAllChanges()
+        return true
+      case 'permanently-discard-all-changes':
+        if (store.state.selectedRepository === null) {
+          return false
+        }
+        await environment.permanentlyDiscardAllChanges()
         return true
       default:
         return false

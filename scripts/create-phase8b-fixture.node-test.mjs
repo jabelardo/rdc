@@ -50,6 +50,7 @@ test('creates independent deterministic scenarios for every mutable QA journey',
       'branch',
       'lineDiscard',
       'wholeFileDiscard',
+      'discardAll',
       'commitHook',
       'mergeConflict',
       'remoteFetchPull',
@@ -129,6 +130,16 @@ test('creates independent deterministic scenarios for every mutable QA journey',
     assert.match(
       git(scenarios.wholeFileDiscard.repository, 'status', '--short'),
       /whole-file-discard\.txt/
+    )
+    const discardAllStatus = git(
+      scenarios.discardAll.repository,
+      'status',
+      '--short'
+    )
+    assert.match(discardAllStatus, new RegExp(scenarios.discardAll.trackedFile))
+    assert.match(
+      discardAllStatus,
+      new RegExp(scenarios.discardAll.untrackedFile)
     )
 
     git(scenarios.commitHook.repository, 'add', scenarios.commitHook.file)

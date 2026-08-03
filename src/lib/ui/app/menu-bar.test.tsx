@@ -41,6 +41,7 @@ function baseProps(overrides: Partial<MenuBarProps> = {}): MenuBarProps {
     onPull: vi.fn(),
     onRemoveRepository: vi.fn(),
     onNewBranch: vi.fn(),
+    onDiscardAll: vi.fn(),
     onShowLogs: vi.fn(),
     hasRepository: true,
     hasRepositories: true,
@@ -50,6 +51,7 @@ function baseProps(overrides: Partial<MenuBarProps> = {}): MenuBarProps {
     canPush: true,
     canPull: true,
     canCreateBranch: true,
+    canDiscardAll: true,
     selectedShell: 'Ghostty',
     selectedEditor: 'Zed',
     isDevelopment: false,
@@ -190,14 +192,18 @@ describe('menu bar inventory', () => {
     ])
   })
 
-  it('renders the single-item Branch menu and the baseline Help menu', async () => {
+  it('renders the Branch and baseline Help menus', async () => {
     render(<MenuBar {...baseProps()} />)
     const branchMenu = await openMenu('Branch')
     expect(
       within(branchMenu)
         .getAllByRole('menuitem')
         .map(item => item.getAttribute('aria-label'))
-    ).toEqual(['New branch…'])
+    ).toEqual([
+      'New branch…',
+      'Discard all changes…',
+      'Permanently discard all changes…',
+    ])
     await openMenu('Help')
     const helpMenu = screen.getByRole('menu')
     expect(
@@ -253,6 +259,7 @@ describe('menu bar enablement', () => {
           canPush: false,
           canPull: false,
           canCreateBranch: false,
+          canDiscardAll: false,
         })}
       />
     )
@@ -270,6 +277,15 @@ describe('menu bar enablement', () => {
       'Open in Ghostty',
     ]) {
       expect(within(repository).getByRole('menuitem', { name })).toBeDisabled()
+    }
+
+    const branch = await openMenu('Branch')
+    for (const name of [
+      'New branch…',
+      'Discard all changes…',
+      'Permanently discard all changes…',
+    ]) {
+      expect(within(branch).getByRole('menuitem', { name })).toBeDisabled()
     }
   })
 
@@ -372,6 +388,7 @@ describe('menu bar actions', () => {
     const onFetch = vi.fn()
     const onRemoveRepository = vi.fn()
     const onNewBranch = vi.fn()
+    const onDiscardAll = vi.fn()
     render(
       <MenuBar
         {...baseProps({
@@ -386,6 +403,7 @@ describe('menu bar actions', () => {
           onFetch,
           onRemoveRepository,
           onNewBranch,
+          onDiscardAll,
         })}
       />
     )
@@ -457,6 +475,22 @@ describe('menu bar actions', () => {
       within(menu).getByRole('menuitem', { name: 'New branch…' })
     )
     expect(onNewBranch).toHaveBeenCalledOnce()
+
+    await openMenu('Branch')
+    menu = screen.getByRole('menu')
+    await user.click(
+      within(menu).getByRole('menuitem', { name: 'Discard all changes…' })
+    )
+    expect(onDiscardAll).toHaveBeenCalledWith(false)
+
+    await openMenu('Branch')
+    menu = screen.getByRole('menu')
+    await user.click(
+      within(menu).getByRole('menuitem', {
+        name: 'Permanently discard all changes…',
+      })
+    )
+    expect(onDiscardAll).toHaveBeenCalledWith(true)
   })
 
   it('opens rdc-owned Help destinations and wires the edit roles', async () => {

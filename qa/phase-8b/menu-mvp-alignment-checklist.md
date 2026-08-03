@@ -112,6 +112,8 @@ accelerators.
 | Item ID | Linux label (upstream) | Accelerator | Classification | Notes |
 |---|---|---|---|---|
 | `create-branch` | New &branch… | Ctrl+Shift+N | **MVP** | Phase 7c — create from HEAD and checkout; enabled on every MVP platform (macOS label: New Branch…) |
+| `discard-all-changes` | Discard all changes… | Ctrl+Shift+Backspace | **MVP** | Enabled when the working tree is dirty and no merge is in progress; whole-tree discard reuses `discardChanges(files[])` |
+| `permanently-discard-all-changes` | Permanently discard all changes… | — | **MVP** | Same enablement as discard-all; skips the OS trash |
 
 **QA blocker for MVP release, on both platforms:** the Branch menu is effectively single-item
 because rename/delete/discard-all/update-from/merge-initiation are not implemented, but fundamental
@@ -119,6 +121,11 @@ branch management is required for an MVP. See `qa/phase-8b/evidence/menu-mvp-ali
 F-MENU-001 for the exact six items and their owning slices. The blocker is **scope, not platform** —
 it was first recorded during the Linux cycle, but macOS is missing exactly the same operations, so
 implementing them clears it for both and neither platform ships until it is cleared.
+
+**Progress (BRANCH_OPERATIONS_PLAN.md):** Slice 1 (discard-all-changes and
+permanently-discard-all-changes) landed — promoted here under membership rule (b). The remaining
+blocker items are rename/delete (Slice 2), merge initiation (Slice 3), and **update-from-default,
+now deferred to Phase 7f** — see the plan's scope decision.
 
 The menu must not be padded with dead items in the meantime: development implements the operations
 and the baseline promotes them automatically under membership rule (b).
@@ -160,9 +167,8 @@ becomes implemented, the membership rule (b) promotes it to MVP automatically.
 | `show-repository-settings` | Repository &settings… | Advanced repository settings | post-MVP (7f) |
 | `manage-remotes` | Manage remotes… | Advanced remote management | post-MVP (7f) |
 | `rename-branch` / `delete-branch` | &Rename… / &Delete… | **MVP-required — blocked** | Fundamental branch lifecycle; see the QA finding | development (MVP blocker) |
-| `discard-all-changes` / `permanently-discard-all-changes` | Discard all changes… / Permanently discard all changes… | **MVP-required — blocked** | Only file/line discard is implemented; whole-tree discard is a fundamental recovery operation, see the QA finding | development (MVP blocker) |
 | `stash-all-changes` | &Stash all changes… | No stash support | post-MVP (7f) |
-| `update-branch-with-contribution-target-branch` | &Update from &lt;branch&gt; | **MVP-required — blocked** | Bringing a branch up to date with its default branch is a fundamental sync operation; see the QA finding | development (MVP blocker) |
+| `update-branch-with-contribution-target-branch` | &Update from &lt;branch&gt; | **Deferred to Phase 7f** | A convenience over fetch + merge/rebase, both already MVP; needs a persisted `updateBranchStrategy` preference and a dynamic contribution-target label | post-MVP (7f) — see BRANCH_OPERATIONS_PLAN.md scope decision |
 | `compare-to-branch` | &Compare to branch | Compare post-MVP | post-MVP (7f) |
 | `merge-branch` / `squash-and-merge-branch` / `rebase-branch` | &Merge into current branch… / Squas&h and merge… / R&ebase current branch… | Merge *initiation* is **MVP-required — blocked** (conflict *recovery* is MVP and lives in the Changes surface); squash/rebase remain post-MVP | development (MVP blocker) |
 | `compare-on-github` / `branch-on-github` | Compare on GitHub / View branch on GitHub | No GitHub networking | post-MVP (5b/7f) |

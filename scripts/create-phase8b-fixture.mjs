@@ -171,6 +171,28 @@ function createWholeFileDiscardScenario(target) {
   return { repository, file, expectedContent }
 }
 
+function createDiscardAllScenario(target) {
+  const repository = path.join(target, 'discard-all')
+  const trackedFile = 'discard-all-tracked.txt'
+  const untrackedFile = 'discard-all-untracked.txt'
+  const expectedTrackedContent = 'discard-all tracked baseline\n'
+  initializeRepository(repository, { [trackedFile]: expectedTrackedContent })
+  writeFileSync(
+    path.join(repository, trackedFile),
+    'discard-all tracked modification\n'
+  )
+  writeFileSync(
+    path.join(repository, untrackedFile),
+    'discard-all untracked file\n'
+  )
+  return {
+    repository,
+    trackedFile,
+    untrackedFile,
+    expectedTrackedContent,
+  }
+}
+
 function createCommitHookScenario(target) {
   const repository = path.join(target, 'commit-hook')
   initializeRepository(repository)
@@ -325,6 +347,7 @@ export function createPhase8bFixture(requestedTarget) {
       branch: createBranchScenario(target),
       lineDiscard: createLineDiscardScenario(target),
       wholeFileDiscard: createWholeFileDiscardScenario(target),
+      discardAll: createDiscardAllScenario(target),
       commitHook: createCommitHookScenario(target),
       mergeConflict: createMergeConflictScenario(target),
       remoteFetchPull: createFetchPullScenario(target),

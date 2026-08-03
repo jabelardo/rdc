@@ -59,6 +59,8 @@ type MenuBarAction =
   | { type: 'open-working-directory' }
   | { type: 'open-external-editor' }
   | { type: 'create-branch' }
+  | { type: 'discard-all-changes' }
+  | { type: 'permanently-discard-all-changes' }
   | { type: 'report-issue' }
   | { type: 'view-rdc-on-github' }
   | { type: 'show-logs' }
@@ -101,6 +103,7 @@ export type MenuBarProps = {
   readonly onPull: () => void
   readonly onRemoveRepository: () => void
   readonly onNewBranch: () => void
+  readonly onDiscardAll: (permanent: boolean) => void
   readonly onShowLogs: () => void
   readonly hasRepository: boolean
   readonly hasRepositories: boolean
@@ -110,6 +113,7 @@ export type MenuBarProps = {
   readonly canPush: boolean
   readonly canPull: boolean
   readonly canCreateBranch: boolean
+  readonly canDiscardAll: boolean
   readonly selectedShell: string | null
   readonly selectedEditor: string | null
   readonly isDevelopment?: boolean
@@ -264,6 +268,12 @@ function executeAction(
       break
     case 'create-branch':
       props.onNewBranch()
+      break
+    case 'discard-all-changes':
+      props.onDiscardAll(false)
+      break
+    case 'permanently-discard-all-changes':
+      props.onDiscardAll(true)
       break
     case 'show-logs':
       props.onShowLogs()
@@ -468,6 +478,21 @@ function buildMenu(
           'Ctrl+Shift+N',
           { type: 'create-branch' },
           !props.canCreateBranch
+        ),
+        separator(),
+        item(
+          'discard-all-changes',
+          'Discard all changes…',
+          'Ctrl+Shift+Backspace',
+          { type: 'discard-all-changes' },
+          !props.canDiscardAll
+        ),
+        item(
+          'permanently-discard-all-changes',
+          'Permanently discard all changes…',
+          undefined,
+          { type: 'permanently-discard-all-changes' },
+          !props.canDiscardAll
         ),
       ],
     },

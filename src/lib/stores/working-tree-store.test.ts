@@ -189,6 +189,7 @@ describe('WorkingTreeStore', () => {
       hookFailure: null,
       loading: false,
       error: null,
+      mergeHeadFound: false,
     })
   })
 
@@ -620,6 +621,154 @@ describe('WorkingTreeStore', () => {
     await expect(store.discardFile('Untracked+file.ts')).resolves.toBe(
       'trash-failed'
     )
+
+    expect(store.state.error).toBeNull()
+    expect(getStatus).toHaveBeenCalledOnce()
+  })
+
+  it('discards the whole working tree, ignoring inclusion state', async () => {
+    const changed = {
+      path: 'file.ts',
+      status: { kind: AppFileStatusKind.Modified } as const,
+      startsUnselected: false,
+    }
+    const untracked = {
+      path: 'new.ts',
+      status: { kind: AppFileStatusKind.Untracked } as const,
+      startsUnselected: false,
+    }
+    const getStatus = vi
+      .fn()
+      .mockResolvedValueOnce(status([changed, untracked]))
+      .mockResolvedValueOnce(status([]))
+    const discardChanges = vi.fn(async () => undefined)
+    const store = new WorkingTreeStore({
+      getStatus,
+      getWorkingDirectoryDiff: vi.fn(async () => binaryDiff),
+      discardChanges,
+    })
+    await store.load('/repo')
+    // Excluding one file must not stop "discard all" from discarding it.
+    store.setFileIncluded('Modified+file.ts', false)
+    const files = store.state.workingDirectory?.files ?? []
+
+    await expect(store.discardAllChanges()).resolves.toBe('discarded')
+
+    expect(discardChanges).toHaveBeenCalledWith('/repo', files, {
+      permanentlyDelete: false,
+    })
+    expect(getStatus).toHaveBeenCalledTimes(2)
+  })
+
+  it('discards the whole working tree with permanent deletion', async () => {
+    const changed = {
+      path: 'file.ts',
+      status: { kind: AppFileStatusKind.Modified } as const,
+      startsUnselected: false,
+    }
+    const getStatus = vi
+      .fn()
+      .mockResolvedValueOnce(status([changed]))
+      .mockResolvedValueOnce(status([]))
+    const discardChanges = vi.fn(async () => undefined)
+    const store = new WorkingTreeStore({
+      getStatus,
+      getWorkingDirectoryDiff: vi.fn(async () => binaryDiff),
+      discardChanges,
+    })
+    await store.load('/repo')
+    const files = store.state.workingDirectory?.files ?? []
+
+    await expect(store.discardAllChanges(true)).resolves.toBe('discarded')
+
+    expect(discardChanges).toHaveBeenCalledWith('/repo', files, {
+      permanentlyDelete: true,
+    })
+  })
+
+  it('is a no-op on a clean working tree', async () => {
+    const getStatus = vi.fn(async () => status([]))
+    const discardChanges = vi.fn(async () => undefined)
+    const store = new WorkingTreeStore({
+      getStatus,
+      getWorkingDirectoryDiff: vi.fn(async () => binaryDiff),
+      discardChanges,
+    })
+    await store.load('/repo')
+
+    await expect(store.discardAllChanges()).resolves.toBe('discarded')
+
+    expect(discardChanges).not.toHaveBeenCalled()
+    expect(getStatus).toHaveBeenCalledOnce()
+  })
+
+  it('refuses whole-tree discard while a merge is in progress', async () => {
+    const changed = {
+      path: 'file.ts',
+      status: { kind: AppFileStatusKind.Modified } as const,
+      startsUnselected: false,
+    }
+    const getStatus = vi.fn(async () => ({
+      ...status([changed]),
+      mergeHeadFound: true,
+    }))
+    const discardChanges = vi.fn(async () => undefined)
+    const store = new WorkingTreeStore({
+      getStatus,
+      getWorkingDirectoryDiff: vi.fn(async () => binaryDiff),
+      discardChanges,
+    })
+    await store.load('/repo')
+    expect(store.state.mergeHeadFound).toBe(true)
+
+    await expect(store.discardAllChanges()).resolves.toBe('merge-in-progress')
+
+    expect(discardChanges).not.toHaveBeenCalled()
+    expect(getStatus).toHaveBeenCalledOnce()
+  })
+
+  it('keeps whole-tree discard failures visible and the status unrefreshed', async () => {
+    const changed = {
+      path: 'file.ts',
+      status: { kind: AppFileStatusKind.Modified } as const,
+      startsUnselected: false,
+    }
+    const getStatus = vi.fn(async () => status([changed]))
+    const store = new WorkingTreeStore({
+      getStatus,
+      getWorkingDirectoryDiff: vi.fn(async () => binaryDiff),
+      discardChanges: vi.fn(async () => {
+        throw new Error('trash unavailable')
+      }),
+    })
+    await store.load('/repo')
+
+    await expect(store.discardAllChanges()).resolves.toBe('failed')
+
+    expect(getStatus).toHaveBeenCalledOnce()
+    expect(store.state).toMatchObject({
+      repositoryPath: '/repo',
+      error: 'Error: trash unavailable',
+    })
+  })
+
+  it('distinguishes a whole-tree trash failure for the permanent fallback', async () => {
+    const changed = {
+      path: 'file.ts',
+      status: { kind: AppFileStatusKind.Untracked } as const,
+      startsUnselected: false,
+    }
+    const getStatus = vi.fn(async () => status([changed]))
+    const store = new WorkingTreeStore({
+      getStatus,
+      getWorkingDirectoryDiff: vi.fn(async () => binaryDiff),
+      discardChanges: vi.fn(async (_repositoryPath, files) => {
+        throw new TrashDiscardError(files[0], new Error('unavailable'))
+      }),
+    })
+    await store.load('/repo')
+
+    await expect(store.discardAllChanges()).resolves.toBe('trash-failed')
 
     expect(store.state.error).toBeNull()
     expect(getStatus).toHaveBeenCalledOnce()

@@ -76,6 +76,11 @@ native acceptance record; do not label it automated.
   there is no `tauri-driver` backend for it, so this manual check is the only evidence that exists.
   If any of them does nothing, that is a defect in the native menu path, not a reason to re-disable
   the item.
+- **Verify the new Branch-menu operations dispatch from the native menu** with a dirty repository
+  selected: Branch → Discard all changes… (Cmd+Shift+Backspace) and Branch → Permanently discard all
+  changes…. Each must show its confirmation and clear the working tree in the focused window.
+  Same provenance as the capability-parity item: they are enabled on every platform and the unit
+  tests prove an executor exists on `macos`, but native WKWebView dispatch is only provable by hand.
 - Open a second repository window, give each window a different selected repository/view, and repeat
   menu, context-menu and close actions while alternating focus. State and commands must remain scoped
   to the focused window; closing one must not destroy or retarget the other.

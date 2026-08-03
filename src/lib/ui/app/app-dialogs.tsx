@@ -21,6 +21,10 @@ type AppDialogsProps = {
   readonly discardFile: WorkingDirectoryFileChange | null
   readonly permanentlyDiscard: boolean
   readonly discardSelection: boolean
+  readonly discardAll: {
+    readonly permanent: boolean
+    readonly fileCount: number
+  } | null
   readonly discarding: boolean
   readonly workingTreeError: string | null
   readonly hookFailure: HookFailureState | null
@@ -36,6 +40,8 @@ type AppDialogsProps = {
   readonly clonePath: string
   readonly onCancelDiscard: () => void
   readonly onConfirmDiscard: () => void
+  readonly onCancelDiscardAll: () => void
+  readonly onConfirmDiscardAll: () => void
   readonly onCancelRemoveRepository: () => void
   readonly onConfirmRemoveRepository: () => void
   readonly onDismissAbout: () => void
@@ -58,6 +64,7 @@ export function AppDialogs({
   discardFile,
   permanentlyDiscard,
   discardSelection,
+  discardAll,
   discarding,
   workingTreeError,
   hookFailure,
@@ -73,6 +80,8 @@ export function AppDialogs({
   clonePath,
   onCancelDiscard,
   onConfirmDiscard,
+  onCancelDiscardAll,
+  onConfirmDiscardAll,
   onCancelRemoveRepository,
   onConfirmRemoveRepository,
   onDismissAbout,
@@ -132,6 +141,62 @@ export function AppDialogs({
               {discarding
                 ? 'Discarding…'
                 : permanentlyDiscard
+                  ? 'Permanently discard changes'
+                  : 'Discard changes'}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {discardAll !== null && (
+        <Modal
+          className={confirmationDialogClassName}
+          role="alertdialog"
+          aria-labelledby="discard-all-dialog-title"
+          aria-describedby="discard-all-dialog-message"
+          onDismiss={discarding ? undefined : onCancelDiscardAll}
+        >
+          <h2 id="discard-all-dialog-title">
+            {discardAll.permanent
+              ? 'Permanently discard all changes'
+              : 'Discard all changes'}
+          </h2>
+          <p>
+            This will {discardAll.permanent ? 'permanently ' : ''}discard
+            changes to{' '}
+            <strong>
+              {discardAll.fileCount}{' '}
+              {discardAll.fileCount === 1 ? 'file' : 'files'}
+            </strong>
+            .
+          </p>
+          <p id="discard-all-dialog-message">
+            {discardAll.permanent
+              ? 'These changes cannot be recovered.'
+              : 'Untracked files can be recovered from the operating system trash, but changes to tracked files cannot be restored.'}
+          </p>
+          {workingTreeError !== null && (
+            <p className="application-error" role="alert">
+              {workingTreeError}
+            </p>
+          )}
+          <div className={dialogActionsClassName}>
+            <button
+              type="button"
+              disabled={discarding}
+              onClick={onCancelDiscardAll}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="destructive-button"
+              disabled={discarding}
+              onClick={onConfirmDiscardAll}
+            >
+              {discarding
+                ? 'Discarding…'
+                : discardAll.permanent
                   ? 'Permanently discard changes'
                   : 'Discard changes'}
             </button>

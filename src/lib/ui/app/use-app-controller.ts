@@ -97,6 +97,10 @@ export function useAppController() {
   const [discardSelection, setDiscardSelection] = useState(false)
   const [selectedLinesDiscard, setSelectedLinesDiscard] =
     useState<SelectedLinesDiscard | null>(null)
+  const [discardAll, setDiscardAll] = useState<{
+    readonly permanent: boolean
+    readonly fileCount: number
+  } | null>(null)
   const [showCloneDialog, setShowCloneDialog] = useState(false)
   const [showAboutDialog, setShowAboutDialog] = useState(false)
   const [showPreferencesDialog, setShowPreferencesDialog] = useState(false)
@@ -202,6 +206,8 @@ export function useAppController() {
       increaseActiveResizableWidth,
       decreaseActiveResizableWidth,
       createBranch,
+      discardAllChanges: () => requestDiscardAll(false),
+      permanentlyDiscardAllChanges: () => requestDiscardAll(true),
     })
     const replaceMenu = () => {
       if (controller === undefined) {
@@ -290,6 +296,7 @@ export function useAppController() {
     setPermanentlyDiscard(false)
     setDiscardSelection(false)
     setSelectedLinesDiscard(null)
+    setDiscardAll(null)
     repositoryViewTransitionID.current++
     pendingRepositoryView.current = null
     historyStore.clear()
@@ -722,6 +729,62 @@ export function useAppController() {
     setPermanentlyDiscard(false)
     setDiscardSelection(false)
     setSelectedLinesDiscard(null)
+    setDiscardAll(null)
+  }
+
+  /**
+   * Discard every change in the working tree, respecting the confirmation
+   * preferences. Distinct from per-file `requestDiscard` because there is no
+   * target file: the whole `workingDirectory.files` list is discarded, ignoring
+   * inclusion state ("discard all", not "discard included").
+   */
+  function requestDiscardAll(permanent: boolean): void {
+    const files = workingTreeState.workingDirectory?.files ?? []
+    if (files.length === 0) {
+      return
+    }
+    const shouldConfirm = permanent
+      ? preferencesStore.state.confirmDiscardChangesPermanently
+      : preferencesStore.state.confirmDiscardChanges
+    if (shouldConfirm) {
+      setDiscardAll({ permanent, fileCount: files.length })
+      return
+    }
+    void discardAllWorkingChanges(permanent, files.length)
+  }
+
+  async function discardAllWorkingChanges(
+    permanent: boolean,
+    fileCount: number
+  ): Promise<void> {
+    setDiscarding(true)
+    let result = await workingTreeStore.discardAllChanges(permanent)
+    if (
+      result === 'trash-failed' &&
+      !preferencesStore.state.confirmDiscardChangesPermanently
+    ) {
+      result = await workingTreeStore.discardAllChanges(true)
+    }
+    setDiscarding(false)
+    if (result === 'discarded') {
+      setDiscardAll(null)
+    } else if (result === 'trash-failed') {
+      setDiscardAll({ permanent: true, fileCount })
+    }
+  }
+
+  async function confirmDiscardAll(): Promise<void> {
+    if (discardAll === null) {
+      return
+    }
+    await discardAllWorkingChanges(discardAll.permanent, discardAll.fileCount)
+  }
+
+  function cancelDiscardAll(): void {
+    if (discarding) {
+      return
+    }
+    setDiscardAll(null)
   }
 
   function toggleSidebarSection(section: SidebarSectionID): void {
@@ -904,6 +967,10 @@ export function useAppController() {
     requestDiscard,
     confirmDiscard,
     cancelDiscard,
+    discardAll,
+    requestDiscardAll,
+    confirmDiscardAll,
+    cancelDiscardAll,
     toggleSidebarSection,
     activateSidebarSection,
     showBranches,

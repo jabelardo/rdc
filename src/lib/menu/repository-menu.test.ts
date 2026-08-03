@@ -199,6 +199,8 @@ describe('repository application menu', () => {
           increaseActiveResizableWidth: vi.fn(),
           decreaseActiveResizableWidth: vi.fn(),
           createBranch: vi.fn(),
+          discardAllChanges: vi.fn(),
+          permanentlyDiscardAllChanges: vi.fn(),
         }
       )
       const executeStartupAction = createStartupMenuActionExecutor({
@@ -264,6 +266,8 @@ describe('repository application menu actions', () => {
       increaseActiveResizableWidth: vi.fn(),
       decreaseActiveResizableWidth: vi.fn(),
       createBranch: vi.fn(),
+      discardAllChanges: vi.fn(),
+      permanentlyDiscardAllChanges: vi.fn(),
     }
     const execute = createRepositoryMenuEventExecutor(store, environment)
 
@@ -288,6 +292,8 @@ describe('repository application menu actions', () => {
     await expect(execute('increase-active-resizable-width')).resolves.toBe(true)
     await expect(execute('decrease-active-resizable-width')).resolves.toBe(true)
     await expect(execute('create-branch')).resolves.toBe(true)
+    await expect(execute('discard-all-changes')).resolves.toBe(true)
+    await expect(execute('permanently-discard-all-changes')).resolves.toBe(true)
 
     expect(environment.createRepository).toHaveBeenCalledOnce()
     expect(environment.addLocalRepository).toHaveBeenCalledOnce()
@@ -314,6 +320,8 @@ describe('repository application menu actions', () => {
     expect(environment.increaseActiveResizableWidth).toHaveBeenCalledOnce()
     expect(environment.decreaseActiveResizableWidth).toHaveBeenCalledOnce()
     expect(environment.createBranch).toHaveBeenCalledOnce()
+    expect(environment.discardAllChanges).toHaveBeenCalledOnce()
+    expect(environment.permanentlyDiscardAllChanges).toHaveBeenCalledOnce()
   })
 
   it('refuses repository actions when the selection disappeared', async () => {
@@ -342,6 +350,8 @@ describe('repository application menu actions', () => {
       increaseActiveResizableWidth: vi.fn(),
       decreaseActiveResizableWidth: vi.fn(),
       createBranch: vi.fn(),
+      discardAllChanges: vi.fn(),
+      permanentlyDiscardAllChanges: vi.fn(),
     }
     const execute = createRepositoryMenuEventExecutor(store, environment)
 
@@ -362,6 +372,10 @@ describe('repository application menu actions', () => {
     await expect(execute('show-branches')).resolves.toBe(false)
     await expect(execute('go-to-commit-message')).resolves.toBe(false)
     await expect(execute('create-branch')).resolves.toBe(false)
+    await expect(execute('discard-all-changes')).resolves.toBe(false)
+    await expect(execute('permanently-discard-all-changes')).resolves.toBe(
+      false
+    )
     await expect(execute('increase-active-resizable-width')).resolves.toBe(true)
     await expect(execute('decrease-active-resizable-width')).resolves.toBe(true)
 
