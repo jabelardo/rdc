@@ -82,7 +82,16 @@ minimum risk, before the harder guards in Slice 2.
   not affect it.
 - **Refuses while a merge is in progress.** Discarding everything mid-merge is ill-defined and
   destructive, and "the working tree is dirty" is trivially true during a conflict. Return a distinct
-  result the UI can explain.
+  result the UI can explain. **Where the guard reads merge state:** `mergeInProgress` *lives in
+  `conflict-store`* (conflict-store.ts:21), derived there from `status.mergeHeadFound`
+  (conflict-store.ts:192). The working-tree store has no access to it, so pick one of:
+  - read `mergeHeadFound` in the working-tree store's own `getStatus` (`IStatusResult`) call and track
+    it on `WorkingTreeState`, or
+  - let the controller (which holds both stores, and already routes the menu action) refuse before
+    calling `discardAllChanges`.
+  Do the former only if another slice needs merge state in the working-tree store; otherwise the
+  controller-side guard keeps the dependency graph flat. The unit test must cover the guard either
+  way.
 
 **Controller / UI** (`use-app-controller.ts`, `app-dialogs.tsx`, `menu-bar.tsx`)
 
@@ -130,8 +139,16 @@ minimum risk, before the harder guards in Slice 2.
 | Delete the branch **on the remote** | `delete_remote_branch` | network, destructive, needs credentials |
 
 Deleting a local branch must **not** touch `refs/remotes/<remote>/<branch>` — that ref is the record
-that the remote branch exists. Deleting the remote branch is a separate, opt-in checkbox (default
-off) with actionable failure copy, or deferred to 7f. Do not couple it to the local delete.
+that the remote branch exists.
+
+**Stated decision for Slice 2:** remote-branch deletion (`delete_remote_branch`) is **deferred to
+7f**, not shipped. It is network + credentials + destructive with no undo, and the MVP regression is
+the inability to manage *local* branches. What Slice 2 ships is:
+- local delete (`delete_local_branch`), and
+- an **opt-in** (default off) prune of the *stale tracking ref* via `delete_ref` when the local branch
+  has an upstream and the remote branch is gone — local only, no network.
+The remote branch is untouched by both. If remote deletion is later pulled into the MVP, that is a
+recorded decision, not a convenience — and it needs actionable failure copy for the credentials path.
 
 Rename with an upstream: the remote branch keeps its old name and the upstream config needs deliberate
 handling. Decide, state it in the dialog, and cover it in a unit test.
@@ -188,9 +205,10 @@ Every slice closes with all of the following. Not "seven gates" — the current 
 
 Plus, per slice:
 
-- **Accelerators** registered in `src-tauri/src/platform/keybindings.rs` in the Linux forms the menu
-  checklist specifies, and dispatching through the enablement map (this is how Linux accelerators
-  work — it is not covered by "menu wiring").
+- **Accelerators** — **already registered** in `src-tauri/src/platform/keybindings.rs` in the Linux
+  forms (rename-branch:47, delete-branch:48, discard-all-changes:49, merge-branch:56), so no
+  registration work. The actual gap is **dispatch**: routing each through the enablement map +
+  executor (the Linux accelerator path). Verify each fires on the live build.
 - **`node scripts/measure-store-surface.mjs`** — AGENTS.md requires it when closing a slice, and these
   slices convert previously-unconsumed commands into consumed ones, which is exactly what it measures.
 - **`menu-bar.test.tsx`** extended for the new items, and `repository-menu.test.ts` capability parity
@@ -198,8 +216,10 @@ Plus, per slice:
 - **`qa/phase-8b/macos-checklist.md` §7** gains a native-dispatch line per new menu item.
 - **Menu baseline updated**: promote the item in `menu-mvp-alignment-checklist.md` (membership rule
   (b)) and remove it from the "Removed" table.
-- Wire snapshot: only if a shape crosses IPC. Confirm rather than assume —
-  `cargo test -p git-ops --test wire_contract`.
+- Wire snapshot: only if a shape crosses IPC. None of the six items introduces a new IPC shape — they
+  all reuse existing command payloads (`discardChanges` already takes `files[]`, merge/rename/delete
+  wrappers exist) — so `UPDATE_WIRE_SNAPSHOT` is **expected to be unnecessary**. Still run
+  `cargo test -p git-ops --test wire_contract` to confirm, per the not-assumed rule above.
 
 ## Read before implementing
 
