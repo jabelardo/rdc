@@ -14,19 +14,31 @@ defect is in the **MVP scope**: an MVP of a git client without fundamental branc
 releasable.
 
 **What a user sees today**: Branch menu contains exactly one item, *New branch…* (create from HEAD
-and check out). Everything else in the legacy upstream Branch menu is absent because the underlying
-operations are not implemented.
+and check out).
 
-**Required before MVP release** (upstream item → what is missing):
+**Correction (2026-08-03).** This finding originally said the other items are absent "because the
+underlying operations are not implemented". That is wrong, and it mis-scopes the work. Verified by
+reading each layer: **the git operations, their Tauri commands, and their TypeScript IPC wrappers all
+exist and are tested.** What is missing is only the top layer — a store method, a UI affordance and
+the menu wiring. This is wiring work over a finished backend, not backend work.
 
-| Upstream item | Missing implementation |
-|---|---|
-| `rename-branch` (&Rename…) | Rename the current/local branch (branch-store + git rename, E2E) |
-| `delete-branch` (&Delete…) | Delete a branch (safety: current-branch/unborn/detached guards, E2E) |
-| `discard-all-changes` (Discard all changes…) | Whole-working-tree discard (recoverable trash + permanent with confirmation). Only file/line discard exists today |
-| `permanently-discard-all-changes` (Permanently discard all changes…) | Same, permanent path with confirmation |
-| `update-branch-with-contribution-target-branch` (&Update from \<default\>) | Bring the current branch up to date with its default branch (fetch + merge/rebase onto contribution target) |
-| `merge-branch` (&Merge into current branch…) — *initiation* | Merge *initiation*; conflict *recovery* already exists and stays MVP |
+| Upstream item | `git-ops` (Rust) | Tauri command | TS IPC wrapper | Store method | UI + menu |
+|---|---|---|---|---|---|
+| `rename-branch` | `rename_branch` | `rename_branch` | `branch-ipc.ts` | **missing** | **missing** |
+| `delete-branch` | `delete_local_branch`, `delete_remote_branch` | `delete_local_branch`, `delete_ref` | `branch-ipc.ts`, `remote-ipc.ts` | **missing** | **missing** |
+| `discard-all-changes` | trash + `clean`/`checkout` | `move_item_to_trash`, `clean_untracked_files` | `discardChanges(path, files[], …)` | **partial** — `discardFile` passes `[file]`; all-files is the same call with the full list | **missing** |
+| `permanently-discard-all-changes` | same | same | same, `{ permanentlyDelete: true }` | **partial** — flag already plumbed | **missing** |
+| `update-branch-with-contribution-target-branch` | `rebase.rs` (10 fns), fetch/merge | `rebase_branch`, `fetch`, `merge_branch` | `git-ipc.ts`, `remote-ipc.ts` | **missing** | **missing** |
+| `merge-branch` — *initiation* | `merge.rs` | `merge_branch`, `determine_mergeability`, `abort_merge` | `git-ipc.ts`, `misc-ipc.ts` | **missing** | **missing** |
+
+`branch-store.ts` currently exposes only `load`, `createAndCheckout`, `checkout` and `clear`;
+`working-tree-store.ts` only `discardFile` and `discardSelectedLines`. Those two files are where the
+gap lives.
+
+The MVP-blocker classification stands — a git client without branch management is not releasable —
+but the estimate should reflect that Phase 2/3 already delivered the hard part. The remaining work is
+store methods with guards (current-branch/unborn/detached for delete, confirmation policy for
+discard-all), the UI affordances, and fixture-scenario E2E journeys.
 
 **Explicitly still post-MVP** (not part of this blocker): `stash-all-changes`, `compare-to-branch`,
 `squash-and-merge-branch`, `rebase-branch`, GitHub branch/PR items.
