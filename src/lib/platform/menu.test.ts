@@ -50,43 +50,13 @@ describe('native macOS menu bridge', () => {
     const items: ReadonlyArray<SerializableContextMenuItem> = [
       { label: 'Parent', submenu: [{ label: 'Child' }] },
     ]
-    invoke.mockImplementation(async (command: string) =>
-      command === 'get_current_window_zoom_factor' ? 1.15 : [0, 0]
-    )
+    invoke.mockResolvedValue([0, 0])
 
     await expect(invokeContextualMenu(items, false)).resolves.toEqual([0, 0])
 
     expect(invoke).toHaveBeenCalledWith('show_contextual_menu', {
       items,
       addSpellCheckMenu: false,
-      x: null,
-      y: null,
-    })
-  })
-
-  it('scales the trigger rect to logical pixels by the window zoom', async () => {
-    const items: ReadonlyArray<SerializableContextMenuItem> = [
-      { label: 'Parent' },
-    ]
-    invoke.mockImplementation(async (command: string) =>
-      command === 'get_current_window_zoom_factor' ? 1.5 : [0, 0]
-    )
-
-    await invokeContextualMenu(items, false, {
-      x: 100,
-      y: 200,
-      width: 20,
-      height: 30,
-    })
-
-    // Anchor is the trigger's bottom-left (y + height); both axes are CSS px
-    // and must be scaled by zoom so the native popup lands on the row. Without
-    // scaling the menu drifts toward the top-left, growing with page Y.
-    expect(invoke).toHaveBeenCalledWith('show_contextual_menu', {
-      items,
-      addSpellCheckMenu: false,
-      x: 150,
-      y: 345,
     })
   })
 

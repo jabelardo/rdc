@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { join } from '@tauri-apps/api/path'
 import { BranchType, type Branch } from '../../../models/branch'
-import type { ContextMenuItem } from '../../../models/context-menu'
 import type { Repository } from '../../../models/repository'
 import { getCloneDirectoryName } from '../../clone-destination'
 import { getMergedBranches } from '../../branch-ipc'
@@ -124,11 +123,6 @@ export function useAppController() {
     null
   )
   const [manageRunning, setManageRunning] = useState(false)
-  const [contextMenu, setContextMenu] = useState<{
-    readonly items: ReadonlyArray<ContextMenuItem>
-    readonly x: number
-    readonly y: number
-  } | null>(null)
   const [showCloneDialog, setShowCloneDialog] = useState(false)
   const [showAboutDialog, setShowAboutDialog] = useState(false)
   const [showPreferencesDialog, setShowPreferencesDialog] = useState(false)
@@ -342,7 +336,6 @@ export function useAppController() {
     setRemoteFilter('')
     setManageRemoteError(null)
     setManageRunning(false)
-    setContextMenu(null)
     repositoryViewTransitionID.current++
     pendingRepositoryView.current = null
     historyStore.clear()
@@ -558,70 +551,39 @@ export function useAppController() {
     }
   }
 
-  async function openRepositoryContextMenu(
-    repository: Repository,
-    triggerRect?: import('../../platform/menu').TriggerRect
-  ) {
+  async function openRepositoryContextMenu(repository: Repository) {
     if (appState.selectedRepository?.id !== repository.id) {
       await selectRepository(repository)
     }
-    presentContextMenu(
-      [
-        {
-          label: 'Open in New Window',
-          action: () => {
-            void runRepositoryAction(() =>
-              openRepositoryInNewWindow(repository.path)
-            )
-          },
+    await showContextualMenu([
+      {
+        label: 'Open in New Window',
+        action: () => {
+          void runRepositoryAction(() =>
+            openRepositoryInNewWindow(repository.path)
+          )
         },
-        {
-          label: 'Show in File Manager',
-          action: () => {
-            void runRepositoryAction(() => showFolderContents(repository.path))
-          },
+      },
+      {
+        label: 'Show in File Manager',
+        action: () => {
+          void runRepositoryAction(() => showFolderContents(repository.path))
         },
-        { type: 'separator' },
-        {
-          label: 'Manage remotes…',
-          action: () => {
-            requestManageRemotes()
-          },
+      },
+      { type: 'separator' },
+      {
+        label: 'Manage remotes…',
+        action: () => {
+          requestManageRemotes()
         },
-        {
-          label: 'Remove',
-          action: () => {
-            requestRemoveRepository(repository)
-          },
+      },
+      {
+        label: 'Remove',
+        action: () => {
+          requestRemoveRepository(repository)
         },
-      ],
-      triggerRect
-    )
-  }
-
-  /**
-   * Show a context menu. On macOS this stays a native popup (the platform's
-   * own menu). On Linux/Windows it is rendered in the webview (see
-   * AppContextMenu) so placement is exact at any zoom and a window focus switch
-   * cannot leave a native grab eating input.
-   */
-  function presentContextMenu(
-    items: ReadonlyArray<ContextMenuItem>,
-    triggerRect?: import('../../platform/menu').TriggerRect
-  ): void {
-    if (rendererPlatform === 'macos') {
-      void showContextualMenu(items, false, triggerRect)
-      return
-    }
-    setContextMenu({
-      items,
-      x: triggerRect?.x ?? 0,
-      y: triggerRect ? triggerRect.y + triggerRect.height : 0,
-    })
-  }
-
-  function closeContextMenu(): void {
-    setContextMenu(null)
+      },
+    ])
   }
 
   async function runRepositoryAction(action: () => Promise<void>) {
@@ -975,29 +937,23 @@ export function useAppController() {
     setDeletePruneTrackingRef(false)
   }
 
-  async function openBranchContextMenu(
-    branch: Branch,
-    triggerRect?: import('../../platform/menu').TriggerRect
-  ): Promise<void> {
+  async function openBranchContextMenu(branch: Branch) {
     const current = branch.name === branchState.currentBranch
     const defaultBranch = branch.name === branchState.defaultBranch
     const canDelete = !current && !defaultBranch
-    presentContextMenu(
-      [
-        {
-          label: 'Rename…',
-          action: () => requestRename(branch),
+    await showContextualMenu([
+      {
+        label: 'Rename…',
+        action: () => requestRename(branch),
+      },
+      {
+        label: 'Delete…',
+        enabled: canDelete,
+        action: () => {
+          void requestDelete(branch)
         },
-        {
-          label: 'Delete…',
-          enabled: canDelete,
-          action: () => {
-            void requestDelete(branch)
-          },
-        },
-      ],
-      triggerRect
-    )
+      },
+    ])
   }
 
   function requestMerge(): void {
@@ -1227,10 +1183,6 @@ export function useAppController() {
     const transitionID = ++repositoryViewTransitionID.current
     pendingRepositoryView.current = 'history'
 
-    // HistoryWorkspace stays mounted but hidden, so its store updates build the complete commit,
-    // file and diff tree off-screen. Reveal it only after `load` has finished that chain; exposing
-    // it first made the browser paint the empty/loading/details/diff states in sequence. Reload on
-    // every transition to preserve the former freshness contract after commits, fetches and pulls.
     void historyStore.load(repository.path).then(() => {
       if (
         repositoryViewTransitionID.current === transitionID &&
@@ -1243,9 +1195,6 @@ export function useAppController() {
     })
   }
 
-  // Debug-only Phase 8b visual-matrix driver. Inert unless a real Tauri
-  // webview is running in dev; see the hook. Repository selection reuses the
-  // store's own lookup, falling back to add-on-demand for the QA fixtures.
   useQaStateDriver({
     applyTheme: theme => preferencesStore.setTheme(theme),
     setRepositoryView: view => selectRepositoryView(view),
@@ -1374,8 +1323,6 @@ export function useAppController() {
     confirmRemoveRemote,
     closeManageRemotes,
     requestManageRemotes,
-    contextMenu,
-    closeContextMenu,
     toggleSidebarSection,
     activateSidebarSection,
     showBranches,

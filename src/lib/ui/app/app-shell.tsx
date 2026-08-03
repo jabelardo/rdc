@@ -6,10 +6,7 @@ import {
   faPlus,
 } from '@fortawesome/free-solid-svg-icons'
 import { showFolderContents } from '../../platform/files'
-import { openRepositoryInNewWindow } from '../../platform/window'
-import { showApplicationLogs } from '../../resilience/logs'
 import { HorizontalResizer } from '../horizontal-resizer'
-import { AppContextMenu } from './app-context-menu'
 import { AppDialogs } from './app-dialogs'
 import { ChangesWorkspace } from './changes-workspace'
 import { HistoryWorkspace } from './history-workspace'
@@ -18,9 +15,7 @@ import { RepositorySidebar } from './repository-sidebar'
 import { RepositoryToolbar } from './repository-toolbar'
 import type { AppController } from './use-app-controller'
 import { WindowDragStrip } from './window-drag-strip'
-import { currentMenuPlatform } from '../../menu/default-menu'
 import { remoteEnablement } from '../../remote-enablement'
-import { MenuBar } from './menu-bar'
 
 type AppShellProps = {
   readonly controller: AppController
@@ -80,7 +75,6 @@ export function AppShell({ controller }: AppShellProps) {
     submitClone,
     selectRepository,
     openRepositoryContextMenu,
-    requestRemoveRepository,
     runRepositoryAction,
     confirmRemoveRepository,
     openInShell,
@@ -94,7 +88,6 @@ export function AppShell({ controller }: AppShellProps) {
     confirmDiscard,
     cancelDiscard,
     discardAll,
-    requestDiscardAll,
     confirmDiscardAll,
     cancelDiscardAll,
     branchToRename,
@@ -109,8 +102,6 @@ export function AppShell({ controller }: AppShellProps) {
     setDeletePruneTrackingRef,
     confirmDelete,
     cancelDelete,
-    renameCurrentBranch,
-    deleteCurrentBranch,
     openBranchContextMenu,
     mergePickerOpen,
     mergeTarget,
@@ -119,7 +110,6 @@ export function AppShell({ controller }: AppShellProps) {
     mergeRunning,
     confirmMerge,
     cancelMerge,
-    requestMerge,
     showManageRemotes,
     remoteFilter,
     setRemoteFilter,
@@ -135,23 +125,13 @@ export function AppShell({ controller }: AppShellProps) {
     confirmAddRemote,
     confirmRemoveRemote,
     closeManageRemotes,
-    requestManageRemotes,
-    contextMenu,
-    closeContextMenu,
     toggleSidebarSection,
     activateSidebarSection,
-    showBranches,
-    goToCommitMessage,
-    increaseActiveResizableWidth,
-    decreaseActiveResizableWidth,
-    createBranch,
     sidebarWidth,
     setSidebarWidth,
     showBranchCreation,
     setShowBranchCreation,
   } = controller
-  const platform = currentMenuPlatform()
-  const showMenuBar = platform === 'linux' || platform === 'windows'
   const workspaceMinimum = appState.selectedRepository === null ? 490 : 560
   const hasSelection = appState.selectedRepository !== null
   const { canFetch, canPush, canPull } = remoteEnablement({
@@ -159,37 +139,13 @@ export function AppShell({ controller }: AppShellProps) {
     selectedRepositoryPath: appState.selectedRepository?.path ?? null,
     remoteState,
   })
-  const canCreateBranch =
-    hasSelection &&
-    branchState.operation === null &&
-    !conflictState.mergeInProgress
-  const canRenameBranch = canCreateBranch && branchState.currentBranch !== null
-  const canDeleteBranch = canRenameBranch
-  const canMerge =
-    canCreateBranch &&
-    branchState.currentBranch !== null &&
-    (workingTreeState.workingDirectory?.files.length ?? 0) === 0 &&
-    !conflictState.mergeInProgress
-  const canDiscardAll =
-    hasSelection &&
-    (workingTreeState.workingDirectory?.files.length ?? 0) > 0 &&
-    !workingTreeState.mergeHeadFound
-  const focusRepositoryList = () => {
-    document
-      .querySelector<HTMLElement>(
-        '[aria-label="Repositories"] [aria-current="true"]'
-      )
-      ?.focus()
-  }
 
   return (
     <main
       ref={shellRef}
       className={`application-shell grid h-screen${
         showWindowDragRegion ? ' webview-titlebar' : ''
-      }${sidebarCollapsed ? ' sidebar-collapsed' : ''}${
-        showMenuBar ? ' has-menu-bar' : ''
-      }`}
+      }${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
       style={
         {
           '--sidebar-width': `${sidebarWidth}px`,
@@ -198,72 +154,6 @@ export function AppShell({ controller }: AppShellProps) {
       }
     >
       {showWindowDragRegion && <WindowDragStrip />}
-      {showMenuBar && (
-        <div className="app-menu-bar-container">
-          <MenuBar
-            onCreateRepository={() => void createRepository()}
-            onAddExistingRepository={() => void addExistingRepository()}
-            onCloneRepository={openCloneDialog}
-            onShowPreferences={() => setShowPreferencesDialog(true)}
-            onShowAbout={() => setShowAboutDialog(true)}
-            onSelectView={setRepositoryView}
-            onOpenNewWindow={() =>
-              runRepositoryAction(() =>
-                openRepositoryInNewWindow(appState.selectedRepository!.path)
-              )
-            }
-            onShowRepositoryList={focusRepositoryList}
-            onShowBranchesList={showBranches}
-            onGoToCommitMessage={goToCommitMessage}
-            onExpandSidebar={increaseActiveResizableWidth}
-            onContractSidebar={decreaseActiveResizableWidth}
-            onShowFiles={() =>
-              runRepositoryAction(() =>
-                showFolderContents(appState.selectedRepository!.path)
-              )
-            }
-            onOpenEditor={() =>
-              runRepositoryAction(() =>
-                openInExternalEditor(appState.selectedRepository!.path)
-              )
-            }
-            onOpenShell={() =>
-              runRepositoryAction(() =>
-                openInShell(appState.selectedRepository!.path)
-              )
-            }
-            onFetch={() => void refreshAfterFetch()}
-            onPush={() => void refreshAfterPush()}
-            onPull={() => void refreshAfterPull()}
-            onRemoveRepository={() => {
-              if (appState.selectedRepository !== null) {
-                requestRemoveRepository(appState.selectedRepository)
-              }
-            }}
-            onNewBranch={createBranch}
-            onRenameBranch={renameCurrentBranch}
-            onDeleteBranch={deleteCurrentBranch}
-            onMergeBranch={requestMerge}
-            onManageRemotes={requestManageRemotes}
-            onDiscardAll={requestDiscardAll}
-            onShowLogs={() => void showApplicationLogs()}
-            hasRepository={hasSelection}
-            hasRepositories={appState.repositories.length > 0}
-            hasEditor={preferencesStore.selectedEditor !== null}
-            hasShell={preferencesStore.selectedShell !== null}
-            canFetch={canFetch}
-            canPush={canPush}
-            canPull={canPull}
-            canCreateBranch={canCreateBranch}
-            canRenameBranch={canRenameBranch}
-            canDeleteBranch={canDeleteBranch}
-            canMergeBranch={canMerge}
-            canDiscardAll={canDiscardAll}
-            selectedShell={preferencesStore.selectedShell?.shell ?? null}
-            selectedEditor={preferencesStore.selectedEditor?.editor ?? null}
-          />
-        </div>
-      )}
       <RepositorySidebar
         collapsed={sidebarCollapsed}
         expandedSections={expandedSidebarSections}
@@ -278,12 +168,10 @@ export function AppShell({ controller }: AppShellProps) {
         onToggleSection={toggleSidebarSection}
         onActivateSection={activateSidebarSection}
         onSelectRepository={repository => void selectRepository(repository)}
-        onRepositoryContextMenu={(repository, triggerRect) =>
-          void openRepositoryContextMenu(repository, triggerRect)
+        onRepositoryContextMenu={repository =>
+          void openRepositoryContextMenu(repository)
         }
-        onBranchContextMenu={(branch, triggerRect) =>
-          void openBranchContextMenu(branch, triggerRect)
-        }
+        onBranchContextMenu={branch => void openBranchContextMenu(branch)}
         onBranchNameChange={setNewBranchName}
         onBranchChange={refreshAfterBranchChange}
       />
@@ -471,13 +359,6 @@ export function AppShell({ controller }: AppShellProps) {
         onSubmitClone={() => void submitClone()}
         onCloneURLChange={setCloneURL}
         onClonePathChange={setClonePath}
-      />
-      <AppContextMenu
-        items={contextMenu?.items ?? null}
-        position={
-          contextMenu === null ? null : { x: contextMenu.x, y: contextMenu.y }
-        }
-        onClose={closeContextMenu}
       />
     </main>
   )

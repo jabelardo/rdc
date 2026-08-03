@@ -21,7 +21,6 @@ import {
 import { mapStatus } from '../status'
 import { handleListNavigation } from './list-navigation'
 import { Tooltip } from './tooltip'
-import type { TriggerRect } from '../platform/menu'
 import type { VirtualListRow } from './virtual-list'
 
 function formatBranchModifiedDate(date: Date): string {
@@ -37,10 +36,7 @@ type RepositoryListRowProps = {
   readonly repository: Repository
   readonly row: VirtualListRow
   readonly selectedRepository: Repository | null
-  readonly onContextMenu: (
-    repository: Repository,
-    triggerRect?: TriggerRect
-  ) => void
+  readonly onContextMenu: (repository: Repository) => void
   readonly onSelect: (repository: Repository) => void
 }
 
@@ -85,13 +81,7 @@ export function RepositoryListRow({
           }
           onContextMenu={event => {
             event.preventDefault()
-            const r = event.currentTarget.getBoundingClientRect()
-            onContextMenu(repository, {
-              x: r.x,
-              y: r.y,
-              width: r.width,
-              height: r.height,
-            })
+            onContextMenu(repository)
             event.currentTarget.blur()
           }}
         >
@@ -109,13 +99,7 @@ export function RepositoryListRow({
           className="repository-list-actions"
           aria-label={`More actions for ${repository.name}`}
           onClick={e => {
-            const r = e.currentTarget.getBoundingClientRect()
-            onContextMenu(repository, {
-              x: r.x,
-              y: r.y,
-              width: r.width,
-              height: r.height,
-            })
+            onContextMenu(repository)
             // Dismiss the CSS :hover tooltip so it does not linger behind the
             // native context menu that pops up over the webview.
             e.currentTarget.blur()
@@ -137,7 +121,7 @@ type BranchListRowProps = {
   readonly operationDisabled: boolean
   readonly row: VirtualListRow
   readonly onSelect: (branch: Branch) => void
-  readonly onContextMenu?: (branch: Branch, triggerRect?: TriggerRect) => void
+  readonly onContextMenu?: (branch: Branch) => void
 }
 
 export function BranchListRow({
@@ -205,13 +189,7 @@ export function BranchListRow({
               ? undefined
               : event => {
                   event.preventDefault()
-                  const r = event.currentTarget.getBoundingClientRect()
-                  onContextMenu(branch, {
-                    x: r.x,
-                    y: r.y,
-                    width: r.width,
-                    height: r.height,
-                  })
+                  onContextMenu(branch)
                   event.currentTarget.blur()
                 }
           }
