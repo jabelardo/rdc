@@ -32,6 +32,16 @@ minus everything that is not ready, plus everything rdc has already implemented.
    execute a no-op.
 3. **Identity rule.** rdc labels and destinations apply (RDC identity, rdc-owned URLs). Any
    departure from upstream copy is an accepted deviation recorded below, not an unstated change.
+4. **Capability-parity rule.** *Shape* differs per platform — macOS uses the Darwin template with an
+   app menu and a Window menu, Linux/Windows use the non-Darwin template with access keys. The set
+   of **implemented capabilities reachable from the menu must not.** If an action is enabled on one
+   MVP platform it must be enabled on the other, in the equivalent state; if it is absent on one it
+   must be absent or honestly disabled on the other. Platform-gating an implemented action because
+   it is *harder to verify* on one platform is not permitted — that is what produced a macOS Branch
+   menu with no usable item while Linux offered `create-branch`. Where verification genuinely cannot
+   be automated (native WKWebView dispatch has no `tauri-driver` backend), the automated proof is
+   the per-platform executor contract in `repository-menu.test.ts` and the native proof is an
+   explicit item in `macos-checklist.md` — not a disabled menu entry.
 
 Per-item classification used below:
 
@@ -101,13 +111,17 @@ accelerators.
 
 | Item ID | Linux label (upstream) | Accelerator | Classification | Notes |
 |---|---|---|---|---|
-| `create-branch` | New &branch… | Ctrl+Shift+N | **MVP — wiring gap** | Phase 7c — create from HEAD and checkout is implemented in the sidebar; the menu entry must route to the same flow |
+| `create-branch` | New &branch… | Ctrl+Shift+N | **MVP** | Phase 7c — create from HEAD and checkout; enabled on every MVP platform (macOS label: New Branch…) |
 
-**QA blocker for MVP release:** the Branch menu is single-item because rename/delete/discard/merge
-are not implemented, but fundamental branch management is required for an MVP. See the finding
-`qa/phase-8b/evidence/menu-mvp-alignment-findings.md` — the menu must not be padded with dead
-items; development must implement the operations and the baseline then promotes them (membership
-rule (b)).
+**QA blocker for MVP release, on both platforms:** the Branch menu is effectively single-item
+because rename/delete/discard-all/update-from/merge-initiation are not implemented, but fundamental
+branch management is required for an MVP. See `qa/phase-8b/evidence/menu-mvp-alignment-findings.md`
+F-MENU-001 for the exact six items and their owning slices. The blocker is **scope, not platform** —
+it was first recorded during the Linux cycle, but macOS is missing exactly the same operations, so
+implementing them clears it for both and neither platform ships until it is cleared.
+
+The menu must not be padded with dead items in the meantime: development implements the operations
+and the baseline promotes them automatically under membership rule (b).
 
 ### Help menu
 
@@ -160,6 +174,15 @@ macOS renders the full `default-menu.ts` tree in the native menu bar, so its inv
 upstream macOS template with honest enablement (`withHonestStartupEnablement` plus the
 `buildRepositoryMenu` map). The membership rule still applies: implemented items are MVP, the
 "Removed" boundary applies on macOS too, and the deviations below are macOS-specific.
+
+**The two platforms therefore present the same capabilities through different shapes, and that is
+the only difference permitted.** Note the consequence of macOS rendering the *whole* ported tree
+while Linux's in-window bar renders only its baseline: on macOS a "Removed for MVP" item is present
+but disabled, whereas on Linux it is absent. Both satisfy the membership rule — an item that is
+neither enabled nor executable is honest either way — but it means the platforms are compared by
+*enabled set*, never by item count. Per-item enablement is verified by
+`repository-menu.test.ts`, which asserts the implemented-capability set is identical across
+`macos`, `windows` and `linux`, and separately that every enabled leaf has an executor on each.
 
 ### macOS app menu (RDC menu)
 

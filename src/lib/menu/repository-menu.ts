@@ -117,21 +117,26 @@ export function buildRepositoryMenu(
     ['push', canPush],
     ['pull', canPull],
   ])
-  // macOS keeps the keybinding-tree items for these actions honestly disabled
-  // (this host cannot run macOS; see the QA findings), so the native menu is
-  // unchanged. The Linux/Windows keybinding dispatcher needs them enabled for
-  // the accelerators the in-window menu bar displays (Ctrl+B, Ctrl+G, Ctrl+9,
-  // Ctrl+8, Ctrl+Shift+N); each routes to a `RepositoryMenuEnvironment`
-  // callback that mirrors the visible menu bar's handler. `create-branch` is
-  // deliberately only selection-gated here; the visible menu bar applies the
-  // stricter operation/merge guards and the sidebar form disables its submit.
-  if (platform !== 'macos') {
-    enabledByID.set('show-branches-list', hasSelection)
-    enabledByID.set('go-to-commit-message', hasSelection)
-    enabledByID.set('increase-active-resizable-width', true)
-    enabledByID.set('decrease-active-resizable-width', true)
-    enabledByID.set('create-branch', hasSelection)
-  }
+  // Enabled on every platform, deliberately. These five actions are implemented, so membership
+  // rule (b) of the menu baseline makes them MVP — "an implemented capability is MVP by definition
+  // and must be reachable from the menu". They were once gated to non-macOS because the development
+  // host could not run macOS, which left the macOS Branch menu with *no* usable item at all: even
+  // `create-branch`, the one branch operation that exists, was greyed out while Linux offered it.
+  // A menu that hides working features is as wrong as one that offers broken ones.
+  //
+  // Each routes to a `RepositoryMenuEnvironment` callback shared with the Linux in-window menu bar,
+  // and the per-platform executor contract in this module's tests proves macOS has an executor for
+  // every one. What automation still cannot prove is native WKWebView dispatch — there is no
+  // `tauri-driver` backend for it — so the macOS checklist carries an explicit verification item.
+  //
+  // `create-branch` is only selection-gated here, matching what the Linux keybinding tree already
+  // did: the visible menu bar applies the stricter operation/merge guards, and the sidebar form
+  // disables its own submit.
+  enabledByID.set('show-branches-list', hasSelection)
+  enabledByID.set('go-to-commit-message', hasSelection)
+  enabledByID.set('increase-active-resizable-width', true)
+  enabledByID.set('decrease-active-resizable-width', true)
+  enabledByID.set('create-branch', hasSelection)
   const menu = buildStartupMenu(
     platform,
     preferencesState === undefined

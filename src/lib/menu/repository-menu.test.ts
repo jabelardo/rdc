@@ -381,31 +381,42 @@ describe('repository application menu actions', () => {
     expect(environment.decreaseActiveResizableWidth).toHaveBeenCalledOnce()
   })
 
-  it('keeps the wiring-gap actions disabled on macOS (untested platform safety)', () => {
-    const menu = buildRepositoryMenu(
-      {
-        repositories: [repository],
-        selectedRepository: repository,
-      },
-      'macos',
-      remoteState,
-      preferencesState
-    )
-    const items = menu.items.flatMap(item =>
-      item.type === 'submenuItem' ? [item, ...item.menu.items] : [item]
-    )
-    const byId = (id: string) => items.find(item => item.id === id)
+  // Replaces an earlier assertion that pinned these disabled on macOS for "untested platform
+  // safety". That gate left the macOS Branch menu with no usable item at all — `create-branch` is
+  // implemented and was offered on Linux while greyed out on macOS. Membership rule (b) of
+  // `qa/phase-8b/menu-mvp-alignment-checklist.md` makes an implemented capability MVP on every
+  // platform, so the surfaces must agree. Native WKWebView dispatch is still unautomatable and is
+  // covered by an explicit item in the macOS checklist.
+  it.each(['macos', 'windows', 'linux'] as const)(
+    'exposes every implemented capability on %s, so platforms do not diverge',
+    platform => {
+      const menu = buildRepositoryMenu(
+        {
+          repositories: [repository],
+          selectedRepository: repository,
+        },
+        platform,
+        remoteState,
+        preferencesState
+      )
+      const items = menu.items.flatMap(item =>
+        item.type === 'submenuItem' ? [item, ...item.menu.items] : [item]
+      )
+      const byId = (id: string) => items.find(item => item.id === id)
 
-    for (const id of [
-      'show-branches-list',
-      'go-to-commit-message',
-      'increase-active-resizable-width',
-      'decrease-active-resizable-width',
-      'create-branch',
-    ]) {
-      expect(byId(id)).toMatchObject({ enabled: false })
+      for (const id of [
+        'show-branches-list',
+        'go-to-commit-message',
+        'increase-active-resizable-width',
+        'decrease-active-resizable-width',
+        'create-branch',
+      ]) {
+        expect(byId(id), `${id} on ${platform}`).toMatchObject({
+          enabled: true,
+        })
+      }
     }
-  })
+  )
 
   it('enables the wiring-gap accelerators on Linux for a selection', () => {
     const menu = buildRepositoryMenu(

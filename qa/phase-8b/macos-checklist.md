@@ -64,6 +64,18 @@ native acceptance record; do not label it automated.
 
 - Repeat any focused-window menu checks identified by `menu-mvp-alignment-checklist.md`; Preferences,
   About, dialogs and contextual menus must still target the focused repository window.
+- **Verify the five capability-parity actions actually dispatch from the native menu**, with a
+  repository selected: Branch → New Branch… (Cmd+Shift+N), View → Show Branches List (Cmd+B), View →
+  Go to Summary (Cmd+G), and View → Expand/Contract Active Resizable (Cmd+9 / Cmd+8). Each must
+  perform its action in the focused window, not merely appear enabled.
+
+  This item exists because these five were previously disabled on macOS purely because the
+  development host could not verify them — which left the macOS Branch menu with no usable item at
+  all. They are now enabled on every platform under the capability-parity rule. Unit tests prove
+  each has an executor on `macos`; **nothing automated can prove native WKWebView dispatch**, because
+  there is no `tauri-driver` backend for it, so this manual check is the only evidence that exists.
+  If any of them does nothing, that is a defect in the native menu path, not a reason to re-disable
+  the item.
 - Open a second repository window, give each window a different selected repository/view, and repeat
   menu, context-menu and close actions while alternating focus. State and commands must remain scoped
   to the focused window; closing one must not destroy or retarget the other.

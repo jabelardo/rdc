@@ -55,6 +55,43 @@ platform-gated so macOS keeps its honest-disable state (regression test pins it)
 sidebar-width and branch-creation state into the controller so the visible menu bar and the
 keybinding path share one implementation. Ctrl+B, Ctrl+G, Ctrl+9/8 and Ctrl+Shift+N now work.
 
+## F-MENU-003 — resolved: macOS and Linux exposed different capability sets
+
+**Found**: 2026-08-03, by dumping `buildRepositoryMenu` for `macos` and `linux` with a selected
+repository and comparing the *enabled* sets rather than the item counts.
+
+Five implemented actions were enabled on Linux and disabled on macOS:
+
+| Item ID | macOS before | Linux |
+|---|---|---|
+| `create-branch` | disabled | enabled |
+| `show-branches-list` | disabled | enabled |
+| `go-to-commit-message` | disabled | enabled |
+| `increase-active-resizable-width` | disabled | enabled |
+| `decrease-active-resizable-width` | disabled | enabled |
+
+The consequence was worse than the list suggests: since the other Branch items are unimplemented and
+therefore disabled, **the macOS Branch menu contained no usable item whatsoever**, while Linux
+offered New branch…. F-MENU-001 read as a Linux-scope finding; on macOS the same menu was not merely
+thin, it was inert.
+
+**Cause**, from the code comment that gated it: *"macOS keeps the keybinding-tree items for these
+actions honestly disabled (this host cannot run macOS)"*, pinned by a test named *"keeps the
+wiring-gap actions disabled on macOS (untested platform safety)"*. So the gate was about
+verifiability, not capability — a defensible instinct that produced an indefensible surface, because
+"we cannot automate this platform" is permanent for WKWebView and would have kept the items disabled
+forever.
+
+**Resolution**: the platform gate is removed; the five are enabled on every platform. The baseline
+gained a **capability-parity rule** (scope rule 4) making this class of divergence a defect by
+definition, and `repository-menu.test.ts` now asserts the implemented-capability set is identical
+across `macos`, `windows` and `linux` — replacing the assertion that pinned the divergence in place.
+The existing per-platform executor contract confirms macOS has an executor for each.
+
+**Residual risk, honestly stated**: automation proves the wiring, not native WKWebView dispatch. The
+macOS checklist §7 now carries an explicit item to exercise all five from the native menu. Until that
+is recorded, macOS parity is *implemented and unit-verified, not natively verified*.
+
 ## Exit classification for this cycle
 
 - [x] **blocker** — F-MENU-001 (Branch menu scope), with the exact items and expected disposition above.
