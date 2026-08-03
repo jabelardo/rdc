@@ -251,8 +251,20 @@ where
 
     loop {
         match file.read(&mut chunk).await {
-            Ok(0) if done.load(Ordering::Acquire) => break,
-            Ok(0) => tokio::time::sleep(Duration::from_millis(10)).await,
+            Ok(0) => {
+                if !done.load(Ordering::Acquire) {
+                    tokio::time::sleep(Duration::from_millis(10)).await;
+                    continue;
+                }
+                match file.read(&mut chunk).await {
+                    Ok(0) => break,
+                    Ok(count) => {
+                        pending.extend_from_slice(&chunk[..count]);
+                        emit_complete_lines(&mut pending, &mut on_line);
+                    }
+                    Err(_) => return,
+                }
+            }
             Ok(count) => {
                 pending.extend_from_slice(&chunk[..count]);
                 emit_complete_lines(&mut pending, &mut on_line);
@@ -841,6 +853,38 @@ mod tests {
         .unwrap();
 
         assert_eq!(lines, ["download 1/1 5/5 file.bin"]);
+    }
+
+    #[tokio::test]
+    async fn drains_the_progress_file_after_git_has_already_finished() {
+        // Covers `tail_lfs_progress` directly rather than through a git process: content already
+        // waiting, `done` already set, so it pins draining to EOF and the emission of a trailing
+        // line that has no newline.
+        //
+        // Be clear about what this does *not* do: it is not a regression test for the race the
+        // post-`done` drain fixes, and it passes with or without that drain, because the content is
+        // there on the first read. Losing a line requires EOF to be observed *before* the write and
+        // `done` to be set between that read and the flag check — a sub-microsecond window with no
+        // await point a test can wedge open. Reproducing it would mean injecting a reader seam into
+        // `tail_lfs_progress`, which costs more than the defect it would catch. The argument for
+        // the fix is therefore by inspection, and it is unconditionally safe: `done` is only set
+        // after git has exited, so one further read can never miss data and can never block.
+        let file = tempfile::NamedTempFile::new().expect("a temporary progress file");
+        std::fs::write(
+            file.path(),
+            "download 1/1 5/5 late.bin\nno trailing newline",
+        )
+        .expect("seeding the progress file should succeed");
+
+        let mut lines = Vec::new();
+        tail_lfs_progress(
+            file.path(),
+            Arc::new(AtomicBool::new(true)),
+            |line: &str| lines.push(line.to_owned()),
+        )
+        .await;
+
+        assert_eq!(lines, ["download 1/1 5/5 late.bin", "no trailing newline"]);
     }
 
     #[tokio::test]
