@@ -12,7 +12,6 @@ import {
   readRepositoryFixtures,
   removeFixtureRoot,
   repositorySelector,
-  expandRepositoriesPanel,
   resetRepositoryFixtures,
   seedRepositoryFixture,
   startApplication,

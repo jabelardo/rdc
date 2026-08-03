@@ -24,6 +24,9 @@ import { Builder, By, Capabilities, until } from 'selenium-webdriver'
 
 export const application = path.resolve('src-tauri/target/debug/rdc')
 
+/** Must match `PreferencesStorageKey` in `src/lib/stores/preferences-store.ts`. */
+const PREFERENCES_STORAGE_KEY = 'rdc-preferences-v1'
+
 /**
  * Runs git and returns stdout with trailing whitespace removed — the common case.
  *
@@ -301,7 +304,66 @@ export async function startApplication() {
     ),
     10_000
   )
+  await pinZoomFactor(applicationDriver)
   return applicationDriver
+}
+
+/**
+ * Forces the webview to 100% zoom for the duration of a spec.
+ *
+ * The container is Linux, where the zoom preference defaults to 1.15. That default is real product
+ * behaviour and stays — but it makes this suite non-deterministic in two ways at once: every
+ * absolute geometry assertion shifts by 15% (a 25.43px command bar measures 29.24px), and
+ * WebDriver's synthetic *pointer* clicks stop landing on their targets, because the coordinates it
+ * derives from an element rect no longer map to the same physical point. DOM clicks
+ * (`executeScript(el => el.click())`) are unaffected, which is why the breakage looked arbitrary:
+ * measured at 7 of 29 tests failing, and 29 of 29 passing with the default forced to 1.0.
+ *
+ * Both steps are needed. Writing the preference stops the frontend applying 1.15 after
+ * `preferencesStore.load()`; the explicit command call also normalises a zoom already persisted
+ * natively in `zoom-state.json`, which the frontend would *not* correct, since it only calls
+ * `setWindowZoomFactor` when the preference differs from 1.0.
+ *
+ * @param {import('selenium-webdriver').WebDriver} driver
+ */
+export async function pinZoomFactor(driver) {
+  await driver.executeScript(storageKey => {
+    let preferences = {}
+    try {
+      preferences = JSON.parse(localStorage.getItem(storageKey) ?? '{}') ?? {}
+    } catch {
+      preferences = {}
+    }
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({ ...preferences, zoomFactor: 1 })
+    )
+  }, PREFERENCES_STORAGE_KEY)
+  await driver.navigate().refresh()
+  await driver.wait(
+    until.elementLocated(
+      By.css('main.application-shell [aria-label="Navigation"]')
+    ),
+    10_000
+  )
+  await driver.executeAsyncScript(done => {
+    window.__TAURI_INTERNALS__
+      .invoke('set_window_zoom_factor', { zoomFactor: 1 })
+      .then(
+        () => done(true),
+        error => done({ error: String(error) })
+      )
+  })
+  await driver.wait(
+    async () =>
+      (await driver.executeAsyncScript(done => {
+        window.__TAURI_INTERNALS__
+          .invoke('get_current_window_zoom_factor')
+          .then(done, () => done(null))
+      })) === 1,
+    5_000,
+    'the webview did not settle at 100% zoom'
+  )
 }
 
 /** Terminates the application out of band, as a user force-quitting it would. */
@@ -541,36 +603,7 @@ export async function expandSidebarSection(driver, section = 'repositories') {
  * repository is actually selected, not merely listed — and independent of which sidebar panel
  * happens to be expanded. Waiting on a sidebar row here would force every spec through a panel
  * expansion it may not want, and would leave the accordion in a state the spec did not choose.
- *
- * @param {import('selenium-webdriver').WebDriver} driver
- * @param {string} repositoryPath
- */
-/**
- * Expands the Repositories accordion panel. The MVP sidebar starts with every
- * section collapsed (recorded in the visual-matrix F1 note), so repository
- * rows are not in the DOM until the heading is clicked. Specs that wait for
- * `[data-repository-path]` must establish this precondition themselves.
- *
- * @param {import('selenium-webdriver').WebDriver} driver
- */
-export async function expandRepositoriesPanel(driver) {
-  const heading = await driver.wait(
-    until.elementLocated(By.css('#sidebar-repositories-heading')),
-    5_000,
-    'the Repositories heading did not render'
-  )
-  if ((await heading.getAttribute('aria-expanded')) !== 'true') {
-    await heading.click()
-  }
-  await driver.wait(
-    async () => (await heading.getAttribute('aria-expanded')) === 'true',
-    5_000,
-    'the Repositories panel did not expand'
-  )
-}
-
-/**
- * Opens the application with one seeded repository and waits for its row.
+ * Specs that assert on a sidebar row expand its panel themselves.
  *
  * @param {import('selenium-webdriver').WebDriver} driver
  * @param {string} repositoryPath
@@ -579,7 +612,6 @@ export async function openSeededRepository(driver, repositoryPath) {
   await resetRepositoryFixtures(driver)
   await seedRepositoryFixture(driver, repositoryPath)
   await driver.navigate().refresh()
-  await expandRepositoriesPanel(driver)
   await driver.wait(
     until.elementLocated(By.css('[aria-label="Repository views"]')),
     5_000,

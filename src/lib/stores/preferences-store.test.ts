@@ -2,6 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { Shell } from '../../models/shell'
 import { PreferencesStore, PreferencesStorageKey } from './preferences-store'
 
+/**
+ * The zoom default is deliberately platform-dependent — Linux starts at 1.15 for Wayland/HiDPI
+ * legibility, every other platform at 1.0. Tests must derive it rather than hardcode one platform's
+ * value, or they only hold on that platform.
+ */
+const expectedDefaultZoomFactor = __LINUX__ ? 1.15 : 1
+
 const editors = [
   { editor: 'Visual Studio Code', path: '/applications/code' },
   { editor: 'Zed', path: '/applications/zed' },
@@ -140,7 +147,10 @@ describe('PreferencesStore', () => {
     expect(setTheme).toHaveBeenLastCalledWith('light')
     expect(JSON.parse(localStorage.getItem(PreferencesStorageKey)!)).toEqual({
       theme: 'light',
-      zoomFactor: 1.15,
+      // Derived from the same build constant the store uses, not the literal 1.15. Zoom is not what
+      // this test is about, and hardcoding the Linux value made the test pass on Linux and CI while
+      // failing on macOS — a host-dependent assertion that reads as a product bug.
+      zoomFactor: expectedDefaultZoomFactor,
       confirmRepositoryRemoval: false,
       confirmDiscardChanges: false,
       confirmDiscardChangesPermanently: false,

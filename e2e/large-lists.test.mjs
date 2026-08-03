@@ -15,7 +15,6 @@ import {
   seedRepositoryScaleFixture,
   selectRepository,
   startApplication,
-  expandRepositoriesPanel,
 } from './harness.mjs'
 
 const largeFileCount = 1_000
@@ -55,7 +54,7 @@ describe('large lists', () => {
     const loadStarted = Date.now()
     await driver.navigate().refresh()
     // The refresh boots the app with every sidebar section collapsed again.
-    await expandRepositoriesPanel(driver)
+    await expandSidebarSection(driver, 'repositories')
     const changedList = await driver.wait(
       until.elementLocated(
         By.css('[aria-label="Changed files"][data-virtualized="true"]')

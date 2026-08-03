@@ -19,7 +19,6 @@ import {
   initSimpleRepository,
   removeFixtureRoot,
   repositorySelector,
-  expandRepositoriesPanel,
   resetRepositoryFixtures,
   seedRepositoryFixture,
   selectRepository,
