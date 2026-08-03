@@ -7,6 +7,7 @@ import { By, Key } from 'selenium-webdriver'
 import {
   commitWorkingTreeBaseline,
   createFixtureRoot,
+  expandSidebarSection,
   initCanonicalRepository,
   openSeededRepository,
   removeFixtureRoot,
@@ -121,7 +122,10 @@ describe('visual layout', () => {
     assert.equal(toolbarTooltip.label, 'New repository')
     assert.equal(toolbarTooltip.background, toolbarTooltip.expectedBackground)
     assert.ok(toolbarTooltip.zIndex >= 10_000)
-    assert.ok(toolbarTooltip.top >= toolbarTooltip.toolbarBottom)
+    assert.ok(
+      toolbarTooltip.top >= toolbarTooltip.toolbarBottom,
+      `the toolbar tooltip must not overlap the command bar it describes: tooltip.top=${toolbarTooltip.top} toolbar.bottom=${toolbarTooltip.toolbarBottom} (overlap ${toolbarTooltip.toolbarBottom - toolbarTooltip.top}px). Tooltip.tsx places a short anchor's bubble at anchor.bottom + 7, so the command bar's own bottom slack decides whether that clears the bar.`
+    )
 
     const collapseButton = await driver.findElement(By.css('.sidebar-collapse'))
     await driver.executeScript(element => element.focus(), collapseButton)
@@ -909,6 +913,10 @@ describe('visual layout', () => {
   })
 
   it('gives one sidebar panel the remaining height without hiding sibling headers', async () => {
+    // Establish the starting state this asserts. Panels are collapsed on launch by design, and an
+    // earlier test in this file expands Branches, so neither the default nor the preceding test
+    // leaves Repositories open.
+    await expandSidebarSection(driver, 'repositories')
     const snapshot = () =>
       driver.executeScript(() => {
         const panels = document.querySelector('.sidebar-panels')

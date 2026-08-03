@@ -5,6 +5,7 @@ import { after, before, describe, it } from 'node:test'
 import { By, Key, until } from 'selenium-webdriver'
 import {
   createFixtureRoot,
+  expandSidebarSection,
   git,
   gitRaw,
   initCanonicalRepository,
@@ -43,6 +44,10 @@ describe('working tree', () => {
       persisted.map(repository => repository.path),
       [fixture.canonical]
     )
+    // The reload above collapses every sidebar panel, so the row this asserts on is not in the DOM
+    // until Repositories is expanded. Asserting the row is the point of this test — it is what
+    // proves the persisted fixture reached the shell's navigation, not just its workspace.
+    await expandSidebarSection(driver, 'repositories')
     await driver.wait(
       until.elementLocated(repositorySelector(fixture.canonical)),
       5_000

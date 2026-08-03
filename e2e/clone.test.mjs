@@ -5,6 +5,7 @@ import { By, until } from 'selenium-webdriver'
 import {
   commitWorkingTreeBaseline,
   createFixtureRoot,
+  expandSidebarSection,
   git,
   gitBare,
   initCanonicalRepository,
@@ -52,6 +53,8 @@ describe('clone', () => {
       )
       .click()
 
+    // The cloned repository is asserted through its sidebar row, so its panel has to be open.
+    await expandSidebarSection(driver, 'repositories')
     await driver.wait(
       until.elementLocated(
         By.css(`[data-repository-path="${fixture.clone}"][aria-current="true"]`)

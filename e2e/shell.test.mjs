@@ -47,6 +47,35 @@ describe('application shell', () => {
     )
   })
 
+  // Pins a Phase 8b QA decision rather than an accident. Every sidebar panel starts collapsed so
+  // that whichever panel the user opens owns the sidebar's remaining height. It is deliberate, it
+  // is not persisted across launches, and it is load-bearing for the E2E suite: no repository row
+  // is in the DOM until a panel is expanded, which is why the harness exposes
+  // `expandSidebarSection`. If this assertion ever fails, decide which behaviour is intended before
+  // changing the specs that depend on it.
+  it('starts with every sidebar panel collapsed', async () => {
+    const headings = await driver.executeScript(() =>
+      [...document.querySelectorAll('.sidebar-panels h2 button')].map(
+        button => ({
+          id: button.id,
+          expanded: button.getAttribute('aria-expanded'),
+        })
+      )
+    )
+
+    assert.deepEqual(headings, [
+      { id: 'sidebar-repositories-heading', expanded: 'false' },
+      { id: 'sidebar-branches-heading', expanded: 'false' },
+    ])
+    assert.equal(
+      await driver
+        .findElements(By.css('#sidebar-repositories, #sidebar-branches'))
+        .then(regions => regions.length),
+      0,
+      'a collapsed panel must not render its region'
+    )
+  })
+
   it('keeps the empty shell aligned through sidebar collapse', async () => {
     const measure = () =>
       driver.executeScript(() => {

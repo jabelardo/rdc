@@ -14,6 +14,7 @@ import { until } from 'selenium-webdriver'
 import {
   commitWorkingTreeBaseline,
   createFixtureRoot,
+  expandSidebarSection,
   initCanonicalRepository,
   initSimpleRepository,
   removeFixtureRoot,
@@ -58,6 +59,10 @@ describe('restart recovery', () => {
     await driver.quit().catch(() => undefined)
 
     driver = await startApplication()
+    // The relaunched window starts with the accordion closed, so expand Repositories before
+    // asserting which row is current. Sidebar expansion is intentionally *not* persisted; the
+    // selection is, and that is what this asserts.
+    await expandSidebarSection(driver, 'repositories')
     await driver.wait(
       until.elementLocated(repositorySelector(secondRepository, true)),
       5_000
