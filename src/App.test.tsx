@@ -225,7 +225,11 @@ const preferencesStore = vi.hoisted(() => ({
 }))
 
 vi.mock('./lib/menu/application-menu', () => ({ installApplicationMenu }))
-vi.mock('./lib/platform/menu', () => ({ showContextMenu, setNativeMenu: vi.fn(), onNativeMenuAction: vi.fn() }))
+vi.mock('./lib/platform/menu', () => ({
+  showContextMenu,
+  setNativeMenu: vi.fn(),
+  onNativeMenuAction: vi.fn(),
+}))
 vi.mock('./lib/platform/dialogs', () => ({ showOpenDialog, showSaveDialog }))
 vi.mock('./lib/git-ipc', async importOriginal => ({
   ...(await importOriginal<typeof import('./lib/git-ipc')>()),

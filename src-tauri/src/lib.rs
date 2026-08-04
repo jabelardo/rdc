@@ -33,10 +33,9 @@ fn create_window_from_main_template(
         main_process_config.title_bar_style,
     );
 
-    // Linux and Windows render the menu as an in-window bar (`.app-menu-bar-container`,
-    // 2rem tall) instead of a native system menu, so the minimum window height must
-    // leave room for it or the content area can shrink below its own minimum. The value
-    // deliberately tracks the CSS `2rem` (32px at the default 16px root) — keep in sync.
+    // Linux and Windows render the menu as an in-window bar instead of a native system
+    // menu, so the minimum window height must leave room for it or the content area can
+    // shrink below its own minimum.
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     if let Some(min_height) = window_config.min_height.as_mut() {
         *min_height += 32.0;
@@ -95,7 +94,6 @@ pub fn run() {
         .manage(platform::menu::NativeMenuState::new())
         .manage(platform::install_id::InstallIdState::new())
         .manage(platform::notification::NotificationState::new())
-        .manage(platform::context_menu::ContextMenuState::new())
         .manage(platform::window::WindowRoutingState::default())
         .manage(platform::window::WindowZoomState::new())
         .manage(platform::window::LaunchTimingState::new())
@@ -144,20 +142,8 @@ pub fn run() {
                     .state::<platform::notification::NotificationState>()
                     .remove_window(window.label());
             }
-            // A native context menu left open when its window loses focus can hold
-            // an input grab and make the app unresponsive (menu covers Close/Exit).
-            // Dismiss any pending context menu so the renderer's invoke resolves.
-            if matches!(event, tauri::WindowEvent::Focused(false)) {
-                window
-                    .app_handle()
-                    .state::<platform::context_menu::ContextMenuState>()
-                    .dismiss_pending();
-            }
         })
         .on_menu_event(|app, event| {
-            if platform::context_menu::handle_menu_event(app, event.id().as_ref()) {
-                return;
-            }
             platform::menu::handle_menu_event(app, event.id().as_ref());
         })
         .register_asynchronous_uri_scheme_protocol(
@@ -199,7 +185,6 @@ pub fn run() {
             commands::install_id::get_guid,
             commands::install_id::save_guid,
             commands::menu::set_native_menu,
-            commands::menu::show_contextual_menu,
             commands::notification::show_notification,
             commands::notification::get_notifications_permission,
             commands::notification::request_notifications_permission,

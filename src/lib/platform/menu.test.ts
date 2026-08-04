@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockMenuPopup = vi.fn(async () => {})
-const mockMenuItemNew = vi.fn(async (opts: { text: string; action?: () => void }) => ({
-  text: opts.text,
-  action: opts.action,
-}))
+const mockMenuItemNew = vi.fn(
+  async (opts: { text: string; action?: () => void }) => ({
+    text: opts.text,
+    action: opts.action,
+  })
+)
 const mockPredefinedNew = vi.fn(async () => ({}))
 const mockMenuNew = vi.fn(async () => ({ popup: mockMenuPopup }))
 const listen = vi.hoisted(() => vi.fn())

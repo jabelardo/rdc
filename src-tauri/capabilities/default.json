@@ -4,7 +4,7 @@
   "description": "Capability for the main window",
   "windows": ["main", "repository-*"],
   "permissions": [
-    "core:menu:allow-new", 
+    "core:menu:allow-new",
     "core:menu:default",
     "core:app:allow-set-app-theme",
     "core:event:allow-listen",

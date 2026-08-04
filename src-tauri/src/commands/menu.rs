@@ -1,15 +1,13 @@
 use crate::{
     commands::CommandError,
     platform::{
-        context_menu::{self, ContextMenuState},
-        context_menu_model::ContextMenuItemModel,
         keybindings,
         menu::{self, NativeMenuState},
         menu_model::MenuModel,
     },
 };
 
-use tauri::{AppHandle, Manager, State, WebviewWindow};
+use tauri::{AppHandle, Manager, State};
 
 use super::keybindings::KeybindingState;
 
@@ -45,23 +43,4 @@ fn current_binding_platform() -> keybindings::BindingPlatform {
     {
         keybindings::BindingPlatform::Other
     }
-}
-
-#[tauri::command]
-pub async fn show_contextual_menu(
-    app: AppHandle,
-    window: WebviewWindow,
-    context_menu_state: State<'_, ContextMenuState>,
-    items: Vec<ContextMenuItemModel>,
-    add_spell_check_menu: bool,
-) -> Result<Option<Vec<usize>>, CommandError> {
-    if add_spell_check_menu {
-        return Err(CommandError::message(
-            "WebKit spell-check context items are deferred to Phase 7",
-        ));
-    }
-
-    context_menu::show_contextual_menu(&app, &window, context_menu_state.inner(), &items)
-        .await
-        .map_err(CommandError::message)
 }

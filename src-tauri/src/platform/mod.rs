@@ -1,8 +1,6 @@
 pub mod application_folder;
 #[cfg(any(target_os = "macos", test))]
 pub mod cli_installer;
-pub mod context_menu;
-pub mod context_menu_model;
 pub mod credential_store;
 pub mod custom_integration;
 pub mod custom_integration_model;

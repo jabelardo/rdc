@@ -80,9 +80,6 @@ use editor_model::FoundEditor;
 #[path = "../../../src/platform/custom_integration_model.rs"]
 mod custom_integration_model;
 use custom_integration_model::{CustomIntegration, CustomIntegrationPathValidation};
-#[path = "../../../src/platform/context_menu_model.rs"]
-mod context_menu_model;
-use context_menu_model::{ContextMenuItemModel, ContextMenuItemType};
 #[path = "../../../src/platform/keybinding_model.rs"]
 mod keybinding_model;
 use keybinding_model::{Keybinding, KeybindingModifier};
@@ -1010,34 +1007,6 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
         to_value(WindowStartupAction::open_repository("/repo/../repo")),
     );
     cases.insert(
-        "contextMenu",
-        to_value(vec![
-            ContextMenuItemModel {
-                label: Some("Parent".to_owned()),
-                kind: None,
-                checked: None,
-                enabled: None,
-                role: None,
-                submenu: Some(vec![ContextMenuItemModel {
-                    label: Some("Chosen".to_owned()),
-                    kind: Some(ContextMenuItemType::Checkbox),
-                    checked: Some(true),
-                    enabled: Some(false),
-                    role: None,
-                    submenu: None,
-                }]),
-            },
-            ContextMenuItemModel {
-                label: None,
-                kind: Some(ContextMenuItemType::Separator),
-                checked: None,
-                enabled: None,
-                role: None,
-                submenu: None,
-            },
-        ]),
-    );
-    cases.insert(
         "customIntegrationPathValidation",
         to_value(CustomIntegrationPathValidation {
             is_valid: true,
@@ -1185,21 +1154,6 @@ fn platform_command_arguments_accept_the_typescript_domain_shapes() {
     }))
     .expect("application menu deserializes");
     assert_eq!(menu.items.len(), 1);
-
-    let context_menu: Vec<ContextMenuItemModel> = serde_json::from_value(json!([
-        {
-            "label": "Parent",
-            "submenu": [{
-                "label": "Chosen",
-                "type": "checkbox",
-                "checked": true,
-                "enabled": false,
-            }],
-        },
-        { "type": "separator" },
-    ]))
-    .expect("context menu deserializes");
-    assert_eq!(context_menu.len(), 2);
 }
 
 #[test]
