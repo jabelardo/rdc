@@ -6,7 +6,7 @@ import { getCloneDirectoryName } from '../../clone-destination'
 import { getMergedBranches } from '../../branch-ipc'
 import { initRepository } from '../../git-ipc'
 import { installApplicationMenu } from '../../menu/application-menu'
-import { showContextMenu } from '../../platform/menu'
+import { showContextMenu, type ContextMenuPosition } from '../../platform/menu'
 import { currentMenuPlatform } from '../../menu/default-menu'
 import {
   buildRepositoryMenu,
@@ -551,39 +551,64 @@ export function useAppController() {
     }
   }
 
-  async function openRepositoryContextMenu(repository: Repository) {
+  /**
+   * Builds the position to anchor a context menu at, from the coordinates its trigger captured.
+   *
+   * `hasNativeTitleBarChrome` reuses `showWindowDragRegion` rather than re-deriving it: that flag
+   * is already exactly "the app draws its own in-webview title bar/drag strip", so its negation is
+   * exactly "GTK is drawing real CSD chrome above the viewport" — the one case
+   * `showContextMenu`'s CSD offset needs to know about.
+   */
+  function contextMenuPositionAt(
+    x: number | undefined,
+    y: number | undefined
+  ): ContextMenuPosition | undefined {
+    if (x === undefined || y === undefined) {
+      return undefined
+    }
+    return { x, y, hasNativeTitleBarChrome: !showWindowDragRegion }
+  }
+
+  async function openRepositoryContextMenu(
+    repository: Repository,
+    x?: number,
+    y?: number
+  ) {
     if (appState.selectedRepository?.id !== repository.id) {
       await selectRepository(repository)
     }
-    await showContextMenu([
-      {
-        text: 'Open in New Window',
-        action: () => {
-          void runRepositoryAction(() =>
-            openRepositoryInNewWindow(repository.path)
-          )
+    await showContextMenu(
+      [
+        {
+          text: 'Open in New Window',
+          action: () => {
+            void runRepositoryAction(() =>
+              openRepositoryInNewWindow(repository.path)
+            )
+          },
         },
-      },
-      {
-        text: 'Show in File Manager',
-        action: () => {
-          void runRepositoryAction(() => showFolderContents(repository.path))
+        {
+          text: 'Show in File Manager',
+          action: () => {
+            void runRepositoryAction(() => showFolderContents(repository.path))
+          },
         },
-      },
-      { type: 'separator' },
-      {
-        text: 'Manage remotes…',
-        action: () => {
-          requestManageRemotes()
+        { type: 'separator' },
+        {
+          text: 'Manage remotes…',
+          action: () => {
+            requestManageRemotes()
+          },
         },
-      },
-      {
-        text: 'Remove',
-        action: () => {
-          requestRemoveRepository(repository)
+        {
+          text: 'Remove',
+          action: () => {
+            requestRemoveRepository(repository)
+          },
         },
-      },
-    ])
+      ],
+      contextMenuPositionAt(x, y)
+    )
   }
 
   async function runRepositoryAction(action: () => Promise<void>) {
@@ -929,23 +954,26 @@ export function useAppController() {
     setDeletePruneTrackingRef(false)
   }
 
-  async function openBranchContextMenu(branch: Branch) {
+  async function openBranchContextMenu(branch: Branch, x?: number, y?: number) {
     const current = branch.name === branchState.currentBranch
     const defaultBranch = branch.name === branchState.defaultBranch
     const canDelete = !current && !defaultBranch
-    await showContextMenu([
-      {
-        text: 'Rename…',
-        action: () => requestRename(branch),
-      },
-      {
-        text: 'Delete…',
-        enabled: canDelete,
-        action: () => {
-          void requestDelete(branch)
+    await showContextMenu(
+      [
+        {
+          text: 'Rename…',
+          action: () => requestRename(branch),
         },
-      },
-    ])
+        {
+          text: 'Delete…',
+          enabled: canDelete,
+          action: () => {
+            void requestDelete(branch)
+          },
+        },
+      ],
+      contextMenuPositionAt(x, y)
+    )
   }
 
   function requestMerge(): void {
