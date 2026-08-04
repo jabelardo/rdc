@@ -100,8 +100,6 @@ export function RepositoryListRow({
           aria-label={`More actions for ${repository.name}`}
           onClick={e => {
             onContextMenu(repository)
-            // Dismiss the CSS :hover tooltip so it does not linger behind the
-            // native context menu that pops up over the webview.
             e.currentTarget.blur()
           }}
         >

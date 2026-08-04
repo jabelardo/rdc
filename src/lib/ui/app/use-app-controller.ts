@@ -770,12 +770,6 @@ export function useAppController() {
     setDiscardAll(null)
   }
 
-  /**
-   * Discard every change in the working tree, respecting the confirmation
-   * preferences. Distinct from per-file `requestDiscard` because there is no
-   * target file: the whole `workingDirectory.files` list is discarded, ignoring
-   * inclusion state ("discard all", not "discard included").
-   */
   function requestDiscardAll(permanent: boolean): void {
     const files = workingTreeState.workingDirectory?.files ?? []
     if (files.length === 0) {
@@ -879,8 +873,6 @@ export function useAppController() {
   }
 
   async function requestDelete(branch: Branch): Promise<void> {
-    // Surface the refusal inline for branches that cannot be deleted, rather than
-    // burdening the confirmation dialog with a doomed action.
     if (
       branch.name === branchState.currentBranch ||
       branch.name === branchState.defaultBranch
@@ -995,8 +987,6 @@ export function useAppController() {
         workingTreeDirty,
       })
       if (result === 'merged' || result === 'conflict') {
-        // Reload the stores that observe the new HEAD and the possibly-now-active
-        // merge (ConflictStore reads mergeHeadFound, which drives the recovery UI).
         await refreshAfterBranchChange(() => Promise.resolve(true))
         setMergePickerOpen(false)
         return
@@ -1056,7 +1046,6 @@ export function useAppController() {
     const name = addRemoteName.trim()
     const url = addRemoteURL.trim()
     setManageRemoteError(null)
-    // Git remote names cannot contain whitespace.
     if (name.length === 0 || /\s/.test(name)) {
       setManageRemoteError('Remote names cannot be empty or contain spaces.')
       return
@@ -1107,9 +1096,6 @@ export function useAppController() {
 
   function toggleSidebarSection(section: SidebarSectionID): void {
     setExpandedSidebarSections(current => {
-      // The expanded panel owns the sidebar's remaining height. Keeping this exclusive means a
-      // repository list can scroll without pushing Branches off-screen, while every section header
-      // remains available as the next accordion target.
       return current.has(section)
         ? new Set<SidebarSectionID>()
         : new Set<SidebarSectionID>([section])
@@ -1121,11 +1107,6 @@ export function useAppController() {
     setExpandedSidebarSections(new Set<SidebarSectionID>([section]))
   }
 
-  // The five in-window-menu companions. They are the single implementation for
-  // both the visible Linux/Windows menu bar and the keybinding-tree
-  // accelerators (Ctrl+B, Ctrl+G, Ctrl+9/8, Ctrl+Shift+N), so both surfaces
-  // route to the same behavior. macOS never reaches them (its tree keeps those
-  // items disabled).
   function showBranches(): void {
     activateSidebarSection('branches')
     requestAnimationFrame(() =>
