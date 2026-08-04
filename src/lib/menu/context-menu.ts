@@ -7,11 +7,15 @@ import { invokeContextualMenu } from '../platform/menu'
 /** Show a native contextual menu and invoke the renderer callback it selects. */
 export async function showContextualMenu(
   items: ReadonlyArray<ContextMenuItem>,
-  addSpellCheckMenu = false
+  addSpellCheckMenu = false,
+  x?: number,
+  y?: number
 ): Promise<void> {
   const indices = await invokeContextualMenu(
     serializeContextMenuItems(items),
-    addSpellCheckMenu
+    addSpellCheckMenu,
+    x,
+    y
   )
 
   if (indices === null) {

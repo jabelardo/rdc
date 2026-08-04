@@ -34,7 +34,9 @@ describe('context menus', () => {
           submenu: [{ label: 'Disabled', enabled: false }, { label: 'Chosen' }],
         },
       ],
-      false
+      false,
+      undefined,
+      undefined
     )
     expect(action).toHaveBeenCalledOnce()
     expect(items[0].submenu?.[1].action).toBe(action)
@@ -58,7 +60,9 @@ describe('context menus', () => {
 
     expect(invokeContextualMenu).toHaveBeenCalledWith(
       [{ role: 'editMenu' }],
-      true
+      true,
+      undefined,
+      undefined
     )
   })
 })

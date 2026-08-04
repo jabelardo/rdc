@@ -551,39 +551,48 @@ export function useAppController() {
     }
   }
 
-  async function openRepositoryContextMenu(repository: Repository) {
+  async function openRepositoryContextMenu(
+    repository: Repository,
+    x?: number,
+    y?: number
+  ) {
     if (appState.selectedRepository?.id !== repository.id) {
       await selectRepository(repository)
     }
-    await showContextualMenu([
-      {
-        label: 'Open in New Window',
-        action: () => {
-          void runRepositoryAction(() =>
-            openRepositoryInNewWindow(repository.path)
-          )
+    await showContextualMenu(
+      [
+        {
+          label: 'Open in New Window',
+          action: () => {
+            void runRepositoryAction(() =>
+              openRepositoryInNewWindow(repository.path)
+            )
+          },
         },
-      },
-      {
-        label: 'Show in File Manager',
-        action: () => {
-          void runRepositoryAction(() => showFolderContents(repository.path))
+        {
+          label: 'Show in File Manager',
+          action: () => {
+            void runRepositoryAction(() => showFolderContents(repository.path))
+          },
         },
-      },
-      { type: 'separator' },
-      {
-        label: 'Manage remotes…',
-        action: () => {
-          requestManageRemotes()
+        { type: 'separator' },
+        {
+          label: 'Manage remotes…',
+          action: () => {
+            requestManageRemotes()
+          },
         },
-      },
-      {
-        label: 'Remove',
-        action: () => {
-          requestRemoveRepository(repository)
+        {
+          label: 'Remove',
+          action: () => {
+            requestRemoveRepository(repository)
+          },
         },
-      },
-    ])
+      ],
+      false,
+      x,
+      y
+    )
   }
 
   async function runRepositoryAction(action: () => Promise<void>) {
@@ -929,23 +938,28 @@ export function useAppController() {
     setDeletePruneTrackingRef(false)
   }
 
-  async function openBranchContextMenu(branch: Branch) {
+  async function openBranchContextMenu(branch: Branch, x?: number, y?: number) {
     const current = branch.name === branchState.currentBranch
     const defaultBranch = branch.name === branchState.defaultBranch
     const canDelete = !current && !defaultBranch
-    await showContextualMenu([
-      {
-        label: 'Rename…',
-        action: () => requestRename(branch),
-      },
-      {
-        label: 'Delete…',
-        enabled: canDelete,
-        action: () => {
-          void requestDelete(branch)
+    await showContextualMenu(
+      [
+        {
+          label: 'Rename…',
+          action: () => requestRename(branch),
         },
-      },
-    ])
+        {
+          label: 'Delete…',
+          enabled: canDelete,
+          action: () => {
+            void requestDelete(branch)
+          },
+        },
+      ],
+      false,
+      x,
+      y
+    )
   }
 
   function requestMerge(): void {

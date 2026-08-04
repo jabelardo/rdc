@@ -52,7 +52,9 @@ describe('native macOS menu bridge', () => {
     ]
     invoke.mockResolvedValue([0, 0])
 
-    await expect(invokeContextualMenu(items, false)).resolves.toEqual([0, 0])
+    await expect(invokeContextualMenu(items, false, 100, 150)).resolves.toEqual(
+      [0, 0]
+    )
 
     expect(invoke).toHaveBeenCalledWith('show_contextual_menu', {
       items,

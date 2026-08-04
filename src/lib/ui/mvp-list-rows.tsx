@@ -36,7 +36,11 @@ type RepositoryListRowProps = {
   readonly repository: Repository
   readonly row: VirtualListRow
   readonly selectedRepository: Repository | null
-  readonly onContextMenu: (repository: Repository) => void
+  readonly onContextMenu: (
+    repository: Repository,
+    x?: number,
+    y?: number
+  ) => void
   readonly onSelect: (repository: Repository) => void
 }
 
@@ -81,7 +85,7 @@ export function RepositoryListRow({
           }
           onContextMenu={event => {
             event.preventDefault()
-            onContextMenu(repository)
+            onContextMenu(repository, event.clientX, event.clientY)
             event.currentTarget.blur()
           }}
         >
@@ -99,7 +103,7 @@ export function RepositoryListRow({
           className="repository-list-actions"
           aria-label={`More actions for ${repository.name}`}
           onClick={e => {
-            onContextMenu(repository)
+            onContextMenu(repository, e.clientX, e.clientY)
             e.currentTarget.blur()
           }}
         >
@@ -119,7 +123,7 @@ type BranchListRowProps = {
   readonly operationDisabled: boolean
   readonly row: VirtualListRow
   readonly onSelect: (branch: Branch) => void
-  readonly onContextMenu?: (branch: Branch) => void
+  readonly onContextMenu?: (branch: Branch, x?: number, y?: number) => void
 }
 
 export function BranchListRow({
@@ -187,7 +191,11 @@ export function BranchListRow({
               ? undefined
               : event => {
                   event.preventDefault()
-                  onContextMenu(branch)
+                  onContextMenu(
+                    branch,
+                    event.clientX * window.devicePixelRatio,
+                    event.clientY * window.devicePixelRatio
+                  )
                   event.currentTarget.blur()
                 }
           }

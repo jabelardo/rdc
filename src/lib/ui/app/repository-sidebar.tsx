@@ -60,8 +60,12 @@ type RepositorySidebarProps = {
   readonly onToggleSection: (section: SidebarSectionID) => void
   readonly onActivateSection: (section: SidebarSectionID) => void
   readonly onSelectRepository: (repository: Repository) => void
-  readonly onRepositoryContextMenu: (repository: Repository) => void
-  readonly onBranchContextMenu: (branch: Branch) => void
+  readonly onRepositoryContextMenu: (
+    repository: Repository,
+    x?: number,
+    y?: number
+  ) => void
+  readonly onBranchContextMenu: (branch: Branch, x?: number, y?: number) => void
   readonly onBranchNameChange: (name: string) => void
   readonly onBranchChange: (operation: () => Promise<boolean>) => Promise<void>
 }
