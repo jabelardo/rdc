@@ -168,10 +168,12 @@ export function AppShell({ controller }: AppShellProps) {
         onToggleSection={toggleSidebarSection}
         onActivateSection={activateSidebarSection}
         onSelectRepository={repository => void selectRepository(repository)}
-        onRepositoryContextMenu={repository =>
-          void openRepositoryContextMenu(repository)
+        onRepositoryContextMenu={(repository, x, y) =>
+          void openRepositoryContextMenu(repository, x, y)
         }
-        onBranchContextMenu={branch => void openBranchContextMenu(branch)}
+        onBranchContextMenu={(branch, x, y) =>
+          void openBranchContextMenu(branch, x, y)
+        }
         onBranchNameChange={setNewBranchName}
         onBranchChange={refreshAfterBranchChange}
       />
