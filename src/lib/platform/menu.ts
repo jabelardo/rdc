@@ -33,6 +33,7 @@ export async function invokeContextualMenu(
     } catch {
       // Best-effort: if cursor placement fails, the popup falls back to the
       // current cursor position.
+      console.log("Best-effort fail")
     }
   }
   return invoke('show_contextual_menu', {
