@@ -1,63 +1,90 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockMenuPopup = vi.fn(async () => {})
-const mockMenuItemNew = vi.fn(
-  async (opts: { text: string; action?: () => void }) => ({
-    text: opts.text,
-    action: opts.action,
-  })
-)
-const mockPredefinedNew = vi.fn(async () => ({}))
-const mockMenuNew = vi.fn(async () => ({ popup: mockMenuPopup }))
+const invoke = vi.hoisted(() => vi.fn(async () => undefined))
 const listen = vi.hoisted(() => vi.fn())
 
-vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
+vi.mock('@tauri-apps/api/core', () => ({ invoke }))
 vi.mock('@tauri-apps/api/event', () => ({ listen }))
-vi.mock('@tauri-apps/api/menu', () => ({
-  Menu: { new: mockMenuNew },
-  MenuItem: { new: mockMenuItemNew },
-  PredefinedMenuItem: { new: mockPredefinedNew },
-}))
 
 const { showContextMenu } = await import('./menu')
 
-describe('context menu', () => {
+describe('showContextMenu', () => {
   beforeEach(() => {
-    mockMenuPopup.mockReset()
-    mockMenuItemNew.mockReset()
-    mockPredefinedNew.mockReset()
-    mockMenuNew.mockReset()
+    invoke.mockReset().mockResolvedValue(undefined)
     listen.mockReset()
   })
 
-  it('builds a Menu from items and pops it up', async () => {
-    const action = vi.fn()
-    await showContextMenu([
-      { text: 'Open', action },
-      { type: 'separator' },
-      { text: 'Remove', enabled: false },
-    ])
+  function stubSelection(id: string | undefined) {
+    let handler: ((event: { payload: string }) => void) | undefined
+    listen.mockImplementation((_event, callback) => {
+      handler = callback
+      return Promise.resolve(vi.fn())
+    })
+    invoke.mockImplementation(async () => {
+      if (id !== undefined) {
+        handler?.({ payload: id })
+      }
+    })
+  }
 
-    expect(mockMenuItemNew).toHaveBeenCalledWith({
-      id: undefined,
-      text: 'Open',
-      enabled: true,
-      action: expect.any(Function),
+  it('invokes the Rust command with wire items and the given position', async () => {
+    stubSelection(undefined)
+    await showContextMenu(
+      [
+        { text: 'Open', action: vi.fn() },
+        { type: 'separator' },
+        { text: 'Remove', enabled: false },
+      ],
+      { x: 12, y: 34 }
+    )
+
+    expect(invoke).toHaveBeenCalledWith('show_context_menu_at', {
+      x: 12,
+      y: 34,
+      items: [
+        { type: 'item', id: '0', label: 'Open', enabled: true },
+        { type: 'separator' },
+        { type: 'item', id: '2', label: 'Remove', enabled: false },
+      ],
     })
-    expect(mockPredefinedNew).toHaveBeenCalledWith({ item: 'Separator' })
-    expect(mockMenuItemNew).toHaveBeenCalledWith({
-      id: undefined,
-      text: 'Remove',
-      enabled: false,
-      action: expect.any(Function),
-    })
-    expect(mockMenuNew).toHaveBeenCalledOnce()
-    expect(mockMenuPopup).toHaveBeenCalledOnce()
+  })
+
+  it('runs the action of the selected item and no other', async () => {
+    const open = vi.fn()
+    const remove = vi.fn()
+    stubSelection('1')
+    await showContextMenu(
+      [
+        { text: 'Open', action: open },
+        { text: 'Remove', action: remove },
+      ],
+      { x: 0, y: 0 }
+    )
+
+    expect(open).not.toHaveBeenCalled()
+    expect(remove).toHaveBeenCalledOnce()
+  })
+
+  it('runs no action when the menu is dismissed without a selection', async () => {
+    const action = vi.fn()
+    stubSelection(undefined)
+    await showContextMenu([{ text: 'Open', action }], { x: 0, y: 0 })
+
+    expect(action).not.toHaveBeenCalled()
+  })
+
+  it('unlistens after the popup closes, selected or not', async () => {
+    const unlisten = vi.fn()
+    listen.mockResolvedValue(unlisten)
+    await showContextMenu([{ text: 'Open', action: vi.fn() }], { x: 0, y: 0 })
+
+    expect(unlisten).toHaveBeenCalledOnce()
   })
 
   it('does nothing for empty items', async () => {
-    await showContextMenu([])
+    await showContextMenu([], { x: 0, y: 0 })
 
-    expect(mockMenuNew).not.toHaveBeenCalled()
+    expect(invoke).not.toHaveBeenCalled()
+    expect(listen).not.toHaveBeenCalled()
   })
 })

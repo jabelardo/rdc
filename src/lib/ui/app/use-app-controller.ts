@@ -552,7 +552,11 @@ export function useAppController() {
     }
   }
 
-  async function openRepositoryContextMenu(repository: Repository) {
+  async function openRepositoryContextMenu(
+    repository: Repository,
+    x: number,
+    y: number
+  ) {
     if (appState.selectedRepository?.id !== repository.id) {
       await selectRepository(repository)
     }
@@ -561,35 +565,38 @@ export function useAppController() {
     // its tooltip open, unreachable by onBlur/onMouseLeave once the native menu covers it. See
     // dismissAllTooltips's doc comment.
     dismissAllTooltips()
-    await showContextMenu([
-      {
-        text: 'Open in New Window',
-        action: () => {
-          void runRepositoryAction(() =>
-            openRepositoryInNewWindow(repository.path)
-          )
+    await showContextMenu(
+      [
+        {
+          text: 'Open in New Window',
+          action: () => {
+            void runRepositoryAction(() =>
+              openRepositoryInNewWindow(repository.path)
+            )
+          },
         },
-      },
-      {
-        text: 'Show in File Manager',
-        action: () => {
-          void runRepositoryAction(() => showFolderContents(repository.path))
+        {
+          text: 'Show in File Manager',
+          action: () => {
+            void runRepositoryAction(() => showFolderContents(repository.path))
+          },
         },
-      },
-      { type: 'separator' },
-      {
-        text: 'Manage remotes…',
-        action: () => {
-          requestManageRemotes()
+        { type: 'separator' },
+        {
+          text: 'Manage remotes…',
+          action: () => {
+            requestManageRemotes()
+          },
         },
-      },
-      {
-        text: 'Remove',
-        action: () => {
-          requestRemoveRepository(repository)
+        {
+          text: 'Remove',
+          action: () => {
+            requestRemoveRepository(repository)
+          },
         },
-      },
-    ])
+      ],
+      { x, y }
+    )
   }
 
   async function runRepositoryAction(action: () => Promise<void>) {
@@ -935,24 +942,27 @@ export function useAppController() {
     setDeletePruneTrackingRef(false)
   }
 
-  async function openBranchContextMenu(branch: Branch) {
+  async function openBranchContextMenu(branch: Branch, x: number, y: number) {
     const current = branch.name === branchState.currentBranch
     const defaultBranch = branch.name === branchState.defaultBranch
     const canDelete = !current && !defaultBranch
     dismissAllTooltips()
-    await showContextMenu([
-      {
-        text: 'Rename…',
-        action: () => requestRename(branch),
-      },
-      {
-        text: 'Delete…',
-        enabled: canDelete,
-        action: () => {
-          void requestDelete(branch)
+    await showContextMenu(
+      [
+        {
+          text: 'Rename…',
+          action: () => requestRename(branch),
         },
-      },
-    ])
+        {
+          text: 'Delete…',
+          enabled: canDelete,
+          action: () => {
+            void requestDelete(branch)
+          },
+        },
+      ],
+      { x, y }
+    )
   }
 
   function requestMerge(): void {

@@ -1,6 +1,6 @@
 // The IPC surface lives in `commands`; see that module for the conventions.
 mod commands;
-use tauri::{webview::PageLoadEvent, Manager};
+use tauri::{webview::PageLoadEvent, Emitter, Manager};
 
 mod blob_protocol;
 mod config;
@@ -144,7 +144,12 @@ pub fn run() {
             }
         })
         .on_menu_event(|app, event| {
-            platform::menu::handle_menu_event(app, event.id().as_ref());
+            let id = event.id().as_ref();
+            platform::menu::handle_menu_event(app, id);
+            // Every selection is relayed here too: a context menu's ids are per-invocation
+            // indices, disjoint from the app-level menu's fixed ids, so the frontend can just
+            // filter for the ones it's waiting on rather than this needing its own registry.
+            let _ = app.emit(platform::context_menu::CONTEXT_MENU_EVENT, id);
         })
         .register_asynchronous_uri_scheme_protocol(
             blob_protocol::SCHEME,
@@ -185,6 +190,7 @@ pub fn run() {
             commands::install_id::get_guid,
             commands::install_id::save_guid,
             commands::menu::set_native_menu,
+            commands::context_menu::show_context_menu_at,
             commands::notification::show_notification,
             commands::notification::get_notifications_permission,
             commands::notification::request_notifications_permission,

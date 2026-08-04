@@ -17,6 +17,7 @@ pub mod application_folder;
 pub mod branch;
 pub mod cli_installer;
 pub mod config;
+pub mod context_menu;
 pub mod credential_store;
 pub mod editor;
 pub mod error;
