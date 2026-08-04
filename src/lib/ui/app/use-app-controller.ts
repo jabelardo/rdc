@@ -6,7 +6,7 @@ import { getCloneDirectoryName } from '../../clone-destination'
 import { getMergedBranches } from '../../branch-ipc'
 import { initRepository } from '../../git-ipc'
 import { installApplicationMenu } from '../../menu/application-menu'
-import { showContextualMenu } from '../../menu/context-menu'
+import { showContextMenu } from '../../platform/menu'
 import { currentMenuPlatform } from '../../menu/default-menu'
 import {
   buildRepositoryMenu,
@@ -551,48 +551,39 @@ export function useAppController() {
     }
   }
 
-  async function openRepositoryContextMenu(
-    repository: Repository,
-    x?: number,
-    y?: number
-  ) {
+  async function openRepositoryContextMenu(repository: Repository) {
     if (appState.selectedRepository?.id !== repository.id) {
       await selectRepository(repository)
     }
-    await showContextualMenu(
-      [
-        {
-          label: 'Open in New Window',
-          action: () => {
-            void runRepositoryAction(() =>
-              openRepositoryInNewWindow(repository.path)
-            )
-          },
+    await showContextMenu([
+      {
+        text: 'Open in New Window',
+        action: () => {
+          void runRepositoryAction(() =>
+            openRepositoryInNewWindow(repository.path)
+          )
         },
-        {
-          label: 'Show in File Manager',
-          action: () => {
-            void runRepositoryAction(() => showFolderContents(repository.path))
-          },
+      },
+      {
+        text: 'Show in File Manager',
+        action: () => {
+          void runRepositoryAction(() => showFolderContents(repository.path))
         },
-        { type: 'separator' },
-        {
-          label: 'Manage remotes…',
-          action: () => {
-            requestManageRemotes()
-          },
+      },
+      { type: 'separator' },
+      {
+        text: 'Manage remotes…',
+        action: () => {
+          requestManageRemotes()
         },
-        {
-          label: 'Remove',
-          action: () => {
-            requestRemoveRepository(repository)
-          },
+      },
+      {
+        text: 'Remove',
+        action: () => {
+          requestRemoveRepository(repository)
         },
-      ],
-      false,
-      x,
-      y
-    )
+      },
+    ])
   }
 
   async function runRepositoryAction(action: () => Promise<void>) {
@@ -938,28 +929,23 @@ export function useAppController() {
     setDeletePruneTrackingRef(false)
   }
 
-  async function openBranchContextMenu(branch: Branch, x?: number, y?: number) {
+  async function openBranchContextMenu(branch: Branch) {
     const current = branch.name === branchState.currentBranch
     const defaultBranch = branch.name === branchState.defaultBranch
     const canDelete = !current && !defaultBranch
-    await showContextualMenu(
-      [
-        {
-          label: 'Rename…',
-          action: () => requestRename(branch),
+    await showContextMenu([
+      {
+        text: 'Rename…',
+        action: () => requestRename(branch),
+      },
+      {
+        text: 'Delete…',
+        enabled: canDelete,
+        action: () => {
+          void requestDelete(branch)
         },
-        {
-          label: 'Delete…',
-          enabled: canDelete,
-          action: () => {
-            void requestDelete(branch)
-          },
-        },
-      ],
-      false,
-      x,
-      y
-    )
+      },
+    ])
   }
 
   function requestMerge(): void {

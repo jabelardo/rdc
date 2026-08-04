@@ -91,13 +91,6 @@ impl ContextMenuState {
         self.finish(token, Some(path))
     }
 
-    /// Resolve every pending context menu as dismissed (no selection).
-    ///
-    /// Called when a window loses focus: a native popup can otherwise remain open
-    /// (holding its input grab) if the compositor deactivates the window without
-    /// GTK emitting the menu's cancel signal. Settling every pending caller lets
-    /// the renderer's invoke resolve instead of hanging, and keeps the pending
-    /// and item-path maps from leaking.
     pub fn dismiss_pending(&self) {
         let tokens: Vec<u64> = self
             .pending

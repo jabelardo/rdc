@@ -6,7 +6,7 @@ import type { IMenu } from './models/app-menu'
 
 const installApplicationMenu = vi.hoisted(() => vi.fn())
 const replaceApplicationMenu = vi.hoisted(() => vi.fn())
-const showContextualMenu = vi.hoisted(() => vi.fn())
+const showContextMenu = vi.hoisted(() => vi.fn())
 const showOpenDialog = vi.hoisted(() => vi.fn())
 const showSaveDialog = vi.hoisted(() => vi.fn())
 const initRepository = vi.hoisted(() => vi.fn())
@@ -225,7 +225,7 @@ const preferencesStore = vi.hoisted(() => ({
 }))
 
 vi.mock('./lib/menu/application-menu', () => ({ installApplicationMenu }))
-vi.mock('./lib/menu/context-menu', () => ({ showContextualMenu }))
+vi.mock('./lib/platform/menu', () => ({ showContextMenu, setNativeMenu: vi.fn(), onNativeMenuAction: vi.fn() }))
 vi.mock('./lib/platform/dialogs', () => ({ showOpenDialog, showSaveDialog }))
 vi.mock('./lib/git-ipc', async importOriginal => ({
   ...(await importOriginal<typeof import('./lib/git-ipc')>()),
@@ -284,8 +284,8 @@ describe('App', () => {
       dispose: vi.fn(),
       replaceMenu: replaceApplicationMenu,
     })
-    showContextualMenu.mockReset()
-    showContextualMenu.mockResolvedValue(undefined)
+    showContextMenu.mockReset()
+    showContextMenu.mockResolvedValue(undefined)
     showOpenDialog.mockReset()
     showOpenDialog.mockResolvedValue(null)
     showSaveDialog.mockReset()
@@ -2001,13 +2001,13 @@ describe('App', () => {
       keys: '[MouseRight]',
     })
 
-    expect(showContextualMenu).toHaveBeenCalledOnce()
-    expect(showContextualMenu.mock.calls[0][0]).toMatchObject([
-      { label: 'Open in New Window' },
-      { label: 'Show in File Manager' },
+    expect(showContextMenu).toHaveBeenCalledOnce()
+    expect(showContextMenu.mock.calls[0][0]).toMatchObject([
+      { text: 'Open in New Window' },
+      { text: 'Show in File Manager' },
       { type: 'separator' },
-      { label: 'Manage remotes…' },
-      { label: 'Remove' },
+      { text: 'Manage remotes…' },
+      { text: 'Remove' },
     ])
   })
 
@@ -2016,7 +2016,7 @@ describe('App', () => {
       repositories: [repository],
       selectedRepository: repository,
     }
-    showContextualMenu.mockImplementation(async items => {
+    showContextMenu.mockImplementation(async items => {
       items[0].action()
       items[1].action()
       items[4].action()

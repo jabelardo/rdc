@@ -1,9 +1,5 @@
 export type ContextMenuItemType = 'separator' | 'checkbox'
 
-/**
- * Electron expanded this placeholder into the platform edit menu. Its
- * Wayland-safe implementation moves with the text-input UI to Phase 7.
- */
 export type ContextMenuRole = 'editMenu'
 
 export interface ContextMenuItem {
@@ -16,7 +12,6 @@ export interface ContextMenuItem {
   readonly submenu?: ReadonlyArray<ContextMenuItem>
 }
 
-/** Context-menu data after renderer-only callbacks have been removed. */
 export interface SerializableContextMenuItem extends Omit<
   ContextMenuItem,
   'action' | 'submenu'
