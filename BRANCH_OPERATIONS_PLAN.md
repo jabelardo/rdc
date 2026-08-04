@@ -5,6 +5,13 @@ and promoted in the menu baseline. The MVP-blocker branch operations are now com
 **update-from-default remains deferred to Phase 7f** by the scope decision. Supersedes the "expected
 disposition" paragraph of F-MENU-001 in
 `qa/phase-8b/evidence/menu-mvp-alignment-findings.md`.
+
+**Follow-up findings (also landed):** the Fetch/Push/Pull enablement rule is consolidated into a
+single `remoteEnablement` predicate (menu, menu bar, toolbar all derive from it, with a parity test
+closing the toolbar's missing repository-path guard), and remote management is added so a locally
+created repository with no remote is no longer a dead end — Repository → Manage remotes… (and the
+sidebar repository context menu) lists/adds/removes remotes via the existing `add_remote` /
+`remove_remote` commands.
 **Blocks**: Phase 8b exit, on both MVP platforms.
 **Lead platform**: Linux. See "Why Linux leads" below.
 

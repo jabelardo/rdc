@@ -9,7 +9,6 @@ import type { MenuKeybindings } from '../../models/keybinding'
 import type { MenuEvent } from '../../models/menu-event'
 import { getKeybindings, onKeybindingsChanged } from '../platform/keybindings'
 import { onNativeMenuAction, setNativeMenu } from '../platform/menu'
-import { installKeybindingDispatcher } from './keybindings'
 import { currentMenuPlatform, type MenuPlatform } from './default-menu'
 import { buildStartupMenu, createStartupMenuActionExecutor } from './startup'
 import { openUrl } from '@tauri-apps/plugin-opener'
@@ -17,11 +16,6 @@ import { quitApp } from '../platform/lifetime'
 import { selectAllWindowContents } from '../platform/menu'
 import { setWindowZoomFactor, toggleDevTools } from '../platform/window'
 import { showApplicationLogs } from '../resilience/logs'
-
-type MenuDispatcherState = {
-  readonly menu: AppMenu
-  readonly bindings: MenuKeybindings
-}
 
 export type ApplicationMenuDependencies = {
   readonly platform: MenuPlatform
@@ -35,10 +29,6 @@ export type ApplicationMenuDependencies = {
     callback: (action: MenuAction) => void
   ) => Promise<UnlistenFn>
   readonly setNativeMenu: (menu: IMenu) => Promise<void>
-  readonly installKeybindingDispatcher: (
-    getState: () => MenuDispatcherState,
-    execute: (item: ExecutableMenuItem) => void
-  ) => () => void
 }
 
 type NativeMenuSynchronizer = (menu: IMenu) => Promise<void>
@@ -48,10 +38,6 @@ export type ApplicationMenuConfiguration = {
   readonly executeMenuEvent?: (event: MenuEvent) => Promise<boolean>
 }
 
-/**
- * Frontend ownership replaces five Electron channels: menu reads, state and
- * label updates, and execution by item or id all stay in this process.
- */
 export class ApplicationMenuController {
   private currentMenu: AppMenu
   private currentBindings: MenuKeybindings
@@ -165,8 +151,6 @@ function defaultDependencies(
     onKeybindingsChanged,
     onNativeMenuAction,
     setNativeMenu,
-    installKeybindingDispatcher: (getState, execute) =>
-      installKeybindingDispatcher(window, getState, execute),
   }
 }
 
@@ -190,8 +174,7 @@ export async function installApplicationMenu(
 
   try {
     const loadedBindings = await dependencies.getKeybindings()
-    const synchronizeNativeMenu =
-      dependencies.platform === 'macos' ? dependencies.setNativeMenu : undefined
+    const synchronizeNativeMenu = dependencies.setNativeMenu
     controller = new ApplicationMenuController(
       dependencies.initialMenu,
       latestBindings ?? loadedBindings,
@@ -200,27 +183,15 @@ export async function installApplicationMenu(
     )
     controller.addCleanup(bindingCleanup)
 
-    if (dependencies.platform === 'macos') {
-      const nativeCleanup = await dependencies.onNativeMenuAction(action => {
-        void controller
-          ?.executeNativeAction(action)
-          .catch(reportExecutionFailure)
-      })
-      controller.addCleanup(nativeCleanup)
-      await dependencies.setNativeMenu(controller.menu.rootMenu)
-    } else {
-      controller.addCleanup(
-        dependencies.installKeybindingDispatcher(
-          () => ({
-            menu: controller!.menu,
-            bindings: controller!.bindings,
-          }),
-          item => {
-            void controller?.executeItem(item).catch(reportExecutionFailure)
-          }
-        )
-      )
-    }
+    // Every platform mirrors the canonical tree into the native menu (macOS app
+    // menu, Linux/Windows window menu bar) and resolves actions from the native
+    // `menu-event` channel. Linux previously rendered the same tree as an
+    // in-window DOM menu bar; the native bar removes that layer.
+    const nativeCleanup = await dependencies.onNativeMenuAction(action => {
+      void controller?.executeNativeAction(action).catch(reportExecutionFailure)
+    })
+    controller.addCleanup(nativeCleanup)
+    await dependencies.setNativeMenu(controller.menu.rootMenu)
 
     return controller
   } catch (error) {

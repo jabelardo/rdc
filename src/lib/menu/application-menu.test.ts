@@ -42,7 +42,6 @@ function dependencies(
     onKeybindingsChanged: vi.fn(async () => vi.fn()),
     onNativeMenuAction: vi.fn(async () => vi.fn()),
     setNativeMenu: vi.fn(async () => undefined),
-    installKeybindingDispatcher: vi.fn(() => vi.fn()),
   }
 }
 
@@ -155,51 +154,23 @@ describe('application menu controller', () => {
     expect(bindingCleanup).toHaveBeenCalledOnce()
   })
 
-  it('installs the Linux/Windows dispatcher against live menu and binding state', async () => {
-    const deps = dependencies('linux')
-    let getState:
-      | (() => {
-          readonly menu: ApplicationMenuController['menu']
-          readonly bindings: MenuKeybindings
-        })
-      | undefined
-    let execute: ((item: ExecutableMenuItem) => void) | undefined
-    let keybindingsChanged: ((bindings: MenuKeybindings) => void) | undefined
-    const dispatcherCleanup = vi.fn()
-    const bindingCleanup = vi.fn()
+  it.each(['linux', 'windows'] as const)(
+    'mirrors the canonical tree into the native menu on %s',
+    async platform => {
+      const deps = dependencies(platform)
+      const nativeCleanup = vi.fn()
+      const bindingCleanup = vi.fn()
+      vi.mocked(deps.onNativeMenuAction).mockResolvedValue(nativeCleanup)
+      vi.mocked(deps.onKeybindingsChanged).mockResolvedValue(bindingCleanup)
 
-    vi.mocked(deps.installKeybindingDispatcher).mockImplementation(
-      (state, run) => {
-        getState = state
-        execute = run
-        return dispatcherCleanup
-      }
-    )
-    vi.mocked(deps.onKeybindingsChanged).mockImplementation(async callback => {
-      keybindingsChanged = callback
-      return bindingCleanup
-    })
+      const controller = await installApplicationMenu({}, deps)
 
-    const controller = await installApplicationMenu({}, deps)
+      expect(deps.onNativeMenuAction).toHaveBeenCalledOnce()
+      expect(deps.setNativeMenu).toHaveBeenCalledWith(controller.menu.rootMenu)
 
-    expect(deps.onNativeMenuAction).not.toHaveBeenCalled()
-    expect(deps.setNativeMenu).not.toHaveBeenCalled()
-    expect(getState?.().menu).toBe(controller.menu)
-    expect(getState?.().bindings.pull?.key).toBe('KeyP')
-
-    keybindingsChanged?.({
-      pull: { modifiers: ['control', 'shift'], key: 'KeyP' },
-    })
-    expect(getState?.().bindings.pull?.modifiers).toEqual(['control', 'shift'])
-
-    const item = controller.menu.getItemById('pull') as ExecutableMenuItem
-    execute?.(item)
-    await vi.waitFor(() => {
-      expect(deps.executeAction).toHaveBeenCalledWith(item.action)
-    })
-
-    controller.dispose()
-    expect(bindingCleanup).toHaveBeenCalledOnce()
-    expect(dispatcherCleanup).toHaveBeenCalledOnce()
-  })
+      controller.dispose()
+      expect(bindingCleanup).toHaveBeenCalledOnce()
+      expect(nativeCleanup).toHaveBeenCalledOnce()
+    }
+  )
 })

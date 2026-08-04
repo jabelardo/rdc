@@ -6,8 +6,6 @@ import {
   faPlus,
 } from '@fortawesome/free-solid-svg-icons'
 import { showFolderContents } from '../../platform/files'
-import { openRepositoryInNewWindow } from '../../platform/window'
-import { showApplicationLogs } from '../../resilience/logs'
 import { HorizontalResizer } from '../horizontal-resizer'
 import { AppDialogs } from './app-dialogs'
 import { ChangesWorkspace } from './changes-workspace'
@@ -17,8 +15,7 @@ import { RepositorySidebar } from './repository-sidebar'
 import { RepositoryToolbar } from './repository-toolbar'
 import type { AppController } from './use-app-controller'
 import { WindowDragStrip } from './window-drag-strip'
-import { currentMenuPlatform } from '../../menu/default-menu'
-import { MenuBar } from './menu-bar'
+import { remoteEnablement } from '../../remote-enablement'
 
 type AppShellProps = {
   readonly controller: AppController
@@ -78,7 +75,6 @@ export function AppShell({ controller }: AppShellProps) {
     submitClone,
     selectRepository,
     openRepositoryContextMenu,
-    requestRemoveRepository,
     runRepositoryAction,
     confirmRemoveRepository,
     openInShell,
@@ -92,7 +88,6 @@ export function AppShell({ controller }: AppShellProps) {
     confirmDiscard,
     cancelDiscard,
     discardAll,
-    requestDiscardAll,
     confirmDiscardAll,
     cancelDiscardAll,
     branchToRename,
@@ -107,8 +102,6 @@ export function AppShell({ controller }: AppShellProps) {
     setDeletePruneTrackingRef,
     confirmDelete,
     cancelDelete,
-    renameCurrentBranch,
-    deleteCurrentBranch,
     openBranchContextMenu,
     mergePickerOpen,
     mergeTarget,
@@ -117,78 +110,42 @@ export function AppShell({ controller }: AppShellProps) {
     mergeRunning,
     confirmMerge,
     cancelMerge,
-    requestMerge,
+    showManageRemotes,
+    remoteFilter,
+    setRemoteFilter,
+    showAddRemote,
+    addRemoteName,
+    setAddRemoteName,
+    addRemoteURL,
+    setAddRemoteURL,
+    manageRemoteError,
+    manageRunning,
+    openAddRemote,
+    closeAddRemote,
+    confirmAddRemote,
+    confirmRemoveRemote,
+    closeManageRemotes,
     toggleSidebarSection,
     activateSidebarSection,
-    showBranches,
-    goToCommitMessage,
-    increaseActiveResizableWidth,
-    decreaseActiveResizableWidth,
-    createBranch,
     sidebarWidth,
     setSidebarWidth,
     showBranchCreation,
     setShowBranchCreation,
   } = controller
-  const platform = currentMenuPlatform()
-  const showMenuBar = platform === 'linux' || platform === 'windows'
-  // Once a repository is selected, reserve the strictest accepted workspace minimum for every
-  // view. If this followed the active view (Changes 490 px, History 560 px), CSS would re-clamp the
-  // same stored sidebar width on every Changes/History switch and make navigation visibly jump.
   const workspaceMinimum = appState.selectedRepository === null ? 490 : 560
   const hasSelection = appState.selectedRepository !== null
-  const remoteMatchesSelection =
-    remoteState.repositoryPath === appState.selectedRepository?.path
-  const remoteReady =
-    hasSelection &&
-    remoteMatchesSelection &&
-    remoteState.currentRemote !== null &&
-    !remoteState.loading &&
-    remoteState.operation === null
-  const canFetch = remoteReady
-  const canPush = canFetch && remoteState.currentBranch !== null
-  const canPull =
-    canPush && typeof remoteState.currentBranch?.upstream === 'string'
-  const canCreateBranch =
-    hasSelection &&
-    branchState.operation === null &&
-    !conflictState.mergeInProgress
-  // Rename/Delete target the current branch (upstream behaviour). Rename works on
-  // any current branch; Delete is only sensible off an unborn/detached HEAD, and
-  // the store refuses current/default-branch deletion.
-  const canRenameBranch = canCreateBranch && branchState.currentBranch !== null
-  const canDeleteBranch = canRenameBranch
-  // Merge initiation needs a current branch, a clean working tree (git refuses to
-  // merge over uncommitted changes), and no merge already in progress.
-  const canMerge =
-    canCreateBranch &&
-    branchState.currentBranch !== null &&
-    (workingTreeState.workingDirectory?.files.length ?? 0) === 0 &&
-    !conflictState.mergeInProgress
-  // Whole-tree discard is only sensible on a dirty tree, and is refused mid-merge
-  // (the working-tree store also guards `mergeHeadFound`, so this enablement and
-  // the store agree).
-  const canDiscardAll =
-    hasSelection &&
-    (workingTreeState.workingDirectory?.files.length ?? 0) > 0 &&
-    !workingTreeState.mergeHeadFound
-  // Same DOM focus policy as the keybinding tree's choose-repository handler.
-  const focusRepositoryList = () => {
-    document
-      .querySelector<HTMLElement>(
-        '[aria-label="Repositories"] [aria-current="true"]'
-      )
-      ?.focus()
-  }
+  const { canFetch, canPush, canPull } = remoteEnablement({
+    hasSelection,
+    selectedRepositoryPath: appState.selectedRepository?.path ?? null,
+    remoteState,
+  })
 
   return (
     <main
       ref={shellRef}
       className={`application-shell grid h-screen${
         showWindowDragRegion ? ' webview-titlebar' : ''
-      }${sidebarCollapsed ? ' sidebar-collapsed' : ''}${
-        showMenuBar ? ' has-menu-bar' : ''
-      }`}
+      }${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
       style={
         {
           '--sidebar-width': `${sidebarWidth}px`,
@@ -197,71 +154,6 @@ export function AppShell({ controller }: AppShellProps) {
       }
     >
       {showWindowDragRegion && <WindowDragStrip />}
-      {showMenuBar && (
-        <div className="app-menu-bar-container">
-          <MenuBar
-            onCreateRepository={() => void createRepository()}
-            onAddExistingRepository={() => void addExistingRepository()}
-            onCloneRepository={openCloneDialog}
-            onShowPreferences={() => setShowPreferencesDialog(true)}
-            onShowAbout={() => setShowAboutDialog(true)}
-            onSelectView={setRepositoryView}
-            onOpenNewWindow={() =>
-              runRepositoryAction(() =>
-                openRepositoryInNewWindow(appState.selectedRepository!.path)
-              )
-            }
-            onShowRepositoryList={focusRepositoryList}
-            onShowBranchesList={showBranches}
-            onGoToCommitMessage={goToCommitMessage}
-            onExpandSidebar={increaseActiveResizableWidth}
-            onContractSidebar={decreaseActiveResizableWidth}
-            onShowFiles={() =>
-              runRepositoryAction(() =>
-                showFolderContents(appState.selectedRepository!.path)
-              )
-            }
-            onOpenEditor={() =>
-              runRepositoryAction(() =>
-                openInExternalEditor(appState.selectedRepository!.path)
-              )
-            }
-            onOpenShell={() =>
-              runRepositoryAction(() =>
-                openInShell(appState.selectedRepository!.path)
-              )
-            }
-            onFetch={() => void refreshAfterFetch()}
-            onPush={() => void refreshAfterPush()}
-            onPull={() => void refreshAfterPull()}
-            onRemoveRepository={() => {
-              if (appState.selectedRepository !== null) {
-                requestRemoveRepository(appState.selectedRepository)
-              }
-            }}
-            onNewBranch={createBranch}
-            onRenameBranch={renameCurrentBranch}
-            onDeleteBranch={deleteCurrentBranch}
-            onMergeBranch={requestMerge}
-            onDiscardAll={requestDiscardAll}
-            onShowLogs={() => void showApplicationLogs()}
-            hasRepository={hasSelection}
-            hasRepositories={appState.repositories.length > 0}
-            hasEditor={preferencesStore.selectedEditor !== null}
-            hasShell={preferencesStore.selectedShell !== null}
-            canFetch={canFetch}
-            canPush={canPush}
-            canPull={canPull}
-            canCreateBranch={canCreateBranch}
-            canRenameBranch={canRenameBranch}
-            canDeleteBranch={canDeleteBranch}
-            canMergeBranch={canMerge}
-            canDiscardAll={canDiscardAll}
-            selectedShell={preferencesStore.selectedShell?.shell ?? null}
-            selectedEditor={preferencesStore.selectedEditor?.editor ?? null}
-          />
-        </div>
-      )}
       <RepositorySidebar
         collapsed={sidebarCollapsed}
         expandedSections={expandedSidebarSections}
@@ -276,12 +168,10 @@ export function AppShell({ controller }: AppShellProps) {
         onToggleSection={toggleSidebarSection}
         onActivateSection={activateSidebarSection}
         onSelectRepository={repository => void selectRepository(repository)}
-        onRepositoryContextMenu={(repository, triggerRect) =>
-          void openRepositoryContextMenu(repository, triggerRect)
+        onRepositoryContextMenu={repository =>
+          void openRepositoryContextMenu(repository)
         }
-        onBranchContextMenu={(branch, triggerRect) =>
-          void openBranchContextMenu(branch, triggerRect)
-        }
+        onBranchContextMenu={branch => void openBranchContextMenu(branch)}
         onBranchNameChange={setNewBranchName}
         onBranchChange={refreshAfterBranchChange}
       />
@@ -338,6 +228,9 @@ export function AppShell({ controller }: AppShellProps) {
           <div className="selected-repository relative grid h-full min-h-0 min-w-0 text-left">
             <RepositoryToolbar
               remoteState={remoteState}
+              canFetch={canFetch}
+              canPush={canPush}
+              canPull={canPull}
               hasEditor={preferencesStore.selectedEditor !== null}
               hasShell={preferencesStore.selectedShell !== null}
               repositoryView={repositoryView}
@@ -443,6 +336,22 @@ export function AppShell({ controller }: AppShellProps) {
         mergeRunning={mergeRunning}
         onConfirmMerge={() => void confirmMerge()}
         onCancelMerge={cancelMerge}
+        showManageRemotes={showManageRemotes}
+        remotes={remoteState.remotes}
+        remoteFilter={remoteFilter}
+        onRemoteFilterChange={setRemoteFilter}
+        showAddRemote={showAddRemote}
+        addRemoteName={addRemoteName}
+        onAddRemoteNameChange={setAddRemoteName}
+        addRemoteURL={addRemoteURL}
+        onAddRemoteURLChange={setAddRemoteURL}
+        manageRemoteError={manageRemoteError}
+        manageRunning={manageRunning}
+        onNewRemote={openAddRemote}
+        onConfirmAddRemote={() => void confirmAddRemote()}
+        onConfirmRemoveRemote={name => void confirmRemoveRemote(name)}
+        onCloseAddRemote={closeAddRemote}
+        onCloseManageRemotes={closeManageRemotes}
         onDismissAbout={() => setShowAboutDialog(false)}
         onDismissPreferences={() => setShowPreferencesDialog(false)}
         onDismissClone={dismissCloneDialog}

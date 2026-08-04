@@ -201,8 +201,6 @@ describe('the git IPC wire shape', () => {
       'cloneProgress',
       // Covered by log-ipc.test.ts (hydrated into Commit).
       'commit',
-      // The renderer-owned contextual menu — covered by menu/menu-wire.test.ts.
-      'contextMenu',
       // The custom integration validation shape — covered by platform/editors.test.ts.
       'customIntegrationPathValidation',
       'emptyStatusResult',

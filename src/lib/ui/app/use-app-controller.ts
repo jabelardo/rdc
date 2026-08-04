@@ -6,7 +6,7 @@ import { getCloneDirectoryName } from '../../clone-destination'
 import { getMergedBranches } from '../../branch-ipc'
 import { initRepository } from '../../git-ipc'
 import { installApplicationMenu } from '../../menu/application-menu'
-import { showContextualMenu } from '../../menu/context-menu'
+import { showContextMenu } from '../../platform/menu'
 import { currentMenuPlatform } from '../../menu/default-menu'
 import {
   buildRepositoryMenu,
@@ -114,6 +114,15 @@ export function useAppController() {
   const [mergeTarget, setMergeTarget] = useState('')
   const [mergeMessage, setMergeMessage] = useState<string | null>(null)
   const [mergeRunning, setMergeRunning] = useState(false)
+  const [showManageRemotes, setShowManageRemotes] = useState(false)
+  const [remoteFilter, setRemoteFilter] = useState('')
+  const [showAddRemote, setShowAddRemote] = useState(false)
+  const [addRemoteName, setAddRemoteName] = useState('')
+  const [addRemoteURL, setAddRemoteURL] = useState('')
+  const [manageRemoteError, setManageRemoteError] = useState<string | null>(
+    null
+  )
+  const [manageRunning, setManageRunning] = useState(false)
   const [showCloneDialog, setShowCloneDialog] = useState(false)
   const [showAboutDialog, setShowAboutDialog] = useState(false)
   const [showPreferencesDialog, setShowPreferencesDialog] = useState(false)
@@ -224,6 +233,7 @@ export function useAppController() {
       renameBranch: renameCurrentBranch,
       deleteBranch: deleteCurrentBranch,
       mergeBranch: requestMerge,
+      manageRemotes: requestManageRemotes,
     })
     const replaceMenu = () => {
       if (controller === undefined) {
@@ -321,6 +331,11 @@ export function useAppController() {
     setMergePickerOpen(false)
     setMergeMessage(null)
     setMergeRunning(false)
+    setShowManageRemotes(false)
+    setShowAddRemote(false)
+    setRemoteFilter('')
+    setManageRemoteError(null)
+    setManageRunning(false)
     repositoryViewTransitionID.current++
     pendingRepositoryView.current = null
     historyStore.clear()
@@ -536,40 +551,39 @@ export function useAppController() {
     }
   }
 
-  async function openRepositoryContextMenu(
-    repository: Repository,
-    triggerRect?: import('../../platform/menu').TriggerRect
-  ) {
+  async function openRepositoryContextMenu(repository: Repository) {
     if (appState.selectedRepository?.id !== repository.id) {
       await selectRepository(repository)
     }
-    await showContextualMenu(
-      [
-        {
-          label: 'Open in New Window',
-          action: () => {
-            void runRepositoryAction(() =>
-              openRepositoryInNewWindow(repository.path)
-            )
-          },
+    await showContextMenu([
+      {
+        text: 'Open in New Window',
+        action: () => {
+          void runRepositoryAction(() =>
+            openRepositoryInNewWindow(repository.path)
+          )
         },
-        {
-          label: 'Show in File Manager',
-          action: () => {
-            void runRepositoryAction(() => showFolderContents(repository.path))
-          },
+      },
+      {
+        text: 'Show in File Manager',
+        action: () => {
+          void runRepositoryAction(() => showFolderContents(repository.path))
         },
-        { type: 'separator' },
-        {
-          label: 'Remove',
-          action: () => {
-            requestRemoveRepository(repository)
-          },
+      },
+      { type: 'separator' },
+      {
+        text: 'Manage remotes…',
+        action: () => {
+          requestManageRemotes()
         },
-      ],
-      false,
-      triggerRect
-    )
+      },
+      {
+        text: 'Remove',
+        action: () => {
+          requestRemoveRepository(repository)
+        },
+      },
+    ])
   }
 
   async function runRepositoryAction(action: () => Promise<void>) {
@@ -756,12 +770,6 @@ export function useAppController() {
     setDiscardAll(null)
   }
 
-  /**
-   * Discard every change in the working tree, respecting the confirmation
-   * preferences. Distinct from per-file `requestDiscard` because there is no
-   * target file: the whole `workingDirectory.files` list is discarded, ignoring
-   * inclusion state ("discard all", not "discard included").
-   */
   function requestDiscardAll(permanent: boolean): void {
     const files = workingTreeState.workingDirectory?.files ?? []
     if (files.length === 0) {
@@ -865,8 +873,6 @@ export function useAppController() {
   }
 
   async function requestDelete(branch: Branch): Promise<void> {
-    // Surface the refusal inline for branches that cannot be deleted, rather than
-    // burdening the confirmation dialog with a doomed action.
     if (
       branch.name === branchState.currentBranch ||
       branch.name === branchState.defaultBranch
@@ -923,30 +929,23 @@ export function useAppController() {
     setDeletePruneTrackingRef(false)
   }
 
-  async function openBranchContextMenu(
-    branch: Branch,
-    triggerRect?: import('../../platform/menu').TriggerRect
-  ): Promise<void> {
+  async function openBranchContextMenu(branch: Branch) {
     const current = branch.name === branchState.currentBranch
     const defaultBranch = branch.name === branchState.defaultBranch
     const canDelete = !current && !defaultBranch
-    await showContextualMenu(
-      [
-        {
-          label: 'Rename…',
-          action: () => requestRename(branch),
+    await showContextMenu([
+      {
+        text: 'Rename…',
+        action: () => requestRename(branch),
+      },
+      {
+        text: 'Delete…',
+        enabled: canDelete,
+        action: () => {
+          void requestDelete(branch)
         },
-        {
-          label: 'Delete…',
-          enabled: canDelete,
-          action: () => {
-            void requestDelete(branch)
-          },
-        },
-      ],
-      false,
-      triggerRect
-    )
+      },
+    ])
   }
 
   function requestMerge(): void {
@@ -988,8 +987,6 @@ export function useAppController() {
         workingTreeDirty,
       })
       if (result === 'merged' || result === 'conflict') {
-        // Reload the stores that observe the new HEAD and the possibly-now-active
-        // merge (ConflictStore reads mergeHeadFound, which drives the recovery UI).
         await refreshAfterBranchChange(() => Promise.resolve(true))
         setMergePickerOpen(false)
         return
@@ -1011,11 +1008,94 @@ export function useAppController() {
     setMergeTarget('')
   }
 
+  function requestManageRemotes(): void {
+    setRemoteFilter('')
+    setManageRemoteError(null)
+    setShowManageRemotes(true)
+  }
+
+  function closeManageRemotes(): void {
+    if (manageRunning) {
+      return
+    }
+    setShowManageRemotes(false)
+    setShowAddRemote(false)
+    setRemoteFilter('')
+    setManageRemoteError(null)
+  }
+
+  function openAddRemote(): void {
+    setAddRemoteName('')
+    setAddRemoteURL('')
+    setManageRemoteError(null)
+    setShowAddRemote(true)
+  }
+
+  function closeAddRemote(): void {
+    if (manageRunning) {
+      return
+    }
+    setShowAddRemote(false)
+    setManageRemoteError(null)
+  }
+
+  async function confirmAddRemote(): Promise<void> {
+    if (manageRunning) {
+      return
+    }
+    const name = addRemoteName.trim()
+    const url = addRemoteURL.trim()
+    setManageRemoteError(null)
+    if (name.length === 0 || /\s/.test(name)) {
+      setManageRemoteError('Remote names cannot be empty or contain spaces.')
+      return
+    }
+    if (url.length === 0) {
+      setManageRemoteError('Enter a remote URL.')
+      return
+    }
+    if (remoteState.remotes.some(remote => remote.name === name)) {
+      setManageRemoteError(`A remote named "${name}" already exists.`)
+      return
+    }
+    const repository = appState.selectedRepository
+    if (repository === null) {
+      return
+    }
+    setManageRunning(true)
+    const added = await remoteStore.addRemote(name, url)
+    setManageRunning(false)
+    if (added) {
+      setShowAddRemote(false)
+      setAddRemoteName('')
+      setAddRemoteURL('')
+      await branchStore.load(repository.path)
+    } else if (remoteStore.state.operationError !== null) {
+      setManageRemoteError(remoteStore.state.operationError)
+    }
+  }
+
+  async function confirmRemoveRemote(name: string): Promise<void> {
+    if (manageRunning) {
+      return
+    }
+    const repository = appState.selectedRepository
+    if (repository === null) {
+      return
+    }
+    setManageRunning(true)
+    setManageRemoteError(null)
+    const removed = await remoteStore.removeRemote(name)
+    setManageRunning(false)
+    if (removed) {
+      await branchStore.load(repository.path)
+    } else if (remoteStore.state.operationError !== null) {
+      setManageRemoteError(remoteStore.state.operationError)
+    }
+  }
+
   function toggleSidebarSection(section: SidebarSectionID): void {
     setExpandedSidebarSections(current => {
-      // The expanded panel owns the sidebar's remaining height. Keeping this exclusive means a
-      // repository list can scroll without pushing Branches off-screen, while every section header
-      // remains available as the next accordion target.
       return current.has(section)
         ? new Set<SidebarSectionID>()
         : new Set<SidebarSectionID>([section])
@@ -1027,11 +1107,6 @@ export function useAppController() {
     setExpandedSidebarSections(new Set<SidebarSectionID>([section]))
   }
 
-  // The five in-window-menu companions. They are the single implementation for
-  // both the visible Linux/Windows menu bar and the keybinding-tree
-  // accelerators (Ctrl+B, Ctrl+G, Ctrl+9/8, Ctrl+Shift+N), so both surfaces
-  // route to the same behavior. macOS never reaches them (its tree keeps those
-  // items disabled).
   function showBranches(): void {
     activateSidebarSection('branches')
     requestAnimationFrame(() =>
@@ -1089,10 +1164,6 @@ export function useAppController() {
     const transitionID = ++repositoryViewTransitionID.current
     pendingRepositoryView.current = 'history'
 
-    // HistoryWorkspace stays mounted but hidden, so its store updates build the complete commit,
-    // file and diff tree off-screen. Reveal it only after `load` has finished that chain; exposing
-    // it first made the browser paint the empty/loading/details/diff states in sequence. Reload on
-    // every transition to preserve the former freshness contract after commits, fetches and pulls.
     void historyStore.load(repository.path).then(() => {
       if (
         repositoryViewTransitionID.current === transitionID &&
@@ -1105,9 +1176,6 @@ export function useAppController() {
     })
   }
 
-  // Debug-only Phase 8b visual-matrix driver. Inert unless a real Tauri
-  // webview is running in dev; see the hook. Repository selection reuses the
-  // store's own lookup, falling back to add-on-demand for the QA fixtures.
   useQaStateDriver({
     applyTheme: theme => preferencesStore.setTheme(theme),
     setRepositoryView: view => selectRepositoryView(view),
@@ -1220,6 +1288,22 @@ export function useAppController() {
     confirmMerge,
     cancelMerge,
     requestMerge,
+    showManageRemotes,
+    remoteFilter,
+    setRemoteFilter,
+    showAddRemote,
+    addRemoteName,
+    setAddRemoteName,
+    addRemoteURL,
+    setAddRemoteURL,
+    manageRemoteError,
+    manageRunning,
+    openAddRemote,
+    closeAddRemote,
+    confirmAddRemote,
+    confirmRemoveRemote,
+    closeManageRemotes,
+    requestManageRemotes,
     toggleSidebarSection,
     activateSidebarSection,
     showBranches,

@@ -108,22 +108,6 @@
       }
     ]
   },
-  "contextMenu": [
-    {
-      "label": "Parent",
-      "submenu": [
-        {
-          "checked": true,
-          "enabled": false,
-          "label": "Chosen",
-          "type": "checkbox"
-        }
-      ]
-    },
-    {
-      "type": "separator"
-    }
-  ],
   "customIntegrationPathValidation": {
     "bundleID": "com.example.Editor",
     "isValid": true

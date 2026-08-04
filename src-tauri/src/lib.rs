@@ -33,10 +33,9 @@ fn create_window_from_main_template(
         main_process_config.title_bar_style,
     );
 
-    // Linux and Windows render the menu as an in-window bar (`.app-menu-bar-container`,
-    // 2rem tall) instead of a native system menu, so the minimum window height must
-    // leave room for it or the content area can shrink below its own minimum. The value
-    // deliberately tracks the CSS `2rem` (32px at the default 16px root) — keep in sync.
+    // Linux and Windows render the menu as an in-window bar instead of a native system
+    // menu, so the minimum window height must leave room for it or the content area can
+    // shrink below its own minimum.
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     if let Some(min_height) = window_config.min_height.as_mut() {
         *min_height += 32.0;
@@ -81,49 +80,32 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
-        // Phase 4 owns the update mechanism and frontend state machine.
-        // Signed endpoints and the public key remain Phase 9 packaging data.
         .plugin(tauri_plugin_updater::Builder::new().build())
-        // Persist geometry now, but do not let the plugin's automatic restore
-        // show the main window before Phase 4a's renderer-ready handshake.
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .skip_initial_state("main")
                 .build(),
         )
-        // Owns the credential server. Created eagerly, but it only binds a socket on the first
-        // remote operation — see `trampoline_state`.
         .manage(trampoline_state::TrampolineState::new())
-        // Holds the abort handles of hooks currently running, so `abort_hook` can reach one.
         .manage(hook_state::HookRegistry::new())
-        // Serializes keybinding config updates so two renderer windows cannot lose each other's
-        // edits while performing the read/merge/write sequence.
         .manage(commands::keybindings::KeybindingState::new())
         .manage(commands::config::MainProcessConfigState::new())
         .manage(commands::credential_store::CredentialStoreState::new())
         .manage(platform::menu::NativeMenuState::new())
         .manage(platform::install_id::InstallIdState::new())
         .manage(platform::notification::NotificationState::new())
-        .manage(platform::context_menu::ContextMenuState::new())
         .manage(platform::window::WindowRoutingState::default())
         .manage(platform::window::WindowZoomState::new())
         .manage(platform::window::LaunchTimingState::new())
-        // Blobs the app has decided the webview may read. A URL is a capability: the frontend can fetch
-        // what it was handed and cannot name anything else — see src/blob_protocol.rs.
         .manage(blob_protocol::BlobRegistry::new())
         .setup(|app| {
             resilience::install_panic_logging();
             app.state::<platform::window::LaunchTimingState>()
                 .mark_main_ready();
-            // Load persisted zoom factors from the app config dir so the
-            // user's last zoom level survives restarts (the in-memory
-            // HashMap previously reset to 1.0 on every launch).
             if let Ok(dir) = app.path().app_config_dir() {
                 app.state::<platform::window::WindowZoomState>()
                     .load_from_config_dir(dir);
             }
-            // Debug-only Phase 8b state driver for the Wayland visual matrix;
-            // compiled out of release builds entirely. See the module docs.
             #[cfg(debug_assertions)]
             qa_driver::spawn(app.handle().clone());
             #[cfg(not(target_os = "macos"))]
@@ -139,9 +121,6 @@ pub fn run() {
                     .map_err(std::io::Error::other)?;
                 platform::menu::install_bootstrap(app, &bindings).map_err(std::io::Error::other)?;
             }
-            // The template is deliberately `create: false`: titleBarStyle is
-            // process-owned startup configuration and must be applied before
-            // the native window exists.
             create_window_from_main_template(app.handle(), "main")?;
             Ok(())
         })
@@ -165,9 +144,6 @@ pub fn run() {
             }
         })
         .on_menu_event(|app, event| {
-            if platform::context_menu::handle_menu_event(app, event.id().as_ref()) {
-                return;
-            }
             platform::menu::handle_menu_event(app, event.id().as_ref());
         })
         .register_asynchronous_uri_scheme_protocol(
@@ -209,7 +185,6 @@ pub fn run() {
             commands::install_id::get_guid,
             commands::install_id::save_guid,
             commands::menu::set_native_menu,
-            commands::menu::show_contextual_menu,
             commands::notification::show_notification,
             commands::notification::get_notifications_permission,
             commands::notification::request_notifications_permission,

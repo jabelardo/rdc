@@ -62,12 +62,10 @@ type RepositorySidebarProps = {
   readonly onSelectRepository: (repository: Repository) => void
   readonly onRepositoryContextMenu: (
     repository: Repository,
-    triggerRect?: import('../../platform/menu').TriggerRect
+    x?: number,
+    y?: number
   ) => void
-  readonly onBranchContextMenu: (
-    branch: Branch,
-    triggerRect?: import('../../platform/menu').TriggerRect
-  ) => void
+  readonly onBranchContextMenu: (branch: Branch, x?: number, y?: number) => void
   readonly onBranchNameChange: (name: string) => void
   readonly onBranchChange: (operation: () => Promise<boolean>) => Promise<void>
 }
