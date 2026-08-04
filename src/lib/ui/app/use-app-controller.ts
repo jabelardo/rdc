@@ -7,6 +7,7 @@ import { getMergedBranches } from '../../branch-ipc'
 import { initRepository } from '../../git-ipc'
 import { installApplicationMenu } from '../../menu/application-menu'
 import { showContextMenu } from '../../platform/menu'
+import { dismissAllTooltips } from '../tooltip'
 import { currentMenuPlatform } from '../../menu/default-menu'
 import {
   buildRepositoryMenu,
@@ -555,6 +556,11 @@ export function useAppController() {
     if (appState.selectedRepository?.id !== repository.id) {
       await selectRepository(repository)
     }
+    // The row's own `.blur()`-after-click only helps a keyboard user: WebKit does not focus a
+    // <button> on an ordinary mouse click, so hovering "more actions" then clicking it can leave
+    // its tooltip open, unreachable by onBlur/onMouseLeave once the native menu covers it. See
+    // dismissAllTooltips's doc comment.
+    dismissAllTooltips()
     await showContextMenu([
       {
         text: 'Open in New Window',
@@ -933,6 +939,7 @@ export function useAppController() {
     const current = branch.name === branchState.currentBranch
     const defaultBranch = branch.name === branchState.defaultBranch
     const canDelete = !current && !defaultBranch
+    dismissAllTooltips()
     await showContextMenu([
       {
         text: 'Rename…',

@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Tooltip } from './tooltip'
+import { dismissAllTooltips, Tooltip } from './tooltip'
 
 // jsdom reports every rect as zero, so the geometry under test has to be supplied. Illustrative
 // numbers, not measurements: a bar whose centred control leaves bottom slack larger than the 7px
@@ -105,5 +105,47 @@ describe('Tooltip', () => {
     expect(trigger.getAttribute('aria-describedby')).toBe(
       screen.getByRole('tooltip').id
     )
+  })
+
+  // Regression coverage for the macOS report: hovering a row's "more actions" button, then
+  // clicking it to open a native context menu, left the tooltip visible behind the menu. Neither
+  // `onBlur` fires — WebKit does not focus a <button> on an ordinary mouse click — nor does
+  // `onMouseLeave`, since the native menu then owns the pointer. `dismissAllTooltips` is the only
+  // path that closes it in that sequence, so this asserts closing it *without* touching either
+  // event.
+  it('closes on dismissAllTooltips without a blur or mouseleave event', async () => {
+    stubRects()
+    render(
+      <Tooltip label="More actions for popular">
+        <button type="button">More actions</button>
+      </Tooltip>
+    )
+
+    await userEvent.hover(screen.getByRole('button', { name: 'More actions' }))
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
+
+    // `dismissAllTooltips` is called from plain application code (a controller function, not a
+    // simulated DOM event), so the resulting `setOpen(false)` needs `act` to flush here — the
+    // event wrappers above do that automatically.
+    act(() => {
+      dismissAllTooltips()
+    })
+
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+  })
+
+  it('stops calling a tooltip once it unmounts', async () => {
+    stubRects()
+    const { unmount } = render(
+      <Tooltip label="More actions">
+        <button type="button">More actions</button>
+      </Tooltip>
+    )
+
+    await userEvent.hover(screen.getByRole('button', { name: 'More actions' }))
+    unmount()
+
+    // Must not throw by calling a hide function whose component is gone.
+    expect(() => dismissAllTooltips()).not.toThrow()
   })
 })

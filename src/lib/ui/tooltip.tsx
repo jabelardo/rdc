@@ -1,6 +1,7 @@
 import {
   Children,
   cloneElement,
+  useEffect,
   useId,
   useLayoutEffect,
   useRef,
@@ -12,6 +13,29 @@ import {
   type ReactElement,
 } from 'react'
 import { createPortal } from 'react-dom'
+
+/**
+ * Every mounted tooltip's own `hide`, so something outside the component tree can force-close
+ * whichever one happens to be open.
+ *
+ * Exists because `onBlur`/`onMouseLeave` are not reliable close signals once a *native* surface is
+ * about to cover the trigger. Concretely: WebKit (both WKWebView on macOS and WebKitGTK on Linux)
+ * does not focus a `<button>` on an ordinary mouse click, so the `.blur()` call after
+ * `onContextMenu`/`onClick` in the row components is a no-op for the mouse case it was written for
+ * — it only helps a keyboard user who reached the button via Tab. And once the native context menu
+ * has opened, it owns the pointer, so `mouseleave` never fires on the now-covered trigger either.
+ * The result, observed on macOS: hover the row's "more actions" button, open its context menu, and
+ * the tooltip is still there, rendered behind the native popup, until some unrelated interaction
+ * eventually closes it.
+ */
+const openTooltips = new Set<() => void>()
+
+/** Force-closes every mounted tooltip. Call before showing any native surface that can cover one. */
+export function dismissAllTooltips(): void {
+  for (const hide of openTooltips) {
+    hide()
+  }
+}
 
 type TooltipTargetProps = {
   readonly disabled?: boolean
@@ -80,6 +104,16 @@ export function Tooltip({ label, children }: TooltipProps) {
     boundaryRect.current = null
     pointerYRef.current = null
   }
+
+  // Registered for the component's whole lifetime, not just while open: `dismissAllTooltips`
+  // must be able to reach a tooltip the instant it opens, and calling `hide` when already closed
+  // is a harmless no-op (`setOpen(false)` on `false`).
+  useEffect(() => {
+    openTooltips.add(hide)
+    return () => {
+      openTooltips.delete(hide)
+    }
+  }, [])
 
   useLayoutEffect(() => {
     if (!open || tooltipRef.current === null || anchorRect.current === null) {
