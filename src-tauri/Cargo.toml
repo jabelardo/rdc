@@ -83,6 +83,13 @@ notify-rust = { version = "=4.18.0", features = ["preview-macos-un"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 mac-usernotifications = "=0.3.1"
 
+# Context menus are popped up through GTK directly rather than muda, whose GTK backend blocks in a
+# loop that a Wayland compositor withdrawing the popup never releases — see
+# src/platform/context_menu.rs. Already in the tree via tauri; pinned to the same 0.18 so the
+# `gtk::Window` handed out by `WebviewWindow::gtk_window` is the same type.
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

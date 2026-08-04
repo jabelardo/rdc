@@ -81,7 +81,7 @@ export function RepositoryListRow({
           }
           onContextMenu={event => {
             event.preventDefault()
-            onContextMenu(repository, event.screenX, event.screenY)
+            onContextMenu(repository, event.clientX, event.clientY)
             event.currentTarget.blur()
           }}
         >
@@ -99,7 +99,7 @@ export function RepositoryListRow({
           className="repository-list-actions"
           aria-label={`More actions for ${repository.name}`}
           onClick={e => {
-            onContextMenu(repository, e.screenX, e.screenY)
+            onContextMenu(repository, e.clientX, e.clientY)
             e.currentTarget.blur()
           }}
         >
@@ -187,7 +187,7 @@ export function BranchListRow({
               ? undefined
               : event => {
                   event.preventDefault()
-                  onContextMenu(branch, event.screenX, event.screenY)
+                  onContextMenu(branch, event.clientX, event.clientY)
                   event.currentTarget.blur()
                 }
           }

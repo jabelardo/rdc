@@ -2969,6 +2969,7 @@ name = "rdc"
 version = "0.1.0"
 dependencies = [
  "git-ops",
+ "gtk",
  "http",
  "keyring",
  "libc",
