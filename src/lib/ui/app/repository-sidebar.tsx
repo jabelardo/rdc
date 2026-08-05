@@ -160,7 +160,7 @@ export function RepositorySidebar({
     >
       <div
         data-tooltip-boundary=""
-        className="sidebar-command-bar flex items-center border-b border-[var(--color-border)]"
+        className="sidebar-command-bar flex items-center border-b border-[var(--border)]"
       >
         <Tooltip label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
           <button
@@ -214,7 +214,7 @@ export function RepositorySidebar({
                 }${
                   section.id === 'repositories'
                     ? ''
-                    : ' border-t border-[var(--color-border)]'
+                    : ' border-t border-[var(--border)]'
                 }`}
                 key={section.id}
               >

@@ -1,6 +1,7 @@
 # UI foundation — shadcn/Radix adoption
 
-**Status**: planned, not started. No phase has landed.
+**Status**: Phase 0 landed (tooling + full token migration). Phases 1–3 (Toast, Dialog, Tooltip)
+not started.
 **Why now, not later**: rdc is greenfield and not racing to an MVP date — the priority is a strong
 architectural foundation a future open-source collaborator (post-MVP, once the project is
 promoted) can pick up easily. Every hand-rolled component added between now and "later" is more
@@ -92,6 +93,59 @@ visual diff that is blank in every theme except wherever a later phase deliberat
 something. Update the 7 `.tsx` files with inline `var(--color-x)` references to the new names in
 the same pass; grep for the old names afterward and confirm zero hits outside this phase's own
 commit history.
+
+## Phase 0 — landed, actual result
+
+The mapping table above was a sketch written before touching the code; a few things changed once
+the actual token usages were read (grep, not assumption) and are worth recording so Phases 1–3
+don't re-derive them:
+
+- **`shadcn init` (v4.16.1) is a different tool than expected** — a web-configurator-linked CLI
+  with named presets (Nova/Vega/Maia/...) rather than the older offline `components.json` +
+  `globals.css` flow. Its "Custom" preset opens a browser to `ui.shadcn.com/create`, unusable
+  headlessly. Worked around by bootstrapping with `-p nova -b radix -t vite -y` (Nova's `baseColor`
+  is `neutral`, same as every preset but Sera) and then overwriting every value it wrote with rdc's
+  own palette — the preset only ever mattered for getting past the picker, not for any color it
+  produced.
+- **It also demanded a path alias** (`@/*`) before it would run at all — added scoped to
+  `tsconfig.json`/`vite.config.ts`, documented in both places as shadcn-only; the rest of the
+  codebase keeps its relative-import convention.
+- **A real bug the migration would have shipped silently**: the CLI's `@custom-variant dark
+  (&:is(.dark *))` assumes a `.dark` class. rdc's actual dark-theme selector is
+  `document.documentElement.dataset.theme` (`[data-theme='dark']`, set in
+  `preferences-store.ts`) — every `dark:` utility in a vendored component would have silently
+  never fired. Fixed to `@custom-variant dark (&:is([data-theme='dark'] *))`.
+- **`--accent`/`--accent-foreground` are not rdc's brand accent.** shadcn's `accent` slot is a
+  subtle hover/selected background for interactive list items — a different concept from rdc's own
+  `--color-accent` (brand blue, 23 usages: links, focus outlines, active-state borders). Both are
+  kept as distinct tokens rather than conflated; `--ring` (focus rings) maps to `--color-accent`'s
+  value, since that is what rdc's own `:focus-visible` rule already used.
+- **`--primary` maps to `--color-accent-button`, not `--color-accent`** — the two were identical in
+  light mode but diverge in dark mode (`#7aa2f7` vs `#436fc8`), and only `-button` was actually used
+  as a solid-fill background (`--color-accent` is a foreground/border/outline color, never a fill
+  behind body text — using it as a button fill would fail contrast). `--primary-foreground` is a
+  flat `#ffffff` in both themes, matching the one real usage found (`.commit-form
+  button[type='submit']`).
+- **`--input` maps to `--color-border-strong`**, not to any background — nothing in rdc's CSS uses
+  a distinct input background from `--card`, so only the border-strength distinction carried over.
+- **Removed rather than kept as extensions**: `--sidebar-*` and `--chart-*` (no consuming
+  component; `shadcn add sidebar`/`chart` would reintroduce them if ever adopted) and the
+  `@fontsource-variable/geist` font import (rdc already had a deliberate system-font choice for a
+  desktop app; kept as the new `--font-sans` value instead of adopting a bundled webfont).
+- **`shadcn` (the CLI) and `tw-animate-css` moved to `devDependencies`** — build-time-only, same
+  treatment as `tailwindcss` itself. Radix packages, `lucide-react`, `cva`, `clsx`, `tailwind-merge`
+  stay in `dependencies` since they run in the shipped webview.
+- **A CSS comment gotcha worth remembering for Phases 1–3**: a `/* ... */` comment containing an odd
+  total number of `'` characters broke Tailwind's dev-build CSS parser with `Unterminated string`
+  (not a spec-compliant CSS rule, but real in this toolchain) — and separately, a comment containing
+  a literal `*/` substring (e.g. describing `bg-*/text-*/` shorthand) closes the comment early and
+  breaks `oxfmt`'s CSS parser. Avoid contractions and glob-slash notation in CSS comments here.
+- **Two real test regressions caught and fixed**: `e2e/visual.test.mjs` computed its own "expected"
+  colors by reading `var(--color-surface-raised)` and `var(--color-danger)` directly — both renamed
+  away, so the test would have silently compared the live app's new (correct) colors against `now
+  resolves to nothing` instead of catching a real regression. Updated to `--popover`/`--destructive`.
+  Full gate set (including `pnpm test:e2e`, `pnpm qualify:phase8a`, a production `pnpm build`, and
+  `cargo test`/`clippy`/`fmt`) is green with these fixes in.
 
 ## Phase 1 — Toast (the pilot)
 

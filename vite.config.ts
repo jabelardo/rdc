@@ -62,6 +62,14 @@ const buildTimeGlobals = {
 export default defineConfig(() => ({
   plugins: [tailwindcss(), react()],
   define: buildTimeGlobals,
+  resolve: {
+    // Scoped to shadcn's own vendored components (src/components/ui/**) and their generated
+    // imports of src/lib/utils.ts — the rest of the codebase keeps its existing relative-import
+    // convention, so this alias only ever appears inside that directory.
+    alias: {
+      '@': import.meta.dirname + '/src',
+    },
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

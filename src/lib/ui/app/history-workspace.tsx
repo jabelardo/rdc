@@ -45,7 +45,7 @@ export function HistoryWorkspace({
 
   return (
     <section
-      className="history grid min-h-0 min-w-0 overflow-hidden bg-[var(--color-surface)] text-left"
+      className="history grid min-h-0 min-w-0 overflow-hidden bg-[var(--card)] text-left"
       aria-label="History"
       aria-busy={state.loading || state.detailsLoading || state.diffLoading}
       hidden={!visible}
@@ -56,7 +56,7 @@ export function HistoryWorkspace({
         } as CSSProperties
       }
     >
-      <div className="history-list-pane min-h-0 min-w-0 overflow-auto border-r border-[var(--color-border)]">
+      <div className="history-list-pane min-h-0 min-w-0 overflow-auto border-r border-[var(--border)]">
         {state.loading ? (
           <p>Loading history…</p>
         ) : state.error !== null ? (
@@ -128,7 +128,7 @@ export function HistoryWorkspace({
       />
 
       <section
-        className="history-details min-h-0 min-w-0 overflow-hidden bg-[var(--color-canvas)]"
+        className="history-details min-h-0 min-w-0 overflow-hidden bg-[var(--background)]"
         aria-label="Selected commit details"
       >
         {selectedCommit === null ? (

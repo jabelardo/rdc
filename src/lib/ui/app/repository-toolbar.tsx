@@ -78,7 +78,7 @@ export function RepositoryToolbar({
   return (
     <header
       data-tooltip-boundary=""
-      className="repository-toolbar flex min-w-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface-subtle)] px-3"
+      className="repository-toolbar flex min-w-0 items-center border-b border-[var(--border)] bg-[var(--color-surface-subtle)] px-3"
       role="toolbar"
       aria-label="Repository actions"
     >

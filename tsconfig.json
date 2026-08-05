@@ -17,6 +17,15 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* Scoped to shadcn's vendored components (src/components/ui/**), which import each other and
+       src/lib/utils.ts by this alias per shadcn's own convention. The rest of the codebase keeps
+       its existing relative-import convention; this is not a general-purpose alias to adopt
+       elsewhere. No `baseUrl` — deprecated in TS 6, and `paths` alone resolves fine under
+       `moduleResolution: "bundler"`. */
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
     /* Required by ported desktop-plus code and tests:
        - esModuleInterop: tests do `import assert from 'node:assert'`
        - useUnknownInCatchVariables: false matches desktop-plus, whose code

@@ -16,7 +16,7 @@ import type {
 import { Modal } from '../modal'
 
 const confirmationDialogClassName =
-  'confirmation-dialog box-border w-[min(30rem,calc(100vw-2rem))] rounded-[var(--radius-medium)] border border-[var(--color-border)] bg-[var(--color-surface-raised)] p-6 shadow-[var(--shadow-dialog)]'
+  'confirmation-dialog box-border w-[min(30rem,calc(100vw-2rem))] rounded-[var(--radius-medium)] border border-[var(--border)] bg-[var(--popover)] p-6 shadow-[var(--shadow-dialog)]'
 const dialogActionsClassName =
   'confirmation-dialog-actions mt-6 flex justify-end gap-3'
 

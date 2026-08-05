@@ -110,7 +110,7 @@ export function ChangesWorkspace({
   return (
     <div
       ref={workspaceRef}
-      className="changes-workspace grid min-h-0 min-w-0 overflow-hidden bg-[var(--color-surface)]"
+      className="changes-workspace grid min-h-0 min-w-0 overflow-hidden bg-[var(--card)]"
       hidden={!visible}
       style={
         {
@@ -128,7 +128,7 @@ export function ChangesWorkspace({
         onResize={setChangesPaneWidth}
       />
       <section
-        className="working-tree min-h-0 min-w-0 overflow-hidden border-r border-[var(--color-border)] text-left"
+        className="working-tree min-h-0 min-w-0 overflow-hidden border-r border-[var(--border)] text-left"
         aria-label="Changes"
         aria-busy={state.loading || state.commitLoading}
       >
@@ -225,7 +225,7 @@ export function ChangesWorkspace({
       </section>
 
       <section
-        className="working-tree-diff min-h-0 min-w-0 overflow-hidden bg-[var(--color-canvas)] text-left"
+        className="working-tree-diff min-h-0 min-w-0 overflow-hidden bg-[var(--background)] text-left"
         aria-label="File diff"
       >
         <header className="working-tree-diff-header">
@@ -329,7 +329,7 @@ export function ChangesWorkspace({
         state.workingDirectory !== null &&
         state.workingDirectory.files.length > 0 && (
           <form
-            className="commit-form grid min-h-0 min-w-0 border-t border-r border-[var(--color-border)] bg-[var(--color-surface-subtle)] text-left"
+            className="commit-form grid min-h-0 min-w-0 border-t border-r border-[var(--border)] bg-[var(--color-surface-subtle)] text-left"
             aria-label="Commit changes"
             onSubmit={event => {
               event.preventDefault()

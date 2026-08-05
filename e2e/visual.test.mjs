@@ -106,7 +106,7 @@ describe('visual layout', () => {
       const tooltip = document.querySelector('.app-tooltip')
       const toolbar = document.querySelector('.repository-toolbar')
       const expectedSurface = document.createElement('span')
-      expectedSurface.style.background = 'var(--color-surface-raised)'
+      expectedSurface.style.background = 'var(--popover)'
       document.body.append(expectedSurface)
       const snapshot = {
         label: tooltip.textContent,
@@ -272,7 +272,7 @@ describe('visual layout', () => {
         ),
         statusColor: statusStyles.color,
         semanticSuccess: resolveColor('var(--color-success)'),
-        semanticDanger: resolveColor('var(--color-danger)'),
+        semanticDanger: resolveColor('var(--destructive)'),
         discardBackground: styles('.discard-selected-lines').backgroundColor,
         discardColor: styles('.discard-selected-lines').color,
       }
