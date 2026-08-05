@@ -4,7 +4,7 @@
 
 Record the result for each dialog, in each theme, at the normal 715×356 floor and compact widths.
 
-How to open each dialog for validation: **Help → Show Dialog** (dev/test builds only). Some require a repository selected; others are always available. Validate in **Light** and **Dark** via Preferences → Theme. (System mode delegates to the OS and cannot be controlled during a visual pass.)
+How to open each dialog: **Help → Show Dialog** (dev/test builds only). Validate in **Light** and **Dark** via Preferences → Theme. (System mode delegates to the OS and cannot be controlled during a visual pass — infrastructure is in place via `resolveSystemTheme()` → Tauri's `window.theme()`; no spike needed.)
 
 ---
 
@@ -12,43 +12,43 @@ How to open each dialog for validation: **Help → Show Dialog** (dev/test build
 
 These three were the first migrated. Validate them in **Help → Show Dialog** (or via the real commit flow for Hook failure…).
 
+> **Deferred:** All pilot dialogs need state the debug menu cannot produce yet. See "Deferred Dialogs" below for the stub-state plan.
+
 | Dialog (menu label) | Type | Theme | Backdrop | Header alignment | Width / content | Footer / actions | Focus / Escape | Nested stack | Notes | Signed off |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Hook failure… | AlertDialog | Light | | terminal output fits | Abort / Ignore | No-op on Escape | N/A | Opened by real commit flow, not in debug menu | |
-| Hook failure… | AlertDialog | Dark | | terminal output fits | Abort / Ignore | No-op on Escape | N/A | | |
-| Manage remotes… | Dialog | Light | | list / URLs fit | Close button | | | | | |
-| Manage remotes… | Dialog | Dark | | list / URLs fit | Close button | | | | | |
-| Add remote… | Dialog | Light | | form fits | Cancel / Add | | | | | |
-| Add remote… | Dialog | Dark | | form fits | Cancel / Add | | | | | |
-| Manage remotes + Add remote (nested) | — | Light | | — | — | | | Top traps focus; Escape/Close/backdrop closes only top; closing returns focus to bottom | | |
-| Manage remotes + Add remote (nested) | — | Dark | | — | — | | | | | |
+| Hook failure… | AlertDialog | Light | | terminal output fits | Abort / Ignore | No-op on Escape | N/A | DEFERRED | |
+| Hook failure… | AlertDialog | Dark | | terminal output fits | Abort / Ignore | No-op on Escape | N/A | DEFERRED | |
+| Manage remotes… | Dialog | Light | | list / URLs fit | Close button | | | DEFERRED | |
+| Manage remotes… | Dialog | Dark | | list / URLs fit | Close button | | | DEFERRED | |
+| Add remote… | Dialog | Light | | form fits | Cancel / Add | | | DEFERRED | |
+| Add remote… | Dialog | Dark | | form fits | Cancel / Add | | | DEFERRED | |
+| Manage remotes + Add remote (nested) | — | Light | | — | — | | | DEFERRED — nested case | |
+| Manage remotes + Add remote (nested) | — | Dark | | — | — | | | DEFERRED — nested case | |
 
 ---
 
 ## Sub-slice 2.1 — Mechanical Migrations (one row per dialog as it lands)
 
-As each dialog is migrated, add a row here. Same columns as above.
-
 | Dialog (menu label) | Type | Theme | Backdrop | Header | Width / content | Footer | Focus / Escape | Notes | Signed off |
 |---|---|---|---|---|---|---|---|---|---|
-| About | Dialog | Light | | | | Close | | Always available | |
-| About | Dialog | Dark | | | | Close | | | |
-| Preferences | Dialog | Light | | | Form fields layout | Close | | Always available | |
-| Preferences | Dialog | Dark | | | Form fields layout | Close | | | |
-| Clone | Dialog | Light | | | Cancel / Choose path / Clone | | Always available | |
-| Clone | Dialog | Dark | | | Cancel / Choose path / Clone | | | | |
-| Discard file… | AlertDialog | Light | | | Discard / Permanently discard | | Requires working tree files | | |
-| Discard file… | AlertDialog | Dark | | | Discard / Permanently discard | | | | |
-| Discard all… | AlertDialog | Light | | | Discard all / Permanently discard all | | Requires repo selection | | |
-| Discard all… | AlertDialog | Dark | | | Discard all / Permanently discard all | | | | |
-| Rename branch… | Dialog | Light | | | Cancel / Rename | | Requires repo selection | | |
-| Rename branch… | Dialog | Dark | | | Cancel / Rename | | | | |
-| Delete branch… | AlertDialog | Light | | | Close / Delete | | Requires repo selection | | |
-| Delete branch… | AlertDialog | Dark | | | Close / Delete | | | | |
-| Merge… | Dialog | Light | | | Cancel / Merge | | Requires repo selection | | |
-| Merge… | Dialog | Dark | | | Cancel / Merge | | | | |
-| Remove repository… | AlertDialog | Light | | | Cancel / Remove | | Requires repo selection | | |
-| Remove repository… | AlertDialog | Dark | | | Cancel / Remove | | | | |
+| About | Dialog | Light | | | | Close | | TESTABLE — always available | |
+| About | Dialog | Dark | | | | Close | | TESTABLE | |
+| Preferences | Dialog | Light | | | Form fields layout | Close | | TESTABLE — always available | |
+| Preferences | Dialog | Dark | | | Form fields layout | Close | | TESTABLE | |
+| Clone | Dialog | Light | | | Cancel / Choose path / Clone | | TESTABLE — always available | |
+| Clone | Dialog | Dark | | | Cancel / Choose path / Clone | | TESTABLE | |
+| Discard file… | AlertDialog | Light | | | Discard / Permanently discard | | DEFERRED — needs working tree files | |
+| Discard file… | AlertDialog | Dark | | | Discard / Permanently discard | | DEFERRED | |
+| Discard all… | AlertDialog | Light | | | Discard all / Permanently discard all | | DEFERRED — needs dirty working tree | |
+| Discard all… | AlertDialog | Dark | | | Discard all / Permanently discard all | | DEFERRED | |
+| Rename branch… | Dialog | Light | | | Cancel / Rename | | DEFERRED — needs current branch | |
+| Rename branch… | Dialog | Dark | | | Cancel / Rename | | DEFERRED | |
+| Delete branch… | AlertDialog | Light | | | Close / Delete | | DEFERRED — needs branches | |
+| Delete branch… | AlertDialog | Dark | | | Close / Delete | | DEFERRED | |
+| Merge… | Dialog | Light | | | Cancel / Merge | | DEFERRED — needs multiple branches | |
+| Merge… | Dialog | Dark | | | Cancel / Merge | | DEFERRED | |
+| Remove repository… | AlertDialog | Light | | | Cancel / Remove | | DEFERRED — needs selected repo | |
+| Remove repository… | AlertDialog | Dark | | | Cancel / Remove | | DEFERRED | |
 
 ---
 
@@ -92,12 +92,38 @@ As each dialog is migrated, add a row here. Same columns as above.
 
 ---
 
+## Deferred Dialogs — What's Needed
+
+Most dialogs require app state (a selected repository, working tree files, branches, remotes) that doesn't exist when the app launches empty. The debug menu handlers open the dialog, but with no state the dialog has nothing to show or the handler returns early (e.g. `if (firstFile === undefined) return`). These need a **debug stub-state injection** mechanism.
+
+| Dialog | Required state | Stub mechanism | Difficulty |
+|---|---|---|---|
+| Hook failure… | `workingTreeStore.hookFailure` | Debug menu handler calls `workingTreeStore.debugSetHookFailure({ hook: "pre-commit", terminalOutput: "lint failed\n" })` | Medium — requires new debug-only method on `WorkingTreeStore` |
+| Manage remotes… | `appStore.selectedRepository` + `remoteState.remotes` | Debug menu handler selects a repo and calls `remoteStore.debugSetRemotes([{ name: "origin", url: "https://github.com/user/repo.git" }])` | Medium — needs debug method on `RemoteStore` |
+| Add remote… | `appStore.selectedRepository` | Debug menu handler selects a repo, then sets `showAddRemote = true` | Easy — repo selection is already handled by the existing stub |
+| Discard file… | `workingTreeStore.workingDirectory.files` with ≥1 file | Debug menu handler stubs a `WorkingDirectoryFileChange` into the store, then sets `discardFileID` | Medium — `WorkingDirectoryFileChange` has a specific shape (`id`, `path`, `status`, etc.) |
+| Discard all… | `workingTreeStore.workingDirectory.files` with ≥1 file | Same as discard-file stub, plus triggers `requestDiscardAll` | Medium |
+| Rename branch… | `branchState.currentBranch` (non-null) | Debug menu handler sets `branchToRename` to a stub branch `{ name: "main", type: BranchType.Local }` | Easy — `Branch` is a simple type |
+| Delete branch… | `branchState.branches` with ≥2 local branches | Debug menu handler sets `branchToDelete` to a stub branch | Easy |
+| Merge… | `branchState.branches` with ≥2 local branches + `currentBranch` | Debug menu handler sets `mergePickerOpen = true` | Easy |
+| Remove repository… | `appStore.selectedRepository` | Debug menu handler calls `setRepositoryToRemove(selectedRepository)` | Easy — already partially wired |
+
+**Proposed approach:** Add a `debug-only` submodule (`src/lib/debug/`) behind `__DEV__` that:
+1. Exports a `injectDebugState(stores)` function callable from the debug menu
+2. Sets up minimal stub state on every store the dialogs read from (a fake repo, a fake branch, fake working-tree files, a fake remote, a fake hook failure)
+3. Is tree-shaken from production builds (only imported in `use-app-controller.ts` behind `__DEV__`)
+4. Is called by each `debug-show-*` menu handler *before* opening the dialog, so the dialog has content to show
+
+This is a small, self-contained spike — one file, one new menu event (`debug-inject-test-state`), called once from each handler. It unblocks visual validation of every dialog without real data.
+
+---
+
 ## How to Run the Visual Pass
 
-1. **Start the dev build:** `pnpm tauri dev` (or `pnpm dev` + `pnpm tauri dev` in another terminal)
-2. **Open a repository** with working tree changes, remotes, and branches to exercise all dialogs
-3. **Cycle themes:** Light → Dark (via Preferences dialog, or OS-level theme switch)
-4. **For each dialog in the table above:** open it from Help → Show Dialog (or real flow for Hook failure…), verify every checklist item, record PASS/FAIL
+1. **Start the dev build:** `pnpm tauri dev`
+2. **Open any repository** (needed for the app to initialize, but the stub-state mechanism overrides store data)
+3. **Cycle themes:** Light → Dark (via Preferences dialog)
+4. **For each dialog in the table above:** open it from Help → Show Dialog, verify every checklist item, record PASS/FAIL
 5. **For nested case:** open Manage remotes… → click "New remote" → verify Add remote… stacks on top; verify Escape/backdrop/Close behavior on both levels
 6. **Record result** in the "Signed off" column (initials + date)
 7. **If FAIL:** note the issue in "Notes", make the fix, re-verify
@@ -112,10 +138,10 @@ As each dialog is migrated, add a row here. Same columns as above.
 - **DialogFooter styling:** shadcn adds `border-t bg-muted/50 p-4 -mx-4 -mb-4`; rdc's `dialogActionsClassName` was `mt-6 flex justify-end gap-3` (no border/bg). The footer bar is a visible change — confirm it's acceptable.
 - **AlertDialogHeader centering:** shadcn centers by default below `sm:` (640px). rdc's 715px floor is above it, but the override `place-items-start text-left` must be verified at all widths including compact mode.
 - **Dialog vs AlertDialog dismissal:** AlertDialog with no `onOpenChange` blocks Escape/backdrop by spec (Hook failure…). Dialog with `onOpenChange` gated by `manageRunning` must allow dismissal when not running, block when running. Verify both.
-- **System mode** delegates to the OS (`preferences-store.ts` → `resolveSystemTheme()` → Tauri's `window.theme()`) — no spike needed, infrastructure is in place. It cannot be exercised during a visual pass since you can't toggle the OS preference from within the app; validation covers Light and Dark only.
+- **System mode** delegates to the OS (`preferences-store.ts` → `resolveSystemTheme()` → Tauri's `window.theme()`) — infrastructure is in place, no spike needed. It cannot be exercised during a visual pass since you can't toggle the OS preference from within the app; validation covers Light and Dark only.
 
 ---
 
 ## Gate Rule
 
-**No sub-slice closes until every dialog in that slice has a PASS in all three themes.** The automated gate set is necessary but not sufficient — visual correctness is a human judgement.
+**No sub-slice closes until every TESTABLE dialog in that slice has a PASS in Light and Dark.** DEFERRED dialogs must have their stub-state mechanism implemented and their visual pass completed before sub-slice 2.0 or 2.1 is marked done. The automated gate set is necessary but not sufficient — visual correctness is a human judgement.
