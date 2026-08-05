@@ -1,10 +1,14 @@
 # Branch operations — closing the MVP menu gap
 
-**Status**: in progress. Slices 1–3 (discard-all ×2, rename + delete, merge initiation) are landed
-and promoted in the menu baseline. The MVP-blocker branch operations are now complete;
-**update-from-default remains deferred to Phase 7f** by the scope decision. Supersedes the "expected
-disposition" paragraph of F-MENU-001 in
-`qa/phase-8b/evidence/menu-mvp-alignment-findings.md`.
+**Status**: Slices 1–3 (discard-all ×2, rename + delete, merge initiation) are landed and promoted
+in the menu baseline — code-complete and gated-green. **Slice 4 (abort merge) is planned, not
+started** — a real gap found checking the MVP exit criteria against the actual code, not a scope
+change to what Slices 1–3 already closed. `update-from-default remains deferred to Phase 7f` by
+the scope decision. Supersedes the "expected disposition" paragraph of F-MENU-001 in
+`qa/phase-8b/evidence/menu-mvp-alignment-findings.md`. Native-menu-dispatch verification for every
+landed item (Slices 1–4 once it lands) is QA-cycle-2 work, tracked in `REMAINING.md`, not this
+plan — see "Why Linux leads" below for why Linux lost its automated proof too, partway through
+Slices 1–3.
 
 **Follow-up findings (also landed):** the Fetch/Push/Pull enablement rule is consolidated into a
 single `remoteEnablement` predicate (menu, menu bar, toolbar all derive from it, with a parity test
@@ -60,20 +64,32 @@ of the six items, while F-MENU-001 calls all six MVP-blocking. That contradictio
 
 ## Why Linux leads
 
-1. Linux is the primary target, and the only platform with automated product proof — the
-   `tauri-driver` container suite. macOS has no WebDriver backend for WKWebView, so its evidence is a
-   human checklist either way.
-2. The Linux surface is the in-window menu bar (`src/lib/ui/app/menu-bar.tsx`), which is also where
-   accelerator dispatch is routed through `repository-menu.ts`'s enablement map. Building there
-   exercises store → controller → menu → accelerator in one pass, under E2E.
+Written when this plan was drafted, and true for accelerator dispatch throughout Slices 1–3; the
+menu *surface* premise of point 2 was overtaken mid-plan by `6eef6b6`/`17df5bf`, which replaced the
+in-window bar with Tauri's native menu on every platform. Kept for the record, corrected below.
+
+1. Linux is the primary target, and was, at the time, the only platform with automated product proof
+   — the `tauri-driver` container suite. macOS has no WebDriver backend for WKWebView, so its
+   evidence is a human checklist either way.
+2. ~~The Linux surface is the in-window menu bar (`src/lib/ui/app/menu-bar.tsx`)~~ — **no longer
+   true**. Linux and macOS now share the same native Tauri menu; there is no in-window bar on
+   either platform. Accelerator dispatch still routes through `repository-menu.ts`'s enablement
+   map either way, which is what actually mattered for building store → controller → menu →
+   accelerator in one pass — that part of the reasoning holds, just not through the surface named
+   here.
 3. **macOS then comes along for free, by construction.** Both platforms share the enablement map and
    the executor, and `repository-menu.test.ts` asserts the implemented-capability set is identical
    across `macos`/`windows`/`linux` (capability-parity rule, scope rule 4 of the menu checklist). A
    slice cannot land Linux-only without failing that test.
 
-The one thing Linux-leading does **not** give: proof that the macOS *native* menu dispatches. Each
-slice therefore adds a line to `qa/phase-8b/macos-checklist.md` §7. Until that pass runs, the honest
-status of each item is "implemented, unit- and Linux-verified; macOS native dispatch unverified".
+**What Linux-leading no longer gives, now that both platforms are native:** proof that *either*
+platform's native menu dispatches — not just macOS. Native GTK menus have no WebDriver backend
+either, so the six E2E specs each slice's own "Tests" section below describes were written and
+then deleted in `17df5bf`, for exactly that reason. Automated coverage for these six items is now:
+unit tests (landed, per slice) plus `repository-menu.test.ts`'s capability-parity assertion. Human
+coverage is `qa/phase-8b/macos-checklist.md` §7 **and** `qa/phase-8b/linux-wayland-checklist.md`'s
+equivalent section (added in this reorganization pass). Until both run, the honest status of each
+item is "implemented and unit-verified; native dispatch unverified on either platform".
 
 ---
 
@@ -194,6 +210,36 @@ fresh fixture asserting `HEAD` and history. **Then rewrite `e2e/merge-conflicts.
 conflict through the product instead of CLI `git merge`** — that is the point of this slice, and it
 retires the last place where an MVP criterion is only reachable from a terminal.
 
+## Slice 4 — Abort merge
+
+Added later than Slices 1–3, from a gap found checking rdc's actual code against the 7 MVP exit
+criteria rather than against this plan's own claims: criterion 3 requires recovering from a merge
+conflict "without being stranded," but there is no way to back out of one in-app today — only to
+complete it. `abort_merge` exists and is tested at the git-ops/Tauri-command layer
+(`src-tauri/src/commands/git.rs:364` → `git_ops::merge::abort_merge`, wrapped at
+`src/lib/git-ipc.ts:371`, unit-tested in `git-ipc-commands.test.ts:305`) but nothing above that
+layer consumes it: `conflict-store.ts` has no method for it, `merge-conflicts.tsx` has no button,
+and — unlike Slices 1–3's items, which existed disabled — there is no `abort-merge` menu id
+anywhere in `default-menu.ts` at all. This is a genuine addition to the menu inventory, not a
+wiring gap.
+
+**Store** (`src/lib/stores/conflict-store.ts`) — `abortMerge()`, calling the existing IPC path.
+Refresh `workingTreeState`/`branchState` after, same `finishOperation`-reload pattern the other
+branch operations already use.
+
+**UI** — an "Abort merge" action in `merge-conflicts.tsx`, alongside the existing per-file "Stage
+resolution" action. Needs its own confirmation: aborting discards whatever conflict-resolution
+progress is uncommitted, which is destructive.
+
+**Menu** — add the id, a new `MenuEvent` variant, an executor case in `repository-menu.ts`,
+enablement gated on `mergeInProgress`, and an accelerator: `CmdOrCtrl+Shift+K` is free (checked
+against every combo in `COMMON_DEFAULTS`, `src-tauri/src/platform/keybindings.rs:10-56`).
+
+**Tests** — unit coverage for the store method and the confirmation flow. This is another
+native-menu-only action, so — per the pattern already established for Slices 1–3 — no new E2E is
+possible; native-dispatch verification joins the same `qa/phase-8b/macos-checklist.md` §7 /
+`linux-wayland-checklist.md` line as the other five, tracked in `REMAINING.md`'s QA-cycle-2 item.
+
 ## Deferred — Update from default branch
 
 Phase 7f. Needs a persisted `updateBranchStrategy` preference (`models/update-branch-strategy.ts` is
@@ -213,7 +259,10 @@ Every slice closes with all of the following. Not "seven gates" — the current 
 - `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `cargo fmt --check`, the per-crate isolation checks and the Windows `git-ops` portability guard
 
-Plus, per slice:
+Plus, per slice — **correction, mid-plan**: `17df5bf` deleted `menu-bar.tsx`/`menu-bar.test.tsx`
+and the six menu-driven E2E specs these bullets and the "Tests" section above were written
+against, moving Linux onto the same unautomatable native menu as macOS. The bullets below reflect
+what actually landed, not the original per-slice "Tests" prose:
 
 - **Accelerators** — **already registered** in `src-tauri/src/platform/keybindings.rs` in the Linux
   forms (rename-branch:47, delete-branch:48, discard-all-changes:49, merge-branch:56), so no
@@ -221,9 +270,11 @@ Plus, per slice:
   executor (the Linux accelerator path). Verify each fires on the live build.
 - **`node scripts/measure-store-surface.mjs`** — AGENTS.md requires it when closing a slice, and these
   slices convert previously-unconsumed commands into consumed ones, which is exactly what it measures.
-- **`menu-bar.test.tsx`** extended for the new items, and `repository-menu.test.ts` capability parity
-  covering them on `macos`/`windows`/`linux`.
-- **`qa/phase-8b/macos-checklist.md` §7** gains a native-dispatch line per new menu item.
+- **`repository-menu.test.ts`** capability-parity coverage across `macos`/`windows`/`linux` — the
+  automated evidence for these six items now that there is no in-window bar or `menu-bar.test.tsx`
+  to extend.
+- **Both `qa/phase-8b/macos-checklist.md` §7 and `qa/phase-8b/linux-wayland-checklist.md`'s
+  equivalent section** gain a native-dispatch line per new menu item — Linux needs this now too.
 - **Menu baseline updated**: promote the item in `menu-mvp-alignment-checklist.md` (membership rule
   (b)) and remove it from the "Removed" table.
 - Wire snapshot: only if a shape crosses IPC. None of the six items introduces a new IPC shape — they

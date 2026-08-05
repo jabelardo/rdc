@@ -106,5 +106,18 @@ is recorded, macOS parity is *implemented and unit-verified, not natively verifi
 
 ## Exit classification for this cycle
 
-- [x] **blocker** — F-MENU-001 (Branch menu scope), with the exact items and expected disposition above.
-- [ ] aligned with the MVP (pending live-Wayland verification of the implemented surface).
+**Update (2026-08-05):** F-MENU-001 is resolved. `BRANCH_OPERATIONS_PLAN.md` Slices 1–3 landed
+five of the six items (rename, delete, discard-all ×2, merge initiation); the sixth
+(`update-branch-with-contribution-target-branch`) is a deliberate deferral to Phase 7f, recorded
+in the menu baseline's "Removed" table, not an open gap. The one thing still open is native-menu-
+dispatch verification — and it now applies to **both** platforms, not macOS alone as this finding
+originally scoped it: `17df5bf` (landed after this finding was written) moved Linux from the
+in-window bar this cycle's automation could drive to the same unautomatable native menu macOS
+always had. See `BRANCH_OPERATIONS_PLAN.md`'s "Why Linux leads" section for the detail.
+
+- [x] **resolved** — F-MENU-001 (Branch menu scope), via `BRANCH_OPERATIONS_PLAN.md` Slices 1–3.
+- [ ] **native-menu-dispatch verification** — `qa/phase-8b/macos-checklist.md` §7 and
+      `qa/phase-8b/linux-wayland-checklist.md`'s equivalent section, for the five landed items plus
+      the five capability-parity actions from F-MENU-003. Not yet run on either platform.
+- [ ] aligned with the MVP (pending the verification above, plus everything else this cycle's
+      checklists still mark pending — see `REMAINING.md`).

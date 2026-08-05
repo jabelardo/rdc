@@ -1576,9 +1576,9 @@ through shared host resources:
 
 The driver's IPC surface is deliberately minimal: no `#[tauri::command]` is added to the release
 invoke handler, and the only channel is the `qa-drive` event consumed solely by a debug-only
-listener. When the next tauri stable ships with tao 0.36 (see the title-bar note in §8), the only
-anticipated touchpoint is re-measuring the 47 px context-menu CSD offset — the driver itself needs
-no change.
+listener. The driver itself needs no change when the next tauri stable ships with tao 0.36 (see
+the title-bar note below) — the context-menu CSD offset this paragraph used to flag as the one
+anticipated touchpoint is no longer a tuned constant to revisit (see that note's own correction).
 
 ### Deferred: native window title on Linux/Wayland — waiting on tao 0.36 (next tauri release)
 
@@ -1612,18 +1612,21 @@ Do not patch to the `dev` branch: it commits the app to a pre-release runtime fo
 **Work to do when the next tauri stable ships** (a `cargo update -p tao` first; then re-run the
 Linux gates and this list):
 
-1. **Re-measure the context-menu 47 px CSD offset** — `VIEWPORT_TO_WINDOW_Y` in
-   `src-tauri/src/platform/context_menu.rs:248` (`adjust_for_csd`) was tuned for the removed
-   `WlHeader` headerbar. GTK's default CSD chrome height may differ. Prefer replacing the constant
-   with the already-noted robust path (`header_bar().allocated_height()`) or re-verify the value on
-   GNOME Wayland. The fix's `Stop` → `Proceed` propagation change is orthogonal to our coordinate
-   capture (we pass coordinates explicitly), so only the chrome-height constant needs checking.
-2. **Confirm the title updates** — with `decorations: true` (default Native/NativeWithoutMenuBar),
+1. **Confirm the title updates** — with `decorations: true` (default Native/NativeWithoutMenuBar),
    `setWindowTitle` → `"RDC — <repo> — <branch>"` should now visibly update on repository and branch
    switches. No frontend change required.
-3. **Verify startup maximize / window-state restore** — tao now defers `maximize`/`set_resizable`
+2. **Verify startup maximize / window-state restore** — tao now defers `maximize`/`set_resizable`
    to the first configure event; re-check `tauri-plugin-window-state` restore and initial maximize.
-4. **Verify the frameless Custom style** — on Linux `TitleBarStyle::Custom` sets `decorations:
+3. **Verify the frameless Custom style** — on Linux `TitleBarStyle::Custom` sets `decorations:
    false` and shows `WindowDragStrip`. The fix now forces an empty CSD titlebar to block SSD;
    confirm it adds no stray chrome to the frameless layout.
-5. Re-run the full seven-gate set and the Wayland context-menu human check.
+4. Re-run the full seven-gate set and the Wayland context-menu human check.
+
+**No longer on this list:** re-measuring a tuned context-menu CSD offset. That was relevant to an
+earlier `47 px` `VIEWPORT_TO_WINDOW_Y`/`adjust_for_csd` constant, which this note originally
+flagged as needing a re-check against whatever chrome height GTK's restored default CSD ends up
+with. That whole code path is gone: the Linux context-menu popup no longer goes through muda at
+all (see `MIGRATION_PLAN.md`'s Phase 8b log, "Linux context-menu freeze, found and fixed"), and
+`src-tauri/src/platform/context_menu.rs` measures the webview-to-window offset at popup time from
+the real widget tree instead of a tuned constant — which is itself unaffected by which CSD
+implementation GTK ends up drawing.

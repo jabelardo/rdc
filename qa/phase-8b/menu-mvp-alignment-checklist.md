@@ -59,8 +59,8 @@ Per-item classification used below:
 ## Linux MVP baseline inventory
 
 Accelerators are the Linux forms from `src-tauri/src/platform/keybindings.rs` (CmdOrCtrl → Ctrl).
-The in-window menu bar and the keybinding tree must agree on this inventory, these labels and these
-accelerators.
+The native menu (Tauri's, on every platform since `17df5bf`) and the keybinding tree must agree on
+this inventory, these labels and these accelerators.
 
 ### File menu
 
@@ -230,11 +230,18 @@ Recorded here rather than in the per-item tables when they span multiple items o
 
 ## Current Linux implementation gaps to resolve this cycle
 
-The visible Linux surface is the in-window menu bar (`src/lib/ui/app/menu-bar.tsx`); the full tree
-is simultaneously installed as the keybinding dispatcher's state. These two surfaces must agree
-with the baseline above and with each other. The divergences below were found by code reading at
-the start of the cycle and **implemented in the alignment commit**; the remaining work is to verify
-each on the live Wayland build and fix anything the code reading missed.
+**Historical record — the surface this section describes no longer exists.** At the time this
+section was written, the visible Linux surface was the in-window menu bar
+(`src/lib/ui/app/menu-bar.tsx`), installed alongside the keybinding dispatcher's state, and the
+eleven gaps below were closed against that surface in the alignment commit (`bb652ce`). `17df5bf`
+later replaced that in-window bar with Tauri's native menu on every platform — the same surface
+macOS always used — deleting `menu-bar.tsx` and its 22-test regression file (item 10 below).
+**The inventory these items describe (labels, accelerators, enablement, keyboard nav) is still the
+correct MVP baseline**; what changed is only which widget renders it and how that's verified — see
+`repository-menu.test.ts`'s capability-parity assertion for the automated evidence that replaces
+item 10, and `qa/phase-8b/linux-wayland-checklist.md`'s native-dispatch section for the human
+verification every unautomatable item still needs. Keeping the items below as the record of what
+was checked, not as a description of current architecture.
 
 1. ~~File → Open new window missing~~ — implemented: File → “Open new window”, Ctrl+Alt+N,
    enabled with selection. The old “Open in New Window” entry under Repository was removed.

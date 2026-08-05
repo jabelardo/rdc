@@ -1,5 +1,11 @@
 # Ubuntu 26.04 native-Wayland checklist
 
+Real-Wayland evidence recorded so far ran on Fedora 44 (Bluefin toolbox), not Ubuntu — see
+`qa/phase-8b/evidence/linux-fedora44-wayland-2026-08-02/` and
+`qa/phase-8b/evidence/linux-menu-gate/findings.md`. That satisfies this checklist's intent (a real
+Wayland compositor, not Xvfb); the title names the originally-planned host, not a requirement to
+repeat evidence on Ubuntu specifically.
+
 ## 1. Environment and foundation
 
 - Repeat `baseline-layout-checklist.md` in expanded and collapsed states at the default 800×600
@@ -48,6 +54,29 @@
 
 ## 5. Native integrations, accessibility and lifecycle
 
+- **Verify the five capability-parity actions actually dispatch from the native menu**, with a
+  repository selected: Branch → New Branch… (Ctrl+Shift+N), View → Show Branches List (Ctrl+B),
+  View → Go to Summary (Ctrl+G), and View → Expand/Contract Active Resizable (Ctrl+9 / Ctrl+8).
+  Each must perform its action in the focused window, not merely appear enabled.
+
+  This item exists for the same reason as `macos-checklist.md` §7's equivalent: these five are
+  enabled on every platform under the capability-parity rule (`repository-menu.test.ts` proves
+  each has an executor on `linux`), but **nothing automated can prove native dispatch** — `17df5bf`
+  moved Linux onto Tauri's native menu, which has no `tauri-driver`/WebDriver backend either, so
+  this manual check is now the only evidence for Linux too, not just macOS.
+- **Verify the new Branch-menu operations dispatch from the native menu** with a dirty repository
+  selected: Branch → Discard all changes… (Ctrl+Shift+Backspace) and Branch → Permanently discard
+  all changes… (no accelerator). Each must show its confirmation and clear the working tree in the
+  focused window.
+- **Verify the branch-lifecycle operations dispatch from the native menu** with a repository
+  selected: Branch → Rename… (Ctrl+Shift+R) must open the prefilled rename dialog and rename the
+  current branch; Branch → Delete… (Ctrl+Shift+D) must surface the "cannot delete the current
+  branch" guard; Branch → Merge into Current Branch… (Ctrl+Shift+M) must open the branch picker,
+  merge a clean branch, and surface a conflicting one through the conflict-recovery surface;
+  Repository → Manage Remotes… must list/add/remove remotes. Rename/Delete a **non-current** branch
+  from its row's context menu and verify both land — the context menu is also a native popup
+  (`src-tauri/src/platform/context_menu.rs`), not DOM, so this is unautomatable for the same
+  reason the menu bar is and needs the same manual check.
 - Exercise native open/save dialogs, file manager, editor and terminal launch on the installed desktop;
   test one deliberately missing integration and require visible failure rather than hollow success.
 - Open two repository windows with different repositories/views. Alternate focus while invoking native

@@ -18,17 +18,26 @@ after its 2026-07-31 pre-QA follow-up added mechanical Node/bundle/format/lint/W
 guards, independent E2E suites, Tailwind and a component-owned application shell. **Phase 8b is now
 the next MVP phase and the only human-blocked phase.**
 
-| Gate | State |
+Since cycle one's Linux findings landed, Phase 8b's own scope moved: `17df5bf` put the native menu
+on every platform (see "QA cycle 2" below), and a real MVP-blocking freeze found in that same cycle
+— opening a context menu on real Wayland, then switching focus away, wedged the app until the OS
+killed it — is now fixed by bypassing muda's blocking popup on Linux entirely. Full account in
+`MIGRATION_PLAN.md`'s Phase 8b log, "Linux context-menu freeze, found and fixed."
+
+**Cycle one's own findings — a UI foundation gap and one functionality gap — are now being closed
+before cycle two starts**, deliberately: see "Engineering, this pass" below.
+
+| Gate | State (2026-08-05) |
 |---|---|
-| `pnpm test` (Vitest) | 952 passing |
+| `pnpm test` (Vitest) | 993 passing |
 | `pnpm exec tsc --noEmit` | clean |
 | `pnpm format:check` / `pnpm lint` | clean |
-| `pnpm build` / `pnpm check:bundle-boundary` | clean; 108 browser-reachable modules, no Node built-ins |
-| `cargo test --workspace` | 1,179 passing |
+| `pnpm build` / `pnpm check:bundle-boundary` | clean; 113 browser-reachable modules, no Node built-ins |
+| `cargo test --workspace` | 1,181 passing |
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --check` | clean |
 | Windows `git-ops --all-targets` compile guard | clean |
-| `pnpm test:e2e` (Linux container) | 28 tests / 14 suites passing |
+| `pnpm test:e2e` (Linux container) | 28 tests / 13 suites passing |
 | `pnpm qualify:phase8a` | green, `"errors": []` |
 
 ---
@@ -62,8 +71,9 @@ Human judgement is required for: visual refinement (hierarchy, density, alignmen
 error states, diff readability) at normal and compact sizes in Light/Dark/System; the final icon,
 bundle identifier and preview presentation (`org.rdc` and the current icon are explicitly
 provisional); the native macOS pass, since WKWebView has no `tauri-driver` backend so the recorded
-checklist *is* the evidence; and a real Ubuntu Wayland session to qualify rendering and the
-`WEBKIT_DISABLE_COMPOSITING_MODE=1` mitigation outside the Xvfb harness.
+checklist *is* the evidence; and a real Wayland session (recorded so far on Fedora 44/Bluefin,
+`linux-wayland-checklist.md`'s originally-planned Ubuntu 26.04 also satisfies it) to qualify
+rendering and the `WEBKIT_DISABLE_COMPOSITING_MODE=1` mitigation outside the Xvfb harness.
 
 **MVP exit criteria** are enumerated at `MIGRATION_PLAN.md` §"macOS/Linux MVP exit criteria" — seven
 items, unchanged; do not restate them here, satisfy them there.
@@ -72,22 +82,53 @@ items, unchanged; do not restate them here, satisfy them there.
 
 ## Open engineering items
 
-1. **MVP blocker — branch operations missing from the menu.** Rename, delete, discard-all
-   (×2) and merge initiation are unreachable from the application menu on both platforms, so the
-   Branch menu is effectively single-item. **The backend is not the gap**: the git operations, their
-   Tauri commands and their TypeScript IPC wrappers all exist and are tested — only store methods, UI
-   affordances and menu wiring are missing. Plan, slices and per-slice definition of done in
-   [`BRANCH_OPERATIONS_PLAN.md`](./BRANCH_OPERATIONS_PLAN.md); Linux leads, macOS follows by the
-   capability-parity rule. `update-branch-with-contribution-target-branch` is deferred to Phase 7f
-   there, with the reasoning. Finding: `qa/phase-8b/evidence/menu-mvp-alignment-findings.md`
-   F-MENU-001.
-2. **Produced-package inspection is not automated yet.** `pnpm qualify:phase8a` deliberately audits
+### Engineering, this pass — before QA cycle 2
+
+Deliberately sequenced ahead of the QA-cycle-2 item below: rdc is greenfield and not racing an MVP
+date, so the priority right now is architectural foundation (easy for a future open-source
+collaborator to pick up post-MVP), not minimizing the current diff. In dependency order:
+
+1. **[`UI_FOUNDATION_PLAN.md`](./UI_FOUNDATION_PLAN.md)** — adopt shadcn/Radix as rdc's UI
+   foundation: tooling setup, a full switch to shadcn's token vocabulary (not a bridge over rdc's
+   existing `--color-*` names), then Toast → Dialog → Tooltip, in that order. Toast is deliberately
+   the pilot for the whole adoption.
+2. **[`MESSAGE_SYSTEM_PLAN.md`](./MESSAGE_SYSTEM_PLAN.md)** — the unified error/warning/info toast
+   system. No such system exists today: ~7 stores each carry their own `error`/`operationError`
+   field rendered by a copy-pasted `<p className="application-error">`, there's no warning/info
+   channel at all, and a real formatting bug (`String(error)` on a raw `CommandError` rejection
+   renders `"[object Object]"`) has never been exercised by any test. Slice 0 depends on
+   `UI_FOUNDATION_PLAN.md`'s Phase 0 + Phase 1; Slices 1–7 don't.
+3. **[`BRANCH_OPERATIONS_PLAN.md`](./BRANCH_OPERATIONS_PLAN.md) Slice 4 — abort merge.** The one
+   functionality gap found against the 7 MVP exit criteria: `abort_merge` exists and is tested at
+   the git-ops/Tauri-command layer, but there is no `conflict-store.ts` method, no button in
+   `merge-conflicts.tsx`, and no menu id at all. A user can complete a conflict but never back out
+   of one in-app. Independent of items 1–2 above.
+
+**LICENSE (MIT) is added**, copyright holder Jose Gutierrez. `CONTRIBUTING.md`, issue/PR templates,
+README polish and an `ARCHITECTURE.md` newcomer overview are deliberately deferred to the
+post-MVP promotion phase, once the project is actually accepting contributions — recording that as
+a decision, not an oversight.
+
+### QA cycle 2
+
+4. **Native-menu-dispatch verification, on both platforms.** The branch-operations MVP blocker
+   itself is closed — `BRANCH_OPERATIONS_PLAN.md` Slices 1–3 landed rename, delete, discard-all
+   (×2) and merge initiation, all gated-green and capability-parity tested across
+   `macos`/`windows`/`linux`. (`update-branch-with-contribution-target-branch` stays deferred to
+   Phase 7f, unchanged.) What's left is proving these — plus the five capability-parity actions
+   from `qa/phase-8b/evidence/menu-mvp-alignment-findings.md` F-MENU-003, item 3's abort-merge
+   action once it lands, and the message system's toast accessibility once item 2 lands — actually
+   dispatch from the *native* menu, which nothing automated can do: `17df5bf` moved Linux from an
+   in-window DOM menu bar onto Tauri's native menu on every platform, so Linux lost its
+   WebDriver-testable surface the same way macOS never had one. Run `qa/phase-8b/macos-checklist.md`
+   §7 and `qa/phase-8b/linux-wayland-checklist.md`'s equivalent section to close it.
+5. **Produced-package inspection is not automated yet.** `pnpm qualify:phase8a` deliberately audits
    inputs and reports `finalPackagesProduced: false`; no current command opens the macOS/Linux bundle
    outputs and checks identity, resources, sidecar permissions and legacy destinations. Phase 8b's
    plan explicitly requires automated metadata/resource/package smoke. Add that reproducible check
    after final icon/identifier and concrete bundle targets are chosen, before treating the manual
    `final-package-smoke.md` pass as sufficient.
-3. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
+6. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
    seams themselves are done (`AGENTS.md` rule 11): `rdc-printenvz`'s two arms now share a
    signature, `cli_installer`'s symlink is behind a per-OS `link` module with both arms real, and
    `custom_integration`'s unix code is in a gated inner module. What is left is a genuine Phase 10

@@ -3290,12 +3290,53 @@ Additional fixes in the same pass:
 - `Preferences` `<select>` forced to theme with `appearance: none` plus an inline SVG chevron
   because WebKitGTK draws native-light selects regardless of CSS color.
 
-Context-menu positioning on Wayland: `popup_menu` queries the current cursor position at the time
-of the IPC round-trip; on Wayland this is stale.  Fixed by capturing the click coordinates
-(`pointerdown` listener + `getBoundingClientRect` of the trigger element) and passing them through
-to a new `popup_menu_at` call.  A `47 px` CSD titlebar offset converts webview-viewport
-coordinates to GTK-window coordinates.  The trigger's CSS `:hover` tooltip is dismissed via
-`blur()` before the native menu opens so it does not linger behind the popup.
+Context-menu positioning on Wayland, first attempt: `popup_menu` queries the current cursor
+position at the time of the IPC round-trip; on Wayland this is stale.  Fixed by capturing the
+click coordinates (`pointerdown` listener + `getBoundingClientRect` of the trigger element) and
+passing them through to a new `popup_menu_at` call, with a `47 px` CSD titlebar offset converting
+webview-viewport coordinates to GTK-window coordinates.  The trigger's CSS `:hover` tooltip is
+dismissed via `blur()` before the native menu opens so it does not linger behind the popup.
+**This positioning fix later turned out to freeze the app; superseded below.**
+
+**Linux native-menu migration (`6eef6b6`/`17df5bf`).** The in-window DOM menu bar
+(`src/lib/ui/app/menu-bar.tsx`) is replaced by Tauri's native menu on **every** platform, not only
+macOS — Linux and Windows now render the same native menu macOS always required, dispatched
+through the same `MenuEvent`/`repository-menu.ts` executor either way. This deletes the in-window
+bar, its 22-test regression file, and six menu-driven E2E specs
+(`branch-lifecycle`/`discard-all`/`merge`/`merge-conflicts`/`remote-manage`.test.mjs): native GTK
+menus have no `tauri-driver`/WebDriver backend, so those journeys stop being automatable on Linux
+the same way they already weren't on macOS. Automated proof of menu wiring narrows to unit tests
+(`repository-menu.test.ts`'s capability-parity assertion) plus a human native-dispatch checklist —
+now needed on both platforms, not macOS alone. See `BRANCH_OPERATIONS_PLAN.md` for the concrete
+residual checklist item this leaves.
+
+**Linux context-menu freeze, found and fixed (`3c8b1dd` → `26535e4`).** The CSD-offset positioning
+fix above (re-landed once directly, once as a literal port of Beaver-Notes' equivalent
+`show_edit_context_menu` fix, at the user's explicit request, to settle by hardware test rather
+than inference whether a different Tauri entry point behaved differently — it didn't) turned out
+to freeze the whole app on real GNOME/Wayland: open a context menu, switch focus to another
+window, and rdc stops responding until the OS kills it. Root cause, confirmed by reading
+`muda-0.19.3`'s GTK backend directly: `show_context_menu` raises the popup and then blocks in a
+hand-rolled `loop { gtk::main_iteration() }` fed only by `connect_cancel`/`connect_selection_done`,
+with no `grab-broken` handler and no timeout. Passing an explicit position anchors the popup to
+the real toplevel window, so Wayland treats it as a genuine child surface and **withdraws it on
+focus loss** without firing either signal — the loop never returns, and the main thread is stuck
+in a nested GTK main loop (the app still repaints, so nothing kills it immediately, but no later
+popup, menu action or window-close request ever completes). Omitting the position escaped this
+only by anchoring to the root window instead — not a real child popup, hence the original
+mis-placement bug this was fixing in the first place. Both the original rdc code and Beaver-Notes'
+independently-written fix funnel into the exact same muda call regardless of entry point
+(`Window::popup_menu_at`/JS `Menu.popup()` both resolve to `Menu::popup_inner`), so this was never
+an rdc-specific mistake to begin with — it's a real gap in muda's GTK backend.
+
+**Fix (`26535e4`):** stop calling muda's popup on Linux. `src-tauri/src/platform/context_menu.rs`
+builds a `gtk::Menu` directly and pops it up **non-blocking** — nothing waits on a signal, so
+compositor withdrawal is just the menu going away. macOS/Windows keep muda's popup (a single
+native call each, no polling loop to wedge). This also retired the tuned `47 px` CSD-offset
+constant: with `gtk` now a direct Linux dependency, the webview-to-window offset is measured at
+popup time from the real webview widget (`default_vbox`'s non-menubar child,
+`translate_coordinates` into the `gtk::Window`), exact on any desktop environment or theme rather
+than a GNOME-tuned guess.
 
 All seven gates green after each change: 952 Vitest, tsc, oxfmt, oxlint, 884 Rust, clippy, rustfmt.
 
@@ -3312,9 +3353,10 @@ on Linux/Wayland because `tao` (≤ 0.35) forces a custom `HeaderBar` whose titl
 window creation. The fix is upstream in tao v0.36.0 (tao#1218) but tauri stable still pins
 `^0.35`, so it cannot be taken yet. **Decision: wait for the next tauri stable** (a plain
 `cargo update` pulls it in; no code change makes it work earlier). Full root cause, reading of the
-fix, and the to-do list (re-measure the 47 px context-menu CSD offset, confirm the title updates,
-verify startup maximize/window-state restore and the frameless Custom style) are recorded in
-`MIGRATION_MAP.md` §8.
+fix, and the to-do list (confirm the title updates, verify startup maximize/window-state restore
+and the frameless Custom style) are recorded in `MIGRATION_MAP.md` §8 — that list no longer
+includes re-measuring the context-menu CSD offset, since the Linux context-menu path (see above)
+no longer uses a tuned constant at all.
 
 Record before/after evidence, accepted non-blocking deviations and the final results for both
 platforms. Phase 8b closes only after the last fix has passed 8a again, its affected human checks
