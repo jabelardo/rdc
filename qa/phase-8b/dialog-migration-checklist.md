@@ -119,6 +119,7 @@ The real menu events are completely untouched — clicking "Rename branch" from 
 - **AlertDialogHeader centering:** shadcn centers by default below `sm:` (640px). rdc's 715px floor is above it, but the override `place-items-start text-left` must be verified at all widths including compact mode.
 - **Dialog vs AlertDialog dismissal:** AlertDialog with no `onOpenChange` blocks Escape/backdrop by spec (Hook failure…). Dialog with `onOpenChange` gated by `manageRunning` must allow dismissal when not running, block when running. Verify both.
 - **System mode** delegates to the OS (`preferences-store.ts` → `resolveSystemTheme()` → Tauri's `window.theme()`) — infrastructure is in place, no spike needed. It cannot be exercised during a visual pass since you can't toggle the OS preference from within the app; validation covers Light and Dark only.
+- **Toolbar error display** (`<p class="repository-toolbar-status is-error">`) is an inline error pattern that should migrate to the message system (toast notifications) per `MESSAGE_SYSTEM_PLAN.md` Slices 2-7. Not a stage-2 blocker — tracked here so it isn't forgotten during the message-system migration.
 
 ---
 
