@@ -97,5 +97,6 @@ export type MenuEvent =
   | "debug-show-delete-branch-dialog"
   | "debug-show-merge-dialog"
   | "debug-show-manage-remotes-dialog"
+  | "debug-show-hook-failure-dialog"
   | "debug-show-add-remote-dialog"
   | "debug-show-remove-repository-dialog";

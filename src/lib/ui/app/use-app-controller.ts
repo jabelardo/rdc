@@ -257,6 +257,9 @@ export function useAppController() {
         injectDebugState();
         requestManageRemotes();
       },
+      debugShowHookFailureDialog: () => {
+        injectDebugState();
+      },
     });
     const replaceMenu = () => {
       if (controller === undefined) {

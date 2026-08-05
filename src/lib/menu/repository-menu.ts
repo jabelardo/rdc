@@ -52,6 +52,7 @@ type RepositoryMenuEnvironment = {
   readonly debugShowDeleteBranchDialog?: () => void;
   readonly debugShowMergeDialog?: () => void;
   readonly debugShowManageRemotesDialog?: () => void;
+  readonly debugShowHookFailureDialog?: () => void;
 };
 
 function withEnablement(item: MenuItem, enabledByID: ReadonlyMap<string, boolean>): MenuItem {
@@ -135,6 +136,7 @@ export function buildRepositoryMenu(
   enabledByID.set("debug-delete-branch", hasSelection);
   enabledByID.set("debug-merge-branch", hasSelection);
   enabledByID.set("debug-manage-remotes", hasSelection);
+  enabledByID.set("debug-hook-failure", hasSelection);
   enabledByID.set("debug-show-discard-file-dialog", hasSelection);
   enabledByID.set("debug-show-add-remote-dialog", hasSelection);
   enabledByID.set("debug-show-remove-repository-dialog", hasSelection);
@@ -355,6 +357,9 @@ export function createRepositoryMenuEventExecutor(
         return true;
       case "debug-show-manage-remotes-dialog":
         environment.debugShowManageRemotesDialog?.();
+        return true;
+      case "debug-show-hook-failure-dialog":
+        environment.debugShowHookFailureDialog?.();
         return true;
       default:
         return false;

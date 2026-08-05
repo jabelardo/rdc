@@ -204,6 +204,7 @@ describe("repository application menu", () => {
           debugShowDeleteBranchDialog: vi.fn(),
           debugShowMergeDialog: vi.fn(),
           debugShowManageRemotesDialog: vi.fn(),
+          debugShowHookFailureDialog: vi.fn(),
         },
       );
       const executeStartupAction = createStartupMenuActionExecutor({

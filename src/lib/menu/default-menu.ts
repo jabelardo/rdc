@@ -630,6 +630,11 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
           action: event("debug-show-manage-remotes-dialog"),
         },
         {
+          id: "debug-hook-failure",
+          label: "Hook failure…",
+          action: event("debug-show-hook-failure-dialog"),
+        },
+        {
           id: "debug-show-add-remote-dialog",
           label: "Add remote…",
           action: event("debug-show-add-remote-dialog"),
