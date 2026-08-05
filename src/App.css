@@ -1723,6 +1723,11 @@ button:disabled {
   color: #fff;
   background: var(--destructive);
 }
+.destructive-button:hover {
+  border-color: var(--destructive);
+  color: #fff;
+  background: var(--color-error-text);
+}
 
 .application-error {
   max-width: 40rem;
