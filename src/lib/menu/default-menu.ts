@@ -592,17 +592,37 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
     {
       label: "Show Dialog",
       submenu: [
-        { label: "About", action: event("show-about") },
-        { label: "Preferences", action: event("show-preferences") },
-        { label: "Clone", action: event("clone-repository") },
-        { label: "Discard file…", action: event("debug-show-discard-file-dialog") },
-        { label: "Discard all…", action: event("discard-all-changes") },
-        { label: "Rename branch…", action: event("rename-branch") },
-        { label: "Delete branch…", action: event("delete-branch") },
-        { label: "Merge…", action: event("merge-branch") },
-        { label: "Manage remotes…", action: event("manage-remotes") },
-        { label: "Add remote…", action: event("debug-show-add-remote-dialog") },
-        { label: "Remove repository…", action: event("debug-show-remove-repository-dialog") },
+        { id: "debug-about", label: "About", action: event("show-about") },
+        { id: "debug-preferences", label: "Preferences", action: event("show-preferences") },
+        { id: "debug-clone", label: "Clone", action: event("clone-repository") },
+        {
+          id: "debug-show-discard-file-dialog",
+          label: "Discard file…",
+          action: event("debug-show-discard-file-dialog"),
+        },
+        {
+          id: "debug-discard-all",
+          label: "Discard all…",
+          action: event("discard-all-changes"),
+        },
+        { id: "debug-rename-branch", label: "Rename branch…", action: event("rename-branch") },
+        { id: "debug-delete-branch", label: "Delete branch…", action: event("delete-branch") },
+        { id: "debug-merge-branch", label: "Merge…", action: event("merge-branch") },
+        {
+          id: "debug-manage-remotes",
+          label: "Manage remotes…",
+          action: event("manage-remotes"),
+        },
+        {
+          id: "debug-show-add-remote-dialog",
+          label: "Add remote…",
+          action: event("debug-show-add-remote-dialog"),
+        },
+        {
+          id: "debug-show-remove-repository-dialog",
+          label: "Remove repository…",
+          action: event("debug-show-remove-repository-dialog"),
+        },
       ],
     },
     {

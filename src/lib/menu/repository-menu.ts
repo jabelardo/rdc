@@ -119,6 +119,17 @@ export function buildRepositoryMenu(
   enabledByID.set("rename-branch", hasSelection);
   enabledByID.set("delete-branch", hasSelection);
   enabledByID.set("merge-branch", hasSelection);
+  enabledByID.set("debug-about", true);
+  enabledByID.set("debug-preferences", preferencesState !== undefined);
+  enabledByID.set("debug-clone", true);
+  enabledByID.set("debug-discard-all", hasSelection);
+  enabledByID.set("debug-rename-branch", hasSelection);
+  enabledByID.set("debug-delete-branch", hasSelection);
+  enabledByID.set("debug-merge-branch", hasSelection);
+  enabledByID.set("debug-manage-remotes", hasSelection);
+  enabledByID.set("debug-show-discard-file-dialog", hasSelection);
+  enabledByID.set("debug-show-add-remote-dialog", hasSelection);
+  enabledByID.set("debug-show-remove-repository-dialog", hasSelection);
   const menu = buildStartupMenu(
     platform,
     preferencesState === undefined
