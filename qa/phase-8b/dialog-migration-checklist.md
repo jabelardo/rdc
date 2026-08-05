@@ -14,10 +14,10 @@ These three were the first migrated. Validate them in **Help → Show Dialog**. 
 
 | Dialog (menu label) | Type | Theme | Backdrop | Header alignment | Width / content | Footer / actions | Focus / Escape | Nested stack | Notes | Signed off |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Hook failure… | AlertDialog | Light | | terminal output fits | Abort / Ignore | No-op on Escape | N/A | | |
-| Hook failure… | AlertDialog | Dark | | terminal output fits | Abort / Ignore | No-op on Escape | N/A | | |
 | Manage remotes… | Dialog | Light | | list / URLs fit | Close button | | | | |
 | Manage remotes… | Dialog | Dark | | list / URLs fit | Close button | | | | |
+| Hook failure… | AlertDialog | Light | | terminal output fits | Abort / Ignore | No-op on Escape | N/A | | |
+| Hook failure… | AlertDialog | Dark | | terminal output fits | Abort / Ignore | No-op on Escape | N/A | | |
 | Add remote… | Dialog | Light | | form fits | Cancel / Add | | | | |
 | Add remote… | Dialog | Dark | | form fits | Cancel / Add | | | | |
 | Manage remotes + Add remote (nested) | — | Light | | — | — | | | Top traps focus; Escape/Close/backdrop closes only top; closing returns focus to bottom | |
