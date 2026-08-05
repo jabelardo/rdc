@@ -10,20 +10,18 @@ How to open each dialog: **Help → Show Dialog** (dev/test builds only). Valida
 
 ## Sub-slice 2.0 — Pilot Dialogs (visual sign-off required before 2.1)
 
-These three were the first migrated. Validate them in **Help → Show Dialog** (or via the real commit flow for Hook failure…).
-
-> **Deferred:** All pilot dialogs need state the debug menu cannot produce yet. See "Deferred Dialogs" below for the stub-state plan.
+These three were the first migrated. Validate them in **Help → Show Dialog**. The debug menu injects stub state automatically — no real data needed.
 
 | Dialog (menu label) | Type | Theme | Backdrop | Header alignment | Width / content | Footer / actions | Focus / Escape | Nested stack | Notes | Signed off |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Hook failure… | AlertDialog | Light | | terminal output fits | Abort / Ignore | No-op on Escape | N/A | DEFERRED | |
-| Hook failure… | AlertDialog | Dark | | terminal output fits | Abort / Ignore | No-op on Escape | N/A | DEFERRED | |
-| Manage remotes… | Dialog | Light | | list / URLs fit | Close button | | | DEFERRED | |
-| Manage remotes… | Dialog | Dark | | list / URLs fit | Close button | | | DEFERRED | |
-| Add remote… | Dialog | Light | | form fits | Cancel / Add | | | DEFERRED | |
-| Add remote… | Dialog | Dark | | form fits | Cancel / Add | | | DEFERRED | |
-| Manage remotes + Add remote (nested) | — | Light | | — | — | | | DEFERRED — nested case | |
-| Manage remotes + Add remote (nested) | — | Dark | | — | — | | | DEFERRED — nested case | |
+| Hook failure… | AlertDialog | Light | | terminal output fits | Abort / Ignore | No-op on Escape | N/A | | |
+| Hook failure… | AlertDialog | Dark | | terminal output fits | Abort / Ignore | No-op on Escape | N/A | | |
+| Manage remotes… | Dialog | Light | | list / URLs fit | Close button | | | | |
+| Manage remotes… | Dialog | Dark | | list / URLs fit | Close button | | | | |
+| Add remote… | Dialog | Light | | form fits | Cancel / Add | | | | |
+| Add remote… | Dialog | Dark | | form fits | Cancel / Add | | | | |
+| Manage remotes + Add remote (nested) | — | Light | | — | — | | | Top traps focus; Escape/Close/backdrop closes only top; closing returns focus to bottom | |
+| Manage remotes + Add remote (nested) | — | Dark | | — | — | | | | |
 
 ---
 
@@ -31,24 +29,24 @@ These three were the first migrated. Validate them in **Help → Show Dialog** (
 
 | Dialog (menu label) | Type | Theme | Backdrop | Header | Width / content | Footer | Focus / Escape | Notes | Signed off |
 |---|---|---|---|---|---|---|---|---|---|
-| About | Dialog | Light | | | | Close | | TESTABLE — always available | |
-| About | Dialog | Dark | | | | Close | | TESTABLE | |
-| Preferences | Dialog | Light | | | Form fields layout | Close | | TESTABLE — always available | |
-| Preferences | Dialog | Dark | | | Form fields layout | Close | | TESTABLE | |
-| Clone | Dialog | Light | | | Cancel / Choose path / Clone | | TESTABLE — always available | |
-| Clone | Dialog | Dark | | | Cancel / Choose path / Clone | | TESTABLE | |
-| Discard file… | AlertDialog | Light | | | Discard / Permanently discard | | DEFERRED — needs working tree files | |
-| Discard file… | AlertDialog | Dark | | | Discard / Permanently discard | | DEFERRED | |
-| Discard all… | AlertDialog | Light | | | Discard all / Permanently discard all | | DEFERRED — needs dirty working tree | |
-| Discard all… | AlertDialog | Dark | | | Discard all / Permanently discard all | | DEFERRED | |
-| Rename branch… | Dialog | Light | | | Cancel / Rename | | DEFERRED — needs current branch | |
-| Rename branch… | Dialog | Dark | | | Cancel / Rename | | DEFERRED | |
-| Delete branch… | AlertDialog | Light | | | Close / Delete | | DEFERRED — needs branches | |
-| Delete branch… | AlertDialog | Dark | | | Close / Delete | | DEFERRED | |
-| Merge… | Dialog | Light | | | Cancel / Merge | | DEFERRED — needs multiple branches | |
-| Merge… | Dialog | Dark | | | Cancel / Merge | | DEFERRED | |
-| Remove repository… | AlertDialog | Light | | | Cancel / Remove | | DEFERRED — needs selected repo | |
-| Remove repository… | AlertDialog | Dark | | | Cancel / Remove | | DEFERRED | |
+| About | Dialog | Light | | | | Close | | Always available | |
+| About | Dialog | Dark | | | | Close | | | |
+| Preferences | Dialog | Light | | | Form fields layout | Close | | Always available | |
+| Preferences | Dialog | Dark | | | Form fields layout | Close | | | |
+| Clone | Dialog | Light | | | Cancel / Choose path / Clone | | Always available | |
+| Clone | Dialog | Dark | | | Cancel / Choose path / Clone | | | | |
+| Discard file… | AlertDialog | Light | | | Discard / Permanently discard | | Stub state injected by debug menu | |
+| Discard file… | AlertDialog | Dark | | | Discard / Permanently discard | | | | |
+| Discard all… | AlertDialog | Light | | | Discard all / Permanently discard all | | Stub state injected by debug menu | |
+| Discard all… | AlertDialog | Dark | | | Discard all / Permanently discard all | | | | |
+| Rename branch… | Dialog | Light | | | Cancel / Rename | | Stub state injected by debug menu | |
+| Rename branch… | Dialog | Dark | | | Cancel / Rename | | | | |
+| Delete branch… | AlertDialog | Light | | | Close / Delete | | Stub state injected by debug menu | |
+| Delete branch… | AlertDialog | Dark | | | Close / Delete | | | | |
+| Merge… | Dialog | Light | | | Cancel / Merge | | Stub state injected by debug menu | |
+| Merge… | Dialog | Dark | | | Cancel / Merge | | | | |
+| Remove repository… | AlertDialog | Light | | | Cancel / Remove | | Stub state injected by debug menu | |
+| Remove repository… | AlertDialog | Dark | | | Cancel / Remove | | | | |
 
 ---
 
@@ -92,29 +90,11 @@ These three were the first migrated. Validate them in **Help → Show Dialog** (
 
 ---
 
-## Deferred Dialogs — What's Needed
+## Debug Stub-State Mechanism (implemented)
 
-Most dialogs require app state (a selected repository, working tree files, branches, remotes) that doesn't exist when the app launches empty. The debug menu handlers open the dialog, but with no state the dialog has nothing to show or the handler returns early (e.g. `if (firstFile === undefined) return`). These need a **debug stub-state injection** mechanism.
+The `src/lib/debug/inject-test-state.ts` module populates every store the dialogs read from with minimal stub data (fake repo, branches, remotes, working-tree files, hook failure). Each debug menu event calls `injectDebugState()` before opening the dialog.
 
-| Dialog | Required state | Stub mechanism | Difficulty |
-|---|---|---|---|
-| Hook failure… | `workingTreeStore.hookFailure` | Debug menu handler calls `workingTreeStore.debugSetHookFailure({ hook: "pre-commit", terminalOutput: "lint failed\n" })` | Medium — requires new debug-only method on `WorkingTreeStore` |
-| Manage remotes… | `appStore.selectedRepository` + `remoteState.remotes` | Debug menu handler selects a repo and calls `remoteStore.debugSetRemotes([{ name: "origin", url: "https://github.com/user/repo.git" }])` | Medium — needs debug method on `RemoteStore` |
-| Add remote… | `appStore.selectedRepository` | Debug menu handler selects a repo, then sets `showAddRemote = true` | Easy — repo selection is already handled by the existing stub |
-| Discard file… | `workingTreeStore.workingDirectory.files` with ≥1 file | Debug menu handler stubs a `WorkingDirectoryFileChange` into the store, then sets `discardFileID` | Medium — `WorkingDirectoryFileChange` has a specific shape (`id`, `path`, `status`, etc.) |
-| Discard all… | `workingTreeStore.workingDirectory.files` with ≥1 file | Same as discard-file stub, plus triggers `requestDiscardAll` | Medium |
-| Rename branch… | `branchState.currentBranch` (non-null) | Debug menu handler sets `branchToRename` to a stub branch `{ name: "main", type: BranchType.Local }` | Easy — `Branch` is a simple type |
-| Delete branch… | `branchState.branches` with ≥2 local branches | Debug menu handler sets `branchToDelete` to a stub branch | Easy |
-| Merge… | `branchState.branches` with ≥2 local branches + `currentBranch` | Debug menu handler sets `mergePickerOpen = true` | Easy |
-| Remove repository… | `appStore.selectedRepository` | Debug menu handler calls `setRepositoryToRemove(selectedRepository)` | Easy — already partially wired |
-
-**Proposed approach:** Add a `debug-only` submodule (`src/lib/debug/`) behind `__DEV__` that:
-1. Exports a `injectDebugState(stores)` function callable from the debug menu
-2. Sets up minimal stub state on every store the dialogs read from (a fake repo, a fake branch, fake working-tree files, a fake remote, a fake hook failure)
-3. Is tree-shaken from production builds (only imported in `use-app-controller.ts` behind `__DEV__`)
-4. Is called by each `debug-show-*` menu handler *before* opening the dialog, so the dialog has content to show
-
-This is a small, self-contained spike — one file, one new menu event (`debug-inject-test-state`), called once from each handler. It unblocks visual validation of every dialog without real data.
+The real menu events are completely untouched — clicking "Rename branch" from the context menu uses real data, always. Only the **Help → Show Dialog** submenu triggers stub injection via debug-prefixed events (e.g., `debug-show-rename-branch-dialog` instead of `rename-branch`).
 
 ---
 
@@ -144,4 +124,4 @@ This is a small, self-contained spike — one file, one new menu event (`debug-i
 
 ## Gate Rule
 
-**No sub-slice closes until every TESTABLE dialog in that slice has a PASS in Light and Dark.** DEFERRED dialogs must have their stub-state mechanism implemented and their visual pass completed before sub-slice 2.0 or 2.1 is marked done. The automated gate set is necessary but not sufficient — visual correctness is a human judgement.
+**No sub-slice closes until every dialog in that slice has a PASS in Light and Dark.** The automated gate set is necessary but not sufficient — visual correctness is a human judgement.
