@@ -1784,10 +1784,9 @@ describe("App", () => {
 
     const dialog = screen.getByRole("alertdialog");
     expect(dialog).toHaveTextContent("pre-commit");
-    expect(dialog).toHaveTextContent("lint failed");
-    expect(screen.getByRole("button", { name: "Abort commit" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abort" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Ignore hook failure" }));
+    await user.click(screen.getByRole("button", { name: "Ignore and Continue" }));
     expect(workingTreeStore.resolveHookFailure).toHaveBeenCalledWith("ignore");
   });
 

@@ -8,6 +8,8 @@ import type { PreferencesState, PreferencesStore } from "../../stores/preference
 import { setWindowZoomFactor } from "../../platform/window";
 import type { HookFailureState, WorkingTreeStore } from "../../stores/working-tree-store";
 import { Modal } from "../modal";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -17,6 +19,7 @@ import {
   AlertDialogTitle,
 } from "../../../components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "../../../components/ui/dialog";
+import { TerminalOutput } from "../terminal-output";
 
 const confirmationDialogClassName =
   "confirmation-dialog box-border w-[min(30rem,calc(100vw-2rem))] rounded-[var(--radius-medium)] border border-[var(--border)] bg-[var(--popover)] p-6 shadow-[var(--shadow-dialog)]";
@@ -573,22 +576,51 @@ export function AppDialogs({
 
       {hookFailure !== null && (
         <AlertDialog open>
-          <AlertDialogContent className="sm:max-w-md">
+          <AlertDialogContent className="max-w-[600px]">
             <AlertDialogHeader className="place-items-start text-left">
-              <AlertDialogTitle>Git hook failed</AlertDialogTitle>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <FontAwesomeIcon icon={faCircleExclamation} className="text-yellow-500" />
+                {hookFailure.hook} failed
+              </AlertDialogTitle>
               <AlertDialogDescription>
-                The <strong>{hookFailure.hook}</strong> hook failed. Abort the commit, or ignore
-                this failure and continue?
+                The {hookFailure.hook} hook failed. What would you like to do?
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <pre className="commit-terminal-output">{hookFailure.terminalOutput}</pre>
+            <TerminalOutput output={hookFailure.terminalOutput} />
             <AlertDialogFooter>
-              <button type="button" onClick={() => workingTreeStore.resolveHookFailure("abort")}>
-                Abort commit
-              </button>
-              <button type="button" onClick={() => workingTreeStore.resolveHookFailure("ignore")}>
-                Ignore hook failure
-              </button>
+              {__DARWIN__ ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => workingTreeStore.resolveHookFailure("abort")}
+                  >
+                    Abort
+                  </button>
+                  <button
+                    type="button"
+                    className="destructive-button"
+                    onClick={() => workingTreeStore.resolveHookFailure("ignore")}
+                  >
+                    Ignore and Continue
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="destructive-button"
+                    onClick={() => workingTreeStore.resolveHookFailure("ignore")}
+                  >
+                    Ignore and Continue
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => workingTreeStore.resolveHookFailure("abort")}
+                  >
+                    Abort
+                  </button>
+                </>
+              )}
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
