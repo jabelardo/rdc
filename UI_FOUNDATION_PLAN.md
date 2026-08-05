@@ -1,7 +1,7 @@
 # UI foundation — shadcn/Radix adoption
 
-**Status**: Phase 0 landed (tooling + full token migration). Phases 1–3 (Toast, Dialog, Tooltip)
-not started.
+**Status**: Phases 0–1 landed (tooling + full token migration; the sonner-backed toast). Phases
+2–3 (Dialog, Tooltip) not started.
 **Why now, not later**: rdc is greenfield and not racing to an MVP date — the priority is a strong
 architectural foundation a future open-source collaborator (post-MVP, once the project is
 promoted) can pick up easily. Every hand-rolled component added between now and "later" is more
@@ -155,6 +155,34 @@ document's `MessageStore`/`describeError`/`reportError` design (state and format
 app-specific logic, not a UI-kit concern) is unaffected and stays there. See that document for the
 severity/dismissal design (error/warning persist until dismissed, info auto-dismisses) — this
 phase's job is only to make `sonner` render that design, not to redecide it.
+
+### Phase 1 — landed, actual result
+
+- **shadcn's own generated `sonner.tsx` assumes `next-themes`**, a Next.js theme-context package
+  this app doesn't have. Without a `<ThemeProvider>`, `useTheme()` always falls back to `"system"`
+  and silently ignores a user's explicit light/dark preference in Preferences. Removed
+  `next-themes` entirely; `Toaster` now takes an explicit `theme` prop, threaded from
+  `preferencesState.theme` (the same `ThemeSource` type, already the exact values sonner's own
+  prop expects — no adapter needed).
+- **A real layout bug, caught by the existing Gate-E resize-matrix E2E, not by unit tests**:
+  mounted directly in `app-shell.tsx`, sonner's `<Toaster>` broke `.repository-toolbar` at the
+  715 px floor (confirmed by git-stash bisection against the Phase-0 baseline, which was clean).
+  Root cause: sonner applies its own `position: fixed` via a runtime-injected `<style>` tag keyed
+  off a `data-sonner-toaster` attribute — it does not return a portal. Mounted in place, its
+  outer element is still a real, if usually invisible, child of `.application-shell`'s CSS grid,
+  and an unstyled grid item silently claims a track and pushes every sibling pane over. `fixed`
+  positioning alone does not opt an element out of grid layout; only moving it out of the grid's
+  DOM subtree does. Fixed by wrapping `MessageToasts`' return in `createPortal(..., document.body)`
+  — the same pattern `tooltip.tsx` already uses, and the one the original design called for before
+  a since-corrected implementation shortcut dropped it.
+- **jsdom has no `window.matchMedia`** — sonner calls it on mount to track the OS color-scheme
+  preference and throws without it. Added a fixed-`false` stub to `test-setup.ts`; no test in this
+  suite depends on a real `prefers-color-scheme` result, since the app always passes its own
+  resolved theme explicitly.
+- Full gate set green with all three fixes in: 1,009 frontend tests (16 new, `message-store.ts` +
+  `format-error.ts`), tsc, lint, format, bundle-boundary, a production build, `qualify:phase8a`, and
+  `pnpm test:e2e` (28/28 — including the Gate-E resize matrix that caught the portal bug in the
+  first place).
 
 ## Phase 2 — Dialog
 

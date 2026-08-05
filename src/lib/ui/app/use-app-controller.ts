@@ -31,10 +31,12 @@ import { getDefaultBranchStore } from "../../stores/default-branch-store";
 import { getDefaultCloneStore } from "../../stores/default-clone-store";
 import { getDefaultConflictStore } from "../../stores/default-conflict-store";
 import { getDefaultHistoryStore } from "../../stores/default-history-store";
+import { getDefaultMessageStore } from "../../stores/default-message-store";
 import { getDefaultPreferencesStore } from "../../stores/default-preferences-store";
 import { getDefaultRemoteStore } from "../../stores/default-remote-store";
 import { getDefaultWorkingTreeStore } from "../../stores/default-working-tree-store";
 import type { HistoryState } from "../../stores/history-store";
+import type { MessageState } from "../../stores/message-store";
 import type { PreferencesState } from "../../stores/preferences-store";
 import type { RemoteState } from "../../stores/remote-store";
 import type { SelectedLinesDiscard, WorkingTreeState } from "../../stores/working-tree-store";
@@ -50,6 +52,7 @@ export function useAppController() {
   const [cloneStore] = useState(getDefaultCloneStore);
   const [conflictStore] = useState(getDefaultConflictStore);
   const [historyStore] = useState(getDefaultHistoryStore);
+  const [messageStore] = useState(getDefaultMessageStore);
   const [preferencesStore] = useState(getDefaultPreferencesStore);
   const [remoteStore] = useState(getDefaultRemoteStore);
   const [workingTreeStore] = useState(getDefaultWorkingTreeStore);
@@ -58,6 +61,7 @@ export function useAppController() {
     workingTreeStore.state,
   );
   const [historyState, setHistoryState] = useState<HistoryState>(historyStore.state);
+  const [messageState, setMessageState] = useState<MessageState>(messageStore.state);
   const [remoteState, setRemoteState] = useState<RemoteState>(remoteStore.state);
   const [preferencesState, setPreferencesState] = useState<PreferencesState>(
     preferencesStore.state,
@@ -339,6 +343,7 @@ export function useAppController() {
   );
 
   useEffect(() => historyStore.onDidUpdate(setHistoryState), [historyStore]);
+  useEffect(() => messageStore.onDidUpdate(setMessageState), [messageStore]);
 
   useEffect(() => cloneStore.onDidUpdate(setCloneState), [cloneStore]);
 
@@ -1133,6 +1138,8 @@ export function useAppController() {
     conflictStore,
     historyState,
     historyStore,
+    messageState,
+    messageStore,
     preferencesState,
     preferencesStore,
     remoteState,

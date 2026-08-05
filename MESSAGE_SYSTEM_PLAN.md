@@ -1,6 +1,8 @@
 # Unified message system — errors, warnings and information
 
-**Status**: planned, not started. No slice has landed.
+**Status**: Slice 0 landed (the system itself — store, formatting, and the sonner-backed toast
+from `UI_FOUNDATION_PLAN.md` Phase 1). Zero consumers wired yet, as designed. Slices 1–7 not
+started.
 **Blocks**: Phase 8b QA cycle 2 — the accessibility/dispatch checks for whatever this produces
 belong in that cycle, so this needs to land before it, not during it.
 

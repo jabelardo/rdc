@@ -7,6 +7,7 @@ import { AppDialogs } from "./app-dialogs";
 import { ChangesWorkspace } from "./changes-workspace";
 import { HistoryWorkspace } from "./history-workspace";
 import { MergeConflicts } from "./merge-conflicts";
+import { MessageToasts } from "./message-toasts";
 import { RepositorySidebar } from "./repository-sidebar";
 import { RepositoryToolbar } from "./repository-toolbar";
 import type { AppController } from "./use-app-controller";
@@ -29,6 +30,8 @@ export function AppShell({ controller }: AppShellProps) {
     conflictStore,
     historyState,
     historyStore,
+    messageState,
+    messageStore,
     preferencesState,
     preferencesStore,
     remoteState,
@@ -149,6 +152,11 @@ export function AppShell({ controller }: AppShellProps) {
         } as CSSProperties
       }
     >
+      <MessageToasts
+        messages={messageState.messages}
+        onDismiss={(id) => messageStore.dismiss(id)}
+        theme={preferencesState.theme}
+      />
       {showWindowDragRegion && <WindowDragStrip />}
       <RepositorySidebar
         collapsed={sidebarCollapsed}

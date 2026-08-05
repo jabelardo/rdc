@@ -1,4 +1,5 @@
 import { GitErrorKind } from "../models/git-error-kind";
+import { describeError } from "./format-error";
 import { isCommandError } from "./git-ipc";
 
 /** User-facing recovery for failures shared by clone/fetch/pull/push. */
@@ -29,5 +30,5 @@ export function describeRemoteError(error: unknown): string {
     ].join("\n\n");
   }
 
-  return String(error);
+  return describeError(error);
 }
