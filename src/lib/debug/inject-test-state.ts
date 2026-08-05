@@ -74,7 +74,12 @@ function stubFileChange(path: string): WorkingDirectoryFileChange {
 function setStoreState(store: unknown, state: unknown): void {
   const s = store as Record<string, unknown>;
   s["currentState"] = state;
+  const after = s["currentState"];
   const listeners = s["listeners"] as Set<(state: unknown) => void> | undefined;
+  const count = listeners?.size ?? 0;
+  console.log(
+    `[debug] setStoreState: wrote=${JSON.stringify(state, null, 2)?.slice(0, 200)}… readBack=${JSON.stringify(after, null, 2)?.slice(0, 200)}… listeners=${count} keys=${Object.keys(s).join(",")}`,
+  );
   if (listeners) {
     for (const listener of listeners) {
       listener(state);
@@ -88,18 +93,20 @@ function setStoreState(store: unknown, state: unknown): void {
  * Returns the stub repository for use by controller-level state setters.
  */
 export function injectDebugState(): Repository {
+  console.log("[debug] injectDebugState called");
   const repo = stubRepo();
 
   // ── AppStore ──
-  // AppStore stores fields separately (not a single currentState), so we
-  // set them directly then call emitUpdate() to notify React listeners.
+  // Set the repository list but do NOT set selectedRepository — the
+  // controller's useEffect loads store data when selectedRepository
+  // changes, and that load immediately sets remotes: [] / branches: [],
+  // overwriting our stub data before the dialog renders.
   const appStore = getDefaultAppStore() as unknown as {
     repositories: Repository[];
     selectedRepository: Repository | null;
     emitUpdate: () => void;
   };
   appStore.repositories = [repo];
-  appStore.selectedRepository = repo;
   appStore.emitUpdate();
 
   // ── BranchStore ──

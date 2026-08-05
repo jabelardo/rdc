@@ -254,7 +254,9 @@ export function useAppController() {
         requestMerge();
       },
       debugShowManageRemotesDialog: () => {
+        console.log("[debug] handler called, remoteState:", remoteState.remotes);
         injectDebugState();
+        console.log("[debug] after inject, remoteState:", remoteState.remotes);
         requestManageRemotes();
       },
       debugShowHookFailureDialog: () => {
