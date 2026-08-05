@@ -13,6 +13,7 @@ import { buildRepositoryMenu, createRepositoryMenuEventExecutor } from "../../me
 import { getMainProcessConfig } from "../../platform/config";
 import { showOpenDialog, showSaveDialog } from "../../platform/dialogs";
 import { launchExternalEditor } from "../../platform/editors";
+import { injectDebugState } from "../../debug/inject-test-state";
 import { showFolderContents } from "../../platform/files";
 import { installDefaultCloseRequestHandler } from "../../platform/lifetime";
 import { launchShell } from "../../platform/shells";
@@ -208,13 +209,44 @@ export function useAppController() {
       increaseActiveResizableWidth,
       decreaseActiveResizableWidth,
       createBranch,
-      discardAllChanges: () => requestDiscardAll(false),
-      permanentlyDiscardAllChanges: () => requestDiscardAll(true),
-      renameBranch: renameCurrentBranch,
-      deleteBranch: deleteCurrentBranch,
-      mergeBranch: requestMerge,
-      manageRemotes: requestManageRemotes,
+      discardAllChanges: () => {
+        if (__DEV__ && workingTreeState.workingDirectory?.files.length === 0) {
+          injectDebugState();
+        }
+        return requestDiscardAll(false);
+      },
+      permanentlyDiscardAllChanges: () => {
+        if (__DEV__ && workingTreeState.workingDirectory?.files.length === 0) {
+          injectDebugState();
+        }
+        return requestDiscardAll(true);
+      },
+      renameBranch: () => {
+        if (__DEV__ && branchState.currentBranch === null) {
+          injectDebugState();
+        }
+        renameCurrentBranch();
+      },
+      deleteBranch: () => {
+        if (__DEV__ && branchState.branches.length === 0) {
+          injectDebugState();
+        }
+        deleteCurrentBranch();
+      },
+      mergeBranch: () => {
+        if (__DEV__ && branchState.branches.length === 0) {
+          injectDebugState();
+        }
+        requestMerge();
+      },
+      manageRemotes: () => {
+        if (__DEV__ && remoteState.remotes.length === 0) {
+          injectDebugState();
+        }
+        requestManageRemotes();
+      },
       showDiscardFileDialog: () => {
+        injectDebugState();
         const firstFile = workingTreeState.workingDirectory?.files[0];
         if (firstFile !== undefined) {
           setDiscardFileID(firstFile.id);
@@ -222,8 +254,12 @@ export function useAppController() {
           setPermanentlyDiscard(false);
         }
       },
-      showAddRemoteDialog: () => setShowAddRemote(true),
+      showAddRemoteDialog: () => {
+        injectDebugState();
+        setShowAddRemote(true);
+      },
       showRemoveRepositoryDialog: () => {
+        injectDebugState();
         if (appStore.state.selectedRepository !== null) {
           setRepositoryToRemove(appStore.state.selectedRepository);
         }
