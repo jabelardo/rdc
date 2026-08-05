@@ -16,6 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../../../components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogFooter, DialogTitle } from "../../../components/ui/dialog";
 
 const confirmationDialogClassName =
   "confirmation-dialog box-border w-[min(30rem,calc(100vw-2rem))] rounded-[var(--radius-medium)] border border-[var(--border)] bg-[var(--popover)] p-6 shadow-[var(--shadow-dialog)]";
@@ -438,128 +439,136 @@ export function AppDialogs({
       )}
 
       {showManageRemotes && (
-        <Modal
-          className={`${confirmationDialogClassName} manage-remotes-dialog`}
-          role="dialog"
-          aria-labelledby="manage-remotes-title"
-          onDismiss={manageRunning ? undefined : onCloseManageRemotes}
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !manageRunning) {
+              onCloseManageRemotes();
+            }
+          }}
         >
-          <h2 id="manage-remotes-title">Manage remotes</h2>
-          <div className="manage-remotes-toolbar mt-4 flex items-center gap-2">
-            <input
-              type="search"
-              className="grow"
-              aria-label="Filter remotes"
-              placeholder="Filter remotes"
-              value={remoteFilter}
-              disabled={manageRunning}
-              onChange={(event) => onRemoteFilterChange(event.currentTarget.value)}
-            />
-            <button type="button" disabled={manageRunning} onClick={onNewRemote}>
-              New remote
-            </button>
-          </div>
-          {(() => {
-            const filter = remoteFilter.trim().toLowerCase();
-            const filtered = remotes.filter(
-              (remote) =>
-                remote.name.toLowerCase().includes(filter) ||
-                remote.url.toLowerCase().includes(filter),
-            );
-            if (remotes.length === 0) {
-              return <p className="manage-remotes-empty mt-4">This repository has no remotes.</p>;
-            }
-            if (filtered.length === 0) {
-              return <p className="manage-remotes-empty mt-4">No remotes match your filter.</p>;
-            }
-            return (
-              <ul className="manage-remotes-list mt-4 grid list-none gap-[0.4rem] p-0">
-                {filtered.map((remote) => (
-                  <li
-                    key={remote.name}
-                    className="grid items-center gap-3 [grid-template-columns:minmax(0,1fr)_auto]"
-                  >
-                    <span className="min-w-0">
-                      <strong>{remote.name}</strong>{" "}
-                      <small className="break-all">{remote.url}</small>
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={`Remove the "${remote.name}" remote`}
-                      disabled={manageRunning}
-                      onClick={() => onConfirmRemoveRemote(remote.name)}
+          <DialogContent className="sm:max-w-md">
+            <DialogTitle>Manage remotes</DialogTitle>
+            <div className="manage-remotes-toolbar mt-4 flex items-center gap-2">
+              <input
+                type="search"
+                className="grow"
+                aria-label="Filter remotes"
+                placeholder="Filter remotes"
+                value={remoteFilter}
+                disabled={manageRunning}
+                onChange={(event) => onRemoteFilterChange(event.currentTarget.value)}
+              />
+              <button type="button" disabled={manageRunning} onClick={onNewRemote}>
+                New remote
+              </button>
+            </div>
+            {(() => {
+              const filter = remoteFilter.trim().toLowerCase();
+              const filtered = remotes.filter(
+                (remote) =>
+                  remote.name.toLowerCase().includes(filter) ||
+                  remote.url.toLowerCase().includes(filter),
+              );
+              if (remotes.length === 0) {
+                return <p className="manage-remotes-empty mt-4">This repository has no remotes.</p>;
+              }
+              if (filtered.length === 0) {
+                return <p className="manage-remotes-empty mt-4">No remotes match your filter.</p>;
+              }
+              return (
+                <ul className="manage-remotes-list mt-4 grid list-none gap-[0.4rem] p-0">
+                  {filtered.map((remote) => (
+                    <li
+                      key={remote.name}
+                      className="grid items-center gap-3 [grid-template-columns:minmax(0,1fr)_auto]"
                     >
-                      Remove
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            );
-          })()}
-          <div className={dialogActionsClassName}>
-            <button type="button" disabled={manageRunning} onClick={onCloseManageRemotes}>
-              Close
-            </button>
-          </div>
-        </Modal>
+                      <span className="min-w-0">
+                        <strong>{remote.name}</strong>{" "}
+                        <small className="break-all">{remote.url}</small>
+                      </span>
+                      <button
+                        type="button"
+                        aria-label={`Remove the "${remote.name}" remote`}
+                        disabled={manageRunning}
+                        onClick={() => onConfirmRemoveRemote(remote.name)}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
+            <DialogFooter>
+              <button type="button" disabled={manageRunning} onClick={onCloseManageRemotes}>
+                Close
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {showAddRemote && (
-        <Modal
-          className={confirmationDialogClassName}
-          role="dialog"
-          aria-labelledby="add-remote-title"
-          onDismiss={manageRunning ? undefined : onCloseAddRemote}
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !manageRunning) {
+              onCloseAddRemote();
+            }
+          }}
         >
-          <h2 id="add-remote-title">Add a remote</h2>
-          {manageRemoteError !== null && (
-            <p className="application-error" role="alert">
-              {manageRemoteError}
-            </p>
-          )}
-          <form
-            className="manage-remotes-add mt-4 grid gap-2"
-            onSubmit={(event) => {
-              event.preventDefault();
-              onConfirmAddRemote();
-            }}
-          >
-            <label htmlFor="add-remote-name">Name</label>
-            <input
-              id="add-remote-name"
-              autoFocus
-              placeholder="upstream"
-              value={addRemoteName}
-              disabled={manageRunning}
-              onChange={(event) => onAddRemoteNameChange(event.currentTarget.value)}
-            />
-            <label htmlFor="add-remote-url">URL</label>
-            <input
-              id="add-remote-url"
-              placeholder="https://github.com/user/repo.git"
-              value={addRemoteURL}
-              disabled={manageRunning}
-              onChange={(event) => onAddRemoteURLChange(event.currentTarget.value)}
-            />
-            <div className={dialogActionsClassName}>
-              <button type="button" disabled={manageRunning} onClick={onCloseAddRemote}>
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={
-                  manageRunning ||
-                  addRemoteName.trim() === "" ||
-                  /\s/.test(addRemoteName) ||
-                  addRemoteURL.trim() === "" ||
-                  remotes.some((remote) => remote.name === addRemoteName.trim())
-                }
-              >
-                {manageRunning ? "Adding…" : "Add remote"}
-              </button>
-            </div>
-          </form>
-        </Modal>
+          <DialogContent className="sm:max-w-sm">
+            <DialogTitle>Add a remote</DialogTitle>
+            {manageRemoteError !== null && (
+              <p className="application-error" role="alert">
+                {manageRemoteError}
+              </p>
+            )}
+            <form
+              className="manage-remotes-add mt-4 grid gap-2"
+              onSubmit={(event) => {
+                event.preventDefault();
+                onConfirmAddRemote();
+              }}
+            >
+              <label htmlFor="add-remote-name">Name</label>
+              <input
+                id="add-remote-name"
+                autoFocus
+                placeholder="upstream"
+                value={addRemoteName}
+                disabled={manageRunning}
+                onChange={(event) => onAddRemoteNameChange(event.currentTarget.value)}
+              />
+              <label htmlFor="add-remote-url">URL</label>
+              <input
+                id="add-remote-url"
+                placeholder="https://github.com/user/repo.git"
+                value={addRemoteURL}
+                disabled={manageRunning}
+                onChange={(event) => onAddRemoteURLChange(event.currentTarget.value)}
+              />
+              <DialogFooter>
+                <button type="button" disabled={manageRunning} onClick={onCloseAddRemote}>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    manageRunning ||
+                    addRemoteName.trim() === "" ||
+                    /\s/.test(addRemoteName) ||
+                    addRemoteURL.trim() === "" ||
+                    remotes.some((remote) => remote.name === addRemoteName.trim())
+                  }
+                >
+                  {manageRunning ? "Adding…" : "Add remote"}
+                </button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       )}
 
       {hookFailure !== null && (
