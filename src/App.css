@@ -22,6 +22,7 @@
    * text and border Tailwind utilities used there. Values below come from the existing rdc
    * palette, not from the shadcn default theme: a vocabulary switch, not a restyle. See
    * UI_FOUNDATION_PLAN.md mapping table for the full rationale. */
+  color-scheme: light;
   --background: #f5f7fa;
   --foreground: #172033;
   --card: #ffffff;
@@ -1822,6 +1823,7 @@ button:disabled {
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --background: #1d2129;
   --foreground: #f2f4f8;
   --card: #282d37;

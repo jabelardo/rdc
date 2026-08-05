@@ -233,6 +233,25 @@ because every phase after this needs the answer.
   of the app, rather than trusting sonner's independent browser `matchMedia` check to agree with
   it. The same choice applies to Dialog/Tooltip if either ever needs a concrete light/dark
   decision rather than the raw preference.
+- **One DOM signal, not three.** shadcn's docs recommend `next-themes`, which sets three things
+  on `<html>`: a `.dark` class, a `color-scheme` CSS property, and (via React context) the
+  `useTheme()` shape. rdc keeps a single JS-set signal — `document.documentElement.dataset.theme`
+  — and derives everything else from it in CSS, so nothing can drift:
+  - The `.dark` class is *not* set. shadcn's generated components assume it via Tailwind's
+    `dark:` variant, so `App.css:12` redirects that variant to the actual selector
+    (`@custom-variant dark (&:is([data-theme='dark'] *))`). shadcn components read the one
+    attribute through that mapping; no second class is maintained.
+  - `color-scheme` is set in CSS too (`App.css` `:root { color-scheme: light; }` and
+    `:root[data-theme="dark"] { color-scheme: dark; }`), so native form controls and scrollbars
+    follow the same attribute the rest of the theme does — one source of truth (Tauri's resolved
+    theme), not three. This was added after the next-themes comparison surfaced it as the one real
+    gap; the fix is a CSS consequence of the existing attribute, not a second JS write.
+  - The `useTheme()` *shape* is what `theme-provider.tsx` provides; the shape is shadcn's
+    contract, the backing is rdc's. Adopting shadcn does not commit rdc to next-themes (a separate
+    package by a different author, built for Next.js SSR with no Tauri awareness); the tax for not
+    adopting it is per-component (strip the `next-themes` import where a vendored component
+    assumes it — sonner needed it in Phase 1; `dialog.tsx`/`alert-dialog.tsx` don't), not a
+    parallel theme system to maintain.
 
 ## Phase 2 — Dialog
 
