@@ -3112,8 +3112,9 @@ cycle. The next non-human-blocked milestone is Phase 8a automated qualification 
 - Add syntax-highlighted diffs through the Vite worker and the full xterm hook/operation progress
   presentation; move the temporary commit-form hook toggle into persisted hook preferences.
 - Finish webview-native edit context menus and spell checking with their text-input consumers.
-  WebKitGTK suggestions and the Wayland-safe replacement for Electron's synthetic `editMenu` remain
-  an explicit investigation, not an MVP blocker.
+  Transient (non-edit) Linux context menus already ship through direct GTK rather than muda — see
+  the `MIGRATION_MAP.md` §8 note; this item is the separate text-input `editMenu` replacement and
+  its WebKitGTK spelling suggestions, which remain an explicit investigation, not an MVP blocker.
 - CodeMirror 5 may move to 6 later, based on its own tests and profiling.
 
 React 19 supports the upstream class components. For every slice, grep for `ReactDOM.render`, string
@@ -3129,8 +3130,10 @@ throwaway packages while also removing the former acceptance-before-packaging ci
 #### Phase 8a — automated qualification and QA preparation
 
 - Enter only after Phase 7e's autonomous work is complete and the repository has no known automated
-  failures. Every Phase 7a–7d slice already owns a Linux-container `tauri-driver` journey; 8a runs
-  the complete set rather than beginning product E2E late.
+  failures. Every Phase 7a–7d slice once owned a Linux-container `tauri-driver` journey; 8a runs the
+  complete set rather than beginning product E2E late. The later native-menu pivot (Phase 8b)
+  removed the menu-driven subset — those flows are evidenced outside E2E — but the remaining 13-suite
+  set is still the complete automatable product journey.
 - Run all five repository quality gates, the complete Ubuntu 26.04 container journey and automated
   development-build checks for clean launch, configuration/log locations, repository persistence
   and relaunch. Exercise isolated Secret Service or notification daemons only for behavior the MVP
@@ -3150,7 +3153,8 @@ deferred to human QA.
 **Phase 8a complete (2026-07-30):**
 
 - The five repository gates, the Ubuntu 26.04 `tauri-driver` suite (one spec file per product
-  slice; 23 tests across 14 suites since the single-file suite was split) and
+  slice; (**28 tests across 13 suites** on the current native-menu build, down from 14 suites when
+  the menu-driven journeys were removed — see the 8b reconciliation below) and
   `pnpm qualify:phase8a` are green. The container journey now owns isolated XDG config/data roots,
   asserts the exact persisted startup configuration and identifier-scoped log, and retains the
   complete-process repository-persistence check.
@@ -3249,6 +3253,14 @@ The human checks cover:
 - Run the Linux development build in a real Ubuntu 26.04 Wayland session to qualify rendering,
   native dialogs/integrations and the `WEBKIT_DISABLE_COMPOSITING_MODE=1` mitigation outside the
   Xvfb driver harness.
+- **Menu-driven journeys are now native-menu evidence, not E2E.** The Phase 8b pivot to a native
+  menu on every platform (see `MIGRATION_MAP.md` §8) means GTK's native menus have no
+  `tauri-driver` backend, so six formerly-E2E flows — branch rename/delete, discard-all, merge
+  initiation, merge-conflict creation and remote management — are no longer automatable through the
+  menu. They are evidenced by unit/React tests, the debug-only QA state driver
+  (`scripts/qa/qa-linux-matrix.sh` + `qa_driver.rs`), and this human pass. The container suite drops
+  to 13 suites as a result; the underlying git operations and their stores remain product-E2E- and
+  unit-covered as before.
 - **Package last:** only after the development-build QA loop has no agreed blocker, produce the local
   macOS `.app` and installable Linux bundles. Run automated metadata/resource/package smoke checks,
   then a focused installed-artifact pass for clean launch, configuration/log locations, persistence,
@@ -3390,9 +3402,12 @@ The milestone closes only when both target platforms expose the same supported w
 5. Menus, dialogs, close/relaunch, editor/shell launch and MVP preferences operate on both platforms;
    unimplemented parity actions are not presented as working.
 6. Phase 5a's CSP/capability audit and Phase 6a's recovery path are complete.
-7. All repository quality gates pass, every 7a–7d Linux E2E journey is green in the container,
+7. All repository quality gates pass, the Linux E2E journey (13 suites) is green in the container,
    Phase 8a's automated-qualification gate is green, and Phase 8b's iterative QA cycle and final
-   packaging pass are closed with recorded packaged-macOS and real-Wayland Linux results.
+   packaging pass are closed with recorded packaged-macOS and real-Wayland Linux results. The
+   menu-driven flows that native GTK menus make unautomatable (branch rename/delete, discard-all,
+   merge initiation, remote management) are evidenced by unit/React tests, the debug-only QA state
+   driver and the Phase 8b human pass rather than product E2E.
 
 Signing, notarization, automatic updates, GitHub accounts/collaboration, enterprise proxy/certificate
 management, telemetry, the standalone CLI, complete upstream UI parity and Windows are explicitly not
