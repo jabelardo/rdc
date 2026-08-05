@@ -193,6 +193,7 @@ const conflictStore = vi.hoisted(() => ({
 const preferencesStore = vi.hoisted(() => ({
   state: {
     theme: "system" as "light" | "dark" | "system",
+    resolvedTheme: "light" as "light" | "dark",
     zoomFactor: 1.0,
     confirmRepositoryRemoval: true,
     confirmDiscardChanges: true,
@@ -444,6 +445,7 @@ describe("App", () => {
     conflictStore.onDidUpdate.mockReturnValue(vi.fn());
     preferencesStore.state = {
       theme: "system",
+      resolvedTheme: "light",
       zoomFactor: 1.0,
       confirmRepositoryRemoval: true,
       confirmDiscardChanges: true,

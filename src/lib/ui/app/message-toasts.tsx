@@ -2,13 +2,12 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { Toaster } from "../../../components/ui/sonner";
-import type { ThemeSource } from "../../platform/theme";
+import { useTheme } from "../theme-provider";
 import type { Message, MessageSeverity } from "../../stores/message-store";
 
 type MessageToastsProps = {
   readonly messages: ReadonlyArray<Message>;
   readonly onDismiss: (id: string) => void;
-  readonly theme: ThemeSource;
 };
 
 function show(severity: MessageSeverity, text: string, id: string, onDismiss: () => void): void {
@@ -41,8 +40,13 @@ function show(severity: MessageSeverity, text: string, id: string, onDismiss: ()
  * mounted in place it is still a real (if usually invisible) child of `.application-shell`'s CSS
  * grid — an unstyled grid item that silently steals a track and pushes every other pane over.
  * Portalling is what actually takes it out of that layout, not the `fixed` positioning alone.
+ *
+ * Reads `resolvedTheme` (not `theme`) from `useTheme()`, so sonner's colors always match what
+ * Tauri's own OS-level theme detection already decided for the rest of the app, rather than
+ * trusting sonner's independent browser `matchMedia` check to agree with it.
  */
-export function MessageToasts({ messages, onDismiss, theme }: MessageToastsProps) {
+export function MessageToasts({ messages, onDismiss }: MessageToastsProps) {
+  const { resolvedTheme } = useTheme();
   const shown = useRef(new Set<string>());
 
   useEffect(() => {
@@ -64,5 +68,5 @@ export function MessageToasts({ messages, onDismiss, theme }: MessageToastsProps
     }
   }, [messages, onDismiss]);
 
-  return createPortal(<Toaster theme={theme} />, document.body);
+  return createPortal(<Toaster theme={resolvedTheme} />, document.body);
 }

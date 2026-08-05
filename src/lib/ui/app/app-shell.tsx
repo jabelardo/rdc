@@ -155,8 +155,8 @@ export function AppShell({ controller }: AppShellProps) {
       <MessageToasts
         messages={messageState.messages}
         onDismiss={(id) => messageStore.dismiss(id)}
-        theme={preferencesState.theme}
       />
+
       {showWindowDragRegion && <WindowDragStrip />}
       <RepositorySidebar
         collapsed={sidebarCollapsed}

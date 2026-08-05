@@ -184,6 +184,34 @@ phase's job is only to make `sonner` render that design, not to redecide it.
   `pnpm test:e2e` (28/28 — including the Gate-E resize matrix that caught the portal bug in the
   first place).
 
+## Theming — `useTheme()`, not prop-drilling
+
+Landed alongside Phase 1, once passing `theme` as a prop into `MessageToasts` surfaced the real
+question: how does *any* shadcn component get theme-awareness, not just this one. Decided now
+because every phase after this needs the answer.
+
+- `src/lib/ui/theme-provider.tsx` exports `ThemeProvider`/`useTheme()`, matching the shape most
+  shadcn snippets assume from `next-themes` (`{ theme, resolvedTheme, setTheme }`) — but backed by
+  rdc's own `preferences-store.ts` and Tauri-native theme integration, not a second parallel theme
+  system. `next-themes` itself was considered and rejected: adopting it would mean two independent
+  sources of theme truth (its own storage/DOM mechanism versus `preferences-store.ts` +
+  `setNativeThemeSource`), and it has no knowledge of Tauri's OS-level theme API at all.
+- `PreferencesState` gained `resolvedTheme: 'light' | 'dark'` — `theme` with `'system'` resolved to
+  a concrete value. This didn't exist before: theme resolution was a side effect written straight
+  to `document.documentElement.dataset.theme`, never tracked in React state, so nothing reactive
+  could read "is it actually dark right now" without re-deriving it. `applyTheme`/
+  `resolveSystemTheme` (`preferences-store.ts`) now return the resolved value in addition to
+  setting the DOM attribute — one source of truth, not two.
+- `<ThemeProvider>` wraps the app once, in `src/App.tsx`. Any component under it — `MessageToasts`
+  today, Dialog/Tooltip's shadcn primitives next — calls `useTheme()` directly instead of
+  receiving `theme` threaded down as a prop through however many layers separate it from
+  `app-shell.tsx`.
+- `MessageToasts` reads `resolvedTheme`, not `theme`, when it hands sonner a value: this keeps
+  sonner's colors matching what Tauri's own OS-level theme detection already decided for the rest
+  of the app, rather than trusting sonner's independent browser `matchMedia` check to agree with
+  it. The same choice applies to Dialog/Tooltip if either ever needs a concrete light/dark
+  decision rather than the raw preference.
+
 ## Phase 2 — Dialog
 
 Retire `modal.tsx`. Migrate `app-dialogs.tsx`'s 12 call sites onto shadcn's `Dialog`, one at a

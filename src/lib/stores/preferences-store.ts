@@ -8,6 +8,9 @@ export const PreferencesStorageKey = "rdc-preferences-v1";
 
 export type PreferencesState = {
   readonly theme: ThemeSource;
+  /** `theme` with "system" resolved to a concrete value — what `useTheme()` (theme-provider.tsx)
+   * exposes to anything that needs a real light/dark decision rather than the raw preference. */
+  readonly resolvedTheme: "light" | "dark";
   readonly zoomFactor: number;
   readonly confirmRepositoryRemoval: boolean;
   readonly confirmDiscardChanges: boolean;
@@ -34,8 +37,8 @@ type PersistedPreferences = Pick<
 type PreferencesStoreDependencies = {
   readonly getAvailableEditors: typeof getAvailableEditors;
   readonly getAvailableShells: typeof getAvailableShells;
-  readonly setTheme: (theme: ThemeSource) => Promise<void>;
-  readonly resolveSystemTheme: () => Promise<void>;
+  readonly setTheme: (theme: ThemeSource) => Promise<"light" | "dark">;
+  readonly resolveSystemTheme: () => Promise<"light" | "dark">;
 };
 
 const DefaultPreferences: PersistedPreferences = {
@@ -111,17 +114,19 @@ function readPreferences(): PersistedPreferences {
   };
 }
 
-async function applyTheme(theme: ThemeSource): Promise<void> {
+async function applyTheme(theme: ThemeSource): Promise<"light" | "dark"> {
   await setNativeThemeSource(theme);
   if (theme === "system") {
-    await resolveSystemTheme();
-  } else {
-    document.documentElement.dataset.theme = theme;
+    return resolveSystemTheme();
   }
+  document.documentElement.dataset.theme = theme;
+  return theme;
 }
 
-async function resolveSystemTheme(): Promise<void> {
-  document.documentElement.dataset.theme = (await shouldUseDarkColors()) ? "dark" : "light";
+async function resolveSystemTheme(): Promise<"light" | "dark"> {
+  const resolved = (await shouldUseDarkColors()) ? "dark" : "light";
+  document.documentElement.dataset.theme = resolved;
+  return resolved;
 }
 
 export class PreferencesStore {
@@ -130,8 +135,13 @@ export class PreferencesStore {
   private readonly listeners = new Set<(state: PreferencesState) => void>();
 
   public constructor(dependencies: Partial<PreferencesStoreDependencies> = {}) {
+    const preferences = readPreferences();
     this.currentState = {
-      ...readPreferences(),
+      ...preferences,
+      // A real light/dark decision for "system" needs an async round trip (see resolveSystemTheme)
+      // that has not run yet at construction time; "light" matches what the page already looks
+      // like before any theme is applied (the plain, unscoped :root block is the light palette).
+      resolvedTheme: preferences.theme === "dark" ? "dark" : "light",
       editors: [],
       shells: [],
       loading: true,
@@ -173,7 +183,7 @@ export class PreferencesStore {
   public async load(): Promise<void> {
     this.update({ ...this.currentState, loading: true, error: null });
     try {
-      const [editors, shells] = await Promise.all([
+      const [editors, shells, resolvedTheme] = await Promise.all([
         this.dependencies.getAvailableEditors(),
         this.dependencies.getAvailableShells(),
         this.dependencies.setTheme(this.currentState.theme),
@@ -192,6 +202,7 @@ export class PreferencesStore {
         shells,
         selectedExternalEditor,
         selectedShell,
+        resolvedTheme,
         loading: false,
         error: null,
       });
@@ -208,7 +219,8 @@ export class PreferencesStore {
   public async setTheme(theme: ThemeSource): Promise<void> {
     this.updateAndPersist({ theme });
     try {
-      await this.dependencies.setTheme(theme);
+      const resolvedTheme = await this.dependencies.setTheme(theme);
+      this.update({ ...this.currentState, resolvedTheme });
     } catch (error) {
       this.update({ ...this.currentState, error: String(error) });
     }
@@ -219,7 +231,8 @@ export class PreferencesStore {
       return;
     }
     try {
-      await this.dependencies.resolveSystemTheme();
+      const resolvedTheme = await this.dependencies.resolveSystemTheme();
+      this.update({ ...this.currentState, resolvedTheme });
     } catch (error) {
       this.update({ ...this.currentState, error: String(error) });
     }

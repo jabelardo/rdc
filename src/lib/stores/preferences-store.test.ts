@@ -48,7 +48,7 @@ describe("PreferencesStore", () => {
         selectedShell: Shell.Terminal,
       }),
     );
-    const setTheme = vi.fn(async () => undefined);
+    const setTheme = vi.fn(async () => "dark" as const);
     const store = new PreferencesStore({
       getAvailableEditors: vi.fn(async () => editors),
       getAvailableShells: vi.fn(async () => shells),
@@ -85,7 +85,7 @@ describe("PreferencesStore", () => {
     const store = new PreferencesStore({
       getAvailableEditors: vi.fn(async () => editors),
       getAvailableShells: vi.fn(async () => shells),
-      setTheme: vi.fn(async () => undefined),
+      setTheme: vi.fn(async () => "dark" as const),
     });
 
     await store.load();
@@ -112,7 +112,7 @@ describe("PreferencesStore", () => {
     const store = new PreferencesStore({
       getAvailableEditors: vi.fn(async () => []),
       getAvailableShells: vi.fn(async () => []),
-      setTheme: vi.fn(async () => undefined),
+      setTheme: vi.fn(async () => "dark" as const),
     });
 
     await store.load();
@@ -127,7 +127,9 @@ describe("PreferencesStore", () => {
   });
 
   it("persists changes and applies a changed theme immediately", async () => {
-    const setTheme = vi.fn(async () => undefined);
+    const setTheme = vi.fn(async (theme: "light" | "dark" | "system") =>
+      theme === "system" ? "dark" : theme,
+    );
     const store = new PreferencesStore({
       getAvailableEditors: vi.fn(async () => editors),
       getAvailableShells: vi.fn(async () => shells),
@@ -143,6 +145,7 @@ describe("PreferencesStore", () => {
     store.setSelectedShell(Shell.Terminal);
 
     expect(setTheme).toHaveBeenLastCalledWith("light");
+    expect(store.state.resolvedTheme).toBe("light");
     expect(JSON.parse(localStorage.getItem(PreferencesStorageKey)!)).toEqual({
       theme: "light",
       // Derived from the same build constant the store uses, not the literal 1.15. Zoom is not what
@@ -155,5 +158,39 @@ describe("PreferencesStore", () => {
       selectedExternalEditor: "Zed",
       selectedShell: Shell.Terminal,
     });
+  });
+
+  it("refreshes resolvedTheme when the source is system", async () => {
+    const resolveSystemTheme = vi.fn(async () => "dark" as const);
+    const store = new PreferencesStore({
+      getAvailableEditors: vi.fn(async () => editors),
+      getAvailableShells: vi.fn(async () => shells),
+      setTheme: vi.fn(async () => "light" as const),
+      resolveSystemTheme,
+    });
+    await store.load();
+    expect(store.state.theme).toBe("system");
+
+    await store.refreshTheme();
+
+    expect(resolveSystemTheme).toHaveBeenCalledOnce();
+    expect(store.state.resolvedTheme).toBe("dark");
+  });
+
+  it("does not refresh resolvedTheme when the source is an explicit light or dark", async () => {
+    localStorage.setItem(PreferencesStorageKey, JSON.stringify({ theme: "light" }));
+    const resolveSystemTheme = vi.fn(async () => "dark" as const);
+    const store = new PreferencesStore({
+      getAvailableEditors: vi.fn(async () => editors),
+      getAvailableShells: vi.fn(async () => shells),
+      setTheme: vi.fn(async () => "light" as const),
+      resolveSystemTheme,
+    });
+    await store.load();
+
+    await store.refreshTheme();
+
+    expect(resolveSystemTheme).not.toHaveBeenCalled();
+    expect(store.state.resolvedTheme).toBe("light");
   });
 });
