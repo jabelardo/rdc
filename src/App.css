@@ -1325,7 +1325,7 @@ button:disabled {
 .commit-terminal-output {
   box-sizing: border-box;
   max-width: 100%;
-  max-height: 12rem;
+  max-height: 16rem;
   overflow: auto;
   padding: 0.75rem;
   border: 1px solid var(--border);
