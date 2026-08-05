@@ -592,9 +592,13 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
     {
       label: "Show Dialog",
       submenu: [
-        { id: "debug-about", label: "About", action: event("show-about") },
-        { id: "debug-preferences", label: "Preferences", action: event("show-preferences") },
-        { id: "debug-clone", label: "Clone", action: event("clone-repository") },
+        { id: "debug-about", label: "About", action: event("debug-show-about-dialog") },
+        {
+          id: "debug-preferences",
+          label: "Preferences",
+          action: event("debug-show-preferences-dialog"),
+        },
+        { id: "debug-clone", label: "Clone", action: event("debug-show-clone-dialog") },
         {
           id: "debug-show-discard-file-dialog",
           label: "Discard file…",
@@ -603,15 +607,27 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
         {
           id: "debug-discard-all",
           label: "Discard all…",
-          action: event("discard-all-changes"),
+          action: event("debug-show-discard-all-dialog"),
         },
-        { id: "debug-rename-branch", label: "Rename branch…", action: event("rename-branch") },
-        { id: "debug-delete-branch", label: "Delete branch…", action: event("delete-branch") },
-        { id: "debug-merge-branch", label: "Merge…", action: event("merge-branch") },
+        {
+          id: "debug-rename-branch",
+          label: "Rename branch…",
+          action: event("debug-show-rename-branch-dialog"),
+        },
+        {
+          id: "debug-delete-branch",
+          label: "Delete branch…",
+          action: event("debug-show-delete-branch-dialog"),
+        },
+        {
+          id: "debug-merge-branch",
+          label: "Merge…",
+          action: event("debug-show-merge-dialog"),
+        },
         {
           id: "debug-manage-remotes",
           label: "Manage remotes…",
-          action: event("manage-remotes"),
+          action: event("debug-show-manage-remotes-dialog"),
         },
         {
           id: "debug-show-add-remote-dialog",

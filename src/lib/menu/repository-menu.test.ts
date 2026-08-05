@@ -196,6 +196,14 @@ describe("repository application menu", () => {
           showDiscardFileDialog: vi.fn(),
           showAddRemoteDialog: vi.fn(),
           showRemoveRepositoryDialog: vi.fn(),
+          debugShowAboutDialog: vi.fn(),
+          debugShowPreferencesDialog: vi.fn(),
+          debugShowCloneDialog: vi.fn(),
+          debugShowDiscardAllDialog: vi.fn(),
+          debugShowRenameBranchDialog: vi.fn(),
+          debugShowDeleteBranchDialog: vi.fn(),
+          debugShowMergeDialog: vi.fn(),
+          debugShowManageRemotesDialog: vi.fn(),
         },
       );
       const executeStartupAction = createStartupMenuActionExecutor({

@@ -209,42 +209,12 @@ export function useAppController() {
       increaseActiveResizableWidth,
       decreaseActiveResizableWidth,
       createBranch,
-      discardAllChanges: () => {
-        if (__DEV__ && workingTreeState.workingDirectory?.files.length === 0) {
-          injectDebugState();
-        }
-        return requestDiscardAll(false);
-      },
-      permanentlyDiscardAllChanges: () => {
-        if (__DEV__ && workingTreeState.workingDirectory?.files.length === 0) {
-          injectDebugState();
-        }
-        return requestDiscardAll(true);
-      },
-      renameBranch: () => {
-        if (__DEV__ && branchState.currentBranch === null) {
-          injectDebugState();
-        }
-        renameCurrentBranch();
-      },
-      deleteBranch: () => {
-        if (__DEV__ && branchState.branches.length === 0) {
-          injectDebugState();
-        }
-        deleteCurrentBranch();
-      },
-      mergeBranch: () => {
-        if (__DEV__ && branchState.branches.length === 0) {
-          injectDebugState();
-        }
-        requestMerge();
-      },
-      manageRemotes: () => {
-        if (__DEV__ && remoteState.remotes.length === 0) {
-          injectDebugState();
-        }
-        requestManageRemotes();
-      },
+      discardAllChanges: () => requestDiscardAll(false),
+      permanentlyDiscardAllChanges: () => requestDiscardAll(true),
+      renameBranch: renameCurrentBranch,
+      deleteBranch: deleteCurrentBranch,
+      mergeBranch: requestMerge,
+      manageRemotes: requestManageRemotes,
       showDiscardFileDialog: () => {
         injectDebugState();
         const firstFile = workingTreeState.workingDirectory?.files[0];
@@ -263,6 +233,29 @@ export function useAppController() {
         if (appStore.state.selectedRepository !== null) {
           setRepositoryToRemove(appStore.state.selectedRepository);
         }
+      },
+      debugShowAboutDialog: () => setShowAboutDialog(true),
+      debugShowPreferencesDialog: () => setShowPreferencesDialog(true),
+      debugShowCloneDialog: () => setShowCloneDialog(true),
+      debugShowDiscardAllDialog: () => {
+        injectDebugState();
+        requestDiscardAll(false);
+      },
+      debugShowRenameBranchDialog: () => {
+        injectDebugState();
+        renameCurrentBranch();
+      },
+      debugShowDeleteBranchDialog: () => {
+        injectDebugState();
+        deleteCurrentBranch();
+      },
+      debugShowMergeDialog: () => {
+        injectDebugState();
+        requestMerge();
+      },
+      debugShowManageRemotesDialog: () => {
+        injectDebugState();
+        requestManageRemotes();
       },
     });
     const replaceMenu = () => {

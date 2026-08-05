@@ -44,6 +44,14 @@ type RepositoryMenuEnvironment = {
   readonly showDiscardFileDialog?: () => void;
   readonly showAddRemoteDialog?: () => void;
   readonly showRemoveRepositoryDialog?: () => void;
+  readonly debugShowAboutDialog?: () => void;
+  readonly debugShowPreferencesDialog?: () => void;
+  readonly debugShowCloneDialog?: () => void;
+  readonly debugShowDiscardAllDialog?: () => void;
+  readonly debugShowRenameBranchDialog?: () => void;
+  readonly debugShowDeleteBranchDialog?: () => void;
+  readonly debugShowMergeDialog?: () => void;
+  readonly debugShowManageRemotesDialog?: () => void;
 };
 
 function withEnablement(item: MenuItem, enabledByID: ReadonlyMap<string, boolean>): MenuItem {
@@ -323,6 +331,30 @@ export function createRepositoryMenuEventExecutor(
           return false;
         }
         environment.showRemoveRepositoryDialog();
+        return true;
+      case "debug-show-about-dialog":
+        environment.debugShowAboutDialog?.();
+        return true;
+      case "debug-show-preferences-dialog":
+        environment.debugShowPreferencesDialog?.();
+        return true;
+      case "debug-show-clone-dialog":
+        environment.debugShowCloneDialog?.();
+        return true;
+      case "debug-show-discard-all-dialog":
+        environment.debugShowDiscardAllDialog?.();
+        return true;
+      case "debug-show-rename-branch-dialog":
+        environment.debugShowRenameBranchDialog?.();
+        return true;
+      case "debug-show-delete-branch-dialog":
+        environment.debugShowDeleteBranchDialog?.();
+        return true;
+      case "debug-show-merge-dialog":
+        environment.debugShowMergeDialog?.();
+        return true;
+      case "debug-show-manage-remotes-dialog":
+        environment.debugShowManageRemotesDialog?.();
         return true;
       default:
         return false;
