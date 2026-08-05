@@ -8,6 +8,14 @@ import type { PreferencesState, PreferencesStore } from "../../stores/preference
 import { setWindowZoomFactor } from "../../platform/window";
 import type { HookFailureState, WorkingTreeStore } from "../../stores/working-tree-store";
 import { Modal } from "../modal";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../../components/ui/alert-dialog";
 
 const confirmationDialogClassName =
   "confirmation-dialog box-border w-[min(30rem,calc(100vw-2rem))] rounded-[var(--radius-medium)] border border-[var(--border)] bg-[var(--popover)] p-6 shadow-[var(--shadow-dialog)]";
@@ -555,27 +563,26 @@ export function AppDialogs({
       )}
 
       {hookFailure !== null && (
-        <Modal
-          className={confirmationDialogClassName}
-          role="alertdialog"
-          aria-labelledby="hook-failure-title"
-          aria-describedby="hook-failure-message"
-        >
-          <h2 id="hook-failure-title">Git hook failed</h2>
-          <p id="hook-failure-message">
-            The <strong>{hookFailure.hook}</strong> hook failed. Abort the commit, or ignore this
-            failure and continue?
-          </p>
-          <pre className="commit-terminal-output">{hookFailure.terminalOutput}</pre>
-          <div className={dialogActionsClassName}>
-            <button type="button" onClick={() => workingTreeStore.resolveHookFailure("abort")}>
-              Abort commit
-            </button>
-            <button type="button" onClick={() => workingTreeStore.resolveHookFailure("ignore")}>
-              Ignore hook failure
-            </button>
-          </div>
-        </Modal>
+        <AlertDialog open>
+          <AlertDialogContent className="sm:max-w-md">
+            <AlertDialogHeader className="place-items-start text-left">
+              <AlertDialogTitle>Git hook failed</AlertDialogTitle>
+              <AlertDialogDescription>
+                The <strong>{hookFailure.hook}</strong> hook failed. Abort the commit, or ignore
+                this failure and continue?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <pre className="commit-terminal-output">{hookFailure.terminalOutput}</pre>
+            <AlertDialogFooter>
+              <button type="button" onClick={() => workingTreeStore.resolveHookFailure("abort")}>
+                Abort commit
+              </button>
+              <button type="button" onClick={() => workingTreeStore.resolveHookFailure("ignore")}>
+                Ignore hook failure
+              </button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
 
       {repositoryToRemove !== null && (
