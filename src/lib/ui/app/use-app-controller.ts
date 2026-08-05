@@ -214,6 +214,20 @@ export function useAppController() {
       deleteBranch: deleteCurrentBranch,
       mergeBranch: requestMerge,
       manageRemotes: requestManageRemotes,
+      showDiscardFileDialog: () => {
+        const firstFile = workingTreeState.workingDirectory?.files[0];
+        if (firstFile !== undefined) {
+          setDiscardFileID(firstFile.id);
+          setDiscardSelection(false);
+          setPermanentlyDiscard(false);
+        }
+      },
+      showAddRemoteDialog: () => setShowAddRemote(true),
+      showRemoveRepositoryDialog: () => {
+        if (appStore.state.selectedRepository !== null) {
+          setRepositoryToRemove(appStore.state.selectedRepository);
+        }
+      },
     });
     const replaceMenu = () => {
       if (controller === undefined) {

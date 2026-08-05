@@ -41,6 +41,9 @@ type RepositoryMenuEnvironment = {
   readonly deleteBranch: () => void;
   readonly mergeBranch: () => void;
   readonly manageRemotes: () => void;
+  readonly showDiscardFileDialog?: () => void;
+  readonly showAddRemoteDialog?: () => void;
+  readonly showRemoveRepositoryDialog?: () => void;
 };
 
 function withEnablement(item: MenuItem, enabledByID: ReadonlyMap<string, boolean>): MenuItem {
@@ -291,6 +294,24 @@ export function createRepositoryMenuEventExecutor(
           return false;
         }
         environment.manageRemotes();
+        return true;
+      case "debug-show-discard-file-dialog":
+        if (environment.showDiscardFileDialog === undefined) {
+          return false;
+        }
+        environment.showDiscardFileDialog();
+        return true;
+      case "debug-show-add-remote-dialog":
+        if (environment.showAddRemoteDialog === undefined) {
+          return false;
+        }
+        environment.showAddRemoteDialog();
+        return true;
+      case "debug-show-remove-repository-dialog":
+        if (environment.showRemoveRepositoryDialog === undefined) {
+          return false;
+        }
+        environment.showRemoveRepositoryDialog();
         return true;
       default:
         return false;

@@ -87,4 +87,7 @@ export type MenuEvent =
   | "test-update-existing-git-lfs-filters"
   | "test-upstream-already-exists"
   | "test-about-dialog"
-  | "test-cli-action";
+  | "test-cli-action"
+  | "debug-show-discard-file-dialog"
+  | "debug-show-add-remote-dialog"
+  | "debug-show-remove-repository-dialog";

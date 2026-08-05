@@ -587,70 +587,24 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
     });
   }
 
-  const errorDialogs: TemplateItem[] = [
-    {
-      label: "Confirm Committing Conflicted Files",
-      action: event("test-confirm-committing-conflicted-files"),
-    },
-    {
-      label: "Discarded Changes Will Be Unrecoverable",
-      action: event("test-discarded-changes-will-be-unrecoverable"),
-    },
-    {
-      label: "Do you want to fork this repository?",
-      action: event("test-do-you-want-fork-this-repository"),
-    },
-    {
-      label: "Newer Commits On Remote",
-      action: event("test-newer-commits-on-remote"),
-    },
-    { label: "Files Too Large", action: event("test-files-too-large") },
-    {
-      label: "Generic Git Authentication",
-      action: event("test-generic-git-authentication"),
-    },
-    {
-      label: "Invalidated Account Token",
-      action: event("test-invalidated-account-token"),
-    },
-  ];
-  if (platform === "macos") {
-    errorDialogs.push({
-      label: "Move to Application Folder",
-      action: event("test-move-to-application-folder"),
-    });
-  }
-  errorDialogs.push(
-    { label: "Push Rejected", action: event("test-push-rejected") },
-    {
-      label: "Re-Authorization Required",
-      action: event("test-re-authorization-required"),
-    },
-    {
-      label: "Unable to Locate Git",
-      action: event("test-unable-to-locate-git"),
-    },
-    {
-      label: "Unable to Open External Editor",
-      action: event("test-no-external-editor"),
-    },
-    {
-      label: "Unable to Open Shell",
-      action: event("test-unable-to-open-shell"),
-    },
-    { label: "Untrusted Server", action: event("test-untrusted-server") },
-    {
-      label: "Update Existing Git LFS Filters?",
-      action: event("test-update-existing-git-lfs-filters"),
-    },
-    {
-      label: "Upstream Already Exists",
-      action: event("test-upstream-already-exists"),
-    },
-  );
-
   items.push(
     separator(),
+    {
+      label: "Show Dialog",
+      submenu: [
+        { label: "About", action: event("show-about") },
+        { label: "Preferences", action: event("show-preferences") },
+        { label: "Clone", action: event("clone-repository") },
+        { label: "Discard file…", action: event("debug-show-discard-file-dialog") },
+        { label: "Discard all…", action: event("discard-all-changes") },
+        { label: "Rename branch…", action: event("rename-branch") },
+        { label: "Delete branch…", action: event("delete-branch") },
+        { label: "Merge…", action: event("merge-branch") },
+        { label: "Manage remotes…", action: event("manage-remotes") },
+        { label: "Add remote…", action: event("debug-show-add-remote-dialog") },
+        { label: "Remove repository…", action: event("debug-show-remove-repository-dialog") },
+      ],
+    },
     {
       label: "Crash main process…",
       action: { type: "crash-main-process" },
@@ -659,63 +613,6 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
     { label: "Prune branches", action: event("test-prune-branches") },
     { label: "Show notification", action: event("test-notification") },
     { label: "Dispatch CLI action", action: event("test-cli-action") },
-    {
-      label: "Show popup",
-      submenu: [
-        {
-          label: "Release notes",
-          action: event("test-release-notes-popup"),
-        },
-        { label: "Thank you", action: event("test-thank-you-popup") },
-        { label: "Show App Error", action: event("test-app-error") },
-        { label: "Octicons", action: event("test-icons") },
-        {
-          label: "About dialog (test mode)",
-          action: event("test-about-dialog"),
-        },
-        {
-          label: "Copilot snapshot card",
-          action: event("test-copilot-snapshot-card"),
-        },
-      ],
-    },
-    {
-      label: "Show banner",
-      submenu: [
-        { label: "Update banner", action: event("test-update-banner") },
-        {
-          label: "Update banner (priority)",
-          action: event("test-prioritized-update-banner"),
-        },
-        {
-          label: "Showcase Update banner",
-          action: event("test-showcase-update-banner"),
-        },
-        {
-          label: `${platform === "macos" ? "Apple silicon" : "Arm64"} banner`,
-          action: event("test-arm64-banner"),
-        },
-        { label: "Thank you", action: event("test-thank-you-banner") },
-        {
-          label: "Reorder Successful",
-          action: event("test-reorder-banner"),
-        },
-        { label: "Reorder Undone", action: event("test-undone-banner") },
-        {
-          label: "Cherry Pick Conflicts",
-          action: event("test-cherry-pick-conflicts-banner"),
-        },
-        {
-          label: "Merge Successful",
-          action: event("test-merge-successful-banner"),
-        },
-        {
-          label: "OS Version No Longer Supported",
-          action: event("test-os-version-no-longer-supported"),
-        },
-      ],
-    },
-    { label: "Show Error Dialogs", submenu: errorDialogs },
   );
   return items;
 }

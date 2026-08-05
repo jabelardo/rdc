@@ -333,6 +333,37 @@ not by memory; if Radix's portal `z-index` ordering differs, that's an `App.css`
 `982`, `1501`, `1578`, `1700`, `1785`, `1880` and the manage-remotes/add-remote ones) pass unchanged
 against the new primitives — they should, since the accessible-name queries are primitive-agnostic.
 
+### Phase 2 — per-dialog visual validation
+
+Each dialog migration changes padding (`p-6`→`p-4`), border (`border`→`ring-1`), backdrop
+(`42%`→`10%`+blur), max-width, and header alignment. None of these are caught by the automated
+gate set — a wrong shade or misaligned header is invisible to every test. So **every migrated
+dialog gets a human visual check in Light and Dark before its sub-slice closes**, recorded in
+`qa/phase-8b/dialog-migration-checklist.md` (created in sub-slice 2.0). The check is per-dialog,
+not per-phase: a dialog is not "done" until both the gates are green *and* the visual check is
+signed off.
+
+What to verify per dialog, in Light and Dark:
+
+- **Backdrop** — dim but content readable; `forced-colors` override (`App.css:1810`) still
+  targets the new class (the `.dialog-backdrop` selector may need re-pointing to Radix's
+  `[data-slot="dialog-overlay"]` / `[data-slot="alert-dialog-overlay"]`).
+- **Header alignment** — shadcn's `AlertDialogHeader` centers by default below `sm:`; rdc's 715px
+  floor is above it, but pin left-alignment (`place-items-start text-left`) rather than assume.
+- **Width** — each dialog's custom width override (preferences `min(34rem,...)`, manage-remotes
+  wider for the list, hook-failure wider for the `<pre>`) is applied via `className` and not
+  clipped.
+- **Action buttons** — `DialogFooter`/`AlertDialogFooter` layout (border-t, bg-muted/50) reads
+  as a footer, not as body content; destructive buttons keep the `destructive-button` styling.
+- **Focus** — first focusable element gets focus on open; Tab cycles within; Escape closes
+  dismissible dialogs and is a no-op on decision-required ones (hook-failure).
+- **Nested case** (manage-remotes → add-remote) — the top dialog traps focus; Escape closes only
+  the top dialog; backdrop-click closes only the top dialog; closing the top returns focus to the
+  bottom, not to the app.
+
+The pilot sub-slice (2.0) establishes the checklist template and signs off the two pilot dialogs;
+sub-slices 2.1 and 2.2 fill in one row per migrated dialog as it lands.
+
 ## Phase 3 — Tooltip
 
 Last, because it's the one phase with real product behavior to preserve, not just markup to swap.
