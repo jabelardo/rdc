@@ -1,13 +1,35 @@
 # UI foundation — shadcn/Radix adoption
 
-**Status**: Phases 0–1 landed (tooling + full token migration; the sonner-backed toast). Phases
-2–3 (Dialog, Tooltip) not started.
+**Status**: Phases 0–1 landed (tooling + full token migration; the sonner-backed toast; the
+`useTheme()` provider). **Stage 2 = Phases 2–3 (Dialog, Tooltip) — the next work.** See "Stages"
+below for where this sits in the engineering round.
 **Why now, not later**: rdc is greenfield and not racing to an MVP date — the priority is a strong
 architectural foundation a future open-source collaborator (post-MVP, once the project is
 promoted) can pick up easily. Every hand-rolled component added between now and "later" is more
 migration debt, not less, so this happens before the message system's toast rather than after.
 **Blocks**: `MESSAGE_SYSTEM_PLAN.md`'s Slice 0 (the toast is this plan's Phase 1, not a separate
 component). Nothing else depends on this landing first.
+
+## Stages
+
+`REMAINING.md`'s "Engineering, this pass — before QA cycle 2" lists three items in dependency order.
+Mapping them to the work that has actually landed keeps the sequencing honest:
+
+| Stage | Plan | State |
+|---|---|---|
+| 0 | `UI_FOUNDATION_PLAN.md` Phase 0 (tooling + token migration) | landed (`c6f8765`) |
+| 1 | `UI_FOUNDATION_PLAN.md` Phase 1 + `MESSAGE_SYSTEM_PLAN.md` Slice 0 + the `useTheme()` sidebar | landed (`1897ddf`, `dd903a7`) — `reportError` has zero production callers, by design |
+| **2** | **`UI_FOUNDATION_PLAN.md` Phase 2 (Dialog) + Phase 3 (Tooltip)** — this stage | **next** |
+| 3 | `MESSAGE_SYSTEM_PLAN.md` Slices 1–7 (wire `reportError` into every store, remove `.application-error`) | after the Dialog primitive they consume exists |
+| 4 | `BRANCH_OPERATIONS_PLAN.md` Slice 4 (abort merge) | independent; any time |
+
+Stage 2 finishes the foundation before any message-system consumer, because `MESSAGE_SYSTEM_PLAN.md`
+Slice 1's three known-broken dialogs (rename-branch, delete-branch, manage-remotes remove) all live in
+`app-dialogs.tsx` — the very file Phase 2 migrates. Migrating the primitive first means Slice 1 wires
+`reportError` onto a stable Dialog rather than onto the hand-rolled `Modal` that Phase 2 then has to
+carry that wiring through. The two passes touch different lines (markup swap vs. error-field
+removal), so the double-touch on those three dialogs is mild and each slice stays independently
+gated.
 
 ## Why shadcn, specifically
 
@@ -222,6 +244,76 @@ decide per assertion whether it now tests pure Radix behavior (already covered u
 drop) or an app-specific detail (`aria-labelledby`/`aria-describedby` wiring, the specific
 backdrop/z-index contract other code depends on) that still needs rdc's own test.
 
+### Phase 2 — execution breakdown
+
+The 12 call sites, read from `app-dialogs.tsx` (line numbers current as of stage 1):
+
+| # | Line | Dialog | Role | `onDismiss` |
+|---|---|---|---|---|
+| 1 | `:166` | discard-file | alertdialog | `discarding ? undefined : onCancelDiscard` |
+| 2 | `:214` | discard-all | alertdialog | `discarding ? undefined : onCancelDiscardAll` |
+| 3 | `:262` | rename-branch | dialog | `onCancelRename` (form `onSubmit`) |
+| 4 | `:308` | delete-branch | alertdialog | `onCancelDelete` (two-mode: refusal vs. confirm) |
+| 5 | `:364` | merge-picker | dialog | `mergeRunning ? undefined : onCancelMerge` |
+| 6 | `:433` | manage-remotes | dialog | `manageRunning ? undefined : onCloseManageRemotes` |
+| 7 | `:500` | add-remote | dialog | `manageRunning ? undefined : onCloseAddRemote` |
+| 8 | `:558` | hook-failure | alertdialog | *(none — decision required)* |
+| 9 | `:582` | remove-repository | alertdialog | `onCancelRemoveRepository` |
+| 10 | `:610` | about | dialog | `onDismissAbout` |
+| 11 | `:627` | preferences | dialog | `onDismissPreferences` (largest flat form) |
+| 12 | `:768` | clone | dialog | `cloneState.operation === null ? onDismissClone : undefined` |
+
+**Primitive decision.** Radix ships two: `Dialog` (dismissible) and `AlertDialog` (no
+backdrop/Escape dismissal — the accessible contract for "a decision is required"). `Modal` encodes
+the latter today via `onDismiss={undefined}`, which suppresses both Escape and the backdrop click.
+Recommend vendoring **both** `dialog.tsx` and `alert-dialog.tsx`; map the 5 alertdialog sites to
+`AlertDialog` and the 7 dialog sites to `Dialog`. The conditional-`undefined` sites (1, 2, 5, 6, 7,
+12 — "dismissible unless an operation is running") become `onOpenChange={(open) => { if (!open &&
+!running) onClose() }}`, i.e. the same gating, expressed in Radix's controlled-open shape. The one
+pure decision-required site (8, hook-failure) is `AlertDialog` with no `onOpenChange` dismissal at
+all — the case `modal.test.tsx:44` ("does not dismiss a decision dialog without a safe
+cancellation path") already pins, and which `AlertDialog` gives by spec.
+
+**Sub-slice 2.0 — vendor both primitives, pilot the hardest of each.** `npx shadcn add dialog
+alert-dialog`, then apply the same fixes Phase 0/1 needed: the `@custom-variant dark` already
+corrected in `App.css` covers these; drop any `next-themes` import the generators assume (Dialog
+doesn't read theme, but the file may still import it). Pilot:
+- **`Dialog` on manage-remotes (`:433`) + add-remote (`:500`)** — these are sibling conditional
+  `Modal`s that render *stacked* when add-remote opens, the nested-dialog focus case. Radix's
+  `DismissableLayer` + `FocusScope` stack handles nested focus trapping, Escape-closes-top-only,
+  and backdrop-click-on-top-only; proving the pattern here proves the hardest case before
+  repeating it 11 times. If the nested case surfaces a Radix gap, fall back to piloting on
+  preferences (`:627`, the largest flat form) and file the nesting case as a follow-up — but only
+  after reading the gap, not by assuming one.
+- **`AlertDialog` on hook-failure (`:558`)** — the only pure decision-required site; proves the
+  "no dismissal" contract maps cleanly.
+
+Update `App.test.tsx` assertions that touch these three dialogs (the `getByRole("dialog"|
+"alertdialog", { name: "..." })` queries — Radix surfaces the accessible name from `DialogTitle`/
+`AlertDialogTitle`, so the hardcoded `aria-labelledby` ids can go; the `name:` matcher keeps
+working off the title text). Keep `modal.test.tsx` for now — `Modal` is still used by the other 9
+sites. Gate: full seven-gate set plus a manual Light/Dark/System visual pass on the three pilots
+(backdrop colour, focus ring, Escape, and the manage-remotes→add-remote stacking order).
+
+**Sub-slice 2.1 — migrate the remaining 9 call sites mechanically.** Once 2.0 proves the shape,
+this is markup swap + prop remap, one dialog per commit:
+- `Dialog`: rename `:262`, merge `:364`, about `:610`, preferences `:627`, clone `:768`.
+- `AlertDialog`: discard-file `:166`, discard-all `:214`, delete-branch `:308` (two-mode: refusal
+  view vs. confirm-with-checkbox), remove-repository `:582`.
+
+**Sub-slice 2.2 — retire `modal.tsx` and `modal.test.tsx`.** Delete `src/lib/ui/modal.tsx`; grep
+for `<Modal` and the `Modal` import must return zero hits. For `modal.test.tsx`: the focus-trap,
+Tab-cycle and Escape-dismiss assertions test pure Radix behavior now covered upstream → drop. The
+one assertion worth keeping, if any, is an rdc-specific contract other code depends on (the
+backdrop `z-index` relative to the native context menu and sonner's `Toaster` — verify by reading,
+not by memory; if Radix's portal `z-index` ordering differs, that's an `App.css` adjustment, not a
+`modal.test.tsx` test). Likely delete the whole file.
+
+**Per sub-slice verification.** Same gate set as every phase, plus: grep confirms no `<Modal` /
+`modal.tsx` import remains after 2.2; `App.test.tsx`'s dialog assertions (lines `534`, `561`, `572`,
+`982`, `1501`, `1578`, `1700`, `1785`, `1880` and the manage-remotes/add-remote ones) pass unchanged
+against the new primitives — they should, since the accessible-name queries are primitive-agnostic.
+
 ## Phase 3 — Tooltip
 
 Last, because it's the one phase with real product behavior to preserve, not just markup to swap.
@@ -232,6 +324,64 @@ cases `tooltip.test.tsx` already encodes. Land, in order: boundary clearance, th
 layer, then the `dismissAllTooltips()`-equivalent controlled-registry — verify the context-menu
 force-dismiss integration (`use-app-controller.ts`) still works before calling this phase done, not
 just the tooltip in isolation. Rewrite `tooltip.test.tsx` against the new behavior.
+
+### Phase 3 — execution breakdown
+
+The custom behavior to preserve is in `tooltip.tsx` (225 lines) and pinned by `tooltip.test.tsx`
+(5 tests). Three behaviors, in landing order:
+
+1. **Boundary clearance** — a trigger inside a `[data-tooltip-boundary]` clears the *whole*
+   ancestor (e.g. a command bar), not just its own rect, so the bubble never lands inside the bar's
+   padding. Pinned by `tooltip.test.tsx:60` (asserts `bubbleTop() === "75.25px"` — the bar's
+   `bottom` + 7 px gap, not the trigger's `bottom` + gap) and `:77` (no boundary → clears the
+   trigger only, `66.3px`).
+2. **Pointer-Y tracking on tall targets** (`tooltip.tsx:130-150, 194-207`) — hovering a row taller
+   than 100 px repositions the bubble to follow `clientY`. No Radix equivalent; needs a thin custom
+   layer on top of the primitive.
+3. **`dismissAllTooltips()` registry** (`tooltip.tsx:31-38`) — a module-level `Set` of every
+   mounted tooltip's `hide`, called from `use-app-controller.ts:526` and `:879` before a native
+   surface (context menu) covers the trigger. Pinned by `tooltip.test.tsx:112` (closes without a
+   blur/mouseleave — the macOS-context-menu regression) and `:133` (unmount is safe).
+
+**Sub-slice 3.0 — boundary-clearance spike (de-risk, not shippable).** `npx shadcn add tooltip`
+(vendors `@radix-ui/react-tooltip`). *Before writing component code*, write a throwaway test that
+mounts a Radix `Tooltip` inside a `data-tooltip-boundary` container with the exact stubbed rects
+`tooltip.test.tsx:15-49` defines, and asserts `bubbleTop() === "75.25px"`. If
+`collisionBoundary={<ancestor>}` + `collisionPadding={{ top: 36 }}` (the `titlebarGap`) reproduces
+it → proceed. If not → stop; the sketch's "needs proving, not assuming" gate has fired and the
+boundary layer has to be custom, not Radix. This spike exists to fail fast on the one assumption
+this phase rests on.
+
+**Sub-slice 3.1 — boundary clearance + pointer-Y tracking.** Build the rdc `Tooltip` on Radix's
+primitive, portalling to `document.body` (Radix portals by default; verify the bubble is not
+clipped by a workspace pane, which is why today's `tooltip.tsx` portals). Boundary clearance from
+3.0. Pointer-Y tracking: Radix's Popper is anchor-based, not pointer-based, so for tall targets
+keep a custom position layer (`onMouseMove` → controlled offset), and use Radix's positioning for
+the short-trigger-in-a-bar case. Unify both behind one component so call sites don't branch. Port
+`tooltip.test.tsx`'s stubbed-rect tests (boundary, no-boundary, `aria-describedby`-while-open) onto
+the new component; the assertions' exact pixel values are the contract.
+
+**Sub-slice 3.2 — `dismissAllTooltips` registry + context-menu integration.** Replace the
+module-level `openTooltips: Set<() => void>` with the same shape holding Radix-controlled `open`
+setters (the sketch's controlled-registry — Radix `Tooltip.Root` is controllable via
+`open`/`onOpenChange`). Keep the export name `dismissAllTooltips` so `use-app-controller.ts:526,
+879` don't change. The guard is `tooltip.test.tsx:112` (closes on `dismissAllTooltips` without
+blur/mouseleave — the macOS regression this whole mechanism exists for) and `:133` (unmount safe);
+both must pass against the controlled registry. The native-context-menu path itself isn't
+exercisable in jsdom, so the unit test is the guard — do not add an E2E for it (native GTK menus
+have no WebDriver backend; see `MIGRATION_MAP.md` §8).
+
+**Sub-slice 3.3 — retire the old `tooltip.tsx` implementation.** The new component keeps the same
+export names (`Tooltip`, `dismissAllTooltips`), so the ~dozen call sites (`repository-toolbar`,
+`repository-sidebar`, `app-dialogs`, etc.) don't change. Delete the hand-rolled positioning code;
+grep `from "../tooltip"` / `from "./tooltip"` confirms every import resolves to the new file.
+
+**Per sub-slice verification.** Same gate set, plus: the four `tooltip.test.tsx` assertions that
+encode real product behavior (boundary clearance, no-boundary clearance, `dismissAllTooltips`
+closes-without-blur, unmount-safe) pass against the Radix-backed component unchanged in *value*;
+if 3.0's spike forced a custom boundary layer, those assertions are re-derived from the same
+stubbed rects, not relaxed. A manual Light/Dark/System pass on the repository toolbar's tooltips
+(the primary `data-tooltip-boundary` site) confirms the bubble still clears the bar after the swap.
 
 ## Not scoped now
 

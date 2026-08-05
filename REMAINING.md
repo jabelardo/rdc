@@ -91,18 +91,22 @@ collaborator to pick up post-MVP), not minimizing the current diff. In dependenc
 1. **[`UI_FOUNDATION_PLAN.md`](./UI_FOUNDATION_PLAN.md)** — adopt shadcn/Radix as rdc's UI
    foundation: tooling setup, a full switch to shadcn's token vocabulary (not a bridge over rdc's
    existing `--color-*` names), then Toast → Dialog → Tooltip, in that order. Toast is deliberately
-   the pilot for the whole adoption.
+   the pilot for the whole adoption. **Stage 0 (Phase 0) and stage 1 (Phase 1 + `MESSAGE_SYSTEM_PLAN.md`
+   Slice 0 + the `useTheme()` sidebar) have landed; stage 2 = Phases 2–3 (Dialog, Tooltip) is the
+   next work**, with an execution breakdown in `UI_FOUNDATION_PLAN.md` §"Phase 2 — execution
+   breakdown" and §"Phase 3 — execution breakdown".
 2. **[`MESSAGE_SYSTEM_PLAN.md`](./MESSAGE_SYSTEM_PLAN.md)** — the unified error/warning/info toast
    system. No such system exists today: ~7 stores each carry their own `error`/`operationError`
    field rendered by a copy-pasted `<p className="application-error">`, there's no warning/info
    channel at all, and a real formatting bug (`String(error)` on a raw `CommandError` rejection
    renders `"[object Object]"`) has never been exercised by any test. Slice 0 depends on
-   `UI_FOUNDATION_PLAN.md`'s Phase 0 + Phase 1; Slices 1–7 don't.
+   `UI_FOUNDATION_PLAN.md`'s Phase 0 + Phase 1; Slices 1–7 don't. **Slice 0 has landed (stage 1);
+   Slices 1–7 are stage 3, after the Dialog primitive they consume exists.**
 3. **[`BRANCH_OPERATIONS_PLAN.md`](./BRANCH_OPERATIONS_PLAN.md) Slice 4 — abort merge.** The one
    functionality gap found against the 7 MVP exit criteria: `abort_merge` exists and is tested at
    the git-ops/Tauri-command layer, but there is no `conflict-store.ts` method, no button in
    `merge-conflicts.tsx`, and no menu id at all. A user can complete a conflict but never back out
-   of one in-app. Independent of items 1–2 above.
+   of one in-app. Independent of items 1–2 above. **Stage 4; independent, any time.**
 
 **LICENSE (MIT) is added**, copyright holder Jose Gutierrez. `CONTRIBUTING.md`, issue/PR templates,
 README polish and an `ARCHITECTURE.md` newcomer overview are deliberately deferred to the
