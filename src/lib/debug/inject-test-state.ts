@@ -67,6 +67,22 @@ function stubFileChange(path: string): WorkingDirectoryFileChange {
 // ── Store injection ───────────────────────────────────────────────────
 
 /**
+ * Directly set a store's private currentState field and fire its listeners.
+ * Bypasses the private update() method entirely — works regardless of whether
+ * update is accessible via `as any`.
+ */
+function setStoreState(store: unknown, state: unknown): void {
+  const s = store as Record<string, unknown>;
+  s["currentState"] = state;
+  const listeners = s["listeners"] as Set<(state: unknown) => void> | undefined;
+  if (listeners) {
+    for (const listener of listeners) {
+      listener(state);
+    }
+  }
+}
+
+/**
  * Inject minimal stub state into every store the dialogs read from.
  * Sets COMPLETE state (no spread) to avoid stale fields from previous loads.
  * Returns the stub repository for use by controller-level state setters.
@@ -75,6 +91,8 @@ export function injectDebugState(): Repository {
   const repo = stubRepo();
 
   // ── AppStore ──
+  // AppStore stores fields separately (not a single currentState), so we
+  // set them directly then call emitUpdate() to notify React listeners.
   const appStore = getDefaultAppStore() as unknown as {
     repositories: Repository[];
     selectedRepository: Repository | null;
@@ -85,10 +103,7 @@ export function injectDebugState(): Repository {
   appStore.emitUpdate();
 
   // ── BranchStore ──
-  const branchStore = getDefaultBranchStore() as unknown as {
-    update: (state: Record<string, unknown>) => void;
-  };
-  branchStore.update({
+  setStoreState(getDefaultBranchStore(), {
     repositoryPath: repo.path,
     currentBranch: "main",
     defaultBranch: "main",
@@ -106,10 +121,7 @@ export function injectDebugState(): Repository {
   });
 
   // ── RemoteStore ──
-  const remoteStore = getDefaultRemoteStore() as unknown as {
-    update: (state: Record<string, unknown>) => void;
-  };
-  remoteStore.update({
+  setStoreState(getDefaultRemoteStore(), {
     repositoryPath: repo.path,
     remotes: [
       { name: "origin", url: "https://github.com/debug/debug-repo.git" },
@@ -125,10 +137,7 @@ export function injectDebugState(): Repository {
   });
 
   // ── WorkingTreeStore ──
-  const workingTreeStore = getDefaultWorkingTreeStore() as unknown as {
-    update: (state: Record<string, unknown>) => void;
-  };
-  workingTreeStore.update({
+  setStoreState(getDefaultWorkingTreeStore(), {
     repositoryPath: repo.path,
     workingDirectory: WorkingDirectoryStatus.fromFiles([
       stubFileChange("src/app.ts"),
