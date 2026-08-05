@@ -4,26 +4,12 @@
 /*
  ---break---
  */
-/* The dark theme here is `document.documentElement.dataset.theme` (see
- * src/lib/stores/preferences-store.ts), not a `.dark` class — the shadcn-generated components in
- * src/components/ui/** use Tailwind dark: variants, so this custom variant has to point at the
- * actual selector in use, or every dark: utility in a vendored component would silently never
- * fire. */
 @custom-variant dark (&:is([data-theme='dark'] *));
 
-/*
- * Extracted components use Tailwind for local layout primitives. This stylesheet keeps the
- * shared visual system, platform behavior, state selectors, and responsive relationships that
- * span component boundaries.
- */
 
 :root {
-  /* This is the shadcn token vocabulary — read by src/components/ui/** and by the background,
-   * text and border Tailwind utilities used there. Values below come from the existing rdc
-   * palette, not from the shadcn default theme: a vocabulary switch, not a restyle. See
-   * UI_FOUNDATION_PLAN.md mapping table for the full rationale. */
   color-scheme: light;
-  --background: #f5f7fa;
+  --background: #eef2f7;
   --foreground: #172033;
   --card: #ffffff;
   --card-foreground: #172033;
@@ -35,10 +21,7 @@
   --secondary-foreground: #172033;
   --muted: #eef2f7;
   --muted-foreground: #657087;
-  /* shadcn's "accent" is a subtle hover/selected background for interactive list items — a
-   * different concept from rdc's own brand-accent token below, kept distinct rather than
-   * conflated under one name. */
-  --accent: #eef2f7;
+  --accent: #f5f7fa;
   --accent-foreground: #172033;
   --destructive: #a82231;
   --border: #d8dee9;
@@ -46,9 +29,8 @@
   --ring: #315fbd;
   --radius: 0.5rem;
 
-  /* rdc's own extensions — no shadcn-standard slot exists for these. */
   --color-surface-subtle: #eef2f7;
-  --color-button: var(--card);
+  --color-button: var(--background);
   --color-border-strong: #b8c2d1;
   --color-text-muted: #657087;
   --color-accent: #315fbd;
@@ -138,8 +120,6 @@ button:disabled {
 }
 
 .application-shell.webview-titlebar {
-  /* The overlay needs enough height to read as persistent window chrome while
-   * remaining a deliberately compact drag target. */
   grid-template-rows: 2.4rem minmax(0, 1fr);
 }
 
@@ -370,10 +350,6 @@ button:disabled {
   max-height: none;
 }
 
-/* The filter and new-branch inputs sit flush against the scroll container's
- * content box, so the global `outline-offset: 2px` focus ring is clipped by
- * `overflow: auto` on `.sidebar-panel-content`. An inset ring can't be clipped
- * and keeps the same 2px accent treatment (it also follows border-radius). */
 .sidebar-panel-content input:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 2px var(--color-accent);
@@ -509,13 +485,6 @@ button:disabled {
   overflow-wrap: anywhere;
   white-space: pre-line;
   -webkit-app-region: no-drag;
-
-  /* No `opacity: 1 !important` here. An important declaration outranks a CSS animation, so forcing
-     opacity defeated `tooltip-appear`'s `from { opacity: 0 }` while `animation-fill-mode: both`
-     still held the rest of that keyframe through the delay. The bubble was therefore fully visible
-     for the whole 250ms, parked at `translateY(-0.15rem)`, and then slid down when the animation
-     finally ran — a visible jump, and a phantom 1.95px "overlap" of the command bar in the visual
-     E2E, since 0.15rem is 1.95px at this 13px root. Let the keyframes own opacity. */
   animation: tooltip-appear 80ms ease var(--tooltip-delay) both;
 }
 
@@ -1687,10 +1656,6 @@ button:disabled {
   color: var(--foreground);
   background-color: var(--card);
   font: inherit;
-  /* WebKitGTK draws `appearance: auto` selects as the system GTK widget, which
-   * ignores CSS color/background and stays light in dark mode. Rendering the
-   * control from CSS (with a chevron in place of the native arrow) is what
-   * makes the closed control follow the theme. */
   appearance: none;
   -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%23556070' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
@@ -1998,9 +1963,6 @@ button:disabled {
  ---break---
  */
 @theme inline {
-  /* System font stack, matching what :root declared before this migration — shadcn's vendored
-   * components use the `font-sans` utility (see `html { @apply font-sans }` below), so this is
-   * the one place that stack needs to be declared now. */
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --color-ring: var(--ring);
   --color-input: var(--input);
