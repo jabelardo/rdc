@@ -50,13 +50,7 @@
         "font-src": ["'self'", "data:", "http://localhost:1420"],
         "form-action": ["'self'"],
         "frame-src": ["'none'"],
-        "img-src": [
-          "'self'",
-          "data:",
-          "blob:",
-          "rdc-blob:",
-          "http://localhost:1420"
-        ],
+        "img-src": ["'self'", "data:", "blob:", "rdc-blob:", "http://localhost:1420"],
         "manifest-src": ["'self'", "http://localhost:1420"],
         "object-src": ["'none'"],
         "script-src": ["'self'", "http://localhost:1420"],

@@ -1,190 +1,169 @@
-import { useEffect, useRef, useState } from 'react'
-import { join } from '@tauri-apps/api/path'
-import { BranchType, type Branch } from '../../../models/branch'
-import type { Repository } from '../../../models/repository'
-import { getCloneDirectoryName } from '../../clone-destination'
-import { getMergedBranches } from '../../branch-ipc'
-import { initRepository } from '../../git-ipc'
-import { installApplicationMenu } from '../../menu/application-menu'
-import { showContextMenu } from '../../platform/menu'
-import { dismissAllTooltips } from '../tooltip'
-import { currentMenuPlatform } from '../../menu/default-menu'
-import {
-  buildRepositoryMenu,
-  createRepositoryMenuEventExecutor,
-} from '../../menu/repository-menu'
-import { getMainProcessConfig } from '../../platform/config'
-import { showOpenDialog, showSaveDialog } from '../../platform/dialogs'
-import { launchExternalEditor } from '../../platform/editors'
-import { showFolderContents } from '../../platform/files'
-import { installDefaultCloseRequestHandler } from '../../platform/lifetime'
-import { launchShell } from '../../platform/shells'
-import { onNativeThemeUpdated } from '../../platform/theme'
-import { useQaStateDriver } from './use-qa-state-driver'
-import {
-  openRepositoryInNewWindow,
-  sendReady,
-  setWindowTitle,
-} from '../../platform/window'
-import { shouldShowWindowDragRegion } from '../../platform/window-drag-region'
-import { setWindowZoomFactor } from '../../platform/window'
-import type { AppStoreState } from '../../stores/app-store'
-import type { BranchState } from '../../stores/branch-store'
-import type { MergeInitiationResult } from '../../stores/branch-store'
-import type { CloneState } from '../../stores/clone-store'
-import type { ConflictState } from '../../stores/conflict-store'
-import { getDefaultAppStore } from '../../stores/default-app-store'
-import { getDefaultBranchStore } from '../../stores/default-branch-store'
-import { getDefaultCloneStore } from '../../stores/default-clone-store'
-import { getDefaultConflictStore } from '../../stores/default-conflict-store'
-import { getDefaultHistoryStore } from '../../stores/default-history-store'
-import { getDefaultPreferencesStore } from '../../stores/default-preferences-store'
-import { getDefaultRemoteStore } from '../../stores/default-remote-store'
-import { getDefaultWorkingTreeStore } from '../../stores/default-working-tree-store'
-import type { HistoryState } from '../../stores/history-store'
-import type { PreferencesState } from '../../stores/preferences-store'
-import type { RemoteState } from '../../stores/remote-store'
-import type {
-  SelectedLinesDiscard,
-  WorkingTreeState,
-} from '../../stores/working-tree-store'
-import type { SidebarSectionID } from '../sidebar-sections'
+import { useEffect, useRef, useState } from "react";
+import { join } from "@tauri-apps/api/path";
+import { BranchType, type Branch } from "../../../models/branch";
+import type { Repository } from "../../../models/repository";
+import { getCloneDirectoryName } from "../../clone-destination";
+import { getMergedBranches } from "../../branch-ipc";
+import { initRepository } from "../../git-ipc";
+import { installApplicationMenu } from "../../menu/application-menu";
+import { showContextMenu } from "../../platform/menu";
+import { dismissAllTooltips } from "../tooltip";
+import { currentMenuPlatform } from "../../menu/default-menu";
+import { buildRepositoryMenu, createRepositoryMenuEventExecutor } from "../../menu/repository-menu";
+import { getMainProcessConfig } from "../../platform/config";
+import { showOpenDialog, showSaveDialog } from "../../platform/dialogs";
+import { launchExternalEditor } from "../../platform/editors";
+import { showFolderContents } from "../../platform/files";
+import { installDefaultCloseRequestHandler } from "../../platform/lifetime";
+import { launchShell } from "../../platform/shells";
+import { onNativeThemeUpdated } from "../../platform/theme";
+import { useQaStateDriver } from "./use-qa-state-driver";
+import { openRepositoryInNewWindow, sendReady, setWindowTitle } from "../../platform/window";
+import { shouldShowWindowDragRegion } from "../../platform/window-drag-region";
+import { setWindowZoomFactor } from "../../platform/window";
+import type { AppStoreState } from "../../stores/app-store";
+import type { BranchState } from "../../stores/branch-store";
+import type { MergeInitiationResult } from "../../stores/branch-store";
+import type { CloneState } from "../../stores/clone-store";
+import type { ConflictState } from "../../stores/conflict-store";
+import { getDefaultAppStore } from "../../stores/default-app-store";
+import { getDefaultBranchStore } from "../../stores/default-branch-store";
+import { getDefaultCloneStore } from "../../stores/default-clone-store";
+import { getDefaultConflictStore } from "../../stores/default-conflict-store";
+import { getDefaultHistoryStore } from "../../stores/default-history-store";
+import { getDefaultPreferencesStore } from "../../stores/default-preferences-store";
+import { getDefaultRemoteStore } from "../../stores/default-remote-store";
+import { getDefaultWorkingTreeStore } from "../../stores/default-working-tree-store";
+import type { HistoryState } from "../../stores/history-store";
+import type { PreferencesState } from "../../stores/preferences-store";
+import type { RemoteState } from "../../stores/remote-store";
+import type { SelectedLinesDiscard, WorkingTreeState } from "../../stores/working-tree-store";
+import type { SidebarSectionID } from "../sidebar-sections";
 
-const rendererStartTime = performance.now()
-const rendererPlatform = currentMenuPlatform()
-export type RepositoryView = 'changes' | 'history'
+const rendererStartTime = performance.now();
+const rendererPlatform = currentMenuPlatform();
+export type RepositoryView = "changes" | "history";
 
 export function useAppController() {
-  const [appStore] = useState(getDefaultAppStore)
-  const [branchStore] = useState(getDefaultBranchStore)
-  const [cloneStore] = useState(getDefaultCloneStore)
-  const [conflictStore] = useState(getDefaultConflictStore)
-  const [historyStore] = useState(getDefaultHistoryStore)
-  const [preferencesStore] = useState(getDefaultPreferencesStore)
-  const [remoteStore] = useState(getDefaultRemoteStore)
-  const [workingTreeStore] = useState(getDefaultWorkingTreeStore)
-  const [appState, setAppState] = useState<AppStoreState>(appStore.state)
+  const [appStore] = useState(getDefaultAppStore);
+  const [branchStore] = useState(getDefaultBranchStore);
+  const [cloneStore] = useState(getDefaultCloneStore);
+  const [conflictStore] = useState(getDefaultConflictStore);
+  const [historyStore] = useState(getDefaultHistoryStore);
+  const [preferencesStore] = useState(getDefaultPreferencesStore);
+  const [remoteStore] = useState(getDefaultRemoteStore);
+  const [workingTreeStore] = useState(getDefaultWorkingTreeStore);
+  const [appState, setAppState] = useState<AppStoreState>(appStore.state);
   const [workingTreeState, setWorkingTreeState] = useState<WorkingTreeState>(
-    workingTreeStore.state
-  )
-  const [historyState, setHistoryState] = useState<HistoryState>(
-    historyStore.state
-  )
-  const [remoteState, setRemoteState] = useState<RemoteState>(remoteStore.state)
+    workingTreeStore.state,
+  );
+  const [historyState, setHistoryState] = useState<HistoryState>(historyStore.state);
+  const [remoteState, setRemoteState] = useState<RemoteState>(remoteStore.state);
   const [preferencesState, setPreferencesState] = useState<PreferencesState>(
-    preferencesStore.state
-  )
-  const [branchState, setBranchState] = useState<BranchState>(branchStore.state)
-  const [cloneState, setCloneState] = useState<CloneState>(cloneStore.state)
-  const [conflictState, setConflictState] = useState<ConflictState>(
-    conflictStore.state
-  )
-  const [repositoryView, setActiveRepositoryView] =
-    useState<RepositoryView>('changes')
-  const activeRepositoryView = useRef<RepositoryView>('changes')
-  const pendingRepositoryView = useRef<RepositoryView | null>(null)
-  const repositoryViewTransitionID = useRef(0)
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+    preferencesStore.state,
+  );
+  const [branchState, setBranchState] = useState<BranchState>(branchStore.state);
+  const [cloneState, setCloneState] = useState<CloneState>(cloneStore.state);
+  const [conflictState, setConflictState] = useState<ConflictState>(conflictStore.state);
+  const [repositoryView, setActiveRepositoryView] = useState<RepositoryView>("changes");
+  const activeRepositoryView = useRef<RepositoryView>("changes");
+  const pendingRepositoryView = useRef<RepositoryView | null>(null);
+  const repositoryViewTransitionID = useRef(0);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedSidebarSections, setExpandedSidebarSections] = useState<
     ReadonlySet<SidebarSectionID>
-  >(() => new Set<SidebarSectionID>())
-  const [error, setError] = useState<string | null>(null)
-  const [commitMessage, setCommitMessage] = useState('')
-  const [newBranchName, setNewBranchName] = useState('')
-  const [showBranchCreation, setShowBranchCreation] = useState(false)
-  const [sidebarWidth, setSidebarWidth] = useState(264)
-  const [bypassHooks, setBypassHooks] = useState(false)
-  const [commitTerminalOutput, setCommitTerminalOutput] = useState('')
-  const [discardFileID, setDiscardFileID] = useState<string | null>(null)
-  const [discarding, setDiscarding] = useState(false)
-  const [permanentlyDiscard, setPermanentlyDiscard] = useState(false)
-  const [discardSelection, setDiscardSelection] = useState(false)
-  const [selectedLinesDiscard, setSelectedLinesDiscard] =
-    useState<SelectedLinesDiscard | null>(null)
+  >(() => new Set<SidebarSectionID>());
+  const [error, setError] = useState<string | null>(null);
+  const [commitMessage, setCommitMessage] = useState("");
+  const [newBranchName, setNewBranchName] = useState("");
+  const [showBranchCreation, setShowBranchCreation] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(264);
+  const [bypassHooks, setBypassHooks] = useState(false);
+  const [commitTerminalOutput, setCommitTerminalOutput] = useState("");
+  const [discardFileID, setDiscardFileID] = useState<string | null>(null);
+  const [discarding, setDiscarding] = useState(false);
+  const [permanentlyDiscard, setPermanentlyDiscard] = useState(false);
+  const [discardSelection, setDiscardSelection] = useState(false);
+  const [selectedLinesDiscard, setSelectedLinesDiscard] = useState<SelectedLinesDiscard | null>(
+    null,
+  );
   const [discardAll, setDiscardAll] = useState<{
-    readonly permanent: boolean
-    readonly fileCount: number
-  } | null>(null)
-  const [branchToRename, setBranchToRename] = useState<Branch | null>(null)
-  const [renameName, setRenameName] = useState('')
-  const [branchToDelete, setBranchToDelete] = useState<Branch | null>(null)
-  const [deleteRefusal, setDeleteRefusal] = useState<string | null>(null)
-  const [deleteUnmerged, setDeleteUnmerged] = useState(false)
-  const [deletePruneTrackingRef, setDeletePruneTrackingRef] = useState(false)
-  const [mergePickerOpen, setMergePickerOpen] = useState(false)
-  const [mergeTarget, setMergeTarget] = useState('')
-  const [mergeMessage, setMergeMessage] = useState<string | null>(null)
-  const [mergeRunning, setMergeRunning] = useState(false)
-  const [showManageRemotes, setShowManageRemotes] = useState(false)
-  const [remoteFilter, setRemoteFilter] = useState('')
-  const [showAddRemote, setShowAddRemote] = useState(false)
-  const [addRemoteName, setAddRemoteName] = useState('')
-  const [addRemoteURL, setAddRemoteURL] = useState('')
-  const [manageRemoteError, setManageRemoteError] = useState<string | null>(
-    null
-  )
-  const [manageRunning, setManageRunning] = useState(false)
-  const [showCloneDialog, setShowCloneDialog] = useState(false)
-  const [showAboutDialog, setShowAboutDialog] = useState(false)
-  const [showPreferencesDialog, setShowPreferencesDialog] = useState(false)
-  const [repositoryToRemove, setRepositoryToRemove] =
-    useState<Repository | null>(null)
-  const [cloneURL, setCloneURL] = useState('')
-  const [clonePath, setClonePath] = useState('')
+    readonly permanent: boolean;
+    readonly fileCount: number;
+  } | null>(null);
+  const [branchToRename, setBranchToRename] = useState<Branch | null>(null);
+  const [renameName, setRenameName] = useState("");
+  const [branchToDelete, setBranchToDelete] = useState<Branch | null>(null);
+  const [deleteRefusal, setDeleteRefusal] = useState<string | null>(null);
+  const [deleteUnmerged, setDeleteUnmerged] = useState(false);
+  const [deletePruneTrackingRef, setDeletePruneTrackingRef] = useState(false);
+  const [mergePickerOpen, setMergePickerOpen] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState("");
+  const [mergeMessage, setMergeMessage] = useState<string | null>(null);
+  const [mergeRunning, setMergeRunning] = useState(false);
+  const [showManageRemotes, setShowManageRemotes] = useState(false);
+  const [remoteFilter, setRemoteFilter] = useState("");
+  const [showAddRemote, setShowAddRemote] = useState(false);
+  const [addRemoteName, setAddRemoteName] = useState("");
+  const [addRemoteURL, setAddRemoteURL] = useState("");
+  const [manageRemoteError, setManageRemoteError] = useState<string | null>(null);
+  const [manageRunning, setManageRunning] = useState(false);
+  const [showCloneDialog, setShowCloneDialog] = useState(false);
+  const [showAboutDialog, setShowAboutDialog] = useState(false);
+  const [showPreferencesDialog, setShowPreferencesDialog] = useState(false);
+  const [repositoryToRemove, setRepositoryToRemove] = useState<Repository | null>(null);
+  const [cloneURL, setCloneURL] = useState("");
+  const [clonePath, setClonePath] = useState("");
   const [showWindowDragRegion, setShowWindowDragRegion] = useState(
-    shouldShowWindowDragRegion(rendererPlatform, 'native')
-  )
+    shouldShowWindowDragRegion(rendererPlatform, "native"),
+  );
 
   useEffect(() => {
-    if (rendererPlatform !== 'linux') {
-      return
+    if (rendererPlatform !== "linux") {
+      return;
     }
     void getMainProcessConfig()
-      .then(config => {
-        setShowWindowDragRegion(
-          shouldShowWindowDragRegion(rendererPlatform, config.titleBarStyle)
-        )
+      .then((config) => {
+        setShowWindowDragRegion(shouldShowWindowDragRegion(rendererPlatform, config.titleBarStyle));
       })
-      .catch(error => {
-        log.error('Failed to resolve native title-bar configuration', error)
-      })
-  }, [])
+      .catch((error) => {
+        log.error("Failed to resolve native title-bar configuration", error);
+      });
+  }, []);
 
   useEffect(() => {
-    const repository = appState.selectedRepository
+    const repository = appState.selectedRepository;
     const title =
       repository === null
-        ? 'RDC'
+        ? "RDC"
         : `RDC — ${repository.name}${
-            branchState.currentBranch === null
-              ? ''
-              : ` — ${branchState.currentBranch}`
-          }`
-    void setWindowTitle(title).catch(error => {
-      log.error('Failed to update native window title', error)
-    })
-  }, [appState.selectedRepository, branchState.currentBranch])
+            branchState.currentBranch === null ? "" : ` — ${branchState.currentBranch}`
+          }`;
+    void setWindowTitle(title).catch((error) => {
+      log.error("Failed to update native window title", error);
+    });
+  }, [appState.selectedRepository, branchState.currentBranch]);
 
   useEffect(() => {
-    let disposed = false
-    let unlisten: (() => void) | undefined
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
     void installDefaultCloseRequestHandler()
-      .then(cleanup => {
+      .then((cleanup) => {
         if (disposed) {
-          cleanup()
+          cleanup();
         } else {
-          unlisten = cleanup
+          unlisten = cleanup;
         }
       })
-      .catch(error => {
-        log.error('Failed to install the native close handler', error)
-      })
+      .catch((error) => {
+        log.error("Failed to install the native close handler", error);
+      });
 
     return () => {
-      disposed = true
-      unlisten?.()
-    }
-  }, [])
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
 
   // This controller is installed once and reads changing menu data from store subscriptions.
   // Its action callbacks use stable stores/setters rather than render-time state. The planned
@@ -192,27 +171,23 @@ export function useAppController() {
   // on every render in the meantime would be the behavioral regression.
   // oxlint-disable react-hooks/exhaustive-deps
   useEffect(() => {
-    let disposed = false
-    let controller:
-      | Awaited<ReturnType<typeof installApplicationMenu>>
-      | undefined
-    let updatePending = false
-    let latestState = appStore.state
-    let latestRemoteState = remoteStore.state
-    let latestPreferencesState = preferencesStore.state
-    const platform = rendererPlatform
+    let disposed = false;
+    let controller: Awaited<ReturnType<typeof installApplicationMenu>> | undefined;
+    let updatePending = false;
+    let latestState = appStore.state;
+    let latestRemoteState = remoteStore.state;
+    let latestPreferencesState = preferencesStore.state;
+    const platform = rendererPlatform;
     const executeMenuEvent = createRepositoryMenuEventExecutor(appStore, {
       createRepository,
       addLocalRepository: addExistingRepository,
       chooseRepository: () => {
         document
-          .querySelector<HTMLElement>(
-            '[aria-label="Repositories"] [aria-current="true"]'
-          )
-          ?.focus()
+          .querySelector<HTMLElement>('[aria-label="Repositories"] [aria-current="true"]')
+          ?.focus();
       },
-      showChanges: () => selectRepositoryView('changes'),
-      showHistory: () => selectRepositoryView('history'),
+      showChanges: () => selectRepositoryView("changes"),
+      showHistory: () => selectRepositoryView("history"),
       openRepositoryInNewWindow,
       showFolderContents,
       fetch: refreshAfterFetch,
@@ -235,137 +210,120 @@ export function useAppController() {
       deleteBranch: deleteCurrentBranch,
       mergeBranch: requestMerge,
       manageRemotes: requestManageRemotes,
-    })
+    });
     const replaceMenu = () => {
       if (controller === undefined) {
-        updatePending = true
-        return
+        updatePending = true;
+        return;
       }
       void controller
         .replaceMenu(
-          buildRepositoryMenu(
-            latestState,
-            platform,
-            latestRemoteState,
-            latestPreferencesState
-          )
+          buildRepositoryMenu(latestState, platform, latestRemoteState, latestPreferencesState),
         )
-        .catch(error => {
-          log.error('Failed to update the application menu', error)
-        })
-    }
-    const unsubscribe = appStore.onDidUpdate(state => {
-      latestState = state
-      replaceMenu()
-    })
-    const unsubscribeRemote = remoteStore.onDidUpdate(state => {
-      latestRemoteState = state
-      replaceMenu()
-    })
-    const unsubscribePreferences = preferencesStore.onDidUpdate(state => {
-      latestPreferencesState = state
-      replaceMenu()
-    })
+        .catch((error) => {
+          log.error("Failed to update the application menu", error);
+        });
+    };
+    const unsubscribe = appStore.onDidUpdate((state) => {
+      latestState = state;
+      replaceMenu();
+    });
+    const unsubscribeRemote = remoteStore.onDidUpdate((state) => {
+      latestRemoteState = state;
+      replaceMenu();
+    });
+    const unsubscribePreferences = preferencesStore.onDidUpdate((state) => {
+      latestPreferencesState = state;
+      replaceMenu();
+    });
 
     void installApplicationMenu({
       initialMenu: buildRepositoryMenu(
         latestState,
         platform,
         latestRemoteState,
-        latestPreferencesState
+        latestPreferencesState,
       ),
       executeMenuEvent,
     })
-      .then(async installedController => {
+      .then(async (installedController) => {
         if (disposed) {
-          installedController.dispose()
+          installedController.dispose();
         } else {
-          controller = installedController
+          controller = installedController;
           if (updatePending) {
-            updatePending = false
+            updatePending = false;
             await controller.replaceMenu(
-              buildRepositoryMenu(
-                latestState,
-                platform,
-                latestRemoteState,
-                latestPreferencesState
-              )
-            )
+              buildRepositoryMenu(latestState, platform, latestRemoteState, latestPreferencesState),
+            );
           }
         }
       })
-      .catch(error => {
-        log.error('Failed to install the application menu', error)
-      })
+      .catch((error) => {
+        log.error("Failed to install the application menu", error);
+      });
 
     return () => {
-      disposed = true
-      unsubscribe()
-      unsubscribeRemote()
-      unsubscribePreferences()
-      controller?.dispose()
-    }
-  }, [
-    appStore,
-    branchStore,
-    cloneStore,
-    historyStore,
-    preferencesStore,
-    remoteStore,
-  ])
+      disposed = true;
+      unsubscribe();
+      unsubscribeRemote();
+      unsubscribePreferences();
+      controller?.dispose();
+    };
+  }, [appStore, branchStore, cloneStore, historyStore, preferencesStore, remoteStore]);
   // oxlint-enable react-hooks/exhaustive-deps
 
   useEffect(() => {
-    const unsubscribe = workingTreeStore.onDidUpdate(setWorkingTreeState)
-    const repository = appState.selectedRepository
-    setDiscardFileID(null)
-    setDiscarding(false)
-    setPermanentlyDiscard(false)
-    setDiscardSelection(false)
-    setSelectedLinesDiscard(null)
-    setDiscardAll(null)
-    setBranchToRename(null)
-    setBranchToDelete(null)
-    setDeleteRefusal(null)
-    setDeleteUnmerged(false)
-    setDeletePruneTrackingRef(false)
-    setMergePickerOpen(false)
-    setMergeMessage(null)
-    setMergeRunning(false)
-    setShowManageRemotes(false)
-    setShowAddRemote(false)
-    setRemoteFilter('')
-    setManageRemoteError(null)
-    setManageRunning(false)
-    repositoryViewTransitionID.current++
-    pendingRepositoryView.current = null
-    historyStore.clear()
+    const unsubscribe = workingTreeStore.onDidUpdate(setWorkingTreeState);
+    const repository = appState.selectedRepository;
+    setDiscardFileID(null);
+    setDiscarding(false);
+    setPermanentlyDiscard(false);
+    setDiscardSelection(false);
+    setSelectedLinesDiscard(null);
+    setDiscardAll(null);
+    setBranchToRename(null);
+    setBranchToDelete(null);
+    setDeleteRefusal(null);
+    setDeleteUnmerged(false);
+    setDeletePruneTrackingRef(false);
+    setMergePickerOpen(false);
+    setMergeMessage(null);
+    setMergeRunning(false);
+    setShowManageRemotes(false);
+    setShowAddRemote(false);
+    setRemoteFilter("");
+    setManageRemoteError(null);
+    setManageRunning(false);
+    repositoryViewTransitionID.current++;
+    pendingRepositoryView.current = null;
+    historyStore.clear();
     if (repository === null) {
-      branchStore.clear()
-      conflictStore.clear()
-      remoteStore.clear()
-      workingTreeStore.clear()
+      branchStore.clear();
+      conflictStore.clear();
+      remoteStore.clear();
+      workingTreeStore.clear();
     } else {
-      void branchStore.load(repository.path)
-      void conflictStore.load(repository.path)
-      void remoteStore.load(repository.path)
-      void workingTreeStore.load(repository.path)
-      if (activeRepositoryView.current === 'history') {
+      void branchStore.load(repository.path);
+      void conflictStore.load(repository.path);
+      void remoteStore.load(repository.path);
+      void workingTreeStore.load(repository.path);
+      if (activeRepositoryView.current === "history") {
         // Keep a valid frame visible while preparing History for the newly selected repository.
-        activeRepositoryView.current = 'changes'
-        setActiveRepositoryView('changes')
-        const transitionID = ++repositoryViewTransitionID.current
-        pendingRepositoryView.current = 'history'
+        activeRepositoryView.current = "changes";
+        setActiveRepositoryView("changes");
+        const transitionID = ++repositoryViewTransitionID.current;
+        pendingRepositoryView.current = "history";
         void historyStore.load(repository.path).then(() => {
           if (repositoryViewTransitionID.current === transitionID) {
-            pendingRepositoryView.current = null
-            activeRepositoryView.current = 'history'
-            setActiveRepositoryView('history')
+            pendingRepositoryView.current = null;
+            activeRepositoryView.current = "history";
+            setActiveRepositoryView("history");
           }
-        })
+        });
       }
     }
-    return unsubscribe
+    return unsubscribe;
   }, [
     appState.selectedRepository,
     branchStore,
@@ -373,844 +331,798 @@ export function useAppController() {
     historyStore,
     remoteStore,
     workingTreeStore,
-  ])
+  ]);
 
   useEffect(
     () => workingTreeStore.onCommitTerminalOutput(setCommitTerminalOutput),
-    [workingTreeStore]
-  )
+    [workingTreeStore],
+  );
 
-  useEffect(() => historyStore.onDidUpdate(setHistoryState), [historyStore])
+  useEffect(() => historyStore.onDidUpdate(setHistoryState), [historyStore]);
 
-  useEffect(() => cloneStore.onDidUpdate(setCloneState), [cloneStore])
+  useEffect(() => cloneStore.onDidUpdate(setCloneState), [cloneStore]);
 
-  useEffect(() => remoteStore.onDidUpdate(setRemoteState), [remoteStore])
+  useEffect(() => remoteStore.onDidUpdate(setRemoteState), [remoteStore]);
 
   useEffect(() => {
-    const unsubscribe = preferencesStore.onDidUpdate(setPreferencesState)
+    const unsubscribe = preferencesStore.onDidUpdate(setPreferencesState);
     void preferencesStore.load().then(() => {
       // Apply persisted zoom after preferences load. The startup executor
       // initializes to 1.0; preferences may hold a different value.
-      const zoom = preferencesStore.state.zoomFactor
+      const zoom = preferencesStore.state.zoomFactor;
       if (zoom !== 1.0) {
-        void setWindowZoomFactor(zoom)
+        void setWindowZoomFactor(zoom);
       }
-    })
-    let disposed = false
-    let unlistenTheme: (() => void) | undefined
+    });
+    let disposed = false;
+    let unlistenTheme: (() => void) | undefined;
     void onNativeThemeUpdated(() => {
-      if (preferencesStore.state.theme === 'system') {
-        void preferencesStore.refreshTheme()
+      if (preferencesStore.state.theme === "system") {
+        void preferencesStore.refreshTheme();
       }
     })
-      .then(unlisten => {
+      .then((unlisten) => {
         if (disposed) {
-          unlisten()
+          unlisten();
         } else {
-          unlistenTheme = unlisten
+          unlistenTheme = unlisten;
         }
       })
-      .catch(error => {
-        log.error('Failed to observe native theme changes', error)
-      })
+      .catch((error) => {
+        log.error("Failed to observe native theme changes", error);
+      });
     return () => {
-      disposed = true
-      unsubscribe()
-      unlistenTheme?.()
-    }
-  }, [preferencesStore])
+      disposed = true;
+      unsubscribe();
+      unlistenTheme?.();
+    };
+  }, [preferencesStore]);
 
-  useEffect(() => branchStore.onDidUpdate(setBranchState), [branchStore])
+  useEffect(() => branchStore.onDidUpdate(setBranchState), [branchStore]);
 
-  useEffect(() => conflictStore.onDidUpdate(setConflictState), [conflictStore])
+  useEffect(() => conflictStore.onDidUpdate(setConflictState), [conflictStore]);
 
   useEffect(() => {
-    let disposed = false
-    const unsubscribe = appStore.onDidUpdate(state => {
+    let disposed = false;
+    const unsubscribe = appStore.onDidUpdate((state) => {
       if (!disposed) {
-        setAppState(state)
+        setAppState(state);
       }
-    })
-    const load = appStore.load().catch(error => {
-      log.error('Failed to load the repository list', error)
+    });
+    const load = appStore.load().catch((error) => {
+      log.error("Failed to load the repository list", error);
       if (!disposed) {
-        setError(String(error))
+        setError(String(error));
       }
-    })
+    });
 
     void sendReady(performance.now() - rendererStartTime)
-      .then(async action => {
-        if (action?.kind === 'open-repository') {
-          await load
-          await appStore.addRepository(action.path, action.persistSelection)
+      .then(async (action) => {
+        if (action?.kind === "open-repository") {
+          await load;
+          await appStore.addRepository(action.path, action.persistSelection);
         }
       })
-      .catch(error => {
-        log.error('Failed to complete the renderer-ready handshake', error)
-      })
+      .catch((error) => {
+        log.error("Failed to complete the renderer-ready handshake", error);
+      });
 
     return () => {
-      disposed = true
-      unsubscribe()
-    }
-  }, [appStore])
+      disposed = true;
+      unsubscribe();
+    };
+  }, [appStore]);
 
   async function addExistingRepository() {
     const selected = await showOpenDialog({
-      title: 'Choose a repository directory',
-      properties: ['openDirectory', 'createDirectory'],
-    })
+      title: "Choose a repository directory",
+      properties: ["openDirectory", "createDirectory"],
+    });
     if (selected === null) {
-      return
+      return;
     }
 
     try {
-      setError(null)
-      await appStore.addRepository(selected)
+      setError(null);
+      await appStore.addRepository(selected);
     } catch (error) {
-      setError(String(error))
+      setError(String(error));
     }
   }
 
   async function createRepository(): Promise<void> {
     const selected = await showSaveDialog({
-      title: 'Create a repository',
-      properties: ['createDirectory'],
-    })
+      title: "Create a repository",
+      properties: ["createDirectory"],
+    });
     if (selected === null) {
-      return
+      return;
     }
 
     try {
-      setError(null)
-      await initRepository(selected, 'main')
-      await appStore.addRepository(selected)
+      setError(null);
+      await initRepository(selected, "main");
+      await appStore.addRepository(selected);
     } catch (error) {
-      setError(String(error))
+      setError(String(error));
     }
   }
 
   function openCloneDialog(): void {
-    cloneStore.reset()
-    setShowCloneDialog(true)
+    cloneStore.reset();
+    setShowCloneDialog(true);
   }
 
   function dismissCloneDialog(): void {
     if (cloneState.operation !== null) {
-      return
+      return;
     }
-    cloneStore.reset()
-    setShowCloneDialog(false)
+    cloneStore.reset();
+    setShowCloneDialog(false);
   }
 
   async function chooseCloneDestination(): Promise<void> {
-    const platform = currentMenuPlatform()
-    if (platform === 'macos') {
+    const platform = currentMenuPlatform();
+    if (platform === "macos") {
       const selected = await showSaveDialog({
-        title: 'Choose a clone destination',
+        title: "Choose a clone destination",
         defaultPath: clonePath || undefined,
-        properties: ['createDirectory'],
-      })
+        properties: ["createDirectory"],
+      });
       if (selected !== null) {
-        setClonePath(selected)
+        setClonePath(selected);
       }
-      return
+      return;
     }
 
     const parent = await showOpenDialog({
-      title: 'Choose a parent directory',
-      properties: ['openDirectory', 'createDirectory'],
-    })
+      title: "Choose a parent directory",
+      properties: ["openDirectory", "createDirectory"],
+    });
     if (parent === null) {
-      return
+      return;
     }
-    const name = getCloneDirectoryName(cloneURL)
-    setClonePath(name === null ? parent : await join(parent, name))
+    const name = getCloneDirectoryName(cloneURL);
+    setClonePath(name === null ? parent : await join(parent, name));
   }
 
   async function submitClone(): Promise<void> {
-    const clonedPath = await cloneStore.clone(cloneURL, clonePath)
+    const clonedPath = await cloneStore.clone(cloneURL, clonePath);
     if (clonedPath === null) {
-      return
+      return;
     }
     try {
-      await appStore.addRepository(clonedPath)
-      setCloneURL('')
-      setClonePath('')
-      setShowCloneDialog(false)
+      await appStore.addRepository(clonedPath);
+      setCloneURL("");
+      setClonePath("");
+      setShowCloneDialog(false);
     } catch (error) {
-      setError(String(error))
+      setError(String(error));
     }
   }
 
   async function selectRepository(repository: Repository) {
     try {
-      setError(null)
-      await appStore.selectRepository(repository)
+      setError(null);
+      await appStore.selectRepository(repository);
     } catch (error) {
-      setError(String(error))
+      setError(String(error));
     }
   }
 
-  async function openRepositoryContextMenu(
-    repository: Repository,
-    x: number,
-    y: number
-  ) {
+  async function openRepositoryContextMenu(repository: Repository, x: number, y: number) {
     if (appState.selectedRepository?.id !== repository.id) {
-      await selectRepository(repository)
+      await selectRepository(repository);
     }
     // The row's own `.blur()`-after-click only helps a keyboard user: WebKit does not focus a
     // <button> on an ordinary mouse click, so hovering "more actions" then clicking it can leave
     // its tooltip open, unreachable by onBlur/onMouseLeave once the native menu covers it. See
     // dismissAllTooltips's doc comment.
-    dismissAllTooltips()
+    dismissAllTooltips();
     await showContextMenu(
       [
         {
-          text: 'Open in New Window',
+          text: "Open in New Window",
           action: () => {
-            void runRepositoryAction(() =>
-              openRepositoryInNewWindow(repository.path)
-            )
+            void runRepositoryAction(() => openRepositoryInNewWindow(repository.path));
           },
         },
         {
-          text: 'Show in File Manager',
+          text: "Show in File Manager",
           action: () => {
-            void runRepositoryAction(() => showFolderContents(repository.path))
+            void runRepositoryAction(() => showFolderContents(repository.path));
           },
         },
-        { type: 'separator' },
+        { type: "separator" },
         {
-          text: 'Manage remotes…',
+          text: "Manage remotes…",
           action: () => {
-            requestManageRemotes()
+            requestManageRemotes();
           },
         },
         {
-          text: 'Remove',
+          text: "Remove",
           action: () => {
-            requestRemoveRepository(repository)
+            requestRemoveRepository(repository);
           },
         },
       ],
-      { x, y }
-    )
+      { x, y },
+    );
   }
 
   async function runRepositoryAction(action: () => Promise<void>) {
     try {
-      setError(null)
-      await action()
+      setError(null);
+      await action();
     } catch (error) {
-      setError(String(error))
+      setError(String(error));
     }
   }
 
   function requestRemoveRepository(repository: Repository): void {
     if (preferencesStore.state.confirmRepositoryRemoval) {
-      setRepositoryToRemove(repository)
+      setRepositoryToRemove(repository);
     } else {
-      void runRepositoryAction(() => appStore.removeRepository(repository))
+      void runRepositoryAction(() => appStore.removeRepository(repository));
     }
   }
 
   async function confirmRemoveRepository(): Promise<void> {
     if (repositoryToRemove === null) {
-      return
+      return;
     }
-    const repository = repositoryToRemove
-    setRepositoryToRemove(null)
-    await runRepositoryAction(() => appStore.removeRepository(repository))
+    const repository = repositoryToRemove;
+    setRepositoryToRemove(null);
+    await runRepositoryAction(() => appStore.removeRepository(repository));
   }
 
   async function openInShell(path: string): Promise<void> {
-    const shell = preferencesStore.selectedShell
+    const shell = preferencesStore.selectedShell;
     if (shell === null) {
-      throw new Error('No terminal application is available')
+      throw new Error("No terminal application is available");
     }
-    await launchShell(shell, path)
+    await launchShell(shell, path);
   }
 
   async function openInExternalEditor(path: string): Promise<void> {
-    const editor = preferencesStore.selectedEditor
+    const editor = preferencesStore.selectedEditor;
     if (editor === null) {
-      throw new Error('No external editor is available')
+      throw new Error("No external editor is available");
     }
-    await launchExternalEditor(path, editor)
+    await launchExternalEditor(path, editor);
   }
 
-  async function refreshAfterBranchChange(
-    operation: () => Promise<boolean>
-  ): Promise<void> {
-    const repository = appState.selectedRepository
+  async function refreshAfterBranchChange(operation: () => Promise<boolean>): Promise<void> {
+    const repository = appState.selectedRepository;
     if (repository === null || !(await operation())) {
-      return
+      return;
     }
     await Promise.all([
       remoteStore.load(repository.path),
       workingTreeStore.load(repository.path),
       conflictStore.load(repository.path),
-    ])
-    if (repositoryView === 'history') {
-      await historyStore.load(repository.path)
+    ]);
+    if (repositoryView === "history") {
+      await historyStore.load(repository.path);
     }
   }
 
   async function refreshAfterFetch(): Promise<void> {
-    const repository = appStore.state.selectedRepository
+    const repository = appStore.state.selectedRepository;
     if (repository === null || !(await remoteStore.fetch())) {
-      return
+      return;
     }
-    await branchStore.load(repository.path)
+    await branchStore.load(repository.path);
     if (historyStore.state.repositoryPath === repository.path) {
-      await historyStore.load(repository.path)
+      await historyStore.load(repository.path);
     }
   }
 
   async function refreshAfterPush(): Promise<void> {
-    const repository = appStore.state.selectedRepository
+    const repository = appStore.state.selectedRepository;
     if (repository === null || !(await remoteStore.push())) {
-      return
+      return;
     }
     await Promise.all([
       branchStore.load(repository.path),
       conflictStore.load(repository.path),
       workingTreeStore.load(repository.path),
-    ])
+    ]);
     if (historyStore.state.repositoryPath === repository.path) {
-      await historyStore.load(repository.path)
+      await historyStore.load(repository.path);
     }
   }
 
   async function refreshAfterPull(): Promise<void> {
-    const repository = appStore.state.selectedRepository
+    const repository = appStore.state.selectedRepository;
     if (repository === null) {
-      return
+      return;
     }
-    await remoteStore.pull()
+    await remoteStore.pull();
     await Promise.all([
       branchStore.load(repository.path),
       conflictStore.load(repository.path),
       workingTreeStore.load(repository.path),
-    ])
+    ]);
     if (historyStore.state.repositoryPath === repository.path) {
-      await historyStore.load(repository.path)
+      await historyStore.load(repository.path);
     }
   }
 
   async function stageResolvedConflict(path: string): Promise<void> {
-    const repository = appState.selectedRepository
+    const repository = appState.selectedRepository;
     if (repository !== null && (await conflictStore.stageResolvedFile(path))) {
-      await workingTreeStore.load(repository.path)
+      await workingTreeStore.load(repository.path);
     }
   }
 
   const discardFile =
-    workingTreeState.workingDirectory?.files.find(
-      file => file.id === discardFileID
-    ) ?? null
+    workingTreeState.workingDirectory?.files.find((file) => file.id === discardFileID) ?? null;
   function requestDiscard(fileID: string, selection: boolean): void {
     if (selection || preferencesStore.state.confirmDiscardChanges) {
-      const selectedLines = selection
-        ? workingTreeStore.getSelectedLinesDiscard()
-        : null
+      const selectedLines = selection ? workingTreeStore.getSelectedLinesDiscard() : null;
       if (selection && selectedLines === null) {
-        return
+        return;
       }
-      setDiscardFileID(fileID)
-      setDiscardSelection(selection)
-      setSelectedLinesDiscard(selectedLines)
-      setPermanentlyDiscard(false)
-      return
+      setDiscardFileID(fileID);
+      setDiscardSelection(selection);
+      setSelectedLinesDiscard(selectedLines);
+      setPermanentlyDiscard(false);
+      return;
     }
-    void discardWholeFile(fileID, false)
+    void discardWholeFile(fileID, false);
   }
 
-  async function discardWholeFile(
-    fileID: string,
-    permanent: boolean
-  ): Promise<void> {
-    setDiscarding(true)
-    let result = await workingTreeStore.discardFile(fileID, permanent)
-    if (
-      result === 'trash-failed' &&
-      !preferencesStore.state.confirmDiscardChangesPermanently
-    ) {
-      result = await workingTreeStore.discardFile(fileID, true)
+  async function discardWholeFile(fileID: string, permanent: boolean): Promise<void> {
+    setDiscarding(true);
+    let result = await workingTreeStore.discardFile(fileID, permanent);
+    if (result === "trash-failed" && !preferencesStore.state.confirmDiscardChangesPermanently) {
+      result = await workingTreeStore.discardFile(fileID, true);
     }
-    setDiscarding(false)
-    if (result === 'discarded') {
-      setDiscardFileID(null)
-      setPermanentlyDiscard(false)
-      setSelectedLinesDiscard(null)
-    } else if (result === 'trash-failed') {
-      setDiscardFileID(fileID)
-      setPermanentlyDiscard(true)
-      setDiscardSelection(false)
-      setSelectedLinesDiscard(null)
+    setDiscarding(false);
+    if (result === "discarded") {
+      setDiscardFileID(null);
+      setPermanentlyDiscard(false);
+      setSelectedLinesDiscard(null);
+    } else if (result === "trash-failed") {
+      setDiscardFileID(fileID);
+      setPermanentlyDiscard(true);
+      setDiscardSelection(false);
+      setSelectedLinesDiscard(null);
     }
   }
 
   async function confirmDiscard() {
     if (discardFile === null) {
-      return
+      return;
     }
     if (discardSelection) {
-      setDiscarding(true)
-      const discarded =
-        await workingTreeStore.discardSelectedLines(selectedLinesDiscard)
-      setDiscarding(false)
+      setDiscarding(true);
+      const discarded = await workingTreeStore.discardSelectedLines(selectedLinesDiscard);
+      setDiscarding(false);
       if (discarded) {
-        setDiscardFileID(null)
-        setDiscardSelection(false)
-        setSelectedLinesDiscard(null)
+        setDiscardFileID(null);
+        setDiscardSelection(false);
+        setSelectedLinesDiscard(null);
       }
-      return
+      return;
     }
-    await discardWholeFile(discardFile.id, permanentlyDiscard)
+    await discardWholeFile(discardFile.id, permanentlyDiscard);
   }
 
   function cancelDiscard(): void {
     if (discarding) {
-      return
+      return;
     }
-    setDiscardFileID(null)
-    setPermanentlyDiscard(false)
-    setDiscardSelection(false)
-    setSelectedLinesDiscard(null)
-    setDiscardAll(null)
+    setDiscardFileID(null);
+    setPermanentlyDiscard(false);
+    setDiscardSelection(false);
+    setSelectedLinesDiscard(null);
+    setDiscardAll(null);
   }
 
   function requestDiscardAll(permanent: boolean): void {
-    const files = workingTreeState.workingDirectory?.files ?? []
+    const files = workingTreeState.workingDirectory?.files ?? [];
     if (files.length === 0) {
-      return
+      return;
     }
     const shouldConfirm = permanent
       ? preferencesStore.state.confirmDiscardChangesPermanently
-      : preferencesStore.state.confirmDiscardChanges
+      : preferencesStore.state.confirmDiscardChanges;
     if (shouldConfirm) {
-      setDiscardAll({ permanent, fileCount: files.length })
-      return
+      setDiscardAll({ permanent, fileCount: files.length });
+      return;
     }
-    void discardAllWorkingChanges(permanent, files.length)
+    void discardAllWorkingChanges(permanent, files.length);
   }
 
-  async function discardAllWorkingChanges(
-    permanent: boolean,
-    fileCount: number
-  ): Promise<void> {
-    setDiscarding(true)
-    let result = await workingTreeStore.discardAllChanges(permanent)
-    if (
-      result === 'trash-failed' &&
-      !preferencesStore.state.confirmDiscardChangesPermanently
-    ) {
-      result = await workingTreeStore.discardAllChanges(true)
+  async function discardAllWorkingChanges(permanent: boolean, fileCount: number): Promise<void> {
+    setDiscarding(true);
+    let result = await workingTreeStore.discardAllChanges(permanent);
+    if (result === "trash-failed" && !preferencesStore.state.confirmDiscardChangesPermanently) {
+      result = await workingTreeStore.discardAllChanges(true);
     }
-    setDiscarding(false)
-    if (result === 'discarded') {
-      setDiscardAll(null)
-    } else if (result === 'trash-failed') {
-      setDiscardAll({ permanent: true, fileCount })
+    setDiscarding(false);
+    if (result === "discarded") {
+      setDiscardAll(null);
+    } else if (result === "trash-failed") {
+      setDiscardAll({ permanent: true, fileCount });
     }
   }
 
   async function confirmDiscardAll(): Promise<void> {
     if (discardAll === null) {
-      return
+      return;
     }
-    await discardAllWorkingChanges(discardAll.permanent, discardAll.fileCount)
+    await discardAllWorkingChanges(discardAll.permanent, discardAll.fileCount);
   }
 
   function cancelDiscardAll(): void {
     if (discarding) {
-      return
+      return;
     }
-    setDiscardAll(null)
+    setDiscardAll(null);
   }
 
   function requestRename(branch: Branch): void {
-    setBranchToRename(branch)
-    setRenameName(branch.name)
+    setBranchToRename(branch);
+    setRenameName(branch.name);
   }
 
   function renameCurrentBranch(): void {
-    const current = branchStore.state.currentBranch
+    const current = branchStore.state.currentBranch;
     if (current === null) {
-      return
+      return;
     }
     const branch = branchStore.state.branches.find(
-      branch => branch.type === BranchType.Local && branch.name === current
-    )
+      (branch) => branch.type === BranchType.Local && branch.name === current,
+    );
     if (branch !== undefined) {
-      requestRename(branch)
+      requestRename(branch);
     }
   }
 
   async function confirmRename(): Promise<void> {
     if (branchToRename === null) {
-      return
+      return;
     }
-    const branch = branchToRename
-    await refreshAfterBranchChange(() =>
-      branchStore.renameBranch(branch.name, renameName)
-    )
+    const branch = branchToRename;
+    await refreshAfterBranchChange(() => branchStore.renameBranch(branch.name, renameName));
     if (branchStore.state.operationError === null) {
-      setBranchToRename(null)
-      setRenameName('')
+      setBranchToRename(null);
+      setRenameName("");
     }
   }
 
   function cancelRename(): void {
     if (branchStore.state.operation !== null) {
-      return
+      return;
     }
-    setBranchToRename(null)
-    setRenameName('')
+    setBranchToRename(null);
+    setRenameName("");
   }
 
   function deleteCurrentBranch(): void {
-    const current = branchStore.state.currentBranch
+    const current = branchStore.state.currentBranch;
     if (current === null) {
-      return
+      return;
     }
     const branch = branchStore.state.branches.find(
-      branch => branch.type === BranchType.Local && branch.name === current
-    )
+      (branch) => branch.type === BranchType.Local && branch.name === current,
+    );
     if (branch !== undefined) {
-      void requestDelete(branch)
+      void requestDelete(branch);
     }
   }
 
   async function requestDelete(branch: Branch): Promise<void> {
-    if (
-      branch.name === branchState.currentBranch ||
-      branch.name === branchState.defaultBranch
-    ) {
+    if (branch.name === branchState.currentBranch || branch.name === branchState.defaultBranch) {
       setDeleteRefusal(
         branch.name === branchState.currentBranch
           ? `You cannot delete the current branch '${branch.name}'.`
-          : `You cannot delete the default branch '${branch.name}'.`
-      )
-      return
+          : `You cannot delete the default branch '${branch.name}'.`,
+      );
+      return;
     }
-    const repository = appState.selectedRepository
-    setDeleteRefusal(null)
-    setDeletePruneTrackingRef(false)
-    setDeleteUnmerged(false)
+    const repository = appState.selectedRepository;
+    setDeleteRefusal(null);
+    setDeletePruneTrackingRef(false);
+    setDeleteUnmerged(false);
     if (repository !== null && branchState.currentBranch !== null) {
       try {
-        const merged = await getMergedBranches(
-          repository.path,
-          branchState.currentBranch
-        )
-        setDeleteUnmerged(!merged.has(`refs/heads/${branch.name}`))
+        const merged = await getMergedBranches(repository.path, branchState.currentBranch);
+        setDeleteUnmerged(!merged.has(`refs/heads/${branch.name}`));
       } catch {
-        setDeleteUnmerged(false)
+        setDeleteUnmerged(false);
       }
     }
-    setBranchToDelete(branch)
+    setBranchToDelete(branch);
   }
 
   async function confirmDelete(): Promise<void> {
     if (branchToDelete === null) {
-      return
+      return;
     }
-    const branch = branchToDelete
+    const branch = branchToDelete;
     await refreshAfterBranchChange(() =>
       branchStore.deleteBranch(branch.name, {
         pruneTrackingRef: deletePruneTrackingRef,
-      })
-    )
+      }),
+    );
     if (branchStore.state.operationError === null) {
-      setBranchToDelete(null)
-      setDeleteUnmerged(false)
-      setDeletePruneTrackingRef(false)
+      setBranchToDelete(null);
+      setDeleteUnmerged(false);
+      setDeletePruneTrackingRef(false);
     }
   }
 
   function cancelDelete(): void {
     if (branchStore.state.operation !== null) {
-      return
+      return;
     }
-    setBranchToDelete(null)
-    setDeleteRefusal(null)
-    setDeleteUnmerged(false)
-    setDeletePruneTrackingRef(false)
+    setBranchToDelete(null);
+    setDeleteRefusal(null);
+    setDeleteUnmerged(false);
+    setDeletePruneTrackingRef(false);
   }
 
   async function openBranchContextMenu(branch: Branch, x: number, y: number) {
-    const current = branch.name === branchState.currentBranch
-    const defaultBranch = branch.name === branchState.defaultBranch
-    const canDelete = !current && !defaultBranch
-    dismissAllTooltips()
+    const current = branch.name === branchState.currentBranch;
+    const defaultBranch = branch.name === branchState.defaultBranch;
+    const canDelete = !current && !defaultBranch;
+    dismissAllTooltips();
     await showContextMenu(
       [
         {
-          text: 'Rename…',
+          text: "Rename…",
           action: () => requestRename(branch),
         },
         {
-          text: 'Delete…',
+          text: "Delete…",
           enabled: canDelete,
           action: () => {
-            void requestDelete(branch)
+            void requestDelete(branch);
           },
         },
       ],
-      { x, y }
-    )
+      { x, y },
+    );
   }
 
   function requestMerge(): void {
-    setMergeTarget('')
-    setMergeMessage(null)
-    setMergePickerOpen(true)
+    setMergeTarget("");
+    setMergeMessage(null);
+    setMergePickerOpen(true);
   }
 
-  function mergeMessageFor(
-    result: MergeInitiationResult,
-    target: string
-  ): string {
+  function mergeMessageFor(result: MergeInitiationResult, target: string): string {
     switch (result) {
-      case 'up-to-date':
-        return `${target} is already up to date with the current branch.`
-      case 'invalid':
-        return 'These branches do not share a common ancestor and cannot be merged.'
-      case 'dirty':
-        return 'Clean the working tree before merging.'
-      case 'failed':
-        return 'The merge failed.'
-      case 'merged':
-      case 'conflict':
-        return ''
+      case "up-to-date":
+        return `${target} is already up to date with the current branch.`;
+      case "invalid":
+        return "These branches do not share a common ancestor and cannot be merged.";
+      case "dirty":
+        return "Clean the working tree before merging.";
+      case "failed":
+        return "The merge failed.";
+      case "merged":
+      case "conflict":
+        return "";
     }
   }
 
   async function confirmMerge(): Promise<void> {
-    if (mergeTarget === '' || mergeRunning) {
-      return
+    if (mergeTarget === "" || mergeRunning) {
+      return;
     }
-    setMergeRunning(true)
-    setMergeMessage(null)
-    const target = mergeTarget
-    const workingTreeDirty =
-      (workingTreeState.workingDirectory?.files.length ?? 0) > 0
+    setMergeRunning(true);
+    setMergeMessage(null);
+    const target = mergeTarget;
+    const workingTreeDirty = (workingTreeState.workingDirectory?.files.length ?? 0) > 0;
     try {
       const result = await branchStore.initiateMerge(target, {
         workingTreeDirty,
-      })
-      if (result === 'merged' || result === 'conflict') {
-        await refreshAfterBranchChange(() => Promise.resolve(true))
-        setMergePickerOpen(false)
-        return
+      });
+      if (result === "merged" || result === "conflict") {
+        await refreshAfterBranchChange(() => Promise.resolve(true));
+        setMergePickerOpen(false);
+        return;
       }
-      setMergeMessage(mergeMessageFor(result, target))
+      setMergeMessage(mergeMessageFor(result, target));
     } catch {
-      setMergeMessage('The merge failed.')
+      setMergeMessage("The merge failed.");
     } finally {
-      setMergeRunning(false)
+      setMergeRunning(false);
     }
   }
 
   function cancelMerge(): void {
     if (mergeRunning) {
-      return
+      return;
     }
-    setMergePickerOpen(false)
-    setMergeMessage(null)
-    setMergeTarget('')
+    setMergePickerOpen(false);
+    setMergeMessage(null);
+    setMergeTarget("");
   }
 
   function requestManageRemotes(): void {
-    setRemoteFilter('')
-    setManageRemoteError(null)
-    setShowManageRemotes(true)
+    setRemoteFilter("");
+    setManageRemoteError(null);
+    setShowManageRemotes(true);
   }
 
   function closeManageRemotes(): void {
     if (manageRunning) {
-      return
+      return;
     }
-    setShowManageRemotes(false)
-    setShowAddRemote(false)
-    setRemoteFilter('')
-    setManageRemoteError(null)
+    setShowManageRemotes(false);
+    setShowAddRemote(false);
+    setRemoteFilter("");
+    setManageRemoteError(null);
   }
 
   function openAddRemote(): void {
-    setAddRemoteName('')
-    setAddRemoteURL('')
-    setManageRemoteError(null)
-    setShowAddRemote(true)
+    setAddRemoteName("");
+    setAddRemoteURL("");
+    setManageRemoteError(null);
+    setShowAddRemote(true);
   }
 
   function closeAddRemote(): void {
     if (manageRunning) {
-      return
+      return;
     }
-    setShowAddRemote(false)
-    setManageRemoteError(null)
+    setShowAddRemote(false);
+    setManageRemoteError(null);
   }
 
   async function confirmAddRemote(): Promise<void> {
     if (manageRunning) {
-      return
+      return;
     }
-    const name = addRemoteName.trim()
-    const url = addRemoteURL.trim()
-    setManageRemoteError(null)
+    const name = addRemoteName.trim();
+    const url = addRemoteURL.trim();
+    setManageRemoteError(null);
     if (name.length === 0 || /\s/.test(name)) {
-      setManageRemoteError('Remote names cannot be empty or contain spaces.')
-      return
+      setManageRemoteError("Remote names cannot be empty or contain spaces.");
+      return;
     }
     if (url.length === 0) {
-      setManageRemoteError('Enter a remote URL.')
-      return
+      setManageRemoteError("Enter a remote URL.");
+      return;
     }
-    if (remoteState.remotes.some(remote => remote.name === name)) {
-      setManageRemoteError(`A remote named "${name}" already exists.`)
-      return
+    if (remoteState.remotes.some((remote) => remote.name === name)) {
+      setManageRemoteError(`A remote named "${name}" already exists.`);
+      return;
     }
-    const repository = appState.selectedRepository
+    const repository = appState.selectedRepository;
     if (repository === null) {
-      return
+      return;
     }
-    setManageRunning(true)
-    const added = await remoteStore.addRemote(name, url)
-    setManageRunning(false)
+    setManageRunning(true);
+    const added = await remoteStore.addRemote(name, url);
+    setManageRunning(false);
     if (added) {
-      setShowAddRemote(false)
-      setAddRemoteName('')
-      setAddRemoteURL('')
-      await branchStore.load(repository.path)
+      setShowAddRemote(false);
+      setAddRemoteName("");
+      setAddRemoteURL("");
+      await branchStore.load(repository.path);
     } else if (remoteStore.state.operationError !== null) {
-      setManageRemoteError(remoteStore.state.operationError)
+      setManageRemoteError(remoteStore.state.operationError);
     }
   }
 
   async function confirmRemoveRemote(name: string): Promise<void> {
     if (manageRunning) {
-      return
+      return;
     }
-    const repository = appState.selectedRepository
+    const repository = appState.selectedRepository;
     if (repository === null) {
-      return
+      return;
     }
-    setManageRunning(true)
-    setManageRemoteError(null)
-    const removed = await remoteStore.removeRemote(name)
-    setManageRunning(false)
+    setManageRunning(true);
+    setManageRemoteError(null);
+    const removed = await remoteStore.removeRemote(name);
+    setManageRunning(false);
     if (removed) {
-      await branchStore.load(repository.path)
+      await branchStore.load(repository.path);
     } else if (remoteStore.state.operationError !== null) {
-      setManageRemoteError(remoteStore.state.operationError)
+      setManageRemoteError(remoteStore.state.operationError);
     }
   }
 
   function toggleSidebarSection(section: SidebarSectionID): void {
-    setExpandedSidebarSections(current => {
+    setExpandedSidebarSections((current) => {
       return current.has(section)
         ? new Set<SidebarSectionID>()
-        : new Set<SidebarSectionID>([section])
-    })
+        : new Set<SidebarSectionID>([section]);
+    });
   }
 
   function activateSidebarSection(section: SidebarSectionID): void {
-    setSidebarCollapsed(false)
-    setExpandedSidebarSections(new Set<SidebarSectionID>([section]))
+    setSidebarCollapsed(false);
+    setExpandedSidebarSections(new Set<SidebarSectionID>([section]));
   }
 
   function showBranches(): void {
-    activateSidebarSection('branches')
-    requestAnimationFrame(() =>
-      document.getElementById('sidebar-branches-heading')?.focus()
-    )
+    activateSidebarSection("branches");
+    requestAnimationFrame(() => document.getElementById("sidebar-branches-heading")?.focus());
   }
 
   function goToCommitMessage(): void {
-    if (activeRepositoryView.current !== 'changes') {
-      selectRepositoryView('changes')
+    if (activeRepositoryView.current !== "changes") {
+      selectRepositoryView("changes");
     }
-    requestAnimationFrame(() =>
-      document.getElementById('commit-message')?.focus()
-    )
+    requestAnimationFrame(() => document.getElementById("commit-message")?.focus());
   }
 
   function increaseActiveResizableWidth(): void {
-    setSidebarCollapsed(false)
-    setSidebarWidth(width => Math.min(width + 16, 640))
+    setSidebarCollapsed(false);
+    setSidebarWidth((width) => Math.min(width + 16, 640));
   }
 
   function decreaseActiveResizableWidth(): void {
-    setSidebarWidth(width => Math.max(width - 16, 125))
+    setSidebarWidth((width) => Math.max(width - 16, 125));
   }
 
   function createBranch(): void {
-    setShowBranchCreation(true)
-    activateSidebarSection('branches')
-    requestAnimationFrame(() =>
-      document.getElementById('new-branch-name')?.focus()
-    )
+    setShowBranchCreation(true);
+    activateSidebarSection("branches");
+    requestAnimationFrame(() => document.getElementById("new-branch-name")?.focus());
   }
 
   function selectRepositoryView(view: RepositoryView): void {
-    if (view === 'changes') {
-      repositoryViewTransitionID.current++
-      pendingRepositoryView.current = null
-      if (activeRepositoryView.current !== 'changes') {
-        activeRepositoryView.current = 'changes'
-        setActiveRepositoryView('changes')
+    if (view === "changes") {
+      repositoryViewTransitionID.current++;
+      pendingRepositoryView.current = null;
+      if (activeRepositoryView.current !== "changes") {
+        activeRepositoryView.current = "changes";
+        setActiveRepositoryView("changes");
       }
-      return
+      return;
     }
-    if (
-      activeRepositoryView.current === 'history' ||
-      pendingRepositoryView.current === 'history'
-    ) {
-      return
+    if (activeRepositoryView.current === "history" || pendingRepositoryView.current === "history") {
+      return;
     }
 
-    const repository = appStore.state.selectedRepository
+    const repository = appStore.state.selectedRepository;
     if (repository === null) {
-      return
+      return;
     }
-    const transitionID = ++repositoryViewTransitionID.current
-    pendingRepositoryView.current = 'history'
+    const transitionID = ++repositoryViewTransitionID.current;
+    pendingRepositoryView.current = "history";
 
     void historyStore.load(repository.path).then(() => {
       if (
         repositoryViewTransitionID.current === transitionID &&
         appStore.state.selectedRepository?.path === repository.path
       ) {
-        pendingRepositoryView.current = null
-        activeRepositoryView.current = 'history'
-        setActiveRepositoryView('history')
+        pendingRepositoryView.current = null;
+        activeRepositoryView.current = "history";
+        setActiveRepositoryView("history");
       }
-    })
+    });
   }
 
   useQaStateDriver({
-    applyTheme: theme => preferencesStore.setTheme(theme),
-    setRepositoryView: view => selectRepositoryView(view),
+    applyTheme: (theme) => preferencesStore.setTheme(theme),
+    setRepositoryView: (view) => selectRepositoryView(view),
     setSidebarCollapsed,
-    selectRepositoryByPath: async path => {
+    selectRepositoryByPath: async (path) => {
       const existing = appStore.state.repositories.find(
-        repository =>
+        (repository) =>
           repository.path === path ||
-          repository.path.replace(/\/+$/, '') === path.replace(/\/+$/, '')
-      )
+          repository.path.replace(/\/+$/, "") === path.replace(/\/+$/, ""),
+      );
       if (existing !== undefined) {
-        await appStore.selectRepository(existing)
-        return true
+        await appStore.selectRepository(existing);
+        return true;
       }
-      await appStore.addRepository(path)
-      return true
+      await appStore.addRepository(path);
+      return true;
     },
-  })
+  });
 
   return {
     appState,
@@ -1332,7 +1244,7 @@ export function useAppController() {
     setSidebarWidth,
     showBranchCreation,
     setShowBranchCreation,
-  }
+  };
 }
 
-export type AppController = ReturnType<typeof useAppController>
+export type AppController = ReturnType<typeof useAppController>;

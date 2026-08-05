@@ -3,11 +3,11 @@
  */
 export interface IGitAccount {
   /** The login/username to authenticate with. */
-  readonly login: string
+  readonly login: string;
 
   /** The endpoint with which the user is authenticating. */
-  readonly endpoint: string
+  readonly endpoint: string;
 
   /** The token/password to authenticate with */
-  readonly token: string
+  readonly token: string;
 }

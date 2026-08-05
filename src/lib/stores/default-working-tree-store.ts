@@ -1,8 +1,8 @@
-import { WorkingTreeStore } from './working-tree-store'
+import { WorkingTreeStore } from "./working-tree-store";
 
-let defaultWorkingTreeStore: WorkingTreeStore | undefined
+let defaultWorkingTreeStore: WorkingTreeStore | undefined;
 
 export function getDefaultWorkingTreeStore(): WorkingTreeStore {
-  defaultWorkingTreeStore ??= new WorkingTreeStore()
-  return defaultWorkingTreeStore
+  defaultWorkingTreeStore ??= new WorkingTreeStore();
+  return defaultWorkingTreeStore;
 }

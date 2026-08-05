@@ -1,13 +1,13 @@
-const suppressedUrls = new Set<string>()
+const suppressedUrls = new Set<string>();
 
 export function suppressCertificateErrorFor(url: string) {
-  suppressedUrls.add(url)
+  suppressedUrls.add(url);
 }
 
 export function clearCertificateErrorSuppressionFor(url: string) {
-  suppressedUrls.delete(url)
+  suppressedUrls.delete(url);
 }
 
 export function isCertificateErrorSuppressedFor(url: string) {
-  return suppressedUrls.has(url)
+  return suppressedUrls.has(url);
 }

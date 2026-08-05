@@ -14,7 +14,7 @@
  * Yeah this is a terrible name.
  */
 export interface IConstrainedValue {
-  readonly value: number
-  readonly max: number
-  readonly min: number
+  readonly value: number;
+  readonly max: number;
+  readonly min: number;
 }

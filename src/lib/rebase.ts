@@ -1,7 +1,7 @@
-import { IBranchesState } from './app-state/branches-state'
-import { IAheadBehind } from '../models/branch'
-import { TipState } from '../models/tip'
-import { clamp } from './clamp'
+import { IBranchesState } from "./app-state/branches-state";
+import { IAheadBehind } from "../models/branch";
+import { TipState } from "../models/tip";
+import { clamp } from "./clamp";
 
 /** Represents the force-push availability state of a branch. */
 export enum ForcePushBranchState {
@@ -29,7 +29,7 @@ export enum ForcePushBranchState {
  * with floating point division.
  */
 export function formatRebaseValue(value: number) {
-  return Math.round(clamp(value, 0, 1) * 100) / 100
+  return Math.round(clamp(value, 0, 1) * 100) / 100;
 }
 
 /**
@@ -38,31 +38,29 @@ export function formatRebaseValue(value: number) {
  */
 export function getCurrentBranchForcePushState(
   branchesState: IBranchesState,
-  aheadBehind: IAheadBehind | null
+  aheadBehind: IAheadBehind | null,
 ): ForcePushBranchState {
   if (aheadBehind === null) {
     // no tracking branch found
-    return ForcePushBranchState.NotAvailable
+    return ForcePushBranchState.NotAvailable;
   }
 
-  const { ahead, behind } = aheadBehind
+  const { ahead, behind } = aheadBehind;
 
   if (behind === 0 || ahead === 0) {
     // no a diverged branch to force push
-    return ForcePushBranchState.NotAvailable
+    return ForcePushBranchState.NotAvailable;
   }
 
-  const { tip, forcePushBranches } = branchesState
+  const { tip, forcePushBranches } = branchesState;
 
-  let canForcePushBranch = false
+  let canForcePushBranch = false;
   if (tip.kind === TipState.Valid) {
-    const localBranchName = tip.branch.nameWithoutRemote
-    const { sha } = tip.branch.tip
-    const foundEntry = forcePushBranches.get(localBranchName)
-    canForcePushBranch = foundEntry === sha
+    const localBranchName = tip.branch.nameWithoutRemote;
+    const { sha } = tip.branch.tip;
+    const foundEntry = forcePushBranches.get(localBranchName);
+    canForcePushBranch = foundEntry === sha;
   }
 
-  return canForcePushBranch
-    ? ForcePushBranchState.Recommended
-    : ForcePushBranchState.Available
+  return canForcePushBranch ? ForcePushBranchState.Recommended : ForcePushBranchState.Available;
 }

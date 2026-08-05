@@ -1,5 +1,5 @@
-import { Account } from '../../models/account'
-import { GitHubRepository } from '../../models/github-repository'
+import { Account } from "../../models/account";
+import { GitHubRepository } from "../../models/github-repository";
 import {
   API,
   APICheckConclusion,
@@ -9,12 +9,9 @@ import {
   IAPIWorkflowJobStep,
   IAPIWorkflowJobs,
   IAPIWorkflowRun,
-} from '../api'
-import { supportsRetrieveActionWorkflowByCheckSuiteId } from '../endpoint-capabilities'
-import {
-  formatLongPreciseDuration,
-  formatPreciseDuration,
-} from '../format-duration'
+} from "../api";
+import { supportsRetrieveActionWorkflowByCheckSuiteId } from "../endpoint-capabilities";
+import { formatLongPreciseDuration, formatPreciseDuration } from "../format-duration";
 
 /**
  * A Desktop-specific model closely related to a GitHub API Check Run.
@@ -26,18 +23,18 @@ import {
  * as statuses the model closely aligns with Check Runs.
  */
 export interface IRefCheck {
-  readonly id: number
-  readonly name: string
-  readonly description: string
-  readonly status: APICheckStatus
-  readonly conclusion: APICheckConclusion | null
-  readonly appName: string
-  readonly htmlUrl: string | null
+  readonly id: number;
+  readonly name: string;
+  readonly description: string;
+  readonly status: APICheckStatus;
+  readonly conclusion: APICheckConclusion | null;
+  readonly appName: string;
+  readonly htmlUrl: string | null;
 
   // Following are action check specific
-  readonly checkSuiteId: number | null
-  readonly actionJobSteps?: ReadonlyArray<IAPIWorkflowJobStep>
-  readonly actionsWorkflow?: IAPIWorkflowRun
+  readonly checkSuiteId: number | null;
+  readonly actionJobSteps?: ReadonlyArray<IAPIWorkflowJobStep>;
+  readonly actionsWorkflow?: IAPIWorkflowRun;
 }
 
 /**
@@ -45,26 +42,26 @@ export interface IRefCheck {
  * check runs for a particular Git reference.
  */
 export interface ICombinedRefCheck {
-  readonly status: APICheckStatus
-  readonly conclusion: APICheckConclusion | null
-  readonly checks: ReadonlyArray<IRefCheck>
+  readonly status: APICheckStatus;
+  readonly conclusion: APICheckConclusion | null;
+  readonly checks: ReadonlyArray<IRefCheck>;
 }
 
 /**
  * Convert a legacy API commit status to a fake check run
  */
 export function apiStatusToRefCheck(apiStatus: IAPIRefStatusItem): IRefCheck {
-  let state: APICheckStatus
-  let conclusion: APICheckConclusion | null = null
+  let state: APICheckStatus;
+  let conclusion: APICheckConclusion | null = null;
 
-  if (apiStatus.state === 'success') {
-    state = APICheckStatus.Completed
-    conclusion = APICheckConclusion.Success
-  } else if (apiStatus.state === 'pending') {
-    state = APICheckStatus.InProgress
+  if (apiStatus.state === "success") {
+    state = APICheckStatus.Completed;
+    conclusion = APICheckConclusion.Success;
+  } else if (apiStatus.state === "pending") {
+    state = APICheckStatus.InProgress;
   } else {
-    state = APICheckStatus.Completed
-    conclusion = APICheckConclusion.Failure
+    state = APICheckStatus.Completed;
+    conclusion = APICheckConclusion.Failure;
   }
 
   return {
@@ -73,39 +70,37 @@ export function apiStatusToRefCheck(apiStatus: IAPIRefStatusItem): IRefCheck {
     description: getCheckRunShortDescription(state, conclusion),
     status: state,
     conclusion,
-    appName: '',
+    appName: "",
     checkSuiteId: null,
     htmlUrl: apiStatus.target_url,
-  }
+  };
 }
 
 /**
  * Returns the user-facing adjective for a given check run conclusion.
  */
-export function getCheckRunConclusionAdjective(
-  conclusion: APICheckConclusion | null
-): string {
+export function getCheckRunConclusionAdjective(conclusion: APICheckConclusion | null): string {
   if (conclusion === null) {
-    return 'In progress'
+    return "In progress";
   }
 
   switch (conclusion) {
     case APICheckConclusion.ActionRequired:
-      return 'Action required'
+      return "Action required";
     case APICheckConclusion.Canceled:
-      return 'Canceled'
+      return "Canceled";
     case APICheckConclusion.TimedOut:
-      return 'Timed out'
+      return "Timed out";
     case APICheckConclusion.Failure:
-      return 'Failed'
+      return "Failed";
     case APICheckConclusion.Neutral:
-      return 'Neutral'
+      return "Neutral";
     case APICheckConclusion.Success:
-      return 'Successful'
+      return "Successful";
     case APICheckConclusion.Skipped:
-      return 'Skipped'
+      return "Skipped";
     case APICheckConclusion.Stale:
-      return 'Marked as stale'
+      return "Marked as stale";
   }
 }
 
@@ -126,13 +121,13 @@ export function getCheckRunConclusionAdjective(
 function getCheckRunShortDescription(
   status: APICheckStatus,
   conclusion: APICheckConclusion | null,
-  durationMs?: number
+  durationMs?: number,
 ): string {
   if (status !== APICheckStatus.Completed || conclusion === null) {
-    return 'In progress'
+    return "In progress";
   }
 
-  const adjective = getCheckRunConclusionAdjective(conclusion)
+  const adjective = getCheckRunConclusionAdjective(conclusion);
 
   // Some conclusions such as 'Action required' or 'Skipped' don't make sense
   // with time context so we just return them.
@@ -143,25 +138,24 @@ function getCheckRunShortDescription(
       APICheckConclusion.Stale,
     ].includes(conclusion)
   ) {
-    return adjective
+    return adjective;
   }
 
-  const preposition = conclusion === APICheckConclusion.Success ? 'in' : 'after'
+  const preposition = conclusion === APICheckConclusion.Success ? "in" : "after";
 
   if (durationMs !== undefined && durationMs > 0) {
-    return `${adjective} ${preposition} ${formatPreciseDuration(durationMs)}`
+    return `${adjective} ${preposition} ${formatPreciseDuration(durationMs)}`;
   }
 
-  return adjective
+  return adjective;
 }
 
 /**
  * Attempts to get the duration of a check run in milliseconds. Returns NaN if
  * parsing either completed_at or started_at fails
  */
-export const getCheckDurationInMilliseconds = (
-  checkRun: IAPIRefCheckRun | IAPIWorkflowJobStep
-) => Date.parse(checkRun.completed_at) - Date.parse(checkRun.started_at)
+export const getCheckDurationInMilliseconds = (checkRun: IAPIRefCheckRun | IAPIWorkflowJobStep) =>
+  Date.parse(checkRun.completed_at) - Date.parse(checkRun.started_at);
 
 /**
  * Convert an API check run object to a RefCheck model
@@ -173,14 +167,14 @@ export function apiCheckRunToRefCheck(checkRun: IAPIRefCheckRun): IRefCheck {
     description: getCheckRunShortDescription(
       checkRun.status,
       checkRun.conclusion,
-      getCheckDurationInMilliseconds(checkRun)
+      getCheckDurationInMilliseconds(checkRun),
     ),
     status: checkRun.status,
     conclusion: checkRun.conclusion,
     appName: checkRun.app.name,
     checkSuiteId: checkRun.check_suite.id,
     htmlUrl: checkRun.html_url,
-  }
+  };
 }
 
 /**
@@ -188,20 +182,20 @@ export function apiCheckRunToRefCheck(checkRun: IAPIRefCheckRun): IRefCheck {
  * and conclusion.
  */
 export function createCombinedCheckFromChecks(
-  checks: ReadonlyArray<IRefCheck>
+  checks: ReadonlyArray<IRefCheck>,
 ): ICombinedRefCheck | null {
   if (checks.length === 0) {
     // This case is distinct from when we fail to call the API in
     // that this means there are no checks or statuses so we should
     // clear whatever info we've got for this ref.
-    return null
+    return null;
   }
 
   if (checks.length === 1) {
     // If we've got exactly one check then we can mirror its status
     // and conclusion 1-1 without having to create an aggregate status
-    const { status, conclusion } = checks[0]
-    return { status, conclusion, checks }
+    const { status, conclusion } = checks[0];
+    return { status, conclusion, checks };
   }
 
   if (checks.some(isIncompleteOrFailure)) {
@@ -209,15 +203,15 @@ export function createCombinedCheckFromChecks(
       status: APICheckStatus.Completed,
       conclusion: APICheckConclusion.Failure,
       checks,
-    }
+    };
   } else if (checks.every(isSuccess)) {
     return {
       status: APICheckStatus.Completed,
       conclusion: APICheckConclusion.Success,
       checks,
-    }
+    };
   } else {
-    return { status: APICheckStatus.InProgress, conclusion: null, checks }
+    return { status: APICheckStatus.InProgress, conclusion: null, checks };
   }
 }
 
@@ -225,7 +219,7 @@ export function createCombinedCheckFromChecks(
  * Whether the check is either incomplete or has failed
  */
 export function isIncompleteOrFailure(check: IRefCheck) {
-  return isIncomplete(check) || isFailure(check)
+  return isIncomplete(check) || isFailure(check);
 }
 
 /**
@@ -238,43 +232,43 @@ export function isIncompleteOrFailure(check: IRefCheck) {
  * it as stale.
  */
 export function isIncomplete(check: IRefCheck) {
-  if (check.status === 'completed') {
+  if (check.status === "completed") {
     switch (check.conclusion) {
-      case 'timed_out':
-      case 'stale':
-      case 'cancelled':
-        return true
+      case "timed_out":
+      case "stale":
+      case "cancelled":
+        return true;
     }
   }
 
-  return false
+  return false;
 }
 
 /** Whether the check has failed (failure or requires action) */
 export function isFailure(check: IRefCheck | IAPIWorkflowJobStep) {
-  if (check.status === 'completed') {
+  if (check.status === "completed") {
     switch (check.conclusion) {
-      case 'failure':
-      case 'action_required':
-        return true
+      case "failure":
+      case "action_required":
+        return true;
     }
   }
 
-  return false
+  return false;
 }
 
 /** Whether the check can be considered successful (success, neutral or skipped) */
 export function isSuccess(check: IRefCheck) {
-  if (check.status === 'completed') {
+  if (check.status === "completed") {
     switch (check.conclusion) {
-      case 'success':
-      case 'neutral':
-      case 'skipped':
-        return true
+      case "success":
+      case "neutral":
+      case "skipped":
+        return true;
     }
   }
 
-  return false
+  return false;
 }
 
 /**
@@ -287,9 +281,9 @@ export function isSuccess(check: IRefCheck) {
  * the "latest" of two check runs with the same name.
  */
 export function getLatestCheckRunsById(
-  checkRuns: ReadonlyArray<IAPIRefCheckRun>
+  checkRuns: ReadonlyArray<IAPIRefCheckRun>,
 ): ReadonlyArray<IAPIRefCheckRun> {
-  const latestCheckRunsByName = new Map<string, IAPIRefCheckRun>()
+  const latestCheckRunsByName = new Map<string, IAPIRefCheckRun>();
 
   for (const checkRun of checkRuns) {
     // For release branches (maybe other scenarios?), there can be check runs
@@ -302,19 +296,14 @@ export function getLatestCheckRunsById(
     // differieates these.
     const nameAndHasPRs =
       checkRun.id +
-      (checkRun.pull_requests.length > 0
-        ? 'isPullRequestCheckRun'
-        : 'isPushCheckRun')
-    const current = latestCheckRunsByName.get(nameAndHasPRs)
-    if (
-      current === undefined ||
-      current.check_suite.id < checkRun.check_suite.id
-    ) {
-      latestCheckRunsByName.set(nameAndHasPRs, checkRun)
+      (checkRun.pull_requests.length > 0 ? "isPullRequestCheckRun" : "isPushCheckRun");
+    const current = latestCheckRunsByName.get(nameAndHasPRs);
+    if (current === undefined || current.check_suite.id < checkRun.check_suite.id) {
+      latestCheckRunsByName.set(nameAndHasPRs, checkRun);
     }
   }
 
-  return [...latestCheckRunsByName.values()]
+  return [...latestCheckRunsByName.values()];
 }
 
 /**
@@ -324,36 +313,35 @@ export async function getLatestPRWorkflowRunsLogsForCheckRun(
   api: API,
   owner: string,
   repo: string,
-  checkRuns: ReadonlyArray<IRefCheck>
+  checkRuns: ReadonlyArray<IRefCheck>,
 ): Promise<ReadonlyArray<IRefCheck>> {
-  const jobsCache = new Map<number, IAPIWorkflowJobs | null>()
-  const mappedCheckRuns = new Array<IRefCheck>()
+  const jobsCache = new Map<number, IAPIWorkflowJobs | null>();
+  const mappedCheckRuns = new Array<IRefCheck>();
   for (const cr of checkRuns) {
     if (cr.actionsWorkflow === undefined) {
-      mappedCheckRuns.push(cr)
-      continue
+      mappedCheckRuns.push(cr);
+      continue;
     }
-    const { id } = cr.actionsWorkflow
+    const { id } = cr.actionsWorkflow;
     // Multiple check runs match a single workflow run.
     // We can prevent several job network calls by caching them.
-    const workFlowRunJobs =
-      jobsCache.get(id) ?? (await api.fetchWorkflowRunJobs(owner, repo, id))
-    jobsCache.set(id, workFlowRunJobs)
+    const workFlowRunJobs = jobsCache.get(id) ?? (await api.fetchWorkflowRunJobs(owner, repo, id));
+    jobsCache.set(id, workFlowRunJobs);
 
-    const matchingJob = workFlowRunJobs?.jobs.find(j => j.id === cr.id)
+    const matchingJob = workFlowRunJobs?.jobs.find((j) => j.id === cr.id);
     if (matchingJob === undefined) {
-      mappedCheckRuns.push(cr)
-      continue
+      mappedCheckRuns.push(cr);
+      continue;
     }
 
     mappedCheckRuns.push({
       ...cr,
       htmlUrl: matchingJob.html_url,
       actionJobSteps: matchingJob.steps,
-    })
+    });
   }
 
-  return mappedCheckRuns
+  return mappedCheckRuns;
 }
 
 /**
@@ -371,18 +359,12 @@ export async function getCheckRunActionsWorkflowRuns(
   owner: string,
   repo: string,
   branchName: string,
-  checkRuns: ReadonlyArray<IRefCheck>
+  checkRuns: ReadonlyArray<IRefCheck>,
 ): Promise<ReadonlyArray<IRefCheck>> {
-  const api = API.fromAccount(account)
+  const api = API.fromAccount(account);
   return supportsRetrieveActionWorkflowByCheckSuiteId(account.endpoint)
     ? getCheckRunActionsWorkflowRunsByCheckSuiteId(api, owner, repo, checkRuns)
-    : getCheckRunActionsWorkflowRunsByBranchName(
-        api,
-        owner,
-        repo,
-        branchName,
-        checkRuns
-      )
+    : getCheckRunActionsWorkflowRunsByBranchName(api, owner, repo, branchName, checkRuns);
 }
 
 /**
@@ -403,20 +385,20 @@ async function getCheckRunActionsWorkflowRunsByBranchName(
   owner: string,
   repo: string,
   branchName: string,
-  checkRuns: ReadonlyArray<IRefCheck>
+  checkRuns: ReadonlyArray<IRefCheck>,
 ): Promise<ReadonlyArray<IRefCheck>> {
   const latestWorkflowRuns = await getLatestPRWorkflowRunsByBranchName(
     api,
     owner,
     repo,
-    branchName
-  )
+    branchName,
+  );
 
   if (latestWorkflowRuns.length === 0) {
-    return checkRuns
+    return checkRuns;
   }
 
-  return mapActionWorkflowsRunsToCheckRuns(checkRuns, latestWorkflowRuns)
+  return mapActionWorkflowsRunsToCheckRuns(checkRuns, latestWorkflowRuns);
 }
 
 /**
@@ -430,45 +412,41 @@ async function getCheckRunActionsWorkflowRunsByCheckSuiteId(
   api: API,
   owner: string,
   repo: string,
-  checkRuns: ReadonlyArray<IRefCheck>
+  checkRuns: ReadonlyArray<IRefCheck>,
 ): Promise<readonly IRefCheck[]> {
   if (checkRuns.length === 0) {
-    return checkRuns
+    return checkRuns;
   }
 
-  const mappedCheckRuns = new Array<IRefCheck>()
-  const actionsCache = new Map<number, IAPIWorkflowRun | null>()
+  const mappedCheckRuns = new Array<IRefCheck>();
+  const actionsCache = new Map<number, IAPIWorkflowRun | null>();
   for (const cr of checkRuns) {
     if (cr.checkSuiteId === null) {
-      mappedCheckRuns.push(cr)
-      continue
+      mappedCheckRuns.push(cr);
+      continue;
     }
 
     // Multiple check runs share the same action workflow
-    const cachedActionWorkFlow = actionsCache.get(cr.checkSuiteId)
+    const cachedActionWorkFlow = actionsCache.get(cr.checkSuiteId);
     const actionsWorkflow =
       cachedActionWorkFlow === undefined
-        ? await api.fetchPRActionWorkflowRunByCheckSuiteId(
-            owner,
-            repo,
-            cr.checkSuiteId
-          )
-        : cachedActionWorkFlow
+        ? await api.fetchPRActionWorkflowRunByCheckSuiteId(owner, repo, cr.checkSuiteId)
+        : cachedActionWorkFlow;
 
-    actionsCache.set(cr.checkSuiteId, actionsWorkflow)
+    actionsCache.set(cr.checkSuiteId, actionsWorkflow);
 
     if (actionsWorkflow === null) {
-      mappedCheckRuns.push(cr)
-      continue
+      mappedCheckRuns.push(cr);
+      continue;
     }
 
     mappedCheckRuns.push({
       ...cr,
       actionsWorkflow,
-    })
+    });
   }
 
-  return mappedCheckRuns
+  return mappedCheckRuns;
 }
 
 // Gets only the latest PR workflow runs hashed by name
@@ -476,86 +454,76 @@ async function getLatestPRWorkflowRunsByBranchName(
   api: API,
   owner: string,
   name: string,
-  branchName: string
+  branchName: string,
 ): Promise<ReadonlyArray<IAPIWorkflowRun>> {
-  const wrMap = new Map<number, IAPIWorkflowRun>()
-  const allBranchWorkflowRuns = await api.fetchPRWorkflowRunsByBranchName(
-    owner,
-    name,
-    branchName
-  )
+  const wrMap = new Map<number, IAPIWorkflowRun>();
+  const allBranchWorkflowRuns = await api.fetchPRWorkflowRunsByBranchName(owner, name, branchName);
 
   if (allBranchWorkflowRuns === null) {
-    return []
+    return [];
   }
 
   // When retrieving Actions Workflow runs it returns all present and past
   // workflow runs for the given branch name. For each workflow name, we only
   // care about showing the latest run.
   for (const wr of allBranchWorkflowRuns.workflow_runs) {
-    const storedWR = wrMap.get(wr.workflow_id)
+    const storedWR = wrMap.get(wr.workflow_id);
     if (storedWR === undefined) {
-      wrMap.set(wr.workflow_id, wr)
-      continue
+      wrMap.set(wr.workflow_id, wr);
+      continue;
     }
 
-    const storedWRDate = new Date(storedWR.created_at)
-    const givenWRDate = new Date(wr.created_at)
+    const storedWRDate = new Date(storedWR.created_at);
+    const givenWRDate = new Date(wr.created_at);
     if (storedWRDate.getTime() < givenWRDate.getTime()) {
-      wrMap.set(wr.workflow_id, wr)
+      wrMap.set(wr.workflow_id, wr);
     }
   }
 
-  return Array.from(wrMap.values())
+  return Array.from(wrMap.values());
 }
 
 function mapActionWorkflowsRunsToCheckRuns(
   checkRuns: ReadonlyArray<IRefCheck>,
-  actionWorkflowRuns: ReadonlyArray<IAPIWorkflowRun>
+  actionWorkflowRuns: ReadonlyArray<IAPIWorkflowRun>,
 ): ReadonlyArray<IRefCheck> {
   if (actionWorkflowRuns.length === 0 || checkRuns.length === 0) {
-    return checkRuns
+    return checkRuns;
   }
 
-  const mappedCheckRuns = new Array<IRefCheck>()
+  const mappedCheckRuns = new Array<IRefCheck>();
   for (const cr of checkRuns) {
-    const matchingWR = actionWorkflowRuns.find(
-      wr => wr.check_suite_id === cr.checkSuiteId
-    )
+    const matchingWR = actionWorkflowRuns.find((wr) => wr.check_suite_id === cr.checkSuiteId);
     if (matchingWR === undefined) {
-      mappedCheckRuns.push(cr)
-      continue
+      mappedCheckRuns.push(cr);
+      continue;
     }
 
     mappedCheckRuns.push({
       ...cr,
       actionsWorkflow: matchingWR,
-    })
+    });
   }
 
-  return mappedCheckRuns
+  return mappedCheckRuns;
 }
 
 /**
  *  Gets the duration of a check run or job step formatted in minutes and
  *  seconds with short notation (e.g. 1m 30s)
  */
-export function getFormattedCheckRunDuration(
-  checkRun: IAPIRefCheckRun | IAPIWorkflowJobStep
-) {
-  const duration = getCheckDurationInMilliseconds(checkRun)
-  return isNaN(duration) ? '' : formatPreciseDuration(duration)
+export function getFormattedCheckRunDuration(checkRun: IAPIRefCheckRun | IAPIWorkflowJobStep) {
+  const duration = getCheckDurationInMilliseconds(checkRun);
+  return isNaN(duration) ? "" : formatPreciseDuration(duration);
 }
 
 /**
  *  Gets the duration of a check run or job step formatted in minutes and
  *  seconds with long notation (e.g. 1 minute 30 seconds)
  */
-export function getFormattedCheckRunLongDuration(
-  checkRun: IAPIRefCheckRun | IAPIWorkflowJobStep
-) {
-  const duration = getCheckDurationInMilliseconds(checkRun)
-  return isNaN(duration) ? '' : formatLongPreciseDuration(duration)
+export function getFormattedCheckRunLongDuration(checkRun: IAPIRefCheckRun | IAPIWorkflowJobStep) {
+  const duration = getCheckDurationInMilliseconds(checkRun);
+  return isNaN(duration) ? "" : formatLongPreciseDuration(duration);
 }
 
 /**
@@ -571,20 +539,20 @@ export function getCheckRunStepURL(
   checkRun: IRefCheck,
   step: IAPIWorkflowJobStep,
   repository: GitHubRepository,
-  pullRequestNumber: number
+  pullRequestNumber: number,
 ): string | null {
   if (checkRun.htmlUrl === null && repository.htmlURL === null) {
     // A check run may not have a url depending on how it is setup.
     // However, the repository should have one; Thus, we shouldn't hit this
-    return null
+    return null;
   }
 
   const url =
     checkRun.htmlUrl !== null
       ? `${checkRun.htmlUrl}/#step:${step.number}:1`
-      : `${repository.htmlURL}/pull/${pullRequestNumber}`
+      : `${repository.htmlURL}/pull/${pullRequestNumber}`;
 
-  return url
+  return url;
 }
 
 /**
@@ -596,102 +564,101 @@ export function getCheckRunStepURL(
  * @returns A map of grouped check runs.
  */
 export function getCheckRunsGroupedByActionWorkflowNameAndEvent(
-  checkRuns: ReadonlyArray<IRefCheck>
+  checkRuns: ReadonlyArray<IRefCheck>,
 ): Map<string, ReadonlyArray<IRefCheck>> {
   const checkRunEvents = new Set(
     checkRuns
-      .map(c => c.actionsWorkflow?.event)
-      .filter(c => c !== undefined && c.trim() !== '')
-  )
-  const checkRunsHaveMultipleEventTypes = checkRunEvents.size > 1
+      .map((c) => c.actionsWorkflow?.event)
+      .filter((c) => c !== undefined && c.trim() !== ""),
+  );
+  const checkRunsHaveMultipleEventTypes = checkRunEvents.size > 1;
 
-  const groups = new Map<string, IRefCheck[]>()
+  const groups = new Map<string, IRefCheck[]>();
   for (const checkRun of checkRuns) {
-    let group = checkRun.actionsWorkflow?.name || 'Other'
+    let group = checkRun.actionsWorkflow?.name || "Other";
 
     if (
       checkRunsHaveMultipleEventTypes &&
       checkRun.actionsWorkflow !== undefined &&
-      checkRun.actionsWorkflow.event.trim() !== ''
+      checkRun.actionsWorkflow.event.trim() !== ""
     ) {
-      group = `${group} (${checkRun.actionsWorkflow.event})`
+      group = `${group} (${checkRun.actionsWorkflow.event})`;
     }
 
-    if (group === 'Other' && checkRun.appName === 'GitHub Code Scanning') {
-      group = 'Code scanning results'
+    if (group === "Other" && checkRun.appName === "GitHub Code Scanning") {
+      group = "Code scanning results";
     }
 
-    const existingGroup = groups.get(group)
-    const newGroup =
-      existingGroup !== undefined ? [...existingGroup, checkRun] : [checkRun]
-    groups.set(group, newGroup)
+    const existingGroup = groups.get(group);
+    const newGroup = existingGroup !== undefined ? [...existingGroup, checkRun] : [checkRun];
+    groups.set(group, newGroup);
   }
 
-  const sortedGroupNames = getCheckRunGroupNames(groups)
+  const sortedGroupNames = getCheckRunGroupNames(groups);
 
-  sortedGroupNames.forEach(gn => {
-    const group = groups.get(gn)
+  sortedGroupNames.forEach((gn) => {
+    const group = groups.get(gn);
     if (group !== undefined) {
-      const sortedGroup = group.sort((a, b) => a.name.localeCompare(b.name))
-      groups.set(gn, sortedGroup)
+      const sortedGroup = group.sort((a, b) => a.name.localeCompare(b.name));
+      groups.set(gn, sortedGroup);
     }
-  })
+  });
 
-  return groups
+  return groups;
 }
 
 /**
  * Gets the check run group names from the map and sorts them alphebetically with Other being last.
  */
 export function getCheckRunGroupNames(
-  checkRunGroups: Map<string, ReadonlyArray<IRefCheck>>
+  checkRunGroups: Map<string, ReadonlyArray<IRefCheck>>,
 ): ReadonlyArray<string> {
-  const groupNames = [...checkRunGroups.keys()]
+  const groupNames = [...checkRunGroups.keys()];
 
   // Sort names with 'Other' always last.
   groupNames.sort((a, b) => {
-    if (a === 'Other' && b !== 'Other') {
-      return 1
+    if (a === "Other" && b !== "Other") {
+      return 1;
     }
 
-    if (a !== 'Other' && b === 'Other') {
-      return -1
+    if (a !== "Other" && b === "Other") {
+      return -1;
     }
 
-    if (a === 'Other' && b === 'Other') {
-      return 0
+    if (a === "Other" && b === "Other") {
+      return 0;
     }
 
-    return a.localeCompare(b)
-  })
+    return a.localeCompare(b);
+  });
 
-  return groupNames
+  return groupNames;
 }
 
 export function manuallySetChecksToPending(
   cachedChecks: ReadonlyArray<IRefCheck>,
-  pendingChecks: ReadonlyArray<IRefCheck>
+  pendingChecks: ReadonlyArray<IRefCheck>,
 ): ICombinedRefCheck | null {
-  const updatedChecks: IRefCheck[] = []
+  const updatedChecks: IRefCheck[] = [];
   for (const check of cachedChecks) {
-    const matchingCheck = pendingChecks.find(c => check.id === c.id)
+    const matchingCheck = pendingChecks.find((c) => check.id === c.id);
     if (matchingCheck === undefined) {
-      updatedChecks.push(check)
-      continue
+      updatedChecks.push(check);
+      continue;
     }
 
     updatedChecks.push({
       ...check,
       status: APICheckStatus.InProgress,
       conclusion: null,
-      actionJobSteps: check.actionJobSteps?.map(js => ({
+      actionJobSteps: check.actionJobSteps?.map((js) => ({
         ...js,
         status: APICheckStatus.InProgress,
         conclusion: null,
       })),
-    })
+    });
   }
-  return createCombinedCheckFromChecks(updatedChecks)
+  return createCombinedCheckFromChecks(updatedChecks);
 }
 
 /**
@@ -701,14 +668,14 @@ export function manuallySetChecksToPending(
  * @returns Returns a map with key of conclusions or status and values of count of that conclustion or status
  */
 export function getCheckStatusCountMap(checks: ReadonlyArray<IRefCheck>) {
-  const countByStatus = new Map<string, number>()
-  checks.forEach(check => {
-    const key = check.conclusion ?? check.status
-    const currentCount: number = countByStatus.get(key) ?? 0
-    countByStatus.set(key, currentCount + 1)
-  })
+  const countByStatus = new Map<string, number>();
+  checks.forEach((check) => {
+    const key = check.conclusion ?? check.status;
+    const currentCount: number = countByStatus.get(key) ?? 0;
+    countByStatus.set(key, currentCount + 1);
+  });
 
-  return countByStatus
+  return countByStatus;
 }
 
 /**
@@ -719,4 +686,4 @@ export const FailingCheckConclusions = [
   APICheckConclusion.Canceled,
   APICheckConclusion.ActionRequired,
   APICheckConclusion.TimedOut,
-]
+];

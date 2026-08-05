@@ -1,16 +1,16 @@
-import { describe, it } from 'vitest'
-import assert from 'node:assert'
-import { getStartPoint } from './create-branch'
-import { TipState, IValidBranch, IDetachedHead } from '../models/tip'
-import { BranchType, StartPoint, IBranchTip, Branch } from '../models/branch'
+import { describe, it } from "vitest";
+import assert from "node:assert";
+import { getStartPoint } from "./create-branch";
+import { TipState, IValidBranch, IDetachedHead } from "../models/tip";
+import { BranchType, StartPoint, IBranchTip, Branch } from "../models/branch";
 
 const stubTip: IBranchTip = {
-  sha: 'deadbeef',
+  sha: "deadbeef",
   author: { date: new Date(0) },
-}
+};
 
 const defaultBranch: Branch = {
-  name: 'my-default-branch',
+  name: "my-default-branch",
   upstream: null,
   isGone: false,
   tip: stubTip,
@@ -18,15 +18,15 @@ const defaultBranch: Branch = {
   remoteName: null,
   upstreamRemoteName: null,
   upstreamWithoutRemote: null,
-  nameWithoutRemote: 'my-default-branch',
+  nameWithoutRemote: "my-default-branch",
   isDesktopForkRemoteBranch: false,
-  ref: '',
-}
+  ref: "",
+};
 
-const upstreamDefaultBranch = null
+const upstreamDefaultBranch = null;
 
 const someOtherBranch: Branch = {
-  name: 'some-other-branch',
+  name: "some-other-branch",
   upstream: null,
   isGone: false,
   tip: stubTip,
@@ -34,87 +34,78 @@ const someOtherBranch: Branch = {
   remoteName: null,
   upstreamRemoteName: null,
   upstreamWithoutRemote: null,
-  nameWithoutRemote: 'some-other-branch',
+  nameWithoutRemote: "some-other-branch",
   isDesktopForkRemoteBranch: false,
-  ref: '',
-}
+  ref: "",
+};
 
-describe('create-branch/getStartPoint', () => {
-  describe('for default branch', () => {
+describe("create-branch/getStartPoint", () => {
+  describe("for default branch", () => {
     const tip: IValidBranch = {
       kind: TipState.Valid,
       branch: defaultBranch,
-    }
+    };
 
     const action = (startPoint: StartPoint) => {
-      return getStartPoint(
-        { tip, defaultBranch, upstreamDefaultBranch },
-        startPoint
-      )
-    }
+      return getStartPoint({ tip, defaultBranch, upstreamDefaultBranch }, startPoint);
+    };
 
-    it('returns current HEAD when HEAD requested', () => {
-      assert.equal(action(StartPoint.Head), StartPoint.Head)
-    })
+    it("returns current HEAD when HEAD requested", () => {
+      assert.equal(action(StartPoint.Head), StartPoint.Head);
+    });
 
-    it('chooses current branch when current branch requested', () => {
-      assert.equal(action(StartPoint.CurrentBranch), StartPoint.CurrentBranch)
-    })
+    it("chooses current branch when current branch requested", () => {
+      assert.equal(action(StartPoint.CurrentBranch), StartPoint.CurrentBranch);
+    });
 
-    it('chooses default branch when default branch requested', () => {
-      assert.equal(action(StartPoint.DefaultBranch), StartPoint.DefaultBranch)
-    })
-  })
+    it("chooses default branch when default branch requested", () => {
+      assert.equal(action(StartPoint.DefaultBranch), StartPoint.DefaultBranch);
+    });
+  });
 
-  describe('for a non-default branch', () => {
+  describe("for a non-default branch", () => {
     const tip: IValidBranch = {
       kind: TipState.Valid,
       branch: someOtherBranch,
-    }
+    };
 
     const action = (startPoint: StartPoint) => {
-      return getStartPoint(
-        { tip, defaultBranch, upstreamDefaultBranch },
-        startPoint
-      )
-    }
+      return getStartPoint({ tip, defaultBranch, upstreamDefaultBranch }, startPoint);
+    };
 
-    it('returns current HEAD when HEAD requested', () => {
-      assert.equal(action(StartPoint.Head), StartPoint.Head)
-    })
+    it("returns current HEAD when HEAD requested", () => {
+      assert.equal(action(StartPoint.Head), StartPoint.Head);
+    });
 
-    it('chooses current branch when current branch requested', () => {
-      assert.equal(action(StartPoint.CurrentBranch), StartPoint.CurrentBranch)
-    })
+    it("chooses current branch when current branch requested", () => {
+      assert.equal(action(StartPoint.CurrentBranch), StartPoint.CurrentBranch);
+    });
 
-    it('chooses default branch when default branch requested', () => {
-      assert.equal(action(StartPoint.DefaultBranch), StartPoint.DefaultBranch)
-    })
-  })
+    it("chooses default branch when default branch requested", () => {
+      assert.equal(action(StartPoint.DefaultBranch), StartPoint.DefaultBranch);
+    });
+  });
 
-  describe('for detached HEAD', () => {
+  describe("for detached HEAD", () => {
     const tip: IDetachedHead = {
       kind: TipState.Detached,
-      currentSha: 'deadbeef',
-    }
+      currentSha: "deadbeef",
+    };
 
     const action = (startPoint: StartPoint) => {
-      return getStartPoint(
-        { tip, defaultBranch, upstreamDefaultBranch },
-        startPoint
-      )
-    }
+      return getStartPoint({ tip, defaultBranch, upstreamDefaultBranch }, startPoint);
+    };
 
-    it('returns current HEAD when HEAD requested', () => {
-      assert.equal(action(StartPoint.Head), StartPoint.Head)
-    })
+    it("returns current HEAD when HEAD requested", () => {
+      assert.equal(action(StartPoint.Head), StartPoint.Head);
+    });
 
-    it('returns current HEAD when current branch requested', () => {
-      assert.equal(action(StartPoint.CurrentBranch), StartPoint.Head)
-    })
+    it("returns current HEAD when current branch requested", () => {
+      assert.equal(action(StartPoint.CurrentBranch), StartPoint.Head);
+    });
 
-    it('returns current HEAD when default branch requested', () => {
-      assert.equal(action(StartPoint.DefaultBranch), StartPoint.Head)
-    })
-  })
-})
+    it("returns current HEAD when default branch requested", () => {
+      assert.equal(action(StartPoint.DefaultBranch), StartPoint.Head);
+    });
+  });
+});

@@ -8,32 +8,31 @@
 //
 // Re-run this when upgrading the dugite version the classifier is derived from; do not hand-edit
 // the generated file.
-import { createRequire } from 'node:module'
-import { writeFileSync } from 'node:fs'
+import { createRequire } from "node:module";
+import { writeFileSync } from "node:fs";
 
-const require = createRequire(import.meta.url)
-const { GitError, GitErrorRegexes } = require('./package/build/lib/errors.js')
+const require = createRequire(import.meta.url);
+const { GitError, GitErrorRegexes } = require("./package/build/lib/errors.js");
 
-const names = {}
-for (const [k, v] of Object.entries(GitError))
-  if (typeof v === 'number') names[v] = k
+const names = {};
+for (const [k, v] of Object.entries(GitError)) if (typeof v === "number") names[v] = k;
 
 const variants = Object.keys(names)
   .map(Number)
   .sort((a, b) => a - b)
-  .map(n => names[n])
+  .map((n) => names[n]);
 
-const entries = Object.entries(GitErrorRegexes)
+const entries = Object.entries(GitErrorRegexes);
 
 // Rust raw strings: prefer r"..." and escalate the hash count if the pattern contains a quote
 // followed by hashes. Patterns contain backslashes, so raw strings avoid double-escaping.
-const rustRaw = s => {
-  let hashes = ''
-  while (s.includes(`"${hashes}`)) hashes += '#'
-  return `r${hashes}"${s}"${hashes}`
-}
+const rustRaw = (s) => {
+  let hashes = "";
+  while (s.includes(`"${hashes}`)) hashes += "#";
+  return `r${hashes}"${s}"${hashes}`;
+};
 
-const dugiteVersion = require('./package/package.json').version
+const dugiteVersion = require("./package/package.json").version;
 
 const out = `//! Classification of git failures from stderr.
 //!
@@ -64,7 +63,7 @@ use serde::{Deserialize, Serialize};
 /// Mirrors dugite's \`GitError\` enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum GitErrorKind {
-${variants.map(v => `    ${v},`).join('\n')}
+${variants.map((v) => `    ${v},`).join("\n")}
 }
 
 impl GitErrorKind {
@@ -83,7 +82,7 @@ impl GitErrorKind {
 
 /// Patterns in dugite's original order. The first match wins.
 const PATTERNS: &[(&str, GitErrorKind)] = &[
-${entries.map(([re, v]) => `    (${rustRaw(re)}, GitErrorKind::${names[v]}),`).join('\n')}
+${entries.map(([re, v]) => `    (${rustRaw(re)}, GitErrorKind::${names[v]}),`).join("\n")}
 ];
 
 fn compiled() -> &'static [(Regex, GitErrorKind)] {
@@ -227,9 +226,7 @@ mod tests {
         assert_eq!(parse_bad_config_value("ERROR: Repository not found"), None);
     }
 }
-`
+`;
 
-writeFileSync(process.argv[2], out)
-console.log(
-  `wrote ${process.argv[2]}: ${variants.length} variants, ${entries.length} patterns`
-)
+writeFileSync(process.argv[2], out);
+console.log(`wrote ${process.argv[2]}: ${variants.length} variants, ${entries.length} patterns`);

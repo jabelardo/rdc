@@ -1,22 +1,22 @@
-import { basename } from '../lib/path-utils'
-import { shortenSHA } from './commit'
+import { basename } from "../lib/path-utils";
+import { shortenSHA } from "./commit";
 
-export type WorktreeType = 'main' | 'linked'
+export type WorktreeType = "main" | "linked";
 
 export type WorktreeEntry = {
-  readonly path: string
-  readonly head: string
+  readonly path: string;
+  readonly head: string;
   /** Full ref name (e.g. `refs/heads/main`), or `null` when HEAD is detached */
-  readonly branch: string | null
-  readonly isDetached: boolean
-  readonly type: WorktreeType
-  readonly isLocked: boolean
-  readonly isPrunable: boolean
-}
+  readonly branch: string | null;
+  readonly isDetached: boolean;
+  readonly type: WorktreeType;
+  readonly isLocked: boolean;
+  readonly isPrunable: boolean;
+};
 
 /** The display name for a worktree (the basename of its path). */
 export function getWorktreeDisplayName(worktree: WorktreeEntry): string {
-  return basename(worktree.path)
+  return basename(worktree.path);
 }
 
 /**
@@ -25,6 +25,6 @@ export function getWorktreeDisplayName(worktree: WorktreeEntry): string {
  */
 export function getWorktreeDescription(worktree: WorktreeEntry): string {
   return worktree.branch
-    ? worktree.branch.replace(/^refs\/heads\//, '')
-    : shortenSHA(worktree.head)
+    ? worktree.branch.replace(/^refs\/heads\//, "")
+    : shortenSHA(worktree.head);
 }

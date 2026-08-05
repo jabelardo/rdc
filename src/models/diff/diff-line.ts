@@ -16,7 +16,7 @@ export class DiffLine {
     public readonly originalLineNumber: number | null,
     public readonly oldLineNumber: number | null,
     public readonly newLineNumber: number | null,
-    public readonly noTrailingNewLine: boolean = false
+    public readonly noTrailingNewLine: boolean = false,
   ) {}
 
   public withNoTrailingNewLine(noTrailingNewLine: boolean): DiffLine {
@@ -26,17 +26,17 @@ export class DiffLine {
       this.originalLineNumber,
       this.oldLineNumber,
       this.newLineNumber,
-      noTrailingNewLine
-    )
+      noTrailingNewLine,
+    );
   }
 
   public isIncludeableLine() {
-    return this.type === DiffLineType.Add || this.type === DiffLineType.Delete
+    return this.type === DiffLineType.Add || this.type === DiffLineType.Delete;
   }
 
   /** The content of the line, i.e., without the line type marker. */
   public get content(): string {
-    return this.text.substring(1)
+    return this.text.substring(1);
   }
 
   public equals(other: DiffLine) {
@@ -47,6 +47,6 @@ export class DiffLine {
       this.oldLineNumber === other.oldLineNumber &&
       this.newLineNumber === other.newLineNumber &&
       this.noTrailingNewLine === other.noTrailingNewLine
-    )
+    );
   }
 }

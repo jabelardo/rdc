@@ -14,7 +14,7 @@
  * `from..to`.
  */
 export function revRange(from: string, to: string): string {
-  return `${from}..${to}`
+  return `${from}..${to}`;
 }
 
 /**
@@ -23,7 +23,7 @@ export function revRange(from: string, to: string): string {
  * `from^..to` — the `^` is what pulls `from` back into the range.
  */
 export function revRangeInclusive(from: string, to: string): string {
-  return `${from}^..${to}`
+  return `${from}^..${to}`;
 }
 
 /**
@@ -33,5 +33,5 @@ export function revRangeInclusive(from: string, to: string): string {
  * "through" a merge rather than counting everything since the branches last touched.
  */
 export function revSymmetricDifference(from: string, to: string): string {
-  return `${from}...${to}`
+  return `${from}...${to}`;
 }

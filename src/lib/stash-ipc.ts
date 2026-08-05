@@ -11,69 +11,66 @@
  * seconds into a `Date`.
  */
 
-import { Channel, invoke } from '@tauri-apps/api/core'
+import { Channel, invoke } from "@tauri-apps/api/core";
 import {
   StashedChangesLoadStates,
   type IStashEntry,
   type StashedFileChanges,
-} from '../models/stash-entry'
-import type { AppFileStatus, CommittedFileChange } from '../models/status'
-import type { ManualConflictResolution } from '../models/manual-conflict-resolution'
-import type { CommitOneLine } from '../models/commit'
-import { SubmoduleEntry } from '../models/submodule'
-import type { IMultiCommitOperationProgress } from '../models/progress'
-import { RebaseResult, type IFileToStage } from './git-ipc'
-import {
-  hydrateCommittedFileChange,
-  type ICommittedFileChangeData,
-} from './log-ipc'
+} from "../models/stash-entry";
+import type { AppFileStatus, CommittedFileChange } from "../models/status";
+import type { ManualConflictResolution } from "../models/manual-conflict-resolution";
+import type { CommitOneLine } from "../models/commit";
+import { SubmoduleEntry } from "../models/submodule";
+import type { IMultiCommitOperationProgress } from "../models/progress";
+import { RebaseResult, type IFileToStage } from "./git-ipc";
+import { hydrateCommittedFileChange, type ICommittedFileChangeData } from "./log-ipc";
 
 /** A {@linkcode IStashEntry} as it arrives over IPC: everything but the frontend's load state. */
 export interface IStashEntryData {
-  readonly name: string
-  readonly branchName: string
-  readonly customName: string | null
-  readonly stashSha: string
+  readonly name: string;
+  readonly branchName: string;
+  readonly customName: string | null;
+  readonly stashSha: string;
   /** Seconds since the Unix epoch. */
-  readonly createdAt: number
-  readonly tree: string
-  readonly parents: ReadonlyArray<string>
+  readonly createdAt: number;
+  readonly tree: string;
+  readonly parents: ReadonlyArray<string>;
 }
 
 /** What {@linkcode getStashes} found. */
 export interface IStashResult {
   /** Entries the app created, newest first. */
-  readonly desktopEntries: ReadonlyArray<IStashEntry>
+  readonly desktopEntries: ReadonlyArray<IStashEntry>;
   /**
    * How many stash entries exist in total, including ones made outside the app.
    *
    * The original reported one fewer than existed — with a single stash it said zero. See
    * MIGRATION_MAP.md §8.
    */
-  readonly stashEntryCount: number
+  readonly stashEntryCount: number;
 }
 
 interface IStashResultData {
-  readonly desktopEntries: ReadonlyArray<IStashEntryData>
-  readonly stashEntryCount: number
+  readonly desktopEntries: ReadonlyArray<IStashEntryData>;
+  readonly stashEntryCount: number;
 }
 
 /** How a cherry-pick ended. */
 export enum CherryPickResult {
-  CompletedWithoutError = 'CompletedWithoutError',
-  ConflictsEncountered = 'ConflictsEncountered',
-  OutstandingFilesNotStaged = 'OutstandingFilesNotStaged',
-  UnableToStart = 'UnableToStart',
-  Error = 'Error',
+  CompletedWithoutError = "CompletedWithoutError",
+  ConflictsEncountered = "ConflictsEncountered",
+  OutstandingFilesNotStaged = "OutstandingFilesNotStaged",
+  UnableToStart = "UnableToStart",
+  Error = "Error",
 }
 
 /** An interrupted cherry-pick, so a reopened frontend can recover. */
 export interface ICherryPickSnapshot {
-  readonly remainingCommits: ReadonlyArray<CommitOneLine>
-  readonly commits: ReadonlyArray<CommitOneLine>
-  readonly progress: IMultiCommitOperationProgress
-  readonly targetBranchUndoSha: string
-  readonly cherryPickedCount: number
+  readonly remainingCommits: ReadonlyArray<CommitOneLine>;
+  readonly commits: ReadonlyArray<CommitOneLine>;
+  readonly progress: IMultiCommitOperationProgress;
+  readonly targetBranchUndoSha: string;
+  readonly cherryPickedCount: number;
 }
 
 /**
@@ -83,7 +80,7 @@ export interface ICherryPickSnapshot {
  */
 export function hydrateStashEntry(
   data: IStashEntryData,
-  files: StashedFileChanges = { kind: StashedChangesLoadStates.NotLoaded }
+  files: StashedFileChanges = { kind: StashedChangesLoadStates.NotLoaded },
 ): IStashEntry {
   return {
     name: data.name,
@@ -95,23 +92,19 @@ export function hydrateStashEntry(
     tree: data.tree,
     parents: data.parents,
     files,
-  }
+  };
 }
 
 /** Lists the app's stash entries, newest first, and counts all of them. */
-export async function getStashes(
-  repositoryPath: string
-): Promise<IStashResult> {
-  const result = await invoke<IStashResultData>('get_stashes', {
+export async function getStashes(repositoryPath: string): Promise<IStashResult> {
+  const result = await invoke<IStashResultData>("get_stashes", {
     repositoryPath,
-  })
+  });
 
   return {
-    desktopEntries: result.desktopEntries.map(entry =>
-      hydrateStashEntry(entry)
-    ),
+    desktopEntries: result.desktopEntries.map((entry) => hydrateStashEntry(entry)),
     stashEntryCount: result.stashEntryCount,
-  }
+  };
 }
 
 /**
@@ -124,22 +117,19 @@ export async function createStashEntry(
   repositoryPath: string,
   branchName: string,
   untrackedFilesToStage: ReadonlyArray<IFileToStage> = [],
-  selectedFiles: ReadonlyArray<string> | null = null
+  selectedFiles: ReadonlyArray<string> | null = null,
 ): Promise<boolean> {
-  return invoke<boolean>('create_stash_entry', {
+  return invoke<boolean>("create_stash_entry", {
     repositoryPath,
     branchName,
     untrackedFilesToStage,
     selectedFiles,
-  })
+  });
 }
 
 /** Drops the entry with the given commit. Dropping an unknown one succeeds. */
-export async function dropStashEntry(
-  repositoryPath: string,
-  stashSha: string
-): Promise<void> {
-  return invoke<void>('drop_stash_entry', { repositoryPath, stashSha })
+export async function dropStashEntry(repositoryPath: string, stashSha: string): Promise<void> {
+  return invoke<void>("drop_stash_entry", { repositoryPath, stashSha });
 }
 
 /**
@@ -147,24 +137,21 @@ export async function dropStashEntry(
  *
  * A pop that conflicts does not reject — the entry is still removed, and the caller drives resolution.
  */
-export async function popStashEntry(
-  repositoryPath: string,
-  stashSha: string
-): Promise<void> {
-  return invoke<void>('pop_stash_entry', { repositoryPath, stashSha })
+export async function popStashEntry(repositoryPath: string, stashSha: string): Promise<void> {
+  return invoke<void>("pop_stash_entry", { repositoryPath, stashSha });
 }
 
 /** The app's most recent stash for a branch, or `null`. */
 export async function getLastStashEntryForBranch(
   repositoryPath: string,
-  branchName: string
+  branchName: string,
 ): Promise<IStashEntry | null> {
-  const entry = await invoke<IStashEntryData | null>(
-    'get_last_stash_entry_for_branch',
-    { repositoryPath, branchName }
-  )
+  const entry = await invoke<IStashEntryData | null>("get_last_stash_entry_for_branch", {
+    repositoryPath,
+    branchName,
+  });
 
-  return entry === null ? null : hydrateStashEntry(entry)
+  return entry === null ? null : hydrateStashEntry(entry);
 }
 
 /**
@@ -176,26 +163,26 @@ export async function getLastStashEntryForBranch(
 export async function renameStashEntry(
   repositoryPath: string,
   entry: IStashEntry,
-  newName: string | null
+  newName: string | null,
 ): Promise<string | null> {
-  return invoke<string | null>('rename_stash_entry', {
+  return invoke<string | null>("rename_stash_entry", {
     repositoryPath,
     entry: dehydrateStashEntry(entry),
     newName,
-  })
+  });
 }
 
 /** Re-associates a stash entry with a different branch, resolving to its new SHA. */
 export async function moveStashEntry(
   repositoryPath: string,
   entry: IStashEntry,
-  branchName: string
+  branchName: string,
 ): Promise<string> {
-  return invoke<string>('move_stash_entry', {
+  return invoke<string>("move_stash_entry", {
     repositoryPath,
     entry: dehydrateStashEntry(entry),
     branchName,
-  })
+  });
 }
 
 /**
@@ -213,20 +200,20 @@ function dehydrateStashEntry(entry: IStashEntry): IStashEntryData {
     createdAt: Math.floor(entry.createdAt.getTime() / 1000),
     tree: entry.tree,
     parents: entry.parents,
-  }
+  };
 }
 
 /** The files a stash entry touches. */
 export async function getStashedFiles(
   repositoryPath: string,
-  stashSha: string
+  stashSha: string,
 ): Promise<ReadonlyArray<CommittedFileChange>> {
-  const files = await invoke<ReadonlyArray<ICommittedFileChangeData>>(
-    'get_stashed_files',
-    { repositoryPath, stashSha }
-  )
+  const files = await invoke<ReadonlyArray<ICommittedFileChangeData>>("get_stashed_files", {
+    repositoryPath,
+    stashSha,
+  });
 
-  return files.map(hydrateCommittedFileChange)
+  return files.map(hydrateCommittedFileChange);
 }
 
 /**
@@ -238,26 +225,24 @@ export async function getStashedFiles(
 export async function cherryPick(
   repositoryPath: string,
   commits: ReadonlyArray<CommitOneLine>,
-  progressCallback?: (progress: IMultiCommitOperationProgress) => void
+  progressCallback?: (progress: IMultiCommitOperationProgress) => void,
 ): Promise<CherryPickResult> {
-  const onProgress = new Channel<IMultiCommitOperationProgress>(
-    progressCallback
-  )
+  const onProgress = new Channel<IMultiCommitOperationProgress>(progressCallback);
 
-  return invoke<CherryPickResult>('cherry_pick', {
+  return invoke<CherryPickResult>("cherry_pick", {
     repositoryPath,
     commits,
     onProgress,
-  })
+  });
 }
 
 /** An interrupted cherry-pick, or `null` if none is in progress. */
 export async function getCherryPickSnapshot(
-  repositoryPath: string
+  repositoryPath: string,
 ): Promise<ICherryPickSnapshot | null> {
-  return invoke<ICherryPickSnapshot | null>('get_cherry_pick_snapshot', {
+  return invoke<ICherryPickSnapshot | null>("get_cherry_pick_snapshot", {
     repositoryPath,
-  })
+  });
 }
 
 /**
@@ -269,34 +254,30 @@ export async function getCherryPickSnapshot(
 export async function continueCherryPick(
   repositoryPath: string,
   files: ReadonlyArray<readonly [string, AppFileStatus]>,
-  manualResolutions: ReadonlyArray<
-    readonly [string, ManualConflictResolution]
-  > = [],
-  progressCallback?: (progress: IMultiCommitOperationProgress) => void
+  manualResolutions: ReadonlyArray<readonly [string, ManualConflictResolution]> = [],
+  progressCallback?: (progress: IMultiCommitOperationProgress) => void,
 ): Promise<CherryPickResult> {
-  const onProgress = new Channel<IMultiCommitOperationProgress>(
-    progressCallback
-  )
+  const onProgress = new Channel<IMultiCommitOperationProgress>(progressCallback);
 
-  return invoke<CherryPickResult>('continue_cherry_pick', {
+  return invoke<CherryPickResult>("continue_cherry_pick", {
     repositoryPath,
     files,
     manualResolutions,
     onProgress,
-  })
+  });
 }
 
 /** Abandons the cherry-pick, restoring the branch to where it started. */
 export async function abortCherryPick(repositoryPath: string): Promise<void> {
-  return invoke<void>('abort_cherry_pick', { repositoryPath })
+  return invoke<void>("abort_cherry_pick", { repositoryPath });
 }
 
 /** A {@linkcode SubmoduleEntry} as it arrives over IPC. */
 export interface ISubmoduleEntryData {
-  readonly sha: string
-  readonly path: string
+  readonly sha: string;
+  readonly path: string;
   /** Absent for an uninitialized or conflicted submodule, where git reports no describe value. */
-  readonly describe?: string
+  readonly describe?: string;
 }
 
 /**
@@ -309,18 +290,15 @@ export interface ISubmoduleEntryData {
  * Not recursive, matching `git status` — the app has no story for managing nested submodules.
  */
 export async function listSubmodules(
-  repositoryPath: string
+  repositoryPath: string,
 ): Promise<ReadonlyArray<SubmoduleEntry>> {
-  const entries = await invoke<ReadonlyArray<ISubmoduleEntryData>>(
-    'list_submodules',
-    { repositoryPath }
-  )
+  const entries = await invoke<ReadonlyArray<ISubmoduleEntryData>>("list_submodules", {
+    repositoryPath,
+  });
 
   // `describe` is omitted rather than null on the wire, so it is normalised here to the model's
   // `string | null`.
-  return entries.map(
-    entry => new SubmoduleEntry(entry.sha, entry.path, entry.describe ?? null)
-  )
+  return entries.map((entry) => new SubmoduleEntry(entry.sha, entry.path, entry.describe ?? null));
 }
 
 /**
@@ -330,9 +308,9 @@ export async function listSubmodules(
  */
 export async function resetSubmodulePaths(
   repositoryPath: string,
-  paths: ReadonlyArray<string>
+  paths: ReadonlyArray<string>,
 ): Promise<void> {
-  return invoke<void>('reset_submodule_paths', { repositoryPath, paths })
+  return invoke<void>("reset_submodule_paths", { repositoryPath, paths });
 }
 
 /**
@@ -352,21 +330,19 @@ export async function squash(
   toSquash: ReadonlyArray<string>,
   squashOnto: string,
   lastRetainedCommitRef: string | null,
-  commitMessage = '',
-  progressCallback?: (progress: IMultiCommitOperationProgress) => void
+  commitMessage = "",
+  progressCallback?: (progress: IMultiCommitOperationProgress) => void,
 ): Promise<RebaseResult> {
-  const onProgress = new Channel<IMultiCommitOperationProgress>(
-    progressCallback
-  )
+  const onProgress = new Channel<IMultiCommitOperationProgress>(progressCallback);
 
-  return invoke<RebaseResult>('squash', {
+  return invoke<RebaseResult>("squash", {
     repositoryPath,
     toSquash,
     squashOnto,
     lastRetainedCommitRef,
     commitMessage,
     onProgress,
-  })
+  });
 }
 
 /**
@@ -380,17 +356,15 @@ export async function reorder(
   toMove: ReadonlyArray<string>,
   before: string | null,
   lastRetainedCommitRef: string | null,
-  progressCallback?: (progress: IMultiCommitOperationProgress) => void
+  progressCallback?: (progress: IMultiCommitOperationProgress) => void,
 ): Promise<RebaseResult> {
-  const onProgress = new Channel<IMultiCommitOperationProgress>(
-    progressCallback
-  )
+  const onProgress = new Channel<IMultiCommitOperationProgress>(progressCallback);
 
-  return invoke<RebaseResult>('reorder', {
+  return invoke<RebaseResult>("reorder", {
     repositoryPath,
     toMove,
     before,
     lastRetainedCommitRef,
     onProgress,
-  })
+  });
 }

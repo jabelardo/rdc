@@ -16,58 +16,51 @@
  * So: if a type already exists in `models/`, import it. Only genuinely new wire types belong here.
  */
 
-import { Channel, invoke } from '@tauri-apps/api/core'
-import {
-  hookFailureChannel,
-  type HookFailureCallback,
-  type IHookProgress,
-} from './hook-ipc'
-import { GitResetMode } from '../models/git-reset-mode'
-import type { AppFileStatus, GitStatusEntry } from '../models/status'
-import type { ManualConflictResolution } from '../models/manual-conflict-resolution'
-import { GitErrorKind } from '../models/git-error-kind'
-import type {
-  ICheckoutProgress,
-  IMultiCommitOperationProgress,
-} from '../models/progress'
-import type { CommitOneLine } from '../models/commit'
+import { Channel, invoke } from "@tauri-apps/api/core";
+import { hookFailureChannel, type HookFailureCallback, type IHookProgress } from "./hook-ipc";
+import { GitResetMode } from "../models/git-reset-mode";
+import type { AppFileStatus, GitStatusEntry } from "../models/status";
+import type { ManualConflictResolution } from "../models/manual-conflict-resolution";
+import { GitErrorKind } from "../models/git-error-kind";
+import type { ICheckoutProgress, IMultiCommitOperationProgress } from "../models/progress";
+import type { CommitOneLine } from "../models/commit";
 
 /** How far ahead/behind a branch is relative to its upstream. */
 export interface IAheadBehind {
-  readonly ahead: number
-  readonly behind: number
+  readonly ahead: number;
+  readonly behind: number;
 }
 
 /** What git records about an in-progress rebase. */
 export interface IRebaseInternalState {
-  readonly targetBranch: string
-  readonly baseBranchTip: string
-  readonly originalBranchTip: string
+  readonly targetBranch: string;
+  readonly baseBranchTip: string;
+  readonly originalBranchTip: string;
 }
 
 /** One changed path, as git sees it. */
 export interface IStatusFileChange {
-  readonly path: string
-  readonly status: AppFileStatus
+  readonly path: string;
+  readonly status: AppFileStatus;
   /**
    * Whether the UI should start with this file unticked — a dirty submodule whose own commit
    * hasn't changed, where committing in the superproject would record nothing.
    */
-  readonly startsUnselected: boolean
+  readonly startsUnselected: boolean;
 }
 
 /** The status of a repository. */
 export interface IStatusResult {
-  readonly currentBranch?: string
-  readonly currentUpstreamBranch?: string
-  readonly currentTip?: string
-  readonly branchAheadBehind?: IAheadBehind
-  readonly mergeHeadFound: boolean
-  readonly squashMsgFound: boolean
-  readonly rebaseInternalState?: IRebaseInternalState
-  readonly isCherryPickingHeadFound: boolean
-  readonly files: ReadonlyArray<IStatusFileChange>
-  readonly doConflictedFilesExist: boolean
+  readonly currentBranch?: string;
+  readonly currentUpstreamBranch?: string;
+  readonly currentTip?: string;
+  readonly branchAheadBehind?: IAheadBehind;
+  readonly mergeHeadFound: boolean;
+  readonly squashMsgFound: boolean;
+  readonly rebaseInternalState?: IRebaseInternalState;
+  readonly isCherryPickingHeadFound: boolean;
+  readonly files: ReadonlyArray<IStatusFileChange>;
+  readonly doConflictedFilesExist: boolean;
 }
 
 /**
@@ -78,27 +71,21 @@ export interface IStatusResult {
  * the `getDescriptionForError` note in MIGRATION_MAP.md.
  */
 export interface ICommandError {
-  readonly message: string
-  readonly kind?: GitErrorKind
-  readonly isAuthFailure: boolean
+  readonly message: string;
+  readonly kind?: GitErrorKind;
+  readonly isAuthFailure: boolean;
 }
 
 /** Whether a rejected `invoke` gave us a structured command error. */
 export function isCommandError(error: unknown): error is ICommandError {
   return (
-    typeof error === 'object' &&
-    error !== null &&
-    'message' in error &&
-    'isAuthFailure' in error
-  )
+    typeof error === "object" && error !== null && "message" in error && "isAuthFailure" in error
+  );
 }
 
 /** Creates a Git repository at a new or existing empty directory. */
-export async function initRepository(
-  repositoryPath: string,
-  defaultBranch: string
-): Promise<void> {
-  return invoke('init_repository', { repositoryPath, defaultBranch })
+export async function initRepository(repositoryPath: string, defaultBranch: string): Promise<void> {
+  return invoke("init_repository", { repositoryPath, defaultBranch });
 }
 
 /**
@@ -110,24 +97,24 @@ export async function initRepository(
  */
 export async function getStatus(
   repositoryPath: string,
-  listUntrackedFilesIndividually = true
+  listUntrackedFilesIndividually = true,
 ): Promise<IStatusResult | null> {
-  return invoke<IStatusResult | null>('get_status', {
+  return invoke<IStatusResult | null>("get_status", {
     repositoryPath,
     listUntrackedFilesIndividually,
-  })
+  });
 }
 
 /** The lines selected from a partially-selected text file. */
 export interface IPartialSelection {
   /** The file status determines how Rust constructs the partial patch. */
-  readonly status: AppFileStatus
+  readonly status: AppFileStatus;
   /**
    * Absolute indices across the unified diff, including hunk headers.
    *
    * These are the same indices consumed by `DiffSelection`.
    */
-  readonly selectedLines: ReadonlyArray<number>
+  readonly selectedLines: ReadonlyArray<number>;
 }
 
 /**
@@ -137,13 +124,13 @@ export interface IPartialSelection {
  * modified file is just `{ path }`.
  */
 export interface IFileToStage {
-  readonly path: string
+  readonly path: string;
   /** The path this file was renamed *from*, when the change is a rename or a copy. */
-  readonly oldPath?: string
+  readonly oldPath?: string;
   /** Whether the file is gone from the working tree. */
-  readonly deleted?: boolean
+  readonly deleted?: boolean;
   /** Present when only the listed lines should be staged. */
-  readonly partial?: IPartialSelection
+  readonly partial?: IPartialSelection;
 }
 
 /**
@@ -156,13 +143,13 @@ export interface IFileToStage {
  * `src/lib/hook-ipc.ts` for why the list of hooks is not a parameter.
  */
 export interface IHookOptions {
-  readonly interceptHooks: boolean
-  readonly onHookProgress?: (progress: IHookProgress) => void
-  readonly onHookFailure?: HookFailureCallback
+  readonly interceptHooks: boolean;
+  readonly onHookProgress?: (progress: IHookProgress) => void;
+  readonly onHookFailure?: HookFailureCallback;
 }
 
 /** A chunk of combined stdout/stderr from the Git commit process. */
-export type TerminalOutputCallback = (chunk: string) => void
+export type TerminalOutputCallback = (chunk: string) => void;
 
 /**
  * The hook arguments for an `invoke` call.
@@ -175,37 +162,37 @@ function hookArgs(hooks: IHookOptions | undefined) {
     interceptHooks: hooks?.interceptHooks ?? false,
     onHookProgress: new Channel<IHookProgress>(hooks?.onHookProgress),
     onHookFailure: hookFailureChannel(hooks?.onHookFailure),
-  }
+  };
 }
 
 /** Options for {@linkcode createCommit}. Every flag defaults to off. */
 export interface ICommitOptions {
-  readonly amend?: boolean
-  readonly noVerify?: boolean
-  readonly signOff?: boolean
-  readonly allowEmpty?: boolean
+  readonly amend?: boolean;
+  readonly noVerify?: boolean;
+  readonly signOff?: boolean;
+  readonly allowEmpty?: boolean;
 }
 
 /** The outcome of merging a branch into the current branch. */
 export enum MergeResult {
-  Success = 'Success',
-  AlreadyUpToDate = 'AlreadyUpToDate',
-  Failed = 'Failed',
+  Success = "Success",
+  AlreadyUpToDate = "AlreadyUpToDate",
+  Failed = "Failed",
 }
 
 export interface IMergeOptions {
-  readonly squash?: boolean
-  readonly noVerify?: boolean
+  readonly squash?: boolean;
+  readonly noVerify?: boolean;
 }
 
 /** The outcome of starting or continuing a rebase. */
 export enum RebaseResult {
-  CompletedWithoutError = 'CompletedWithoutError',
-  AlreadyUpToDate = 'AlreadyUpToDate',
-  ConflictsEncountered = 'ConflictsEncountered',
-  OutstandingFilesNotStaged = 'OutstandingFilesNotStaged',
-  Aborted = 'Aborted',
-  Error = 'Error',
+  CompletedWithoutError = "CompletedWithoutError",
+  AlreadyUpToDate = "AlreadyUpToDate",
+  ConflictsEncountered = "ConflictsEncountered",
+  OutstandingFilesNotStaged = "OutstandingFilesNotStaged",
+  Aborted = "Aborted",
+  Error = "Error",
 }
 
 /**
@@ -217,14 +204,14 @@ export enum RebaseResult {
  * `git checkout --ours/--theirs` refuses such a path outright.
  */
 export interface IManualResolution {
-  readonly path: string
-  readonly resolution: ManualConflictResolution
-  readonly entries?: readonly [GitStatusEntry, GitStatusEntry]
+  readonly path: string;
+  readonly resolution: ManualConflictResolution;
+  readonly entries?: readonly [GitStatusEntry, GitStatusEntry];
 }
 
 export interface IRebaseSnapshot {
-  readonly progress: IMultiCommitOperationProgress
-  readonly commits: ReadonlyArray<CommitOneLine>
+  readonly progress: IMultiCommitOperationProgress;
+  readonly commits: ReadonlyArray<CommitOneLine>;
 }
 
 /**
@@ -240,22 +227,22 @@ export async function createCommit(
   files: ReadonlyArray<IFileToStage>,
   options?: ICommitOptions,
   hooks?: IHookOptions,
-  onTerminalOutput?: TerminalOutputCallback
+  onTerminalOutput?: TerminalOutputCallback,
 ): Promise<string> {
-  const hooksArguments = hookArgs(hooks)
-  const terminalOutputChannel = new Channel<string>(onTerminalOutput)
+  const hooksArguments = hookArgs(hooks);
+  const terminalOutputChannel = new Channel<string>(onTerminalOutput);
 
   // Await here rather than returning invoke's promise directly. These locals keep all three Channel
   // handlers alive until the native operation settles; a hook may not fail until minutes after commit
   // starts, by which point a temporary Channel argument is eligible for collection.
-  return await invoke<string>('create_commit', {
+  return await invoke<string>("create_commit", {
     repositoryPath,
     message,
     files,
     options,
     ...hooksArguments,
     onTerminalOutput: terminalOutputChannel,
-  })
+  });
 }
 
 /**
@@ -271,23 +258,23 @@ export async function createCommit(
 export async function createMergeCommit(
   repositoryPath: string,
   files: ReadonlyArray<IFileToStage>,
-  manualResolutions: ReadonlyArray<IManualResolution> = []
+  manualResolutions: ReadonlyArray<IManualResolution> = [],
 ): Promise<string> {
-  return invoke<string>('create_merge_commit', {
+  return invoke<string>("create_merge_commit", {
     repositoryPath,
     files,
     manualResolutions,
-  })
+  });
 }
 
 /** Checks out an existing local branch. */
 export async function checkoutBranch(
   repositoryPath: string,
   name: string,
-  progressCallback?: (progress: ICheckoutProgress) => void
+  progressCallback?: (progress: ICheckoutProgress) => void,
 ): Promise<void> {
-  const onProgress = new Channel<ICheckoutProgress>(progressCallback)
-  return invoke<void>('checkout_branch', { repositoryPath, name, onProgress })
+  const onProgress = new Channel<ICheckoutProgress>(progressCallback);
+  return invoke<void>("checkout_branch", { repositoryPath, name, onProgress });
 }
 
 /**
@@ -300,29 +287,29 @@ export async function checkoutRemoteBranch(
   repositoryPath: string,
   remoteRef: string,
   localName: string,
-  progressCallback?: (progress: ICheckoutProgress) => void
+  progressCallback?: (progress: ICheckoutProgress) => void,
 ): Promise<void> {
-  const onProgress = new Channel<ICheckoutProgress>(progressCallback)
-  return invoke<void>('checkout_remote_branch', {
+  const onProgress = new Channel<ICheckoutProgress>(progressCallback);
+  return invoke<void>("checkout_remote_branch", {
     repositoryPath,
     remoteRef,
     localName,
     onProgress,
-  })
+  });
 }
 
 /** Checks out a commit, leaving `HEAD` detached. */
 export async function checkoutCommit(
   repositoryPath: string,
   commit: string,
-  progressCallback?: (progress: ICheckoutProgress) => void
+  progressCallback?: (progress: ICheckoutProgress) => void,
 ): Promise<void> {
-  const onProgress = new Channel<ICheckoutProgress>(progressCallback)
-  return invoke<void>('checkout_commit', {
+  const onProgress = new Channel<ICheckoutProgress>(progressCallback);
+  return invoke<void>("checkout_commit", {
     repositoryPath,
     commit,
     onProgress,
-  })
+  });
 }
 
 /**
@@ -333,9 +320,9 @@ export async function checkoutCommit(
  */
 export async function checkoutPaths(
   repositoryPath: string,
-  paths: ReadonlyArray<string>
+  paths: ReadonlyArray<string>,
 ): Promise<void> {
-  return invoke<void>('checkout_paths', { repositoryPath, paths })
+  return invoke<void>("checkout_paths", { repositoryPath, paths });
 }
 
 /** Merges `branch` into the current branch. */
@@ -343,33 +330,33 @@ export async function mergeBranch(
   repositoryPath: string,
   branch: string,
   options?: IMergeOptions,
-  hooks?: IHookOptions
+  hooks?: IHookOptions,
 ): Promise<MergeResult> {
-  const hooksArguments = hookArgs(hooks)
-  return await invoke<MergeResult>('merge_branch', {
+  const hooksArguments = hookArgs(hooks);
+  return await invoke<MergeResult>("merge_branch", {
     repositoryPath,
     branch,
     options,
     ...hooksArguments,
-  })
+  });
 }
 
 /** Finds the best common ancestor of two refs. */
 export async function getMergeBase(
   repositoryPath: string,
   firstCommitish: string,
-  secondCommitish: string
+  secondCommitish: string,
 ): Promise<string | null> {
-  return invoke<string | null>('get_merge_base', {
+  return invoke<string | null>("get_merge_base", {
     repositoryPath,
     firstCommitish,
     secondCommitish,
-  })
+  });
 }
 
 /** Aborts an in-progress merge. */
 export async function abortMerge(repositoryPath: string): Promise<void> {
-  return invoke<void>('abort_merge', { repositoryPath })
+  return invoke<void>("abort_merge", { repositoryPath });
 }
 
 /** Rebases `targetBranch` onto `baseBranch`. */
@@ -377,17 +364,15 @@ export async function rebaseBranch(
   repositoryPath: string,
   baseBranch: string,
   targetBranch: string,
-  progressCallback?: (progress: IMultiCommitOperationProgress) => void
+  progressCallback?: (progress: IMultiCommitOperationProgress) => void,
 ): Promise<RebaseResult> {
-  const onProgress = new Channel<IMultiCommitOperationProgress>(
-    progressCallback
-  )
-  return invoke<RebaseResult>('rebase_branch', {
+  const onProgress = new Channel<IMultiCommitOperationProgress>(progressCallback);
+  return invoke<RebaseResult>("rebase_branch", {
     repositoryPath,
     baseBranch,
     targetBranch,
     onProgress,
-  })
+  });
 }
 
 /**
@@ -398,32 +383,28 @@ export async function continueRebase(
   files: ReadonlyArray<IFileToStage>,
   manualResolutions: ReadonlyArray<IManualResolution> = [],
   noVerify = false,
-  progressCallback?: (progress: IMultiCommitOperationProgress) => void
+  progressCallback?: (progress: IMultiCommitOperationProgress) => void,
 ): Promise<RebaseResult> {
-  const onProgress = new Channel<IMultiCommitOperationProgress>(
-    progressCallback
-  )
-  return invoke<RebaseResult>('continue_rebase', {
+  const onProgress = new Channel<IMultiCommitOperationProgress>(progressCallback);
+  return invoke<RebaseResult>("continue_rebase", {
     repositoryPath,
     files,
     manualResolutions,
     noVerify,
     onProgress,
-  })
+  });
 }
 
 /** Aborts an in-progress rebase. */
 export async function abortRebase(repositoryPath: string): Promise<void> {
-  return invoke<void>('abort_rebase', { repositoryPath })
+  return invoke<void>("abort_rebase", { repositoryPath });
 }
 
 /** Recovers progress for a rebase started by rdc or another Git client. */
-export async function getRebaseSnapshot(
-  repositoryPath: string
-): Promise<IRebaseSnapshot | null> {
-  return invoke<IRebaseSnapshot | null>('get_rebase_snapshot', {
+export async function getRebaseSnapshot(repositoryPath: string): Promise<IRebaseSnapshot | null> {
+  return invoke<IRebaseSnapshot | null>("get_rebase_snapshot", {
     repositoryPath,
-  })
+  });
 }
 
 /**
@@ -435,9 +416,9 @@ export async function getRebaseSnapshot(
 export async function reset(
   repositoryPath: string,
   mode: GitResetMode,
-  refName: string
+  refName: string,
 ): Promise<void> {
-  await invoke('reset', { repositoryPath, mode, refName })
+  await invoke("reset", { repositoryPath, mode, refName });
 }
 
 /**
@@ -450,9 +431,9 @@ export async function resetPaths(
   repositoryPath: string,
   mode: GitResetMode,
   refName: string,
-  paths: ReadonlyArray<string>
+  paths: ReadonlyArray<string>,
 ): Promise<void> {
-  await invoke('reset_paths', { repositoryPath, mode, refName, paths })
+  await invoke("reset_paths", { repositoryPath, mode, refName, paths });
 }
 
 /**
@@ -462,7 +443,7 @@ export async function resetPaths(
  * repository with no commits.
  */
 export async function unstageAll(repositoryPath: string): Promise<void> {
-  await invoke('unstage_all', { repositoryPath })
+  await invoke("unstage_all", { repositoryPath });
 }
 
 /**
@@ -472,7 +453,7 @@ export async function unstageAll(repositoryPath: string): Promise<void> {
  * reason. This is `rm --cached`, which empties the index including paths that exist only there.
  */
 export async function unstageAllFiles(repositoryPath: string): Promise<void> {
-  await invoke('unstage_all_files', { repositoryPath })
+  await invoke("unstage_all_files", { repositoryPath });
 }
 
 /**
@@ -482,23 +463,23 @@ export async function unstageAllFiles(repositoryPath: string): Promise<void> {
  * same split `getStatus` makes. Supply what the status already told you.
  */
 export interface IResolvedConflict {
-  readonly path: string
+  readonly path: string;
 
   /**
    * The conflict's index entries, `[us, them]`. Supplying them lets a deletion be staged as a deletion,
    * which content alone cannot express.
    */
-  readonly entries?: readonly [GitStatusEntry, GitStatusEntry]
+  readonly entries?: readonly [GitStatusEntry, GitStatusEntry];
 
   /**
    * How many conflict markers git still found.
    *
    * `0` is the interesting value: a text conflict the user resolved in their own editor.
    */
-  readonly conflictMarkerCount?: number
+  readonly conflictMarkerCount?: number;
 
   /** The side the user picked in the app, when they picked one. */
-  readonly resolution?: ManualConflictResolution
+  readonly resolution?: ManualConflictResolution;
 }
 
 /**
@@ -512,7 +493,7 @@ export interface IResolvedConflict {
  */
 export async function stageResolvedConflictFiles(
   repositoryPath: string,
-  files: ReadonlyArray<IResolvedConflict>
+  files: ReadonlyArray<IResolvedConflict>,
 ): Promise<void> {
-  await invoke('stage_resolved_conflict_files', { repositoryPath, files })
+  await invoke("stage_resolved_conflict_files", { repositoryPath, files });
 }

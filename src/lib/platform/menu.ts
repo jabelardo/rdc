@@ -1,10 +1,10 @@
-import { invoke } from '@tauri-apps/api/core'
-import { listen, type UnlistenFn } from '@tauri-apps/api/event'
-import type { IMenu, MenuAction } from '../../models/app-menu'
-import { getCurrentWindowZoomFactor } from './window'
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { IMenu, MenuAction } from "../../models/app-menu";
+import { getCurrentWindowZoomFactor } from "./window";
 
 export function setNativeMenu(menu: IMenu): Promise<void> {
-  return invoke('set_native_menu', { menu })
+  return invoke("set_native_menu", { menu });
 }
 
 /**
@@ -14,12 +14,12 @@ export function setNativeMenu(menu: IMenu): Promise<void> {
  */
 export type ContextMenuItem =
   | {
-      readonly text: string
-      readonly enabled?: boolean
-      readonly action?: () => void
-      readonly type?: 'item' | undefined
+      readonly text: string;
+      readonly enabled?: boolean;
+      readonly action?: () => void;
+      readonly type?: "item" | undefined;
     }
-  | { readonly type: 'separator' }
+  | { readonly type: "separator" };
 
 /**
  * Where a context menu should anchor, captured from the triggering pointer event.
@@ -28,9 +28,9 @@ export type ContextMenuItem =
  * coordinates. This side scales them by the zoom factor, which only it knows; the Rust side then
  * converts from webview- to window-relative, which only it can measure.
  */
-export type ContextMenuPosition = { readonly x: number; readonly y: number }
+export type ContextMenuPosition = { readonly x: number; readonly y: number };
 
-const CONTEXT_MENU_EVENT = 'context-menu-event'
+const CONTEXT_MENU_EVENT = "context-menu-event";
 
 /**
  * Releases the selection listener belonging to the menu opened before the current one.
@@ -40,10 +40,10 @@ const CONTEXT_MENU_EVENT = 'context-menu-event'
  * fire-and-forget on Linux (see below), so there is no "menu dismissed" signal to unregister on:
  * opening the next menu is the reliable point to let the previous listener go.
  */
-let releasePreviousMenuListener: (() => void) | null = null
+let releasePreviousMenuListener: (() => void) | null = null;
 
 /** Serializes opens, so the listener always belongs to the menu actually on screen. */
-let pendingOpen: Promise<unknown> = Promise.resolve()
+let pendingOpen: Promise<unknown> = Promise.resolve();
 
 /**
  * Show a contextual menu through the `show_context_menu_at` command.
@@ -60,10 +60,10 @@ let pendingOpen: Promise<unknown> = Promise.resolve()
  */
 export function showContextMenu(
   items: ReadonlyArray<ContextMenuItem>,
-  position: ContextMenuPosition
+  position: ContextMenuPosition,
 ): Promise<void> {
   if (items.length === 0) {
-    return Promise.resolve()
+    return Promise.resolve();
   }
   // Showing a menu takes several IPC round-trips, so two quick triggers — a double-click on a
   // row's "more actions" button, say — can be in flight together and reach the Rust side in either
@@ -71,78 +71,76 @@ export function showContextMenu(
   // the visible menu would silently do nothing. Queueing removes the interleaving entirely.
   const opened = pendingOpen.then(
     () => openContextMenu(items, position),
-    () => openContextMenu(items, position)
-  )
-  pendingOpen = opened.catch(() => undefined)
-  return opened
+    () => openContextMenu(items, position),
+  );
+  pendingOpen = opened.catch(() => undefined);
+  return opened;
 }
 
 async function openContextMenu(
   items: ReadonlyArray<ContextMenuItem>,
-  position: ContextMenuPosition
+  position: ContextMenuPosition,
 ): Promise<void> {
-  releasePreviousMenuListener?.()
+  releasePreviousMenuListener?.();
 
-  const token = Math.random().toString(36).slice(2)
-  const actionById = new Map<string, () => void>()
+  const token = Math.random().toString(36).slice(2);
+  const actionById = new Map<string, () => void>();
   const wireItems = items.map((item, index) => {
-    if (item.type === 'separator') {
-      return { type: 'separator' as const }
+    if (item.type === "separator") {
+      return { type: "separator" as const };
     }
-    const id = `${token}-${index}`
+    const id = `${token}-${index}`;
     if (item.action !== undefined) {
-      actionById.set(id, item.action)
+      actionById.set(id, item.action);
     }
     return {
-      type: 'item' as const,
+      type: "item" as const,
       id,
       label: item.text,
       enabled: item.enabled ?? true,
-    }
-  })
+    };
+  });
 
-  let unlisten: UnlistenFn | null = null
-  let disposed = false
+  let unlisten: UnlistenFn | null = null;
+  let disposed = false;
   const dispose = () => {
-    disposed = true
+    disposed = true;
     if (releasePreviousMenuListener === dispose) {
-      releasePreviousMenuListener = null
+      releasePreviousMenuListener = null;
     }
-    unlisten?.()
-    unlisten = null
-  }
-  releasePreviousMenuListener = dispose
+    unlisten?.();
+    unlisten = null;
+  };
+  releasePreviousMenuListener = dispose;
 
-  const registration = await listen<string>(CONTEXT_MENU_EVENT, event => {
-    const action = actionById.get(event.payload)
+  const registration = await listen<string>(CONTEXT_MENU_EVENT, (event) => {
+    const action = actionById.get(event.payload);
     if (action === undefined) {
-      return
+      return;
     }
-    dispose()
-    action()
-  })
+    dispose();
+    action();
+  });
   if (disposed) {
     // A newer menu replaced this one while the listener was still being registered.
-    registration()
-    return
+    registration();
+    return;
   }
-  unlisten = registration
+  unlisten = registration;
 
-  const zoomFactor = await getCurrentWindowZoomFactor()
-  await invoke('show_context_menu_at', {
+  const zoomFactor = await getCurrentWindowZoomFactor();
+  await invoke("show_context_menu_at", {
     x: position.x * zoomFactor,
     y: position.y * zoomFactor,
     items: wireItems,
-  })
+  });
 }
 
 export function selectAllWindowContents(): void {
-  document.execCommand('selectAll')
+  document.execCommand("selectAll");
 }
 
 /** macOS native menu action channel. */
-export function onNativeMenuAction(
-  callback: (action: MenuAction) => void
-): Promise<UnlistenFn> {
-  return listen<MenuAction>('menu-event', event => callback(event.payload))
+export function onNativeMenuAction(callback: (action: MenuAction) => void): Promise<UnlistenFn> {
+  return listen<MenuAction>("menu-event", (event) => callback(event.payload));
 }

@@ -59,34 +59,34 @@
  */
 export function parsePACString(pacString: string): Array<string> | null {
   // Happy path, this will be the case for the vast majority of users
-  if (pacString === 'DIRECT') {
-    return null
+  if (pacString === "DIRECT") {
+    return null;
   }
 
-  const specs = pacString.trim().split(/\s*;\s*/)
-  const urls = new Array<string>()
+  const specs = pacString.trim().split(/\s*;\s*/);
+  const urls = new Array<string>();
 
   for (const spec of specs) {
     // No point in continuing after we get a DIRECT since we
     // have no way of implementing a fallback logic in cURL/Git
     if (spec.match(/^direct/i)) {
-      break
+      break;
     }
 
-    const [protocol, endpoint] = spec.split(/\s+/, 2)
+    const [protocol, endpoint] = spec.split(/\s+/, 2);
 
     if (endpoint !== undefined) {
-      const url = urlFromProtocolAndEndpoint(protocol, endpoint)
+      const url = urlFromProtocolAndEndpoint(protocol, endpoint);
 
       if (url !== null) {
-        urls.push(url)
+        urls.push(url);
       } else {
-        log.warn(`Skipping proxy spec: ${spec}`)
+        log.warn(`Skipping proxy spec: ${spec}`);
       }
     }
   }
 
-  return urls.length > 0 ? urls : null
+  return urls.length > 0 ? urls : null;
 }
 
 function urlFromProtocolAndEndpoint(protocol: string, endpoint: string) {
@@ -107,17 +107,17 @@ function urlFromProtocolAndEndpoint(protocol: string, endpoint: string) {
   //
   // SOCKS is an alias for SOCKS4
   switch (protocol.toLowerCase()) {
-    case 'proxy':
-    case 'http':
-      return `http://${endpoint}`
-    case 'https':
-      return `https://${endpoint}`
-    case 'socks':
-    case 'socks4':
-      return `socks4://${endpoint}`
-    case 'socks5':
-      return `socks5://${endpoint}`
+    case "proxy":
+    case "http":
+      return `http://${endpoint}`;
+    case "https":
+      return `https://${endpoint}`;
+    case "socks":
+    case "socks4":
+      return `socks4://${endpoint}`;
+    case "socks5":
+      return `socks5://${endpoint}`;
   }
 
-  return null
+  return null;
 }

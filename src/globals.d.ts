@@ -6,62 +6,58 @@
 // original are deliberately omitted since neither applies to Tauri.
 
 /** Is the app running in dev mode? */
-declare const __DEV__: boolean
+declare const __DEV__: boolean;
 
 /** Is the app using dev secrets? */
-declare const __DEV_SECRETS__: boolean
+declare const __DEV_SECRETS__: boolean;
 
 /** The OAuth client id the app should use */
-declare const __OAUTH_CLIENT_ID__: string | undefined
+declare const __OAUTH_CLIENT_ID__: string | undefined;
 
 /** The OAuth secret the app should use. */
-declare const __OAUTH_SECRET__: string | undefined
+declare const __OAUTH_SECRET__: string | undefined;
 
 /** The OAuth client id the app should use for Bitbucket */
-declare const __OAUTH_CLIENT_ID_BITBUCKET__: string | undefined
+declare const __OAUTH_CLIENT_ID_BITBUCKET__: string | undefined;
 
 /** The OAuth secret the app should use for Bitbucket */
-declare const __OAUTH_SECRET_BITBUCKET__: string | undefined
+declare const __OAUTH_SECRET_BITBUCKET__: string | undefined;
 
 /** The OAuth client id the app should use for GitLab */
-declare const __OAUTH_CLIENT_ID_GITLAB__: string | undefined
+declare const __OAUTH_CLIENT_ID_GITLAB__: string | undefined;
 
 /** The OAuth secret the app should use for GitLab */
-declare const __OAUTH_SECRET_GITLAB__: string | undefined
+declare const __OAUTH_SECRET_GITLAB__: string | undefined;
 
 /** The OAuth client id the app should use for Codeberg */
-declare const __OAUTH_CLIENT_ID_CODEBERG__: string | undefined
+declare const __OAUTH_CLIENT_ID_CODEBERG__: string | undefined;
 
 /** The OAuth secret the app should use for Codeberg */
-declare const __OAUTH_SECRET_CODEBERG__: string | undefined
+declare const __OAUTH_SECRET_CODEBERG__: string | undefined;
 
 /** Is the app being built to run on Darwin? */
-declare const __DARWIN__: boolean
+declare const __DARWIN__: boolean;
 
 /** Is the app being built to run on Win32? */
-declare const __WIN32__: boolean
+declare const __WIN32__: boolean;
 
 /** Is the app being built to run on Linux? */
-declare const __LINUX__: boolean
+declare const __LINUX__: boolean;
 
 /**
  * The product name of the app. Compile-time replacement for what was
  * Electron's app.getName().
  */
-declare const __APP_NAME__: string
+declare const __APP_NAME__: string;
 
 /**
  * The current version of the app. Compile-time replacement for what was
  * Electron's app.getVersion().
  */
-declare const __APP_VERSION__: string
+declare const __APP_VERSION__: string;
 
 /** The channel for which the release was created. */
-declare const __RELEASE_CHANNEL__:
-  | 'production'
-  | 'beta'
-  | 'test'
-  | 'development'
+declare const __RELEASE_CHANNEL__: "production" | "beta" | "test" | "development";
 
 interface IDesktopLogger {
   /**
@@ -72,16 +68,16 @@ interface IDesktopLogger {
    *                include the stack trace (if one is available) and
    *                then appended to the log message.
    */
-  error(message: string, error?: Error): void
+  error(message: string, error?: Error): void;
 
   /** Writes a log message at the 'warn' level. */
-  warn(message: string, error?: Error): void
+  warn(message: string, error?: Error): void;
 
   /** Writes a log message at the 'info' level. */
-  info(message: string, error?: Error): void
+  info(message: string, error?: Error): void;
 
   /** Writes a log message at the 'debug' level. */
-  debug(message: string, error?: Error): void
+  debug(message: string, error?: Error): void;
 }
 
 /**
@@ -91,4 +87,4 @@ interface IDesktopLogger {
  * console-backed one at startup (src/lib/logging/install-logger.ts). The real
  * file/transport-backed logger arrives with Phase 6 of the migration.
  */
-declare const log: IDesktopLogger
+declare const log: IDesktopLogger;

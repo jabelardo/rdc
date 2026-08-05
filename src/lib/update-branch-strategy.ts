@@ -6,6 +6,6 @@
  * not alter the user's normal pull behavior.
  */
 export enum UpdateBranchStrategy {
-  Merge = 'merge',
-  Rebase = 'rebase',
+  Merge = "merge",
+  Rebase = "rebase",
 }

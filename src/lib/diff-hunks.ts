@@ -29,15 +29,10 @@
  * expands a hunk. The two implementations are pinned against each other by the wire snapshot.
  */
 
-import {
-  DiffHunk,
-  DiffHunkExpansionType,
-  DiffHunkHeader,
-  DiffLineType,
-} from '../models/diff'
+import { DiffHunk, DiffHunkExpansionType, DiffHunkHeader, DiffLineType } from "../models/diff";
 
 /** How many new lines will be added to a diff hunk by default. */
-export const DefaultDiffExpansionStep = 20
+export const DefaultDiffExpansionStep = 20;
 
 /**
  * Matches invisible bidirectional Unicode characters, which can make text render differently from
@@ -45,7 +40,7 @@ export const DefaultDiffExpansionStep = 20
  *
  * Kept in sync with `is_hidden_bidi_char` in `crates/git-ops/src/diff_parser.rs`.
  */
-export const HiddenBidiCharsRegex = /[\u202A-\u202E]|[\u2066-\u2069]/
+export const HiddenBidiCharsRegex = /[\u202A-\u202E]|[\u2066-\u2069]/;
 
 /**
  * Calculates whether or not a hunk header can be expanded up, down, both, or if
@@ -60,14 +55,14 @@ export const HiddenBidiCharsRegex = /[\u202A-\u202E]|[\u2066-\u2069]/
 export function getHunkHeaderExpansionType(
   hunkIndex: number,
   hunkHeader: DiffHunkHeader,
-  previousHunk: DiffHunk | null
+  previousHunk: DiffHunk | null,
 ): DiffHunkExpansionType {
   const distanceToPrevious =
     previousHunk === null
       ? Infinity
       : hunkHeader.oldStartLine -
         previousHunk.header.oldStartLine -
-        previousHunk.header.oldLineCount
+        previousHunk.header.oldLineCount;
 
   // In order to simplify the whole logic around expansion, only the hunk at the
   // top can be expanded up exclusively, and only the hunk at the bottom (the
@@ -78,38 +73,38 @@ export function getHunkHeaderExpansionType(
   if (hunkIndex === 0) {
     // The top hunk can only be expanded if there is content above it
     if (hunkHeader.oldStartLine > 1 && hunkHeader.newStartLine > 1) {
-      return DiffHunkExpansionType.Up
+      return DiffHunkExpansionType.Up;
     } else {
-      return DiffHunkExpansionType.None
+      return DiffHunkExpansionType.None;
     }
   } else if (distanceToPrevious <= DefaultDiffExpansionStep) {
-    return DiffHunkExpansionType.Short
+    return DiffHunkExpansionType.Short;
   } else {
-    return DiffHunkExpansionType.Both
+    return DiffHunkExpansionType.Both;
   }
 }
 
 /** Utility function for getting the digit count of the largest line number in an array of diff hunks */
 export function getLargestLineNumber(hunks: DiffHunk[]): number {
   if (hunks.length === 0) {
-    return 0
+    return 0;
   }
 
   for (let i = hunks.length - 1; i >= 0; i--) {
-    const hunk = hunks[i]
+    const hunk = hunks[i];
 
     for (let j = hunk.lines.length - 1; j >= 0; j--) {
-      const line = hunk.lines[j]
+      const line = hunk.lines[j];
 
       if (line.type === DiffLineType.Hunk) {
-        continue
+        continue;
       }
 
-      const newLineNumber = line.newLineNumber ?? 0
-      const oldLineNumber = line.oldLineNumber ?? 0
-      return newLineNumber > oldLineNumber ? newLineNumber : oldLineNumber
+      const newLineNumber = line.newLineNumber ?? 0;
+      const oldLineNumber = line.oldLineNumber ?? 0;
+      return newLineNumber > oldLineNumber ? newLineNumber : oldLineNumber;
     }
   }
 
-  return 0
+  return 0;
 }

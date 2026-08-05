@@ -15,9 +15,9 @@
  */
 export function round(value: number, decimals: number) {
   if (decimals <= 0) {
-    return Math.round(value)
+    return Math.round(value);
   }
 
-  const factor = Math.pow(10, decimals)
-  return Math.round((value + Number.EPSILON) * factor) / factor
+  const factor = Math.pow(10, decimals);
+  return Math.round((value + Number.EPSILON) * factor) / factor;
 }

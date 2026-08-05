@@ -10,9 +10,9 @@
  */
 export function promiseWithMinimumTimeout<T>(
   action: () => Promise<T>,
-  timeoutMs: number
+  timeoutMs: number,
 ): Promise<T> {
-  return Promise.all([action(), sleep(timeoutMs)]).then(x => x[0])
+  return Promise.all([action(), sleep(timeoutMs)]).then((x) => x[0]);
 }
 
 /**
@@ -23,7 +23,7 @@ export function promiseWithMinimumTimeout<T>(
  * @param timeout the time to wait before resolving the promise (in milliseconds)
  */
 export async function sleep(timeout: number): Promise<void> {
-  return new Promise(resolve => window.setTimeout(resolve, timeout))
+  return new Promise((resolve) => window.setTimeout(resolve, timeout));
 }
 
 /**
@@ -38,30 +38,30 @@ export async function sleep(timeout: number): Promise<void> {
 export async function timeout<T>(
   promise: Promise<T>,
   timeout: number,
-  fallbackValue: T
+  fallbackValue: T,
 ): Promise<T> {
-  let timeoutId: number | null = null
-  const timeoutPromise = new Promise<T>(resolve => {
-    timeoutId = window.setTimeout(() => resolve(fallbackValue), timeout)
-  })
+  let timeoutId: number | null = null;
+  const timeoutPromise = new Promise<T>((resolve) => {
+    timeoutId = window.setTimeout(() => resolve(fallbackValue), timeout);
+  });
 
   return Promise.race([promise, timeoutPromise]).finally(() => {
     if (timeoutId !== null) {
-      window.clearTimeout(timeoutId)
+      window.clearTimeout(timeoutId);
     }
-  })
+  });
 }
 
 export async function parallelWithConcurrencyLimit<T, V>(
   items: ReadonlyArray<T>,
   action: (item: T) => Promise<V>,
-  concurrencyLimit: number
+  concurrencyLimit: number,
 ): Promise<V[]> {
-  const results: V[] = []
+  const results: V[] = [];
   for (let i = 0; i < items.length; i += concurrencyLimit) {
-    const batch = items.slice(i, i + concurrencyLimit)
-    const batchResults = await Promise.all(batch.map(action))
-    results.push(...batchResults)
+    const batch = items.slice(i, i + concurrencyLimit);
+    const batchResults = await Promise.all(batch.map(action));
+    results.push(...batchResults);
   }
-  return results
+  return results;
 }

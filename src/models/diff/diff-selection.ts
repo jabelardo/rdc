@@ -1,15 +1,15 @@
-import { assertNever } from '../../lib/fatal-error'
+import { assertNever } from "../../lib/fatal-error";
 
 /**
  * The state of a file's diff selection
  */
 export enum DiffSelectionType {
   /** The entire file should be committed */
-  All = 'All',
+  All = "All",
   /** A subset of lines in the file have been selected for committing */
-  Partial = 'Partial',
+  Partial = "Partial",
   /** The file should be excluded from committing */
-  None = 'None',
+  None = "None",
 }
 
 /**
@@ -19,22 +19,16 @@ export enum DiffSelectionType {
  * DiffSelectionType.None and if the selection type is partial there's
  * never a match.
  */
-function typeMatchesSelection(
-  selectionType: DiffSelectionType,
-  selected: boolean
-): boolean {
+function typeMatchesSelection(selectionType: DiffSelectionType, selected: boolean): boolean {
   switch (selectionType) {
     case DiffSelectionType.All:
-      return selected
+      return selected;
     case DiffSelectionType.None:
-      return !selected
+      return !selected;
     case DiffSelectionType.Partial:
-      return false
+      return false;
     default:
-      return assertNever(
-        selectionType,
-        `Unknown selection type ${selectionType}`
-      )
+      return assertNever(selectionType, `Unknown selection type ${selectionType}`);
   }
 }
 
@@ -56,19 +50,16 @@ export class DiffSelection {
    * or not lines are selected by default.
    */
   public static fromInitialSelection(
-    initialSelection: DiffSelectionType.All | DiffSelectionType.None
+    initialSelection: DiffSelectionType.All | DiffSelectionType.None,
   ): DiffSelection {
-    if (
-      initialSelection !== DiffSelectionType.All &&
-      initialSelection !== DiffSelectionType.None
-    ) {
+    if (initialSelection !== DiffSelectionType.All && initialSelection !== DiffSelectionType.None) {
       return assertNever(
         initialSelection,
-        'Can only instantiate a DiffSelection with All or None as the initial selection'
-      )
+        "Can only instantiate a DiffSelection with All or None as the initial selection",
+      );
     }
 
-    return new DiffSelection(initialSelection, null, null)
+    return new DiffSelection(initialSelection, null, null);
   }
 
   /**
@@ -76,24 +67,22 @@ export class DiffSelection {
    * @param selectableLines Optional set of line numbers which can be selected.
    */
   private constructor(
-    private readonly defaultSelectionType:
-      | DiffSelectionType.All
-      | DiffSelectionType.None,
+    private readonly defaultSelectionType: DiffSelectionType.All | DiffSelectionType.None,
     private readonly divergingLines: Set<number> | null = null,
-    private readonly selectableLines: Set<number> | null = null
+    private readonly selectableLines: Set<number> | null = null,
   ) {}
 
   /** Returns a value indicating the computed overall state of the selection */
   public getSelectionType(): DiffSelectionType {
-    const divergingLines = this.divergingLines
-    const selectableLines = this.selectableLines
+    const divergingLines = this.divergingLines;
+    const selectableLines = this.selectableLines;
 
     // No diverging lines, happy path. Either all lines are selected or none are.
     if (!divergingLines) {
-      return this.defaultSelectionType
+      return this.defaultSelectionType;
     }
     if (divergingLines.size === 0) {
-      return this.defaultSelectionType
+      return this.defaultSelectionType;
     }
 
     // If we know which lines are selectable we need to check that
@@ -101,37 +90,36 @@ export class DiffSelection {
     // To avoid looping through the set that often our happy path is
     // if there's a size mismatch.
     if (selectableLines && selectableLines.size === divergingLines.size) {
-      const allSelectableLinesAreDivergent = [...selectableLines].every(i =>
-        divergingLines.has(i)
-      )
+      const allSelectableLinesAreDivergent = [...selectableLines].every((i) =>
+        divergingLines.has(i),
+      );
 
       if (allSelectableLinesAreDivergent) {
         return this.defaultSelectionType === DiffSelectionType.All
           ? DiffSelectionType.None
-          : DiffSelectionType.All
+          : DiffSelectionType.All;
       }
     }
 
     // Note that without any selectable lines we'll report partial selection
     // as long as we have any diverging lines since we have no way of knowing
     // if _all_ lines are divergent or not
-    return DiffSelectionType.Partial
+    return DiffSelectionType.Partial;
   }
 
   /** Returns a value indicating wether the given line number is selected or not */
   public isSelected(lineIndex: number): boolean {
-    const lineIsDivergent =
-      !!this.divergingLines && this.divergingLines.has(lineIndex)
+    const lineIsDivergent = !!this.divergingLines && this.divergingLines.has(lineIndex);
 
     if (this.defaultSelectionType === DiffSelectionType.All) {
-      return !lineIsDivergent
+      return !lineIsDivergent;
     } else if (this.defaultSelectionType === DiffSelectionType.None) {
-      return lineIsDivergent
+      return lineIsDivergent;
     } else {
       return assertNever(
         this.defaultSelectionType,
-        `Unknown base selection type ${this.defaultSelectionType}`
-      )
+        `Unknown base selection type ${this.defaultSelectionType}`,
+      );
     }
   }
 
@@ -147,40 +135,38 @@ export class DiffSelection {
   public isRangeSelected(from: number, length: number): DiffSelectionType {
     if (length <= 0) {
       // This shouldn't happen? But if it does we'll log it and return None.
-      return DiffSelectionType.None
+      return DiffSelectionType.None;
     }
 
-    const computedSelectionType = this.getSelectionType()
+    const computedSelectionType = this.getSelectionType();
     if (computedSelectionType !== DiffSelectionType.Partial) {
       // Nothing for us to do here. If all lines are selected or none, then any
       // range of lines will be the same.
-      return computedSelectionType
+      return computedSelectionType;
     }
 
     if (length === 1) {
-      return this.isSelected(from)
-        ? DiffSelectionType.All
-        : DiffSelectionType.None
+      return this.isSelected(from) ? DiffSelectionType.All : DiffSelectionType.None;
     }
 
-    const to = from + length
-    let foundSelected = false
-    let foundDeselected = false
+    const to = from + length;
+    let foundSelected = false;
+    let foundDeselected = false;
     for (let i = from; i < to; i++) {
       if (this.isSelected(i)) {
-        foundSelected = true
+        foundSelected = true;
       }
 
       if (!this.isSelected(i)) {
-        foundDeselected = true
+        foundDeselected = true;
       }
 
       if (foundSelected && foundDeselected) {
-        return DiffSelectionType.Partial
+        return DiffSelectionType.Partial;
       }
     }
 
-    return foundSelected ? DiffSelectionType.All : DiffSelectionType.None
+    return foundSelected ? DiffSelectionType.All : DiffSelectionType.None;
   }
 
   /**
@@ -189,7 +175,7 @@ export class DiffSelection {
    * line.
    */
   public isSelectable(lineIndex: number): boolean {
-    return this.selectableLines ? this.selectableLines.has(lineIndex) : true
+    return this.selectableLines ? this.selectableLines.has(lineIndex) : true;
   }
 
   /**
@@ -202,11 +188,8 @@ export class DiffSelection {
    * @param selected Whether the given line number should be marked
    *                 as selected or not.
    */
-  public withLineSelection(
-    lineIndex: number,
-    selected: boolean
-  ): DiffSelection {
-    return this.withRangeSelection(lineIndex, 1, selected)
+  public withLineSelection(lineIndex: number, selected: boolean): DiffSelection {
+    return this.withRangeSelection(lineIndex, 1, selected);
   }
 
   /**
@@ -229,33 +212,29 @@ export class DiffSelection {
    *                 or not.
    */
   // Lower inclusive, upper exclusive. Same as substring
-  public withRangeSelection(
-    from: number,
-    length: number,
-    selected: boolean
-  ): DiffSelection {
-    const computedSelectionType = this.getSelectionType()
-    const to = from + length
+  public withRangeSelection(from: number, length: number, selected: boolean): DiffSelection {
+    const computedSelectionType = this.getSelectionType();
+    const to = from + length;
 
     // Nothing for us to do here. This state is when all lines are already
     // selected and we're being asked to select more or when no lines are
     // selected and we're being asked to unselect something.
     if (typeMatchesSelection(computedSelectionType, selected)) {
-      return this
+      return this;
     }
 
     if (computedSelectionType === DiffSelectionType.Partial) {
-      const newDivergingLines = new Set<number>(this.divergingLines!)
+      const newDivergingLines = new Set<number>(this.divergingLines!);
 
       if (typeMatchesSelection(this.defaultSelectionType, selected)) {
         for (let i = from; i < to; i++) {
-          newDivergingLines.delete(i)
+          newDivergingLines.delete(i);
         }
       } else {
         for (let i = from; i < to; i++) {
           // Ensure it's selectable
           if (this.isSelectable(i)) {
-            newDivergingLines.add(i)
+            newDivergingLines.add(i);
           }
         }
       }
@@ -263,21 +242,17 @@ export class DiffSelection {
       return new DiffSelection(
         this.defaultSelectionType,
         newDivergingLines.size === 0 ? null : newDivergingLines,
-        this.selectableLines
-      )
+        this.selectableLines,
+      );
     } else {
-      const newDivergingLines = new Set<number>()
+      const newDivergingLines = new Set<number>();
       for (let i = from; i < to; i++) {
         if (this.isSelectable(i)) {
-          newDivergingLines.add(i)
+          newDivergingLines.add(i);
         }
       }
 
-      return new DiffSelection(
-        computedSelectionType,
-        newDivergingLines,
-        this.selectableLines
-      )
+      return new DiffSelection(computedSelectionType, newDivergingLines, this.selectableLines);
     }
   }
 
@@ -289,21 +264,21 @@ export class DiffSelection {
    *                 be selected or unselected.
    */
   public withToggleLineSelection(lineIndex: number): DiffSelection {
-    return this.withLineSelection(lineIndex, !this.isSelected(lineIndex))
+    return this.withLineSelection(lineIndex, !this.isSelected(lineIndex));
   }
 
   /**
    * Returns a copy of this selection instance with all lines selected.
    */
   public withSelectAll(): DiffSelection {
-    return new DiffSelection(DiffSelectionType.All, null, this.selectableLines)
+    return new DiffSelection(DiffSelectionType.All, null, this.selectableLines);
   }
 
   /**
    * Returns a copy of this selection instance with no lines selected.
    */
   public withSelectNone(): DiffSelection {
-    return new DiffSelection(DiffSelectionType.None, null, this.selectableLines)
+    return new DiffSelection(DiffSelectionType.None, null, this.selectableLines);
   }
 
   /**
@@ -312,12 +287,12 @@ export class DiffSelection {
    */
   public getSelectedLines(): ReadonlyArray<number> {
     if (this.selectableLines === null) {
-      throw new Error('Selectable diff lines have not been loaded.')
+      throw new Error("Selectable diff lines have not been loaded.");
     }
 
     return [...this.selectableLines]
-      .filter(line => this.isSelected(line))
-      .sort((left, right) => left - right)
+      .filter((line) => this.isSelected(line))
+      .sort((left, right) => left - right);
   }
 
   /**
@@ -333,13 +308,9 @@ export class DiffSelection {
    */
   public withSelectableLines(selectableLines: Set<number>) {
     const divergingLines = this.divergingLines
-      ? new Set([...this.divergingLines].filter(x => selectableLines.has(x)))
-      : null
+      ? new Set([...this.divergingLines].filter((x) => selectableLines.has(x)))
+      : null;
 
-    return new DiffSelection(
-      this.defaultSelectionType,
-      divergingLines,
-      selectableLines
-    )
+    return new DiffSelection(this.defaultSelectionType, divergingLines, selectableLines);
   }
 }

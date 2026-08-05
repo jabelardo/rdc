@@ -1,20 +1,20 @@
-import { describe, it } from 'vitest'
-import assert from 'node:assert'
-import { removeRemotePrefix } from './remove-remote-prefix'
+import { describe, it } from "vitest";
+import assert from "node:assert";
+import { removeRemotePrefix } from "./remove-remote-prefix";
 
-describe('removeRemotePrefix', () => {
-  it('removes the remote prefix', () => {
-    const name = removeRemotePrefix('origin/test')
-    assert.equal(name, 'test')
-  })
+describe("removeRemotePrefix", () => {
+  it("removes the remote prefix", () => {
+    const name = removeRemotePrefix("origin/test");
+    assert.equal(name, "test");
+  });
 
   it(`removes only the remote prefix and not any subsequent /'s`, () => {
-    const name = removeRemotePrefix('origin/test/name')
-    assert.equal(name, 'test/name')
-  })
+    const name = removeRemotePrefix("origin/test/name");
+    assert.equal(name, "test/name");
+  });
 
-  it('returns null if there is no remote prefix', () => {
-    const name = removeRemotePrefix('name')
-    assert(name === null)
-  })
-})
+  it("returns null if there is no remote prefix", () => {
+    const name = removeRemotePrefix("name");
+    assert(name === null);
+  });
+});

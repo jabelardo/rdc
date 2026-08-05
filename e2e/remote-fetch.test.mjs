@@ -1,8 +1,8 @@
 // Fetch: a user-initiated fetch advances the remote-tracking ref and surfaces the remote
 // branch in the branch selector, without publishing anything.
-import assert from 'node:assert/strict'
-import { after, before, describe, it } from 'node:test'
-import { By, until } from 'selenium-webdriver'
+import assert from "node:assert/strict";
+import { after, before, describe, it } from "node:test";
+import { By, until } from "selenium-webdriver";
 import {
   commitWorkingTreeBaseline,
   createFixtureRoot,
@@ -15,41 +15,38 @@ import {
   publishCommit,
   removeFixtureRoot,
   startApplication,
-} from './harness.mjs'
+} from "./harness.mjs";
 
-describe('remote fetch', () => {
-  let driver
-  let fixture
-  let branch
-  let remoteHead
+describe("remote fetch", () => {
+  let driver;
+  let fixture;
+  let branch;
+  let remoteHead;
 
   before(async () => {
-    fixture = createFixtureRoot()
-    initCanonicalRepository(fixture)
-    commitWorkingTreeBaseline(fixture)
-    branch = publishCanonical(fixture)
-    createPublisherClone(fixture)
+    fixture = createFixtureRoot();
+    initCanonicalRepository(fixture);
+    commitWorkingTreeBaseline(fixture);
+    branch = publishCanonical(fixture);
+    createPublisherClone(fixture);
 
-    driver = await startApplication()
-    await openSeededRepository(driver, fixture.canonical)
-    const branchesHeading = await driver.findElement(
-      By.css('#sidebar-branches-heading')
-    )
-    await branchesHeading.click()
+    driver = await startApplication();
+    await openSeededRepository(driver, fixture.canonical);
+    const branchesHeading = await driver.findElement(By.css("#sidebar-branches-heading"));
+    await branchesHeading.click();
     await driver.wait(
-      async () =>
-        (await branchesHeading.getAttribute('aria-expanded')) === 'true',
+      async () => (await branchesHeading.getAttribute("aria-expanded")) === "true",
       5_000,
-      'the Branches panel did not expand'
-    )
-  })
+      "the Branches panel did not expand",
+    );
+  });
 
   after(async () => {
-    await driver?.quit().catch(() => undefined)
-    removeFixtureRoot(fixture)
-  })
+    await driver?.quit().catch(() => undefined);
+    removeFixtureRoot(fixture);
+  });
 
-  it('fetches an updated branch from a local bare remote', async () => {
+  it("fetches an updated branch from a local bare remote", async () => {
     // The remote advances *after* the application has loaded the repository, as in the original
     // journey. Doing it in `before()` would make the "local is behind" precondition depend on the
     // app never fetching on open — true today, but it would fail as an opaque `notEqual` the day
@@ -57,43 +54,41 @@ describe('remote fetch', () => {
     publishCommit(
       fixture,
       branch,
-      'from-remote.txt',
-      'arrived through fetch\n',
-      'Advance the bare remote'
-    )
-    remoteHead = gitBare(fixture.remote, 'rev-parse', `refs/heads/${branch}`)
+      "from-remote.txt",
+      "arrived through fetch\n",
+      "Advance the bare remote",
+    );
+    remoteHead = gitBare(fixture.remote, "rev-parse", `refs/heads/${branch}`);
 
     const localRemoteRef = () =>
-      git(fixture.canonical, 'rev-parse', `refs/remotes/origin/${branch}`)
-    assert.notEqual(localRemoteRef(), remoteHead)
+      git(fixture.canonical, "rev-parse", `refs/remotes/origin/${branch}`);
+    assert.notEqual(localRemoteRef(), remoteHead);
 
     const fetchButton = await driver.wait(
       until.elementLocated(
         By.xpath(
-          "//section[@aria-label='Remote synchronization']//button[normalize-space()='Fetch']"
-        )
+          "//section[@aria-label='Remote synchronization']//button[normalize-space()='Fetch']",
+        ),
       ),
-      5_000
-    )
-    await driver.executeScript(element => element.click(), fetchButton)
+      5_000,
+    );
+    await driver.executeScript((element) => element.click(), fetchButton);
     await driver.wait(
       () => localRemoteRef() === remoteHead,
       10_000,
-      'fetch did not update the remote-tracking branch'
-    )
+      "fetch did not update the remote-tracking branch",
+    );
     await driver.wait(
-      until.elementLocated(
-        By.xpath("//h3[normalize-space()='Default Branch']")
-      ),
+      until.elementLocated(By.xpath("//h3[normalize-space()='Default Branch']")),
       10_000,
-      'the recorded remote HEAD did not classify the local default branch'
-    )
+      "the recorded remote HEAD did not classify the local default branch",
+    );
     assert.equal(
       await driver
         .findElements(By.css(`[data-branch-name="origin/${branch}"]`))
-        .then(elements => elements.length),
+        .then((elements) => elements.length),
       0,
-      'remote refs are fetch state, not selectable MVP branch rows'
-    )
-  })
-})
+      "remote refs are fetch state, not selectable MVP branch rows",
+    );
+  });
+});

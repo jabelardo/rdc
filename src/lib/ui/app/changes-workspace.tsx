@@ -1,65 +1,57 @@
-import {
-  faGear,
-  faMagnifyingGlass,
-  faRotate,
-  faTrashCan,
-} from '@fortawesome/free-solid-svg-icons'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { useRef, useState, type CSSProperties } from 'react'
-import { DiffLineType, DiffType } from '../../../models/diff'
-import type { ConflictStore } from '../../stores/conflict-store'
-import type {
-  WorkingTreeState,
-  WorkingTreeStore,
-} from '../../stores/working-tree-store'
-import { HorizontalResizer } from '../horizontal-resizer'
-import { WorkingTreeFileRow } from '../mvp-list-rows'
-import { Tooltip } from '../tooltip'
-import { VirtualList } from '../virtual-list'
+import { faGear, faMagnifyingGlass, faRotate, faTrashCan } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { useRef, useState, type CSSProperties } from "react";
+import { DiffLineType, DiffType } from "../../../models/diff";
+import type { ConflictStore } from "../../stores/conflict-store";
+import type { WorkingTreeState, WorkingTreeStore } from "../../stores/working-tree-store";
+import { HorizontalResizer } from "../horizontal-resizer";
+import { WorkingTreeFileRow } from "../mvp-list-rows";
+import { Tooltip } from "../tooltip";
+import { VirtualList } from "../virtual-list";
 
 function diffLineClassName(type: DiffLineType): string {
   switch (type) {
     case DiffLineType.Add:
-      return 'diff-line-add'
+      return "diff-line-add";
     case DiffLineType.Delete:
-      return 'diff-line-delete'
+      return "diff-line-delete";
     case DiffLineType.Hunk:
-      return 'diff-line-hunk'
+      return "diff-line-hunk";
     case DiffLineType.Context:
-      return 'diff-line-context'
+      return "diff-line-context";
   }
 }
 
 type ChangesWorkspaceProps = {
-  readonly visible: boolean
-  readonly repositoryPath: string
-  readonly state: WorkingTreeState
-  readonly store: WorkingTreeStore
-  readonly conflictStore: ConflictStore
-  readonly commitMessage: string
-  readonly bypassHooks: boolean
-  readonly commitTerminalOutput: string
-  readonly onCommitMessageChange: (message: string) => void
-  readonly onBypassHooksChange: (enabled: boolean) => void
-  readonly onDiscard: (fileID: string, selection: boolean) => void
-}
+  readonly visible: boolean;
+  readonly repositoryPath: string;
+  readonly state: WorkingTreeState;
+  readonly store: WorkingTreeStore;
+  readonly conflictStore: ConflictStore;
+  readonly commitMessage: string;
+  readonly bypassHooks: boolean;
+  readonly commitTerminalOutput: string;
+  readonly onCommitMessageChange: (message: string) => void;
+  readonly onBypassHooksChange: (enabled: boolean) => void;
+  readonly onDiscard: (fileID: string, selection: boolean) => void;
+};
 
 function splitCommitMessage(message: string): {
-  readonly summary: string
-  readonly description: string
+  readonly summary: string;
+  readonly description: string;
 } {
-  const newline = message.indexOf('\n')
+  const newline = message.indexOf("\n");
   if (newline === -1) {
-    return { summary: message, description: '' }
+    return { summary: message, description: "" };
   }
   return {
     summary: message.slice(0, newline),
-    description: message.slice(newline + 1).replace(/^\n/, ''),
-  }
+    description: message.slice(newline + 1).replace(/^\n/, ""),
+  };
 }
 
 function joinCommitMessage(summary: string, description: string): string {
-  return description.length === 0 ? summary : `${summary}\n\n${description}`
+  return description.length === 0 ? summary : `${summary}\n\n${description}`;
 }
 
 /** Changed-file list, selectable diff, and commit form for the active repository. */
@@ -76,36 +68,30 @@ export function ChangesWorkspace({
   onBypassHooksChange,
   onDiscard,
 }: ChangesWorkspaceProps) {
-  const workspaceRef = useRef<HTMLDivElement>(null)
-  const [fileFilter, setFileFilter] = useState('')
-  const [changesPaneWidth, setChangesPaneWidth] = useState(352)
-  const files = state.workingDirectory?.files ?? []
-  const normalizedFilter = fileFilter.trim().toLocaleLowerCase()
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const [fileFilter, setFileFilter] = useState("");
+  const [changesPaneWidth, setChangesPaneWidth] = useState(352);
+  const files = state.workingDirectory?.files ?? [];
+  const normalizedFilter = fileFilter.trim().toLocaleLowerCase();
   const filteredFiles =
     normalizedFilter.length === 0
       ? files
-      : files.filter(file =>
-          file.path.toLocaleLowerCase().includes(normalizedFilter)
-        )
-  const selectedFile =
-    files.find(file => file.id === state.selectedFileID) ?? null
+      : files.filter((file) => file.path.toLocaleLowerCase().includes(normalizedFilter));
+  const selectedFile = files.find((file) => file.id === state.selectedFileID) ?? null;
   const hasSelectedDiffLines =
     state.diff?.kind === DiffType.Text &&
     selectedFile !== null &&
-    state.diff.hunks.some(hunk =>
+    state.diff.hunks.some((hunk) =>
       hunk.lines.some(
         (line, index) =>
           line.isIncludeableLine() &&
-          selectedFile.selection.isSelected(hunk.unifiedDiffStart + index)
-      )
-    )
-  const changedFileCount = files.length
-  const includedFileCount = files.filter(file =>
-    file.isIncludedInCommit()
-  ).length
-  const allFilesIncluded =
-    changedFileCount > 0 && includedFileCount === changedFileCount
-  const { summary, description } = splitCommitMessage(commitMessage)
+          selectedFile.selection.isSelected(hunk.unifiedDiffStart + index),
+      ),
+    );
+  const changedFileCount = files.length;
+  const includedFileCount = files.filter((file) => file.isIncludedInCommit()).length;
+  const allFilesIncluded = changedFileCount > 0 && includedFileCount === changedFileCount;
+  const { summary, description } = splitCommitMessage(commitMessage);
 
   return (
     <div
@@ -114,7 +100,7 @@ export function ChangesWorkspace({
       hidden={!visible}
       style={
         {
-          '--changes-pane-width': `${changesPaneWidth}px`,
+          "--changes-pane-width": `${changesPaneWidth}px`,
         } as CSSProperties
       }
     >
@@ -141,7 +127,7 @@ export function ChangesWorkspace({
                 type="search"
                 value={fileFilter}
                 placeholder="Filter changed files"
-                onChange={event => setFileFilter(event.currentTarget.value)}
+                onChange={(event) => setFileFilter(event.currentTarget.value)}
               />
             </label>
             <Tooltip label="Refresh changed files">
@@ -154,7 +140,7 @@ export function ChangesWorkspace({
                   void Promise.all([
                     store.load(repositoryPath),
                     conflictStore.load(repositoryPath),
-                  ])
+                  ]);
                 }}
               >
                 <FontAwesomeIcon icon={faRotate} aria-hidden="true" />
@@ -168,19 +154,15 @@ export function ChangesWorkspace({
               aria-label="Include all changed files"
               checked={allFilesIncluded}
               disabled={changedFileCount === 0 || state.commitLoading}
-              ref={element => {
+              ref={(element) => {
                 if (element !== null) {
-                  element.indeterminate =
-                    includedFileCount > 0 && !allFilesIncluded
+                  element.indeterminate = includedFileCount > 0 && !allFilesIncluded;
                 }
               }}
-              onChange={event =>
-                store.setAllFilesIncluded(event.currentTarget.checked)
-              }
+              onChange={(event) => store.setAllFilesIncluded(event.currentTarget.checked)}
             />
             <span>
-              {changedFileCount}{' '}
-              {changedFileCount === 1 ? 'changed file' : 'changed files'}
+              {changedFileCount} {changedFileCount === 1 ? "changed file" : "changed files"}
             </span>
           </label>
         </header>
@@ -190,13 +172,10 @@ export function ChangesWorkspace({
           <p className="application-error" role="alert">
             {state.error}
           </p>
-        ) : state.workingDirectory === null ||
-          state.workingDirectory.files.length === 0 ? (
+        ) : state.workingDirectory === null || state.workingDirectory.files.length === 0 ? (
           <p>No local changes.</p>
         ) : filteredFiles.length === 0 ? (
-          <p className="working-tree-filter-empty">
-            No changed files match this filter.
-          </p>
+          <p className="working-tree-filter-empty">No changed files match this filter.</p>
         ) : (
           <VirtualList
             items={filteredFiles}
@@ -204,7 +183,7 @@ export function ChangesWorkspace({
             ariaLabel="Changed files"
             estimateSize={() => 42}
             gap={5}
-            getItemKey={file => file.id}
+            getItemKey={(file) => file.id}
           >
             {(file, index, row) => (
               <WorkingTreeFileRow
@@ -213,11 +192,9 @@ export function ChangesWorkspace({
                 index={index}
                 row={row}
                 selectedFileID={state.selectedFileID}
-                onDiscard={fileID => onDiscard(fileID, false)}
-                onSelect={fileID => void store.selectFile(fileID)}
-                onSetIncluded={(fileID, included) =>
-                  store.setFileIncluded(fileID, included)
-                }
+                onDiscard={(fileID) => onDiscard(fileID, false)}
+                onSelect={(fileID) => void store.selectFile(fileID)}
+                onSetIncluded={(fileID, included) => store.setFileIncluded(fileID, included)}
               />
             )}
           </VirtualList>
@@ -229,8 +206,8 @@ export function ChangesWorkspace({
         aria-label="File diff"
       >
         <header className="working-tree-diff-header">
-          <Tooltip label={selectedFile?.path ?? 'File diff'}>
-            <strong>{selectedFile?.path ?? 'File diff'}</strong>
+          <Tooltip label={selectedFile?.path ?? "File diff"}>
+            <strong>{selectedFile?.path ?? "File diff"}</strong>
           </Tooltip>
           {state.diff?.kind === DiffType.Text && (
             <Tooltip label="Discard selected diff lines">
@@ -241,7 +218,7 @@ export function ChangesWorkspace({
                 disabled={!hasSelectedDiffLines}
                 onClick={() => {
                   if (selectedFile !== null) {
-                    onDiscard(selectedFile.id, true)
+                    onDiscard(selectedFile.id, true);
                   }
                 }}
               >
@@ -259,9 +236,7 @@ export function ChangesWorkspace({
               {state.diffError}
             </p>
           ) : state.diff === null ? (
-            <p className="working-tree-diff-empty">
-              Select a changed file to inspect its diff.
-            </p>
+            <p className="working-tree-diff-empty">Select a changed file to inspect its diff.</p>
           ) : state.diff.kind === DiffType.Text ? (
             <div
               className="working-tree-diff-lines"
@@ -270,13 +245,11 @@ export function ChangesWorkspace({
             >
               {state.diff.hunks.flatMap((hunk, hunkIndex) =>
                 hunk.lines.map((line, lineIndex) => {
-                  const absoluteIndex = hunk.unifiedDiffStart + lineIndex
-                  const includeable = line.isIncludeableLine()
+                  const absoluteIndex = hunk.unifiedDiffStart + lineIndex;
+                  const includeable = line.isIncludeableLine();
                   return (
                     <div
-                      className={`working-tree-diff-line ${diffLineClassName(
-                        line.type
-                      )}`}
+                      className={`working-tree-diff-line ${diffLineClassName(line.type)}`}
                       role="row"
                       key={`${hunkIndex}-${absoluteIndex}`}
                       data-diff-line-index={absoluteIndex}
@@ -285,30 +258,21 @@ export function ChangesWorkspace({
                         <input
                           type="checkbox"
                           aria-label={`Include diff line ${absoluteIndex}: ${line.content}`}
-                          checked={selectedFile.selection.isSelected(
-                            absoluteIndex
-                          )}
+                          checked={selectedFile.selection.isSelected(absoluteIndex)}
                           disabled={state.commitLoading}
-                          onChange={event =>
-                            store.setLineIncluded(
-                              absoluteIndex,
-                              event.currentTarget.checked
-                            )
+                          onChange={(event) =>
+                            store.setLineIncluded(absoluteIndex, event.currentTarget.checked)
                           }
                         />
                       ) : (
                         <span aria-hidden="true" />
                       )}
-                      <span className="diff-line-number">
-                        {line.oldLineNumber ?? ''}
-                      </span>
-                      <span className="diff-line-number">
-                        {line.newLineNumber ?? ''}
-                      </span>
+                      <span className="diff-line-number">{line.oldLineNumber ?? ""}</span>
+                      <span className="diff-line-number">{line.newLineNumber ?? ""}</span>
                       <code>{line.text}</code>
                     </div>
-                  )
-                })
+                  );
+                }),
               )}
             </div>
           ) : state.diff.kind === DiffType.LargeText ? (
@@ -325,95 +289,82 @@ export function ChangesWorkspace({
         </div>
       </section>
 
-      {visible &&
-        state.workingDirectory !== null &&
-        state.workingDirectory.files.length > 0 && (
-          <form
-            className="commit-form grid min-h-0 min-w-0 border-t border-r border-[var(--border)] bg-[var(--color-surface-subtle)] text-left"
-            aria-label="Commit changes"
-            onSubmit={event => {
-              event.preventDefault()
-              void store.commit(commitMessage, bypassHooks).then(sha => {
-                if (sha !== null) {
-                  onCommitMessageChange('')
-                }
-              })
-            }}
-          >
-            <label className="sr-only" htmlFor="commit-message">
-              Commit summary
-            </label>
-            <input
-              id="commit-message"
-              placeholder="Summary (required)"
-              value={summary}
-              onChange={event =>
-                onCommitMessageChange(
-                  joinCommitMessage(event.currentTarget.value, description)
-                )
+      {visible && state.workingDirectory !== null && state.workingDirectory.files.length > 0 && (
+        <form
+          className="commit-form grid min-h-0 min-w-0 border-t border-r border-[var(--border)] bg-[var(--color-surface-subtle)] text-left"
+          aria-label="Commit changes"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void store.commit(commitMessage, bypassHooks).then((sha) => {
+              if (sha !== null) {
+                onCommitMessageChange("");
               }
-            />
-            <label className="sr-only" htmlFor="commit-description">
-              Commit description
-            </label>
-            <textarea
-              id="commit-description"
-              placeholder="Description"
-              rows={3}
-              value={description}
-              onChange={event =>
-                onCommitMessageChange(
-                  joinCommitMessage(summary, event.currentTarget.value)
-                )
-              }
-            />
-            <div className="commit-form-footer">
-              <div className="commit-form-options">
-                <details>
-                  <Tooltip label="Commit options">
-                    <summary aria-label="Commit options">
-                      <FontAwesomeIcon icon={faGear} aria-hidden="true" />
-                      <span className="sr-only">Commit options</span>
-                    </summary>
-                  </Tooltip>
-                  <div className="commit-options-panel">
-                    <label className="commit-option">
-                      <input
-                        type="checkbox"
-                        checked={bypassHooks}
-                        disabled={state.commitLoading}
-                        onChange={event =>
-                          onBypassHooksChange(event.currentTarget.checked)
-                        }
-                      />
-                      Bypass hooks
-                    </label>
-                  </div>
-                </details>
-              </div>
-              <button type="submit" disabled={state.commitLoading}>
-                {state.commitLoading
-                  ? 'Committing…'
-                  : `Commit ${includedFileCount} ${
-                      includedFileCount === 1 ? 'file' : 'files'
-                    }`}
-              </button>
+            });
+          }}
+        >
+          <label className="sr-only" htmlFor="commit-message">
+            Commit summary
+          </label>
+          <input
+            id="commit-message"
+            placeholder="Summary (required)"
+            value={summary}
+            onChange={(event) =>
+              onCommitMessageChange(joinCommitMessage(event.currentTarget.value, description))
+            }
+          />
+          <label className="sr-only" htmlFor="commit-description">
+            Commit description
+          </label>
+          <textarea
+            id="commit-description"
+            placeholder="Description"
+            rows={3}
+            value={description}
+            onChange={(event) =>
+              onCommitMessageChange(joinCommitMessage(summary, event.currentTarget.value))
+            }
+          />
+          <div className="commit-form-footer">
+            <div className="commit-form-options">
+              <details>
+                <Tooltip label="Commit options">
+                  <summary aria-label="Commit options">
+                    <FontAwesomeIcon icon={faGear} aria-hidden="true" />
+                    <span className="sr-only">Commit options</span>
+                  </summary>
+                </Tooltip>
+                <div className="commit-options-panel">
+                  <label className="commit-option">
+                    <input
+                      type="checkbox"
+                      checked={bypassHooks}
+                      disabled={state.commitLoading}
+                      onChange={(event) => onBypassHooksChange(event.currentTarget.checked)}
+                    />
+                    Bypass hooks
+                  </label>
+                </div>
+              </details>
             </div>
-            {state.commitError !== null && (
-              <p className="application-error" role="alert">
-                {state.commitError}
-              </p>
-            )}
-            {commitTerminalOutput.length > 0 && (
-              <pre
-                className="commit-terminal-output"
-                aria-label="Commit terminal output"
-              >
-                {commitTerminalOutput}
-              </pre>
-            )}
-          </form>
-        )}
+            <button type="submit" disabled={state.commitLoading}>
+              {state.commitLoading
+                ? "Committing…"
+                : `Commit ${includedFileCount} ${includedFileCount === 1 ? "file" : "files"}`}
+            </button>
+          </div>
+          {state.commitError !== null && (
+            <p className="application-error" role="alert">
+              {state.commitError}
+            </p>
+          )}
+          {commitTerminalOutput.length > 0 && (
+            <pre className="commit-terminal-output" aria-label="Commit terminal output">
+              {commitTerminalOutput}
+            </pre>
+          )}
+        </form>
+      )}
     </div>
-  )
+  );
 }

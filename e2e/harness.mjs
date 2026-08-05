@@ -11,21 +11,15 @@
 //     fixed port and `stopApplication` is a process-wide `pkill -x rdc`, so two spec files
 //     racing would kill each other's application. `e2e/run.sh` passes
 //     `--test-concurrency=1` for exactly this reason; don't remove it.
-import { execFileSync } from 'node:child_process'
-import {
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
-import path from 'node:path'
-import { Builder, By, Capabilities, until } from 'selenium-webdriver'
+import { execFileSync } from "node:child_process";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { Builder, By, Capabilities, until } from "selenium-webdriver";
 
-export const application = path.resolve('src-tauri/target/debug/rdc')
+export const application = path.resolve("src-tauri/target/debug/rdc");
 
 /** Must match `PreferencesStorageKey` in `src/lib/stores/preferences-store.ts`. */
-const PREFERENCES_STORAGE_KEY = 'rdc-preferences-v1'
+const PREFERENCES_STORAGE_KEY = "rdc-preferences-v1";
 
 /**
  * Runs git and returns stdout with trailing whitespace removed — the common case.
@@ -39,7 +33,7 @@ const PREFERENCES_STORAGE_KEY = 'rdc-preferences-v1'
  * @returns {string}
  */
 export function git(repositoryPath, ...args) {
-  return String(execFileSync('git', ['-C', repositoryPath, ...args])).trimEnd()
+  return String(execFileSync("git", ["-C", repositoryPath, ...args])).trimEnd();
 }
 
 /**
@@ -51,7 +45,7 @@ export function git(repositoryPath, ...args) {
  * @returns {string}
  */
 export function gitRaw(repositoryPath, ...args) {
-  return String(execFileSync('git', ['-C', repositoryPath, ...args]))
+  return String(execFileSync("git", ["-C", repositoryPath, ...args]));
 }
 
 /**
@@ -62,7 +56,7 @@ export function gitRaw(repositoryPath, ...args) {
  * @returns {string}
  */
 export function gitBare(gitDir, ...args) {
-  return String(execFileSync('git', ['--git-dir', gitDir, ...args])).trim()
+  return String(execFileSync("git", ["--git-dir", gitDir, ...args])).trim();
 }
 
 /**
@@ -72,14 +66,14 @@ export function gitBare(gitDir, ...args) {
  * @returns {{canonical: string, remote: string, publisher: string, clone: string}}
  */
 export function createFixtureRoot() {
-  const fixtureRoot = mkdtempSync('/tmp/rdc-e2e-repository-')
+  const fixtureRoot = mkdtempSync("/tmp/rdc-e2e-repository-");
   return {
     root: fixtureRoot,
-    canonical: path.join(fixtureRoot, 'repo'),
-    remote: path.join(fixtureRoot, 'remote.git'),
-    publisher: path.join(fixtureRoot, 'publisher'),
-    clone: path.join(fixtureRoot, 'cloned'),
-  }
+    canonical: path.join(fixtureRoot, "repo"),
+    remote: path.join(fixtureRoot, "remote.git"),
+    publisher: path.join(fixtureRoot, "publisher"),
+    clone: path.join(fixtureRoot, "cloned"),
+  };
 }
 
 /**
@@ -93,9 +87,9 @@ export function createFixtureRoot() {
  */
 export function removeFixtureRoot(fixture) {
   if (fixture?.root === undefined) {
-    return
+    return;
   }
-  rmSync(fixture.root, { recursive: true, force: true })
+  rmSync(fixture.root, { recursive: true, force: true });
 }
 
 /**
@@ -107,28 +101,23 @@ export function removeFixtureRoot(fixture) {
  *   7 with `hook says no` on stderr — the fixture the hook-interception specs assert against.
  */
 export function initCanonicalRepository(fixture, options = {}) {
-  const { failingPreCommitHook = false } = options
+  const { failingPreCommitHook = false } = options;
 
-  mkdirSync(fixture.canonical)
-  execFileSync('git', ['init', '--quiet', fixture.canonical])
-  execFileSync('git', ['init', '--bare', '--quiet', fixture.remote])
-  git(fixture.canonical, 'remote', 'add', 'origin', fixture.remote)
-  git(fixture.canonical, 'config', 'user.name', 'rdc E2E')
-  git(fixture.canonical, 'config', 'user.email', 'rdc-e2e@example.invalid')
+  mkdirSync(fixture.canonical);
+  execFileSync("git", ["init", "--quiet", fixture.canonical]);
+  execFileSync("git", ["init", "--bare", "--quiet", fixture.remote]);
+  git(fixture.canonical, "remote", "add", "origin", fixture.remote);
+  git(fixture.canonical, "config", "user.name", "rdc E2E");
+  git(fixture.canonical, "config", "user.email", "rdc-e2e@example.invalid");
   writeFileSync(
-    path.join(fixture.canonical, 'working-tree.txt'),
-    'committed line\nleft for partial discard\n'
-  )
+    path.join(fixture.canonical, "working-tree.txt"),
+    "committed line\nleft for partial discard\n",
+  );
 
   if (failingPreCommitHook) {
-    const preCommitHook = path.join(
-      fixture.canonical,
-      '.git',
-      'hooks',
-      'pre-commit'
-    )
-    writeFileSync(preCommitHook, "#!/bin/sh\necho 'hook says no' >&2\nexit 7\n")
-    chmodSync(preCommitHook, 0o755)
+    const preCommitHook = path.join(fixture.canonical, ".git", "hooks", "pre-commit");
+    writeFileSync(preCommitHook, "#!/bin/sh\necho 'hook says no' >&2\nexit 7\n");
+    chmodSync(preCommitHook, 0o755);
   }
 }
 
@@ -142,17 +131,11 @@ export function initCanonicalRepository(fixture, options = {}) {
  * @param {string} [message]
  * @returns {string} the new commit SHA
  */
-export function commitWorkingTreeBaseline(
-  fixture,
-  message = 'Commit from the real shell'
-) {
-  writeFileSync(
-    path.join(fixture.canonical, 'working-tree.txt'),
-    'committed line\n'
-  )
-  git(fixture.canonical, 'add', 'working-tree.txt')
-  git(fixture.canonical, 'commit', '--quiet', '--no-verify', '-m', message)
-  return git(fixture.canonical, 'rev-parse', 'HEAD')
+export function commitWorkingTreeBaseline(fixture, message = "Commit from the real shell") {
+  writeFileSync(path.join(fixture.canonical, "working-tree.txt"), "committed line\n");
+  git(fixture.canonical, "add", "working-tree.txt");
+  git(fixture.canonical, "commit", "--quiet", "--no-verify", "-m", message);
+  return git(fixture.canonical, "rev-parse", "HEAD");
 }
 
 /**
@@ -162,20 +145,13 @@ export function commitWorkingTreeBaseline(
  * @param {string} repositoryPath
  */
 export function initSimpleRepository(repositoryPath) {
-  mkdirSync(repositoryPath, { recursive: true })
-  execFileSync('git', ['init', '--quiet', repositoryPath])
-  git(repositoryPath, 'config', 'user.name', 'rdc E2E')
-  git(repositoryPath, 'config', 'user.email', 'rdc-e2e@example.invalid')
-  writeFileSync(path.join(repositoryPath, 'readme.txt'), 'second repository\n')
-  git(repositoryPath, 'add', 'readme.txt')
-  git(
-    repositoryPath,
-    'commit',
-    '--quiet',
-    '--no-verify',
-    '-m',
-    'Initial commit'
-  )
+  mkdirSync(repositoryPath, { recursive: true });
+  execFileSync("git", ["init", "--quiet", repositoryPath]);
+  git(repositoryPath, "config", "user.name", "rdc E2E");
+  git(repositoryPath, "config", "user.email", "rdc-e2e@example.invalid");
+  writeFileSync(path.join(repositoryPath, "readme.txt"), "second repository\n");
+  git(repositoryPath, "add", "readme.txt");
+  git(repositoryPath, "commit", "--quiet", "--no-verify", "-m", "Initial commit");
 }
 
 /**
@@ -186,16 +162,10 @@ export function initSimpleRepository(repositoryPath) {
  * @returns {string} the published branch name
  */
 export function publishCanonical(fixture) {
-  const branch = git(fixture.canonical, 'branch', '--show-current')
-  git(
-    fixture.canonical,
-    'push',
-    '--set-upstream',
-    'origin',
-    `${branch}:${branch}`
-  )
-  gitBare(fixture.remote, 'symbolic-ref', 'HEAD', `refs/heads/${branch}`)
-  return branch
+  const branch = git(fixture.canonical, "branch", "--show-current");
+  git(fixture.canonical, "push", "--set-upstream", "origin", `${branch}:${branch}`);
+  gitBare(fixture.remote, "symbolic-ref", "HEAD", `refs/heads/${branch}`);
+  return branch;
 }
 
 /**
@@ -205,14 +175,9 @@ export function publishCanonical(fixture) {
  * @param {{remote: string, publisher: string}} fixture
  */
 export function createPublisherClone(fixture) {
-  execFileSync('git', ['clone', '--quiet', fixture.remote, fixture.publisher])
-  git(fixture.publisher, 'config', 'user.name', 'rdc Remote E2E')
-  git(
-    fixture.publisher,
-    'config',
-    'user.email',
-    'rdc-remote-e2e@example.invalid'
-  )
+  execFileSync("git", ["clone", "--quiet", fixture.remote, fixture.publisher]);
+  git(fixture.publisher, "config", "user.name", "rdc Remote E2E");
+  git(fixture.publisher, "config", "user.email", "rdc-remote-e2e@example.invalid");
 }
 
 /**
@@ -225,10 +190,10 @@ export function createPublisherClone(fixture) {
  * @param {string} message
  */
 export function publishCommit(fixture, branch, fileName, contents, message) {
-  writeFileSync(path.join(fixture.publisher, fileName), contents)
-  git(fixture.publisher, 'add', fileName)
-  git(fixture.publisher, 'commit', '--quiet', '-m', message)
-  git(fixture.publisher, 'push', '--quiet', 'origin', branch)
+  writeFileSync(path.join(fixture.publisher, fileName), contents);
+  git(fixture.publisher, "add", fileName);
+  git(fixture.publisher, "commit", "--quiet", "-m", message);
+  git(fixture.publisher, "push", "--quiet", "origin", branch);
 }
 
 /**
@@ -240,20 +205,13 @@ export function publishCommit(fixture, branch, fileName, contents, message) {
 export function remoteHasBranch(gitDir, branch) {
   try {
     execFileSync(
-      'git',
-      [
-        '--git-dir',
-        gitDir,
-        'show-ref',
-        '--verify',
-        '--quiet',
-        `refs/heads/${branch}`,
-      ],
-      { stdio: 'ignore' }
-    )
-    return true
+      "git",
+      ["--git-dir", gitDir, "show-ref", "--verify", "--quiet", `refs/heads/${branch}`],
+      { stdio: "ignore" },
+    );
+    return true;
   } catch {
-    return false
+    return false;
   }
 }
 
@@ -267,20 +225,13 @@ export function upstreamOf(repositoryPath) {
   try {
     return String(
       execFileSync(
-        'git',
-        [
-          '-C',
-          repositoryPath,
-          'rev-parse',
-          '--abbrev-ref',
-          '--symbolic-full-name',
-          '@{upstream}',
-        ],
-        { stdio: ['ignore', 'pipe', 'ignore'] }
-      )
-    ).trim()
+        "git",
+        ["-C", repositoryPath, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+        { stdio: ["ignore", "pipe", "ignore"] },
+      ),
+    ).trim();
   } catch {
-    return null
+    return null;
   }
 }
 
@@ -290,22 +241,20 @@ export function upstreamOf(repositoryPath) {
  * @returns {Promise<import('selenium-webdriver').WebDriver>}
  */
 export async function startApplication() {
-  const capabilities = new Capabilities()
-  capabilities.setBrowserName('wry')
-  capabilities.set('tauri:options', { application })
+  const capabilities = new Capabilities();
+  capabilities.setBrowserName("wry");
+  capabilities.set("tauri:options", { application });
 
   const applicationDriver = await new Builder()
-    .usingServer('http://127.0.0.1:4444/')
+    .usingServer("http://127.0.0.1:4444/")
     .withCapabilities(capabilities)
-    .build()
+    .build();
   await applicationDriver.wait(
-    until.elementLocated(
-      By.css('main.application-shell [aria-label="Navigation"]')
-    ),
-    10_000
-  )
-  await pinZoomFactor(applicationDriver)
-  return applicationDriver
+    until.elementLocated(By.css('main.application-shell [aria-label="Navigation"]')),
+    10_000,
+  );
+  await pinZoomFactor(applicationDriver);
+  return applicationDriver;
 }
 
 /**
@@ -327,48 +276,41 @@ export async function startApplication() {
  * @param {import('selenium-webdriver').WebDriver} driver
  */
 export async function pinZoomFactor(driver) {
-  await driver.executeScript(storageKey => {
-    let preferences = {}
+  await driver.executeScript((storageKey) => {
+    let preferences = {};
     try {
-      preferences = JSON.parse(localStorage.getItem(storageKey) ?? '{}') ?? {}
+      preferences = JSON.parse(localStorage.getItem(storageKey) ?? "{}") ?? {};
     } catch {
-      preferences = {}
+      preferences = {};
     }
-    localStorage.setItem(
-      storageKey,
-      JSON.stringify({ ...preferences, zoomFactor: 1 })
-    )
-  }, PREFERENCES_STORAGE_KEY)
-  await driver.navigate().refresh()
+    localStorage.setItem(storageKey, JSON.stringify({ ...preferences, zoomFactor: 1 }));
+  }, PREFERENCES_STORAGE_KEY);
+  await driver.navigate().refresh();
   await driver.wait(
-    until.elementLocated(
-      By.css('main.application-shell [aria-label="Navigation"]')
-    ),
-    10_000
-  )
-  await driver.executeAsyncScript(done => {
-    window.__TAURI_INTERNALS__
-      .invoke('set_window_zoom_factor', { zoomFactor: 1 })
-      .then(
-        () => done(true),
-        error => done({ error: String(error) })
-      )
-  })
+    until.elementLocated(By.css('main.application-shell [aria-label="Navigation"]')),
+    10_000,
+  );
+  await driver.executeAsyncScript((done) => {
+    window.__TAURI_INTERNALS__.invoke("set_window_zoom_factor", { zoomFactor: 1 }).then(
+      () => done(true),
+      (error) => done({ error: String(error) }),
+    );
+  });
   await driver.wait(
     async () =>
-      (await driver.executeAsyncScript(done => {
+      (await driver.executeAsyncScript((done) => {
         window.__TAURI_INTERNALS__
-          .invoke('get_current_window_zoom_factor')
-          .then(done, () => done(null))
+          .invoke("get_current_window_zoom_factor")
+          .then(done, () => done(null));
       })) === 1,
     5_000,
-    'the webview did not settle at 100% zoom'
-  )
+    "the webview did not settle at 100% zoom",
+  );
 }
 
 /** Terminates the application out of band, as a user force-quitting it would. */
 export function stopApplication() {
-  execFileSync('pkill', ['-x', 'rdc'])
+  execFileSync("pkill", ["-x", "rdc"]);
 }
 
 /**
@@ -377,12 +319,12 @@ export function stopApplication() {
 export async function waitForApplicationExit(driver) {
   await driver.wait(async () => {
     try {
-      execFileSync('pgrep', ['-x', 'rdc'])
-      return false
+      execFileSync("pgrep", ["-x", "rdc"]);
+      return false;
     } catch {
-      return true
+      return true;
     }
-  }, 5_000)
+  }, 5_000);
 }
 
 /**
@@ -391,10 +333,8 @@ export async function waitForApplicationExit(driver) {
  */
 export function repositorySelector(repositoryPath, selected = false) {
   return By.css(
-    `[data-repository-path="${repositoryPath}"]${
-      selected ? '[aria-current="true"]' : ''
-    }`
-  )
+    `[data-repository-path="${repositoryPath}"]${selected ? '[aria-current="true"]' : ""}`,
+  );
 }
 
 /**
@@ -404,7 +344,7 @@ export function repositorySelector(repositoryPath, selected = false) {
  * @param {...string} keys `xdotool key` arguments
  */
 export function sendNativeKeys(...keys) {
-  execFileSync('xdotool', ['key', '--delay', '150', ...keys])
+  execFileSync("xdotool", ["key", "--delay", "150", ...keys]);
 }
 
 /**
@@ -417,45 +357,41 @@ export function sendNativeKeys(...keys) {
 export async function seedRepositoryFixture(driver, repositoryPath) {
   return driver.executeAsyncScript(
     (record, done) => {
-      const request = indexedDB.open('rdc-repositories')
-      request.onerror = () => done({ error: String(request.error) })
+      const request = indexedDB.open("rdc-repositories");
+      request.onerror = () => done({ error: String(request.error) });
       request.onupgradeneeded = () => {
-        const store = request.result.createObjectStore('repositories', {
-          keyPath: 'id',
+        const store = request.result.createObjectStore("repositories", {
+          keyPath: "id",
           autoIncrement: true,
-        })
-        store.createIndex('path', 'path', { unique: true })
-      }
+        });
+        store.createIndex("path", "path", { unique: true });
+      };
       request.onsuccess = () => {
-        const transaction = request.result.transaction(
-          'repositories',
-          'readwrite'
-        )
-        transaction.objectStore('repositories').put(record)
-        transaction.onerror = () => done({ error: String(transaction.error) })
+        const transaction = request.result.transaction("repositories", "readwrite");
+        transaction.objectStore("repositories").put(record);
+        transaction.onerror = () => done({ error: String(transaction.error) });
         transaction.oncomplete = () => {
           const countRequest = request.result
-            .transaction('repositories')
-            .objectStore('repositories')
-            .count()
-          countRequest.onerror = () =>
-            done({ error: String(countRequest.error) })
+            .transaction("repositories")
+            .objectStore("repositories")
+            .count();
+          countRequest.onerror = () => done({ error: String(countRequest.error) });
           countRequest.onsuccess = () => {
-            request.result.close()
-            done({ count: countRequest.result })
-          }
-        }
-      }
+            request.result.close();
+            done({ count: countRequest.result });
+          };
+        };
+      };
     },
     {
       path: repositoryPath,
-      gitDir: path.join(repositoryPath, '.git'),
+      gitDir: path.join(repositoryPath, ".git"),
       missing: false,
       alias: null,
       groupName: null,
       defaultBranch: null,
-    }
-  )
+    },
+  );
 }
 
 /**
@@ -471,54 +407,54 @@ export async function seedRepositoryFixture(driver, repositoryPath) {
  * @param {import('selenium-webdriver').WebDriver} driver
  */
 export async function resetRepositoryFixtures(driver) {
-  return driver.executeAsyncScript(done => {
-    const request = indexedDB.open('rdc-repositories')
-    request.onerror = () => done({ error: String(request.error) })
+  return driver.executeAsyncScript((done) => {
+    const request = indexedDB.open("rdc-repositories");
+    request.onerror = () => done({ error: String(request.error) });
     request.onupgradeneeded = () => {
       // A fresh database — create the store so the clear below has a target.
-      const store = request.result.createObjectStore('repositories', {
-        keyPath: 'id',
+      const store = request.result.createObjectStore("repositories", {
+        keyPath: "id",
         autoIncrement: true,
-      })
-      store.createIndex('path', 'path', { unique: true })
-    }
+      });
+      store.createIndex("path", "path", { unique: true });
+    };
     request.onsuccess = () => {
-      const database = request.result
-      if (!database.objectStoreNames.contains('repositories')) {
-        database.close()
-        done({ cleared: true })
-        return
+      const database = request.result;
+      if (!database.objectStoreNames.contains("repositories")) {
+        database.close();
+        done({ cleared: true });
+        return;
       }
-      const transaction = database.transaction('repositories', 'readwrite')
-      transaction.objectStore('repositories').clear()
-      transaction.onerror = () => done({ error: String(transaction.error) })
+      const transaction = database.transaction("repositories", "readwrite");
+      transaction.objectStore("repositories").clear();
+      transaction.onerror = () => done({ error: String(transaction.error) });
       transaction.oncomplete = () => {
-        database.close()
-        done({ cleared: true })
-      }
-    }
-  })
+        database.close();
+        done({ cleared: true });
+      };
+    };
+  });
 }
 
 /**
  * @param {import('selenium-webdriver').WebDriver} driver
  */
 export async function readRepositoryFixtures(driver) {
-  return driver.executeAsyncScript(done => {
-    const request = indexedDB.open('rdc-repositories')
-    request.onerror = () => done([])
+  return driver.executeAsyncScript((done) => {
+    const request = indexedDB.open("rdc-repositories");
+    request.onerror = () => done([]);
     request.onsuccess = () => {
       const records = request.result
-        .transaction('repositories')
-        .objectStore('repositories')
-        .getAll()
-      records.onerror = () => done([])
+        .transaction("repositories")
+        .objectStore("repositories")
+        .getAll();
+      records.onerror = () => done([]);
       records.onsuccess = () => {
-        request.result.close()
-        done(records.result)
-      }
-    }
-  })
+        request.result.close();
+        done(records.result);
+      };
+    };
+  });
 }
 
 /**
@@ -530,38 +466,32 @@ export async function readRepositoryFixtures(driver) {
  */
 export async function seedRepositoryScaleFixture(driver, count) {
   const records = Array.from({ length: count }, (_, index) => {
-    const repositoryPath = `/tmp/rdc-scale-repository-${String(index).padStart(
-      4,
-      '0'
-    )}`
+    const repositoryPath = `/tmp/rdc-scale-repository-${String(index).padStart(4, "0")}`;
     return {
       path: repositoryPath,
-      gitDir: path.join(repositoryPath, '.git'),
+      gitDir: path.join(repositoryPath, ".git"),
       missing: true,
       alias: null,
       groupName: null,
       defaultBranch: null,
-    }
-  })
+    };
+  });
   return driver.executeAsyncScript((fixtures, done) => {
-    const request = indexedDB.open('rdc-repositories')
-    request.onerror = () => done({ error: String(request.error) })
+    const request = indexedDB.open("rdc-repositories");
+    request.onerror = () => done({ error: String(request.error) });
     request.onsuccess = () => {
-      const transaction = request.result.transaction(
-        'repositories',
-        'readwrite'
-      )
-      const store = transaction.objectStore('repositories')
+      const transaction = request.result.transaction("repositories", "readwrite");
+      const store = transaction.objectStore("repositories");
       for (const fixture of fixtures) {
-        store.put(fixture)
+        store.put(fixture);
       }
-      transaction.onerror = () => done({ error: String(transaction.error) })
+      transaction.onerror = () => done({ error: String(transaction.error) });
       transaction.oncomplete = () => {
-        request.result.close()
-        done({ count: fixtures.length })
-      }
-    }
-  }, records)
+        request.result.close();
+        done({ count: fixtures.length });
+      };
+    };
+  }, records);
 }
 
 /**
@@ -578,20 +508,20 @@ export async function seedRepositoryScaleFixture(driver, count) {
  * @param {import('selenium-webdriver').WebDriver} driver
  * @param {'repositories' | 'branches'} [section]
  */
-export async function expandSidebarSection(driver, section = 'repositories') {
+export async function expandSidebarSection(driver, section = "repositories") {
   const heading = await driver.wait(
     until.elementLocated(By.css(`#sidebar-${section}-heading`)),
     5_000,
-    `the ${section} sidebar heading never rendered`
-  )
-  if ((await heading.getAttribute('aria-expanded')) !== 'true') {
-    await driver.executeScript(element => element.click(), heading)
+    `the ${section} sidebar heading never rendered`,
+  );
+  if ((await heading.getAttribute("aria-expanded")) !== "true") {
+    await driver.executeScript((element) => element.click(), heading);
   }
   await driver.wait(
-    async () => (await heading.getAttribute('aria-expanded')) === 'true',
+    async () => (await heading.getAttribute("aria-expanded")) === "true",
     5_000,
-    `the ${section} sidebar panel did not expand`
-  )
+    `the ${section} sidebar panel did not expand`,
+  );
 }
 
 /**
@@ -609,14 +539,14 @@ export async function expandSidebarSection(driver, section = 'repositories') {
  * @param {string} repositoryPath
  */
 export async function openSeededRepository(driver, repositoryPath) {
-  await resetRepositoryFixtures(driver)
-  await seedRepositoryFixture(driver, repositoryPath)
-  await driver.navigate().refresh()
+  await resetRepositoryFixtures(driver);
+  await seedRepositoryFixture(driver, repositoryPath);
+  await driver.navigate().refresh();
   await driver.wait(
     until.elementLocated(By.css('[aria-label="Repository views"]')),
     5_000,
-    `the seeded repository ${repositoryPath} did not become the selected repository`
-  )
+    `the seeded repository ${repositoryPath} did not become the selected repository`,
+  );
 }
 
 /**
@@ -630,15 +560,12 @@ export async function openSeededRepository(driver, repositoryPath) {
  * @param {string} repositoryPath
  */
 export async function selectRepository(driver, repositoryPath) {
-  await expandSidebarSection(driver, 'repositories')
-  const row = await driver.wait(
-    until.elementLocated(repositorySelector(repositoryPath)),
-    5_000
-  )
-  await driver.executeScript(element => element.click(), row)
+  await expandSidebarSection(driver, "repositories");
+  const row = await driver.wait(until.elementLocated(repositorySelector(repositoryPath)), 5_000);
+  await driver.executeScript((element) => element.click(), row);
   await driver.wait(
     until.elementLocated(repositorySelector(repositoryPath, true)),
     5_000,
-    `repository ${repositoryPath} did not become the current selection`
-  )
+    `repository ${repositoryPath} did not become the current selection`,
+  );
 }

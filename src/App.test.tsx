@@ -1,37 +1,37 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import App from './App'
-import type { IMenu } from './models/app-menu'
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import App from "./App";
+import type { IMenu } from "./models/app-menu";
 
-const installApplicationMenu = vi.hoisted(() => vi.fn())
-const replaceApplicationMenu = vi.hoisted(() => vi.fn())
-const showContextMenu = vi.hoisted(() => vi.fn())
-const showOpenDialog = vi.hoisted(() => vi.fn())
-const showSaveDialog = vi.hoisted(() => vi.fn())
-const initRepository = vi.hoisted(() => vi.fn())
-const showFolderContents = vi.hoisted(() => vi.fn())
-const getMainProcessConfig = vi.hoisted(() => vi.fn())
-const launchExternalEditor = vi.hoisted(() => vi.fn())
-const launchShell = vi.hoisted(() => vi.fn())
-const onNativeThemeUpdated = vi.hoisted(() => vi.fn())
-const sendReady = vi.hoisted(() => vi.fn())
-const setWindowTitle = vi.hoisted(() => vi.fn())
-const openRepositoryInNewWindow = vi.hoisted(() => vi.fn())
-const startWindowDragging = vi.hoisted(() => vi.fn())
-const maximizeWindow = vi.hoisted(() => vi.fn())
-const minimizeWindow = vi.hoisted(() => vi.fn())
-const restoreWindow = vi.hoisted(() => vi.fn())
-const isWindowMaximized = vi.hoisted(() => vi.fn())
-const getAppleActionOnDoubleClick = vi.hoisted(() => vi.fn())
-const installDefaultCloseRequestHandler = vi.hoisted(() => vi.fn())
+const installApplicationMenu = vi.hoisted(() => vi.fn());
+const replaceApplicationMenu = vi.hoisted(() => vi.fn());
+const showContextMenu = vi.hoisted(() => vi.fn());
+const showOpenDialog = vi.hoisted(() => vi.fn());
+const showSaveDialog = vi.hoisted(() => vi.fn());
+const initRepository = vi.hoisted(() => vi.fn());
+const showFolderContents = vi.hoisted(() => vi.fn());
+const getMainProcessConfig = vi.hoisted(() => vi.fn());
+const launchExternalEditor = vi.hoisted(() => vi.fn());
+const launchShell = vi.hoisted(() => vi.fn());
+const onNativeThemeUpdated = vi.hoisted(() => vi.fn());
+const sendReady = vi.hoisted(() => vi.fn());
+const setWindowTitle = vi.hoisted(() => vi.fn());
+const openRepositoryInNewWindow = vi.hoisted(() => vi.fn());
+const startWindowDragging = vi.hoisted(() => vi.fn());
+const maximizeWindow = vi.hoisted(() => vi.fn());
+const minimizeWindow = vi.hoisted(() => vi.fn());
+const restoreWindow = vi.hoisted(() => vi.fn());
+const isWindowMaximized = vi.hoisted(() => vi.fn());
+const getAppleActionOnDoubleClick = vi.hoisted(() => vi.fn());
+const installDefaultCloseRequestHandler = vi.hoisted(() => vi.fn());
 const appStore = vi.hoisted(() => ({
   state: {
     repositories: [] as Array<{ id: number; name: string; path: string }>,
     selectedRepository: null as {
-      id: number
-      name: string
-      path: string
+      id: number;
+      name: string;
+      path: string;
     } | null,
   },
   load: vi.fn(),
@@ -39,42 +39,42 @@ const appStore = vi.hoisted(() => ({
   removeRepository: vi.fn(),
   selectRepository: vi.fn(),
   onDidUpdate: vi.fn(),
-}))
+}));
 const workingTreeStore = vi.hoisted(() => ({
   state: {
     repositoryPath: null as string | null,
     workingDirectory: null as {
       files: ReadonlyArray<{
-        id: string
-        path: string
-        status: { kind: string }
-        isIncludedInCommit: () => boolean
-        selection?: { isSelected: (line: number) => boolean }
-      }>
+        id: string;
+        path: string;
+        status: { kind: string };
+        isIncludedInCommit: () => boolean;
+        selection?: { isSelected: (line: number) => boolean };
+      }>;
     } | null,
     selectedFileID: null as string | null,
     diff: null as {
-      kind: number
-      text?: string
+      kind: number;
+      text?: string;
       hunks?: ReadonlyArray<{
-        unifiedDiffStart: number
+        unifiedDiffStart: number;
         lines: ReadonlyArray<{
-          text: string
-          type?: number
-          content: string
-          oldLineNumber: number | null
-          newLineNumber: number | null
-          isIncludeableLine: () => boolean
-        }>
-      }>
+          text: string;
+          type?: number;
+          content: string;
+          oldLineNumber: number | null;
+          newLineNumber: number | null;
+          isIncludeableLine: () => boolean;
+        }>;
+      }>;
     } | null,
     diffLoading: false,
     diffError: null as string | null,
     commitLoading: false,
     commitError: null as string | null,
     hookFailure: null as {
-      hook: string
-      terminalOutput: string
+      hook: string;
+      terminalOutput: string;
     } | null,
     loading: false,
     error: null as string | null,
@@ -92,30 +92,30 @@ const workingTreeStore = vi.hoisted(() => ({
   clear: vi.fn(),
   onDidUpdate: vi.fn(),
   onCommitTerminalOutput: vi.fn(),
-}))
+}));
 const historyStore = vi.hoisted(() => ({
   state: {
     repositoryPath: null as string | null,
     commits: [] as ReadonlyArray<{
-      sha: string
-      shortSha: string
-      summary: string
-      body: string
-      bodyNoCoAuthors: string
-      author: { name: string; email: string; date: Date }
-      committer: { name: string; email: string; date: Date }
-      parentSHAs: ReadonlyArray<string>
-      tags: ReadonlyArray<string>
+      sha: string;
+      shortSha: string;
+      summary: string;
+      body: string;
+      bodyNoCoAuthors: string;
+      author: { name: string; email: string; date: Date };
+      committer: { name: string; email: string; date: Date };
+      parentSHAs: ReadonlyArray<string>;
+      tags: ReadonlyArray<string>;
     }>,
     selectedCommitSHA: null as string | null,
     changeset: null as {
       files: ReadonlyArray<{
-        id: string
-        path: string
-        status: { kind: string }
-      }>
-      linesAdded: number
-      linesDeleted: number
+        id: string;
+        path: string;
+        status: { kind: string };
+      }>;
+      linesAdded: number;
+      linesDeleted: number;
     } | null,
     selectedFileID: null as string | null,
     loading: false,
@@ -123,17 +123,17 @@ const historyStore = vi.hoisted(() => ({
     detailsLoading: false,
     detailsError: null as string | null,
     diff: null as {
-      kind: number
-      text?: string
+      kind: number;
+      text?: string;
       hunks?: ReadonlyArray<{
-        unifiedDiffStart: number
+        unifiedDiffStart: number;
         lines: ReadonlyArray<{
-          text: string
-          type?: number
-          oldLineNumber: number | null
-          newLineNumber: number | null
-        }>
-      }>
+          text: string;
+          type?: number;
+          oldLineNumber: number | null;
+          newLineNumber: number | null;
+        }>;
+      }>;
     } | null,
     diffLoading: false,
     diffError: null as string | null,
@@ -143,25 +143,25 @@ const historyStore = vi.hoisted(() => ({
   selectFile: vi.fn(),
   clear: vi.fn(),
   onDidUpdate: vi.fn(),
-}))
+}));
 const branchStore = vi.hoisted(() => ({
   state: {
     repositoryPath: null as string | null,
     branches: [] as ReadonlyArray<{
-      name: string
-      ref: string
-      type: number
-      tip: { sha: string; author: { date: Date } }
+      name: string;
+      ref: string;
+      type: number;
+      tip: { sha: string; author: { date: Date } };
     }>,
     currentBranch: null as string | null,
     defaultBranch: null as string | null,
     recentBranches: [] as ReadonlyArray<string>,
     loading: false,
     error: null as string | null,
-    operation: null as 'creating' | 'checking-out' | null,
+    operation: null as "creating" | "checking-out" | null,
     progress: null as {
-      description: string
-      value: number
+      description: string;
+      value: number;
     } | null,
     operationError: null as string | null,
   },
@@ -170,15 +170,15 @@ const branchStore = vi.hoisted(() => ({
   checkout: vi.fn(),
   clear: vi.fn(),
   onDidUpdate: vi.fn(),
-}))
+}));
 const conflictStore = vi.hoisted(() => ({
   state: {
     repositoryPath: null as string | null,
     mergeInProgress: false,
     files: [] as ReadonlyArray<{
-      path: string
-      status: { kind: string; conflictMarkerCount?: number }
-      resolvedInWorkingTree: boolean
+      path: string;
+      status: { kind: string; conflictMarkerCount?: number };
+      resolvedInWorkingTree: boolean;
     }>,
     loading: false,
     error: null as string | null,
@@ -189,28 +189,28 @@ const conflictStore = vi.hoisted(() => ({
   stageResolvedFile: vi.fn(),
   clear: vi.fn(),
   onDidUpdate: vi.fn(),
-}))
+}));
 const preferencesStore = vi.hoisted(() => ({
   state: {
-    theme: 'system' as 'light' | 'dark' | 'system',
+    theme: "system" as "light" | "dark" | "system",
     zoomFactor: 1.0,
     confirmRepositoryRemoval: true,
     confirmDiscardChanges: true,
     confirmDiscardChangesPermanently: true,
-    selectedExternalEditor: 'Zed' as string | null,
-    selectedShell: 'Ghostty' as string | null,
-    editors: [{ editor: 'Zed', path: '/applications/zed' }],
-    shells: [{ shell: 'Ghostty', path: '/applications/ghostty' }],
+    selectedExternalEditor: "Zed" as string | null,
+    selectedShell: "Ghostty" as string | null,
+    editors: [{ editor: "Zed", path: "/applications/zed" }],
+    shells: [{ shell: "Ghostty", path: "/applications/ghostty" }],
     loading: false,
     error: null as string | null,
   },
   selectedEditor: {
-    editor: 'Zed',
-    path: '/applications/zed',
+    editor: "Zed",
+    path: "/applications/zed",
   } as { editor: string; path: string } | null,
   selectedShell: {
-    shell: 'Ghostty',
-    path: '/applications/ghostty',
+    shell: "Ghostty",
+    path: "/applications/ghostty",
   } as { shell: string; path: string } | null,
   load: vi.fn(),
   refreshTheme: vi.fn(),
@@ -222,28 +222,28 @@ const preferencesStore = vi.hoisted(() => ({
   setSelectedShell: vi.fn(),
   setZoomFactor: vi.fn(),
   onDidUpdate: vi.fn(),
-}))
+}));
 
-vi.mock('./lib/menu/application-menu', () => ({ installApplicationMenu }))
-vi.mock('./lib/platform/menu', () => ({
+vi.mock("./lib/menu/application-menu", () => ({ installApplicationMenu }));
+vi.mock("./lib/platform/menu", () => ({
   showContextMenu,
   setNativeMenu: vi.fn(),
   onNativeMenuAction: vi.fn(),
-}))
-vi.mock('./lib/platform/dialogs', () => ({ showOpenDialog, showSaveDialog }))
-vi.mock('./lib/git-ipc', async importOriginal => ({
-  ...(await importOriginal<typeof import('./lib/git-ipc')>()),
+}));
+vi.mock("./lib/platform/dialogs", () => ({ showOpenDialog, showSaveDialog }));
+vi.mock("./lib/git-ipc", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./lib/git-ipc")>()),
   initRepository,
-}))
-vi.mock('./lib/platform/config', () => ({ getMainProcessConfig }))
-vi.mock('./lib/platform/files', () => ({ showFolderContents }))
-vi.mock('./lib/platform/editors', () => ({ launchExternalEditor }))
-vi.mock('./lib/platform/shells', () => ({ launchShell }))
-vi.mock('./lib/platform/theme', () => ({ onNativeThemeUpdated }))
-vi.mock('./lib/platform/lifetime', () => ({
+}));
+vi.mock("./lib/platform/config", () => ({ getMainProcessConfig }));
+vi.mock("./lib/platform/files", () => ({ showFolderContents }));
+vi.mock("./lib/platform/editors", () => ({ launchExternalEditor }));
+vi.mock("./lib/platform/shells", () => ({ launchShell }));
+vi.mock("./lib/platform/theme", () => ({ onNativeThemeUpdated }));
+vi.mock("./lib/platform/lifetime", () => ({
   installDefaultCloseRequestHandler,
-}))
-vi.mock('./lib/platform/window', () => ({
+}));
+vi.mock("./lib/platform/window", () => ({
   openRepositoryInNewWindow,
   sendReady,
   setWindowTitle,
@@ -252,97 +252,97 @@ vi.mock('./lib/platform/window', () => ({
   minimizeWindow,
   restoreWindow,
   isWindowMaximized,
-}))
-vi.mock('./lib/platform/system', () => ({ getAppleActionOnDoubleClick }))
-vi.mock('./lib/stores/default-app-store', () => ({
+}));
+vi.mock("./lib/platform/system", () => ({ getAppleActionOnDoubleClick }));
+vi.mock("./lib/stores/default-app-store", () => ({
   getDefaultAppStore: () => appStore,
-}))
-vi.mock('./lib/stores/default-working-tree-store', () => ({
+}));
+vi.mock("./lib/stores/default-working-tree-store", () => ({
   getDefaultWorkingTreeStore: () => workingTreeStore,
-}))
-vi.mock('./lib/stores/default-history-store', () => ({
+}));
+vi.mock("./lib/stores/default-history-store", () => ({
   getDefaultHistoryStore: () => historyStore,
-}))
-vi.mock('./lib/stores/default-branch-store', () => ({
+}));
+vi.mock("./lib/stores/default-branch-store", () => ({
   getDefaultBranchStore: () => branchStore,
-}))
-vi.mock('./lib/stores/default-conflict-store', () => ({
+}));
+vi.mock("./lib/stores/default-conflict-store", () => ({
   getDefaultConflictStore: () => conflictStore,
-}))
-vi.mock('./lib/stores/default-preferences-store', () => ({
+}));
+vi.mock("./lib/stores/default-preferences-store", () => ({
   getDefaultPreferencesStore: () => preferencesStore,
-}))
+}));
 
 const repository = {
   id: 7,
-  name: 'rdc',
-  path: '/projects/rdc',
-}
+  name: "rdc",
+  path: "/projects/rdc",
+};
 
-describe('App', () => {
+describe("App", () => {
   beforeEach(() => {
-    installApplicationMenu.mockReset()
-    replaceApplicationMenu.mockReset()
-    replaceApplicationMenu.mockResolvedValue(undefined)
+    installApplicationMenu.mockReset();
+    replaceApplicationMenu.mockReset();
+    replaceApplicationMenu.mockResolvedValue(undefined);
     installApplicationMenu.mockResolvedValue({
       dispose: vi.fn(),
       replaceMenu: replaceApplicationMenu,
-    })
-    showContextMenu.mockReset()
-    showContextMenu.mockResolvedValue(undefined)
-    showOpenDialog.mockReset()
-    showOpenDialog.mockResolvedValue(null)
-    showSaveDialog.mockReset()
-    showSaveDialog.mockResolvedValue(null)
-    initRepository.mockReset()
-    initRepository.mockResolvedValue(undefined)
-    showFolderContents.mockReset()
-    showFolderContents.mockResolvedValue(undefined)
-    getMainProcessConfig.mockReset()
+    });
+    showContextMenu.mockReset();
+    showContextMenu.mockResolvedValue(undefined);
+    showOpenDialog.mockReset();
+    showOpenDialog.mockResolvedValue(null);
+    showSaveDialog.mockReset();
+    showSaveDialog.mockResolvedValue(null);
+    initRepository.mockReset();
+    initRepository.mockResolvedValue(undefined);
+    showFolderContents.mockReset();
+    showFolderContents.mockResolvedValue(undefined);
+    getMainProcessConfig.mockReset();
     getMainProcessConfig.mockResolvedValue({
-      titleBarStyle: 'native',
+      titleBarStyle: "native",
       hideWindowOnQuit: false,
-    })
-    launchExternalEditor.mockReset()
-    launchExternalEditor.mockResolvedValue(undefined)
-    launchShell.mockReset()
-    launchShell.mockResolvedValue(undefined)
-    onNativeThemeUpdated.mockReset()
-    onNativeThemeUpdated.mockResolvedValue(vi.fn())
-    sendReady.mockReset()
-    sendReady.mockResolvedValue(null)
-    setWindowTitle.mockReset()
-    setWindowTitle.mockResolvedValue(undefined)
-    openRepositoryInNewWindow.mockReset()
-    openRepositoryInNewWindow.mockResolvedValue(undefined)
-    startWindowDragging.mockReset()
-    startWindowDragging.mockResolvedValue(undefined)
-    maximizeWindow.mockReset()
-    maximizeWindow.mockResolvedValue(undefined)
-    minimizeWindow.mockReset()
-    minimizeWindow.mockResolvedValue(undefined)
-    restoreWindow.mockReset()
-    restoreWindow.mockResolvedValue(undefined)
-    isWindowMaximized.mockReset()
-    isWindowMaximized.mockResolvedValue(false)
-    getAppleActionOnDoubleClick.mockReset()
-    getAppleActionOnDoubleClick.mockResolvedValue('Maximize')
-    installDefaultCloseRequestHandler.mockReset()
-    installDefaultCloseRequestHandler.mockResolvedValue(vi.fn())
+    });
+    launchExternalEditor.mockReset();
+    launchExternalEditor.mockResolvedValue(undefined);
+    launchShell.mockReset();
+    launchShell.mockResolvedValue(undefined);
+    onNativeThemeUpdated.mockReset();
+    onNativeThemeUpdated.mockResolvedValue(vi.fn());
+    sendReady.mockReset();
+    sendReady.mockResolvedValue(null);
+    setWindowTitle.mockReset();
+    setWindowTitle.mockResolvedValue(undefined);
+    openRepositoryInNewWindow.mockReset();
+    openRepositoryInNewWindow.mockResolvedValue(undefined);
+    startWindowDragging.mockReset();
+    startWindowDragging.mockResolvedValue(undefined);
+    maximizeWindow.mockReset();
+    maximizeWindow.mockResolvedValue(undefined);
+    minimizeWindow.mockReset();
+    minimizeWindow.mockResolvedValue(undefined);
+    restoreWindow.mockReset();
+    restoreWindow.mockResolvedValue(undefined);
+    isWindowMaximized.mockReset();
+    isWindowMaximized.mockResolvedValue(false);
+    getAppleActionOnDoubleClick.mockReset();
+    getAppleActionOnDoubleClick.mockResolvedValue("Maximize");
+    installDefaultCloseRequestHandler.mockReset();
+    installDefaultCloseRequestHandler.mockResolvedValue(vi.fn());
     appStore.state = {
       repositories: [],
       selectedRepository: null,
-    }
-    appStore.load.mockReset()
-    appStore.load.mockResolvedValue(undefined)
-    appStore.addRepository.mockReset()
-    appStore.addRepository.mockResolvedValue(undefined)
-    appStore.removeRepository.mockReset()
-    appStore.removeRepository.mockResolvedValue(undefined)
-    appStore.selectRepository.mockReset()
-    appStore.selectRepository.mockResolvedValue(undefined)
-    appStore.onDidUpdate.mockReset()
-    appStore.onDidUpdate.mockReturnValue(vi.fn())
+    };
+    appStore.load.mockReset();
+    appStore.load.mockResolvedValue(undefined);
+    appStore.addRepository.mockReset();
+    appStore.addRepository.mockResolvedValue(undefined);
+    appStore.removeRepository.mockReset();
+    appStore.removeRepository.mockResolvedValue(undefined);
+    appStore.selectRepository.mockReset();
+    appStore.selectRepository.mockResolvedValue(undefined);
+    appStore.onDidUpdate.mockReset();
+    appStore.onDidUpdate.mockReturnValue(vi.fn());
     workingTreeStore.state = {
       repositoryPath: null,
       workingDirectory: null,
@@ -355,33 +355,33 @@ describe('App', () => {
       hookFailure: null,
       loading: false,
       error: null,
-    }
-    workingTreeStore.load.mockReset()
-    workingTreeStore.load.mockResolvedValue(undefined)
-    workingTreeStore.selectFile.mockReset()
-    workingTreeStore.selectFile.mockResolvedValue(undefined)
-    workingTreeStore.setFileIncluded.mockReset()
-    workingTreeStore.setAllFilesIncluded.mockReset()
-    workingTreeStore.setLineIncluded.mockReset()
-    workingTreeStore.discardFile.mockReset()
-    workingTreeStore.discardFile.mockResolvedValue('discarded')
-    workingTreeStore.getSelectedLinesDiscard.mockReset()
+    };
+    workingTreeStore.load.mockReset();
+    workingTreeStore.load.mockResolvedValue(undefined);
+    workingTreeStore.selectFile.mockReset();
+    workingTreeStore.selectFile.mockResolvedValue(undefined);
+    workingTreeStore.setFileIncluded.mockReset();
+    workingTreeStore.setAllFilesIncluded.mockReset();
+    workingTreeStore.setLineIncluded.mockReset();
+    workingTreeStore.discardFile.mockReset();
+    workingTreeStore.discardFile.mockResolvedValue("discarded");
+    workingTreeStore.getSelectedLinesDiscard.mockReset();
     workingTreeStore.getSelectedLinesDiscard.mockReturnValue({
       repositoryPath: repository.path,
-      filePath: 'Alpha.ts',
+      filePath: "Alpha.ts",
       diff: {},
       selectedLines: [1],
-    })
-    workingTreeStore.discardSelectedLines.mockReset()
-    workingTreeStore.discardSelectedLines.mockResolvedValue(true)
-    workingTreeStore.commit.mockReset()
-    workingTreeStore.commit.mockResolvedValue(null)
-    workingTreeStore.resolveHookFailure.mockReset()
-    workingTreeStore.clear.mockReset()
-    workingTreeStore.onDidUpdate.mockReset()
-    workingTreeStore.onDidUpdate.mockReturnValue(vi.fn())
-    workingTreeStore.onCommitTerminalOutput.mockReset()
-    workingTreeStore.onCommitTerminalOutput.mockReturnValue(vi.fn())
+    });
+    workingTreeStore.discardSelectedLines.mockReset();
+    workingTreeStore.discardSelectedLines.mockResolvedValue(true);
+    workingTreeStore.commit.mockReset();
+    workingTreeStore.commit.mockResolvedValue(null);
+    workingTreeStore.resolveHookFailure.mockReset();
+    workingTreeStore.clear.mockReset();
+    workingTreeStore.onDidUpdate.mockReset();
+    workingTreeStore.onDidUpdate.mockReturnValue(vi.fn());
+    workingTreeStore.onCommitTerminalOutput.mockReset();
+    workingTreeStore.onCommitTerminalOutput.mockReturnValue(vi.fn());
     historyStore.state = {
       repositoryPath: null,
       commits: [],
@@ -395,16 +395,16 @@ describe('App', () => {
       diff: null,
       diffLoading: false,
       diffError: null,
-    }
-    historyStore.load.mockReset()
-    historyStore.load.mockResolvedValue(undefined)
-    historyStore.selectCommit.mockReset()
-    historyStore.selectCommit.mockResolvedValue(undefined)
-    historyStore.selectFile.mockReset()
-    historyStore.selectFile.mockResolvedValue(undefined)
-    historyStore.clear.mockReset()
-    historyStore.onDidUpdate.mockReset()
-    historyStore.onDidUpdate.mockReturnValue(vi.fn())
+    };
+    historyStore.load.mockReset();
+    historyStore.load.mockResolvedValue(undefined);
+    historyStore.selectCommit.mockReset();
+    historyStore.selectCommit.mockResolvedValue(undefined);
+    historyStore.selectFile.mockReset();
+    historyStore.selectFile.mockResolvedValue(undefined);
+    historyStore.clear.mockReset();
+    historyStore.onDidUpdate.mockReset();
+    historyStore.onDidUpdate.mockReturnValue(vi.fn());
     branchStore.state = {
       repositoryPath: null,
       branches: [],
@@ -416,16 +416,16 @@ describe('App', () => {
       operation: null,
       progress: null,
       operationError: null,
-    }
-    branchStore.load.mockReset()
-    branchStore.load.mockResolvedValue(undefined)
-    branchStore.createAndCheckout.mockReset()
-    branchStore.createAndCheckout.mockResolvedValue(false)
-    branchStore.checkout.mockReset()
-    branchStore.checkout.mockResolvedValue(false)
-    branchStore.clear.mockReset()
-    branchStore.onDidUpdate.mockReset()
-    branchStore.onDidUpdate.mockReturnValue(vi.fn())
+    };
+    branchStore.load.mockReset();
+    branchStore.load.mockResolvedValue(undefined);
+    branchStore.createAndCheckout.mockReset();
+    branchStore.createAndCheckout.mockResolvedValue(false);
+    branchStore.checkout.mockReset();
+    branchStore.checkout.mockResolvedValue(false);
+    branchStore.clear.mockReset();
+    branchStore.onDidUpdate.mockReset();
+    branchStore.onDidUpdate.mockReturnValue(vi.fn());
     conflictStore.state = {
       repositoryPath: null,
       mergeInProgress: false,
@@ -434,769 +434,654 @@ describe('App', () => {
       error: null,
       stagingPath: null,
       operationError: null,
-    }
-    conflictStore.load.mockReset()
-    conflictStore.load.mockResolvedValue(undefined)
-    conflictStore.stageResolvedFile.mockReset()
-    conflictStore.stageResolvedFile.mockResolvedValue(false)
-    conflictStore.clear.mockReset()
-    conflictStore.onDidUpdate.mockReset()
-    conflictStore.onDidUpdate.mockReturnValue(vi.fn())
+    };
+    conflictStore.load.mockReset();
+    conflictStore.load.mockResolvedValue(undefined);
+    conflictStore.stageResolvedFile.mockReset();
+    conflictStore.stageResolvedFile.mockResolvedValue(false);
+    conflictStore.clear.mockReset();
+    conflictStore.onDidUpdate.mockReset();
+    conflictStore.onDidUpdate.mockReturnValue(vi.fn());
     preferencesStore.state = {
-      theme: 'system',
+      theme: "system",
       zoomFactor: 1.0,
       confirmRepositoryRemoval: true,
       confirmDiscardChanges: true,
       confirmDiscardChangesPermanently: true,
-      selectedExternalEditor: 'Zed',
-      selectedShell: 'Ghostty',
-      editors: [{ editor: 'Zed', path: '/applications/zed' }],
-      shells: [{ shell: 'Ghostty', path: '/applications/ghostty' }],
+      selectedExternalEditor: "Zed",
+      selectedShell: "Ghostty",
+      editors: [{ editor: "Zed", path: "/applications/zed" }],
+      shells: [{ shell: "Ghostty", path: "/applications/ghostty" }],
       loading: false,
       error: null,
-    }
+    };
     preferencesStore.selectedEditor = {
-      editor: 'Zed',
-      path: '/applications/zed',
-    }
+      editor: "Zed",
+      path: "/applications/zed",
+    };
     preferencesStore.selectedShell = {
-      shell: 'Ghostty',
-      path: '/applications/ghostty',
-    }
-    preferencesStore.load.mockReset()
-    preferencesStore.load.mockResolvedValue(undefined)
-    preferencesStore.refreshTheme.mockReset()
-    preferencesStore.refreshTheme.mockResolvedValue(undefined)
-    preferencesStore.setTheme.mockReset()
-    preferencesStore.setTheme.mockResolvedValue(undefined)
-    preferencesStore.setConfirmRepositoryRemoval.mockReset()
-    preferencesStore.setConfirmDiscardChanges.mockReset()
-    preferencesStore.setConfirmDiscardChangesPermanently.mockReset()
-    preferencesStore.setSelectedExternalEditor.mockReset()
-    preferencesStore.setSelectedShell.mockReset()
-    preferencesStore.onDidUpdate.mockReset()
-    preferencesStore.onDidUpdate.mockReturnValue(vi.fn())
-  })
+      shell: "Ghostty",
+      path: "/applications/ghostty",
+    };
+    preferencesStore.load.mockReset();
+    preferencesStore.load.mockResolvedValue(undefined);
+    preferencesStore.refreshTheme.mockReset();
+    preferencesStore.refreshTheme.mockResolvedValue(undefined);
+    preferencesStore.setTheme.mockReset();
+    preferencesStore.setTheme.mockResolvedValue(undefined);
+    preferencesStore.setConfirmRepositoryRemoval.mockReset();
+    preferencesStore.setConfirmDiscardChanges.mockReset();
+    preferencesStore.setConfirmDiscardChangesPermanently.mockReset();
+    preferencesStore.setSelectedExternalEditor.mockReset();
+    preferencesStore.setSelectedShell.mockReset();
+    preferencesStore.onDidUpdate.mockReset();
+    preferencesStore.onDidUpdate.mockReturnValue(vi.fn());
+  });
 
-  it('reports readiness and installs native lifetime handling', () => {
-    render(<App />)
+  it("reports readiness and installs native lifetime handling", () => {
+    render(<App />);
 
-    expect(sendReady).toHaveBeenCalledWith(expect.any(Number))
-    expect(installDefaultCloseRequestHandler).toHaveBeenCalledOnce()
-  })
+    expect(sendReady).toHaveBeenCalledWith(expect.any(Number));
+    expect(installDefaultCloseRequestHandler).toHaveBeenCalledOnce();
+  });
 
-  it('provides caught drag and double-click chrome when the native frame is overlaid', async () => {
-    render(<App />)
+  it("provides caught drag and double-click chrome when the native frame is overlaid", async () => {
+    render(<App />);
 
     await vi.waitFor(() => {
-      expect(document.querySelector('.window-drag-region') !== null).toBe(
-        !__LINUX__
-      )
-    })
-    const dragRegion = document.querySelector('.window-drag-region')
-    expect(dragRegion?.querySelector('button')).toBeFalsy()
+      expect(document.querySelector(".window-drag-region") !== null).toBe(!__LINUX__);
+    });
+    const dragRegion = document.querySelector(".window-drag-region");
+    expect(dragRegion?.querySelector("button")).toBeFalsy();
     if (dragRegion !== null) {
-      fireEvent.mouseDown(dragRegion, { button: 0, detail: 1 })
-      fireEvent.doubleClick(dragRegion)
+      fireEvent.mouseDown(dragRegion, { button: 0, detail: 1 });
+      fireEvent.doubleClick(dragRegion);
       await vi.waitFor(() => {
-        expect(startWindowDragging).toHaveBeenCalledOnce()
-        expect(maximizeWindow).toHaveBeenCalledOnce()
-      })
+        expect(startWindowDragging).toHaveBeenCalledOnce();
+        expect(maximizeWindow).toHaveBeenCalledOnce();
+      });
     }
-  })
+  });
 
-  it('installs the repository-derived application menu', () => {
-    render(<App />)
+  it("installs the repository-derived application menu", () => {
+    render(<App />);
 
-    const configuration = installApplicationMenu.mock.calls[0][0]
-    const initialMenu = configuration.initialMenu as IMenu
-    const items = initialMenu.items.flatMap(item =>
-      item.type === 'submenuItem' ? [item, ...item.menu.items] : [item]
-    )
-    expect(
-      items.find(item => item.id === 'add-local-repository')
-    ).toMatchObject({ enabled: true })
-    expect(items.find(item => item.id === 'remove-repository')).toMatchObject({
-      enabled: false,
-    })
-    expect(items.find(item => item.id === 'preferences')).toMatchObject({
+    const configuration = installApplicationMenu.mock.calls[0][0];
+    const initialMenu = configuration.initialMenu as IMenu;
+    const items = initialMenu.items.flatMap((item) =>
+      item.type === "submenuItem" ? [item, ...item.menu.items] : [item],
+    );
+    expect(items.find((item) => item.id === "add-local-repository")).toMatchObject({
       enabled: true,
-    })
-  })
+    });
+    expect(items.find((item) => item.id === "remove-repository")).toMatchObject({
+      enabled: false,
+    });
+    expect(items.find((item) => item.id === "preferences")).toMatchObject({
+      enabled: true,
+    });
+  });
 
-  it('opens preferences from the native menu and updates MVP settings', async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0]
+  it("opens preferences from the native menu and updates MVP settings", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0];
 
-    await act(() => executeMenuEvent('show-preferences'))
+    await act(() => executeMenuEvent("show-preferences"));
 
-    expect(
-      screen.getByRole('dialog', { name: 'Preferences' })
-    ).toBeInTheDocument()
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Theme' }),
-      'dark'
-    )
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'External editor' }),
-      'Zed'
-    )
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Shell' }),
-      'Ghostty'
-    )
+    expect(screen.getByRole("dialog", { name: "Preferences" })).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Theme" }), "dark");
+    await user.selectOptions(screen.getByRole("combobox", { name: "External editor" }), "Zed");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Shell" }), "Ghostty");
     await user.click(
-      screen.getByRole('checkbox', {
-        name: 'Removing a repository from rdc',
-      })
-    )
+      screen.getByRole("checkbox", {
+        name: "Removing a repository from rdc",
+      }),
+    );
 
-    expect(preferencesStore.setTheme).toHaveBeenCalledWith('dark')
-    expect(preferencesStore.setSelectedExternalEditor).toHaveBeenCalledWith(
-      'Zed'
-    )
-    expect(preferencesStore.setSelectedShell).toHaveBeenCalledWith('Ghostty')
-    expect(preferencesStore.setConfirmRepositoryRemoval).toHaveBeenCalledWith(
-      false
-    )
-  })
+    expect(preferencesStore.setTheme).toHaveBeenCalledWith("dark");
+    expect(preferencesStore.setSelectedExternalEditor).toHaveBeenCalledWith("Zed");
+    expect(preferencesStore.setSelectedShell).toHaveBeenCalledWith("Ghostty");
+    expect(preferencesStore.setConfirmRepositoryRemoval).toHaveBeenCalledWith(false);
+  });
 
-  it('dismisses a safe modal with Escape and restores focus', async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    const [opener] = screen.getAllByRole('button', {
-      name: 'Clone repository',
-    })
+  it("dismisses a safe modal with Escape and restores focus", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const [opener] = screen.getAllByRole("button", {
+      name: "Clone repository",
+    });
 
-    await user.click(opener)
-    expect(
-      screen.getByRole('textbox', { name: 'Repository URL' })
-    ).toHaveFocus()
+    await user.click(opener);
+    expect(screen.getByRole("textbox", { name: "Repository URL" })).toHaveFocus();
 
-    await user.keyboard('{Escape}')
-    expect(
-      screen.queryByRole('dialog', { name: 'Clone a repository' })
-    ).not.toBeInTheDocument()
-    expect(opener).toHaveFocus()
-  })
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Clone a repository" })).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
 
-  it('opens an rdc About surface from the native menu', async () => {
-    const user = userEvent.setup()
-    render(<App />)
-    const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0]
+  it("opens an rdc About surface from the native menu", async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0];
 
-    await act(() => executeMenuEvent('show-about'))
+    await act(() => executeMenuEvent("show-about"));
 
-    expect(screen.getByRole('dialog', { name: 'About RDC' })).toHaveTextContent(
-      `Version ${__APP_VERSION__}`
-    )
-    expect(
-      screen.getByText('A native Git client built with Tauri and Rust.')
-    ).toBeInTheDocument()
+    expect(screen.getByRole("dialog", { name: "About RDC" })).toHaveTextContent(
+      `Version ${__APP_VERSION__}`,
+    );
+    expect(screen.getByText("A native Git client built with Tauri and Rust.")).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Close' }))
-    expect(
-      screen.queryByRole('dialog', { name: 'About RDC' })
-    ).not.toBeInTheDocument()
-  })
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog", { name: "About RDC" })).not.toBeInTheDocument();
+  });
 
-  it('launches the preferred editor and shell from native menu actions', async () => {
+  it("launches the preferred editor and shell from native menu actions", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
-    const user = userEvent.setup()
-    render(<App />)
-    const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0]
+    };
+    const user = userEvent.setup();
+    render(<App />);
+    const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0];
 
-    await executeMenuEvent('open-in-shell')
-    await executeMenuEvent('open-external-editor')
+    await executeMenuEvent("open-in-shell");
+    await executeMenuEvent("open-external-editor");
 
-    expect(launchShell).toHaveBeenCalledWith(
-      preferencesStore.selectedShell,
-      repository.path
-    )
+    expect(launchShell).toHaveBeenCalledWith(preferencesStore.selectedShell, repository.path);
     expect(launchExternalEditor).toHaveBeenCalledWith(
       repository.path,
-      preferencesStore.selectedEditor
-    )
+      preferencesStore.selectedEditor,
+    );
 
-    await user.click(screen.getByRole('button', { name: 'Open in terminal' }))
-    await user.click(screen.getByRole('button', { name: 'Open in editor' }))
-    await user.click(screen.getByRole('button', { name: 'Show files' }))
+    await user.click(screen.getByRole("button", { name: "Open in terminal" }));
+    await user.click(screen.getByRole("button", { name: "Open in editor" }));
+    await user.click(screen.getByRole("button", { name: "Show files" }));
 
-    expect(launchShell).toHaveBeenCalledTimes(2)
-    expect(launchExternalEditor).toHaveBeenCalledTimes(2)
-    expect(showFolderContents).toHaveBeenCalledWith(repository.path)
-  })
+    expect(launchShell).toHaveBeenCalledTimes(2);
+    expect(launchExternalEditor).toHaveBeenCalledTimes(2);
+    expect(showFolderContents).toHaveBeenCalledWith(repository.path);
+  });
 
-  it('shows a compact product empty state with the three real entry actions', () => {
-    render(<App />)
+  it("shows a compact product empty state with the three real entry actions", () => {
+    render(<App />);
 
+    expect(screen.queryByRole("heading", { name: /rdc/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Add a repository to get started")).not.toBeInTheDocument();
+    expect(screen.queryByText(/open an existing git repository/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create repository" })).toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: /rdc/i })
-    ).not.toBeInTheDocument()
+      screen.getByRole("button", { name: "Create repository" }).querySelector("svg"),
+    ).toHaveAttribute("data-icon", "plus");
+    expect(screen.getByRole("button", { name: "Add existing repository" })).toBeInTheDocument();
     expect(
-      screen.queryByText('Add a repository to get started')
-    ).not.toBeInTheDocument()
+      screen.getByRole("button", { name: "Add existing repository" }).querySelector("svg"),
+    ).toHaveAttribute("data-icon", "folder-plus");
+    expect(screen.getByRole("button", { name: "Clone repository" })).toBeInTheDocument();
     expect(
-      screen.queryByText(/open an existing git repository/i)
-    ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Create repository' })
-    ).toBeInTheDocument()
-    expect(
-      screen
-        .getByRole('button', { name: 'Create repository' })
-        .querySelector('svg')
-    ).toHaveAttribute('data-icon', 'plus')
-    expect(
-      screen.getByRole('button', { name: 'Add existing repository' })
-    ).toBeInTheDocument()
-    expect(
-      screen
-        .getByRole('button', { name: 'Add existing repository' })
-        .querySelector('svg')
-    ).toHaveAttribute('data-icon', 'folder-plus')
-    expect(
-      screen.getByRole('button', { name: 'Clone repository' })
-    ).toBeInTheDocument()
-    expect(
-      screen
-        .getByRole('button', { name: 'Clone repository' })
-        .querySelector('svg')
-    ).toHaveAttribute('data-icon', 'clone')
-    expect(
-      screen.queryByText(/native integration harness/i)
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByPlaceholderText(/path\/to\/a\/git\/repository/i)
-    ).not.toBeInTheDocument()
-  })
+      screen.getByRole("button", { name: "Clone repository" }).querySelector("svg"),
+    ).toHaveAttribute("data-icon", "clone");
+    expect(screen.queryByText(/native integration harness/i)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/path\/to\/a\/git\/repository/i)).not.toBeInTheDocument();
+  });
 
-  it('renders backed sidebar panels as an exclusive accordion', async () => {
-    const user = userEvent.setup()
-    render(<App />)
+  it("renders backed sidebar panels as an exclusive accordion", async () => {
+    const user = userEvent.setup();
+    render(<App />);
 
-    expect(
-      screen.getByRole('button', { name: 'Repositories' })
-    ).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Branches' })).toHaveAttribute(
-      'aria-expanded',
-      'false'
-    )
-    expect(
-      screen.queryByRole('button', { name: 'Tags' })
-    ).not.toBeInTheDocument()
-    expect(screen.queryByText('Stashes')).not.toBeInTheDocument()
-    expect(screen.queryByText('Submodules')).not.toBeInTheDocument()
-    expect(screen.queryByText('Subtrees')).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Repositories" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "Branches" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByRole("button", { name: "Tags" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Stashes")).not.toBeInTheDocument();
+    expect(screen.queryByText("Submodules")).not.toBeInTheDocument();
+    expect(screen.queryByText("Subtrees")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Branches' }))
-    expect(
-      screen.getByRole('button', { name: 'Repositories' })
-    ).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Branches' })).toHaveAttribute(
-      'aria-expanded',
-      'true'
-    )
-    expect(
-      screen.queryByRole('region', { name: 'Repositories' })
-    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Branches" }));
+    expect(screen.getByRole("button", { name: "Repositories" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "Branches" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.queryByRole("region", { name: "Repositories" })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Repositories' }))
-    expect(
-      screen.getByRole('button', { name: 'Repositories' })
-    ).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByRole('button', { name: 'Branches' })).toHaveAttribute(
-      'aria-expanded',
-      'false'
-    )
+    await user.click(screen.getByRole("button", { name: "Repositories" }));
+    expect(screen.getByRole("button", { name: "Repositories" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Branches" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
 
-    await user.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
-    expect(
-      screen.getByRole('button', { name: 'Expand sidebar' })
-    ).toHaveAttribute('data-tooltip', 'Expand sidebar')
-    expect(
-      screen.getByRole('button', { name: 'Expand sidebar' })
-    ).toHaveAttribute('aria-expanded', 'false')
-    const repositoriesRailButton = screen.getByRole('button', {
-      name: 'Repositories: No repository selected',
-    })
-    const branchesRailButton = screen.getByRole('button', {
-      name: 'Branches: No branch selected',
-    })
+    await user.click(screen.getByRole("button", { name: "Collapse sidebar" }));
+    expect(screen.getByRole("button", { name: "Expand sidebar" })).toHaveAttribute(
+      "data-tooltip",
+      "Expand sidebar",
+    );
+    expect(screen.getByRole("button", { name: "Expand sidebar" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    const repositoriesRailButton = screen.getByRole("button", {
+      name: "Repositories: No repository selected",
+    });
+    const branchesRailButton = screen.getByRole("button", {
+      name: "Branches: No branch selected",
+    });
     expect(repositoriesRailButton).toHaveAttribute(
-      'data-tooltip',
-      'Repositories: No repository selected'
-    )
-    expect(repositoriesRailButton.querySelector('svg')).toHaveAttribute(
-      'data-icon',
-      'folder-tree'
-    )
-    expect(branchesRailButton).toHaveAttribute(
-      'data-tooltip',
-      'Branches: No branch selected'
-    )
-    expect(branchesRailButton.querySelector('svg')).toHaveAttribute(
-      'data-icon',
-      'code-branch'
-    )
-    expect(
-      screen.queryByRole('button', { name: 'Branches' })
-    ).not.toBeInTheDocument()
+      "data-tooltip",
+      "Repositories: No repository selected",
+    );
+    expect(repositoriesRailButton.querySelector("svg")).toHaveAttribute("data-icon", "folder-tree");
+    expect(branchesRailButton).toHaveAttribute("data-tooltip", "Branches: No branch selected");
+    expect(branchesRailButton.querySelector("svg")).toHaveAttribute("data-icon", "code-branch");
+    expect(screen.queryByRole("button", { name: "Branches" })).not.toBeInTheDocument();
 
     await user.click(
-      screen.getByRole('button', {
-        name: 'Repositories: No repository selected',
-      })
-    )
-    expect(
-      screen.getByRole('button', { name: 'Collapse sidebar' })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Repositories' })
-    ).toHaveAttribute('aria-expanded', 'true')
-  })
+      screen.getByRole("button", {
+        name: "Repositories: No repository selected",
+      }),
+    );
+    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Repositories" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
 
-  it('places live branch selection in the Branches sidebar panel', async () => {
+  it("places live branch selection in the Branches sidebar panel", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     branchStore.state = {
       repositoryPath: repository.path,
       branches: [
         {
-          name: 'main',
-          ref: 'refs/heads/main',
+          name: "main",
+          ref: "refs/heads/main",
           type: 0,
           tip: {
-            sha: 'a'.repeat(40),
-            author: { date: new Date('2026-04-23T14:04:00') },
+            sha: "a".repeat(40),
+            author: { date: new Date("2026-04-23T14:04:00") },
           },
         },
       ],
-      currentBranch: 'main',
-      defaultBranch: 'main',
+      currentBranch: "main",
+      defaultBranch: "main",
       recentBranches: [],
       loading: false,
       error: null,
       operation: null,
       progress: null,
       operationError: null,
-    }
+    };
 
-    const user = userEvent.setup()
-    render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Branches' }))
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Branches" }));
 
-    const panel = screen.getByRole('region', { name: 'Branches' })
-    expect(panel).toContainElement(
-      screen.getByRole('searchbox', { name: 'Filter branches' })
-    )
-    expect(panel).toContainElement(
-      screen.getByRole('button', { name: 'main — current branch' })
-    )
-    const newBranchButton = screen.getByRole('button', { name: 'New branch' })
-    expect(newBranchButton).toHaveAttribute('aria-expanded', 'false')
+    const panel = screen.getByRole("region", { name: "Branches" });
+    expect(panel).toContainElement(screen.getByRole("searchbox", { name: "Filter branches" }));
+    expect(panel).toContainElement(screen.getByRole("button", { name: "main — current branch" }));
+    const newBranchButton = screen.getByRole("button", { name: "New branch" });
+    expect(newBranchButton).toHaveAttribute("aria-expanded", "false");
     expect(
-      newBranchButton.querySelector('[data-icon="arrows-split-up-and-left"]')
-    ).toBeInTheDocument()
-    expect(setWindowTitle).toHaveBeenLastCalledWith('RDC — rdc — main')
-    const toolbar = screen.getByRole('toolbar', {
-      name: 'Repository actions',
-    })
+      newBranchButton.querySelector('[data-icon="arrows-split-up-and-left"]'),
+    ).toBeInTheDocument();
+    expect(setWindowTitle).toHaveBeenLastCalledWith("RDC — rdc — main");
+    const toolbar = screen.getByRole("toolbar", {
+      name: "Repository actions",
+    });
+    expect(toolbar).toContainElement(screen.getByRole("button", { name: "New repository" }));
+    expect(toolbar).toContainElement(screen.getByRole("button", { name: "Add local repository" }));
+    expect(toolbar).toContainElement(screen.getByRole("button", { name: "Clone repository" }));
+    expect(toolbar).toContainElement(screen.getByRole("button", { name: "Show files" }));
+    expect(toolbar).toContainElement(screen.getByRole("button", { name: "Open in editor" }));
+    expect(toolbar).toContainElement(screen.getByRole("button", { name: "Open in terminal" }));
     expect(toolbar).toContainElement(
-      screen.getByRole('button', { name: 'New repository' })
-    )
-    expect(toolbar).toContainElement(
-      screen.getByRole('button', { name: 'Add local repository' })
-    )
-    expect(toolbar).toContainElement(
-      screen.getByRole('button', { name: 'Clone repository' })
-    )
-    expect(toolbar).toContainElement(
-      screen.getByRole('button', { name: 'Show files' })
-    )
-    expect(toolbar).toContainElement(
-      screen.getByRole('button', { name: 'Open in editor' })
-    )
-    expect(toolbar).toContainElement(
-      screen.getByRole('button', { name: 'Open in terminal' })
-    )
-    expect(toolbar).toContainElement(
-      screen.getByRole('region', {
-        name: 'Remote synchronization',
-      })
-    )
-    expect(toolbar).not.toContainElement(
-      screen.getByRole('list', { name: 'Branches' })
-    )
-    expect(
-      screen.queryByRole('button', { name: 'Open in new window' })
-    ).not.toBeInTheDocument()
-  })
+      screen.getByRole("region", {
+        name: "Remote synchronization",
+      }),
+    );
+    expect(toolbar).not.toContainElement(screen.getByRole("list", { name: "Branches" }));
+    expect(screen.queryByRole("button", { name: "Open in new window" })).not.toBeInTheDocument();
+  });
 
-  it('adds the directory selected by the native dialog', async () => {
-    showOpenDialog.mockResolvedValue('/repo')
-    const user = userEvent.setup()
-    render(<App />)
+  it("adds the directory selected by the native dialog", async () => {
+    showOpenDialog.mockResolvedValue("/repo");
+    const user = userEvent.setup();
+    render(<App />);
 
     await user.click(
-      screen.getAllByRole('button', {
+      screen.getAllByRole("button", {
         name: /add existing repository/i,
-      })[0]
-    )
+      })[0],
+    );
 
     expect(showOpenDialog).toHaveBeenCalledWith({
-      title: 'Choose a repository directory',
-      properties: ['openDirectory', 'createDirectory'],
-    })
-    expect(appStore.addRepository).toHaveBeenCalledWith('/repo')
-  })
+      title: "Choose a repository directory",
+      properties: ["openDirectory", "createDirectory"],
+    });
+    expect(appStore.addRepository).toHaveBeenCalledWith("/repo");
+  });
 
-  it('creates and registers the directory selected by the native dialog', async () => {
-    showSaveDialog.mockResolvedValue('/projects/new-repository')
-    const user = userEvent.setup()
-    render(<App />)
+  it("creates and registers the directory selected by the native dialog", async () => {
+    showSaveDialog.mockResolvedValue("/projects/new-repository");
+    const user = userEvent.setup();
+    render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Create repository' }))
+    await user.click(screen.getByRole("button", { name: "Create repository" }));
 
     expect(showSaveDialog).toHaveBeenCalledWith({
-      title: 'Create a repository',
-      properties: ['createDirectory'],
-    })
-    expect(initRepository).toHaveBeenCalledWith(
-      '/projects/new-repository',
-      'main'
-    )
-    expect(appStore.addRepository).toHaveBeenCalledWith(
-      '/projects/new-repository'
-    )
-  })
+      title: "Create a repository",
+      properties: ["createDirectory"],
+    });
+    expect(initRepository).toHaveBeenCalledWith("/projects/new-repository", "main");
+    expect(appStore.addRepository).toHaveBeenCalledWith("/projects/new-repository");
+  });
 
-  it('does nothing when the native directory dialog is dismissed', async () => {
-    const user = userEvent.setup()
-    render(<App />)
+  it("does nothing when the native directory dialog is dismissed", async () => {
+    const user = userEvent.setup();
+    render(<App />);
 
     await user.click(
-      screen.getAllByRole('button', {
+      screen.getAllByRole("button", {
         name: /add existing repository/i,
-      })[0]
-    )
+      })[0],
+    );
 
-    expect(appStore.addRepository).not.toHaveBeenCalled()
-  })
+    expect(appStore.addRepository).not.toHaveBeenCalled();
+  });
 
-  it('consumes a startup repository action without diagnostic output', async () => {
+  it("consumes a startup repository action without diagnostic output", async () => {
     sendReady.mockResolvedValue({
-      kind: 'open-repository',
-      path: '/repo/../repo',
+      kind: "open-repository",
+      path: "/repo/../repo",
       persistSelection: false,
-    })
+    });
 
-    render(<App />)
+    render(<App />);
 
     await vi.waitFor(() => {
-      expect(appStore.addRepository).toHaveBeenCalledWith(
-        '/repo/../repo',
-        false
-      )
-    })
-    expect(screen.queryByText(/persist selection/i)).not.toBeInTheDocument()
-  })
+      expect(appStore.addRepository).toHaveBeenCalledWith("/repo/../repo", false);
+    });
+    expect(screen.queryByText(/persist selection/i)).not.toBeInTheDocument();
+  });
 
-  it('renders store updates and selects a repository from the sidebar', async () => {
-    const user = userEvent.setup()
-    render(<App />)
+  it("renders store updates and selects a repository from the sidebar", async () => {
+    const user = userEvent.setup();
+    render(<App />);
 
     act(() => {
       for (const [update] of appStore.onDidUpdate.mock.calls) {
         update({
           repositories: [repository],
           selectedRepository: null,
-        })
+        });
       }
-    })
-    await user.click(screen.getByRole('button', { name: 'Repositories' }))
-    await user.click(screen.getByRole('button', { name: 'Select rdc' }))
+    });
+    await user.click(screen.getByRole("button", { name: "Repositories" }));
+    await user.click(screen.getByRole("button", { name: "Select rdc" }));
 
-    expect(screen.getByRole('button', { name: 'Select rdc' })).toHaveAttribute(
-      'data-tooltip',
-      '/projects/rdc'
-    )
-    expect(appStore.selectRepository).toHaveBeenCalledWith(repository)
-  })
+    expect(screen.getByRole("button", { name: "Select rdc" })).toHaveAttribute(
+      "data-tooltip",
+      "/projects/rdc",
+    );
+    expect(appStore.selectRepository).toHaveBeenCalledWith(repository);
+  });
 
-  it('navigates repository selection with arrows, Home and End', async () => {
+  it("navigates repository selection with arrows, Home and End", async () => {
     const secondRepository = {
       id: 8,
-      name: 'desktop-plus',
-      path: '/projects/desktop-plus',
-    }
+      name: "desktop-plus",
+      path: "/projects/desktop-plus",
+    };
     appStore.state = {
       repositories: [repository, secondRepository],
       selectedRepository: repository,
-    }
-    const user = userEvent.setup()
-    render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Repositories' }))
-    const first = screen.getByRole('button', { name: 'Select rdc' })
-    const second = screen.getByRole('button', {
-      name: 'Select desktop-plus',
-    })
+    };
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Repositories" }));
+    const first = screen.getByRole("button", { name: "Select rdc" });
+    const second = screen.getByRole("button", {
+      name: "Select desktop-plus",
+    });
 
-    first.focus()
-    await user.keyboard('{ArrowDown}')
-    expect(appStore.selectRepository).toHaveBeenLastCalledWith(secondRepository)
-    expect(second).toHaveFocus()
+    first.focus();
+    await user.keyboard("{ArrowDown}");
+    expect(appStore.selectRepository).toHaveBeenLastCalledWith(secondRepository);
+    expect(second).toHaveFocus();
 
-    await user.keyboard('{Home}')
-    expect(appStore.selectRepository).toHaveBeenLastCalledWith(repository)
-    expect(first).toHaveFocus()
+    await user.keyboard("{Home}");
+    expect(appStore.selectRepository).toHaveBeenLastCalledWith(repository);
+    expect(first).toHaveFocus();
 
-    await user.keyboard('{End}')
-    expect(appStore.selectRepository).toHaveBeenLastCalledWith(secondRepository)
-    expect(second).toHaveFocus()
-  })
+    await user.keyboard("{End}");
+    expect(appStore.selectRepository).toHaveBeenLastCalledWith(secondRepository);
+    expect(second).toHaveFocus();
+  });
 
-  it('filters repositories by name or path without changing selection', async () => {
+  it("filters repositories by name or path without changing selection", async () => {
     const secondRepository = {
       id: 8,
-      name: 'desktop-plus',
-      path: '/projects/upstream/desktop-plus',
-    }
+      name: "desktop-plus",
+      path: "/projects/upstream/desktop-plus",
+    };
     appStore.state = {
       repositories: [repository, secondRepository],
       selectedRepository: repository,
-    }
-    const user = userEvent.setup()
-    render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Repositories' }))
+    };
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Repositories" }));
 
-    const filter = screen.getByRole('searchbox', {
-      name: 'Filter repositories',
-    })
-    await user.type(filter, 'upstream')
+    const filter = screen.getByRole("searchbox", {
+      name: "Filter repositories",
+    });
+    await user.type(filter, "upstream");
 
-    expect(
-      screen.queryByRole('button', { name: 'Select rdc' })
-    ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Select desktop-plus' })
-    ).toBeInTheDocument()
-    expect(appStore.selectRepository).not.toHaveBeenCalled()
-  })
+    expect(screen.queryByRole("button", { name: "Select rdc" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Select desktop-plus" })).toBeInTheDocument();
+    expect(appStore.selectRepository).not.toHaveBeenCalled();
+  });
 
-  it('orders the selected-repository toolbar actions and keeps tooltips generic', () => {
+  it("orders the selected-repository toolbar actions and keeps tooltips generic", () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
-    render(<App />)
+    };
+    render(<App />);
 
-    const toolbar = screen.getByRole('toolbar', {
-      name: 'Repository actions',
-    })
-    expect(toolbar).not.toHaveTextContent(repository.name)
-    expect(toolbar).not.toHaveTextContent(repository.path)
+    const toolbar = screen.getByRole("toolbar", {
+      name: "Repository actions",
+    });
+    expect(toolbar).not.toHaveTextContent(repository.name);
+    expect(toolbar).not.toHaveTextContent(repository.path);
     const toolbarButtonNames = Array.from(
-      toolbar.querySelectorAll<HTMLButtonElement>('button')
-    ).map(button => button.getAttribute('aria-label'))
+      toolbar.querySelectorAll<HTMLButtonElement>("button"),
+    ).map((button) => button.getAttribute("aria-label"));
     expect(toolbarButtonNames.slice(0, 6)).toEqual([
-      'New repository',
-      'Add local repository',
-      'Clone repository',
-      'Show files',
-      'Open in editor',
-      'Open in terminal',
-    ])
+      "New repository",
+      "Add local repository",
+      "Clone repository",
+      "Show files",
+      "Open in editor",
+      "Open in terminal",
+    ]);
+    expect(screen.queryByRole("button", { name: "Open in new window" })).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: 'Open in new window' })
-    ).not.toBeInTheDocument()
+      screen.getByRole("button", { name: "New repository" }).querySelector("svg"),
+    ).toHaveAttribute("data-icon", "plus");
     expect(
-      screen
-        .getByRole('button', { name: 'New repository' })
-        .querySelector('svg')
-    ).toHaveAttribute('data-icon', 'plus')
+      screen.getByRole("button", { name: "Add local repository" }).querySelector("svg"),
+    ).toHaveAttribute("data-icon", "folder-plus");
     expect(
-      screen
-        .getByRole('button', { name: 'Add local repository' })
-        .querySelector('svg')
-    ).toHaveAttribute('data-icon', 'folder-plus')
-    expect(
-      screen
-        .getByRole('button', { name: 'Clone repository' })
-        .querySelector('svg')
-    ).toHaveAttribute('data-icon', 'clone')
-    expect(
-      screen.getByRole('button', { name: 'Fetch' }).querySelector('svg')
-    ).toHaveAttribute('data-icon', 'arrows-down-to-line')
-    expect(document.querySelectorAll('[title]')).toHaveLength(0)
+      screen.getByRole("button", { name: "Clone repository" }).querySelector("svg"),
+    ).toHaveAttribute("data-icon", "clone");
+    expect(screen.getByRole("button", { name: "Fetch" }).querySelector("svg")).toHaveAttribute(
+      "data-icon",
+      "arrows-down-to-line",
+    );
+    expect(document.querySelectorAll("[title]")).toHaveLength(0);
     const tooltipLabels = Array.from(
       toolbar.querySelectorAll<HTMLElement>(
-        'button[data-tooltip], .disabled-tooltip-anchor[data-tooltip]'
-      )
-    ).map(tooltip => tooltip.dataset.tooltip)
+        "button[data-tooltip], .disabled-tooltip-anchor[data-tooltip]",
+      ),
+    ).map((tooltip) => tooltip.dataset.tooltip);
     expect(tooltipLabels).toEqual([
-      'New repository',
-      'Add local repository',
-      'Clone repository',
-      'Show in file manager',
-      'Open in configured editor',
-      'Open in terminal',
-      'Fetch from remote',
-      'Pull from remote',
-      'Push to remote',
-      'Show changes',
-      'Show history',
-    ])
+      "New repository",
+      "Add local repository",
+      "Clone repository",
+      "Show in file manager",
+      "Open in configured editor",
+      "Open in terminal",
+      "Fetch from remote",
+      "Pull from remote",
+      "Push to remote",
+      "Show changes",
+      "Show history",
+    ]);
     for (const label of tooltipLabels) {
-      expect(label).not.toContain(repository.name)
-      expect(label).not.toContain('main')
-      expect(label).not.toContain('origin')
+      expect(label).not.toContain(repository.name);
+      expect(label).not.toContain("main");
+      expect(label).not.toContain("origin");
     }
-    expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path)
-    expect(branchStore.load).toHaveBeenCalledWith(repository.path)
-    expect(conflictStore.load).toHaveBeenCalledWith(repository.path)
-  })
+    expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path);
+    expect(branchStore.load).toHaveBeenCalledWith(repository.path);
+    expect(conflictStore.load).toHaveBeenCalledWith(repository.path);
+  });
 
-  it('routes repository creation actions from the selected-repository toolbar', async () => {
+  it("routes repository creation actions from the selected-repository toolbar", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
-    const user = userEvent.setup()
-    render(<App />)
+    };
+    const user = userEvent.setup();
+    render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'New repository' }))
-    await user.click(
-      screen.getByRole('button', { name: 'Add local repository' })
-    )
-    await user.click(screen.getByRole('button', { name: 'Clone repository' }))
+    await user.click(screen.getByRole("button", { name: "New repository" }));
+    await user.click(screen.getByRole("button", { name: "Add local repository" }));
+    await user.click(screen.getByRole("button", { name: "Clone repository" }));
 
-    expect(showSaveDialog).toHaveBeenCalledOnce()
-    expect(showOpenDialog).toHaveBeenCalledOnce()
-    expect(
-      screen.getByRole('dialog', { name: 'Clone a repository' })
-    ).toBeInTheDocument()
-  })
+    expect(showSaveDialog).toHaveBeenCalledOnce();
+    expect(showOpenDialog).toHaveBeenCalledOnce();
+    expect(screen.getByRole("dialog", { name: "Clone a repository" })).toBeInTheDocument();
+  });
 
-  it('lists branches, checks out a local branch, and creates from HEAD', async () => {
+  it("lists branches, checks out a local branch, and creates from HEAD", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     branchStore.state = {
       repositoryPath: repository.path,
       branches: [
         {
-          name: 'main',
-          ref: 'refs/heads/main',
+          name: "main",
+          ref: "refs/heads/main",
           type: 0,
           tip: {
-            sha: 'a'.repeat(40),
-            author: { date: new Date('2026-04-23T14:04:00') },
+            sha: "a".repeat(40),
+            author: { date: new Date("2026-04-23T14:04:00") },
           },
         },
         {
-          name: 'topic',
-          ref: 'refs/heads/topic',
+          name: "topic",
+          ref: "refs/heads/topic",
           type: 0,
           tip: {
-            sha: 'b'.repeat(40),
-            author: { date: new Date('2026-04-22T13:03:00') },
+            sha: "b".repeat(40),
+            author: { date: new Date("2026-04-22T13:03:00") },
           },
         },
         {
-          name: 'origin/main',
-          ref: 'refs/remotes/origin/main',
+          name: "origin/main",
+          ref: "refs/remotes/origin/main",
           type: 1,
           tip: {
-            sha: 'a'.repeat(40),
-            author: { date: new Date('2026-04-21T12:02:00') },
+            sha: "a".repeat(40),
+            author: { date: new Date("2026-04-21T12:02:00") },
           },
         },
       ],
-      currentBranch: 'main',
-      defaultBranch: 'main',
-      recentBranches: ['topic'],
+      currentBranch: "main",
+      defaultBranch: "main",
+      recentBranches: ["topic"],
       loading: false,
       error: null,
       operation: null,
       progress: null,
       operationError: null,
-    }
-    branchStore.checkout.mockResolvedValue(true)
-    branchStore.createAndCheckout.mockResolvedValue(true)
-    const user = userEvent.setup()
-    render(<App />)
-    await user.click(screen.getByRole('button', { name: 'Branches' }))
+    };
+    branchStore.checkout.mockResolvedValue(true);
+    branchStore.createAndCheckout.mockResolvedValue(true);
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByRole("button", { name: "Branches" }));
 
-    const currentBranch = screen.getByRole('button', {
-      name: 'main — current branch',
-    })
-    expect(currentBranch).toHaveAttribute('aria-current', 'true')
+    const currentBranch = screen.getByRole("button", {
+      name: "main — current branch",
+    });
+    expect(currentBranch).toHaveAttribute("aria-current", "true");
     expect(currentBranch).toHaveAttribute(
-      'data-tooltip',
-      'Current branch\nLast modified: 2026-04-23 14:04'
-    )
-    expect(
-      screen.getByRole('heading', { name: 'Default Branch' })
-    ).toBeInTheDocument()
-    expect(
-      screen.getByRole('heading', { name: 'Recent Branches' })
-    ).toBeInTheDocument()
-    const topicBranch = screen.getByRole('button', { name: 'Check out topic' })
-    expect(topicBranch).toBeInTheDocument()
+      "data-tooltip",
+      "Current branch\nLast modified: 2026-04-23 14:04",
+    );
+    expect(screen.getByRole("heading", { name: "Default Branch" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Recent Branches" })).toBeInTheDocument();
+    const topicBranch = screen.getByRole("button", { name: "Check out topic" });
+    expect(topicBranch).toBeInTheDocument();
     expect(topicBranch).toHaveAttribute(
-      'data-tooltip',
-      'Check out branch\nLast modified: 2026-04-22 13:03'
-    )
-    expect(screen.queryByText('origin/main')).not.toBeInTheDocument()
-    const filter = screen.getByRole('searchbox', { name: 'Filter branches' })
-    await user.type(filter, 'topic')
-    expect(
-      screen.queryByRole('button', { name: 'main — current branch' })
-    ).not.toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Check out topic' })
-    ).toBeInTheDocument()
-    await user.clear(filter)
-    await user.click(screen.getByRole('button', { name: 'Check out topic' }))
+      "data-tooltip",
+      "Check out branch\nLast modified: 2026-04-22 13:03",
+    );
+    expect(screen.queryByText("origin/main")).not.toBeInTheDocument();
+    const filter = screen.getByRole("searchbox", { name: "Filter branches" });
+    await user.type(filter, "topic");
+    expect(screen.queryByRole("button", { name: "main — current branch" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Check out topic" })).toBeInTheDocument();
+    await user.clear(filter);
+    await user.click(screen.getByRole("button", { name: "Check out topic" }));
 
-    expect(branchStore.checkout).toHaveBeenCalledWith('topic')
-    expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path)
+    expect(branchStore.checkout).toHaveBeenCalledWith("topic");
+    expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path);
 
-    await user.click(screen.getByRole('button', { name: 'New branch' }))
-    await user.type(
-      screen.getByRole('textbox', { name: 'New branch name' }),
-      'feature'
-    )
-    await user.click(screen.getByRole('button', { name: 'Create branch' }))
+    await user.click(screen.getByRole("button", { name: "New branch" }));
+    await user.type(screen.getByRole("textbox", { name: "New branch name" }), "feature");
+    await user.click(screen.getByRole("button", { name: "Create branch" }));
 
-    expect(branchStore.createAndCheckout).toHaveBeenCalledWith('feature')
-  })
+    expect(branchStore.createAndCheckout).toHaveBeenCalledWith("feature");
+  });
 
-  it('shows merge conflicts and stages an externally resolved file', async () => {
+  it("shows merge conflicts and stages an externally resolved file", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     conflictStore.state = {
       repositoryPath: repository.path,
       mergeInProgress: true,
       files: [
         {
-          path: 'resolved.txt',
-          status: { kind: 'Conflicted', conflictMarkerCount: 0 },
+          path: "resolved.txt",
+          status: { kind: "Conflicted", conflictMarkerCount: 0 },
           resolvedInWorkingTree: true,
         },
         {
-          path: 'unresolved.txt',
-          status: { kind: 'Conflicted', conflictMarkerCount: 2 },
+          path: "unresolved.txt",
+          status: { kind: "Conflicted", conflictMarkerCount: 2 },
           resolvedInWorkingTree: false,
         },
       ],
@@ -1204,93 +1089,93 @@ describe('App', () => {
       error: null,
       stagingPath: null,
       operationError: null,
-    }
-    conflictStore.stageResolvedFile.mockResolvedValue(true)
-    const user = userEvent.setup()
-    render(<App />)
+    };
+    conflictStore.stageResolvedFile.mockResolvedValue(true);
+    const user = userEvent.setup();
+    render(<App />);
 
-    const conflicts = screen.getByRole('region', {
-      name: 'Merge conflicts',
-    })
-    expect(conflicts).toHaveTextContent('Merge in progress')
-    expect(conflicts).toHaveTextContent('resolved.txtResolved')
-    expect(conflicts).toHaveTextContent('unresolved.txt2 conflict markers')
+    const conflicts = screen.getByRole("region", {
+      name: "Merge conflicts",
+    });
+    expect(conflicts).toHaveTextContent("Merge in progress");
+    expect(conflicts).toHaveTextContent("resolved.txtResolved");
+    expect(conflicts).toHaveTextContent("unresolved.txt2 conflict markers");
     expect(
-      screen.getByRole('button', {
-        name: 'Stage resolution for unresolved.txt',
-      })
-    ).toBeDisabled()
+      screen.getByRole("button", {
+        name: "Stage resolution for unresolved.txt",
+      }),
+    ).toBeDisabled();
 
     await user.click(
-      screen.getByRole('button', {
-        name: 'Stage resolution for resolved.txt',
-      })
-    )
-    expect(conflictStore.stageResolvedFile).toHaveBeenCalledWith('resolved.txt')
-    expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path)
+      screen.getByRole("button", {
+        name: "Stage resolution for resolved.txt",
+      }),
+    );
+    expect(conflictStore.stageResolvedFile).toHaveBeenCalledWith("resolved.txt");
+    expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path);
 
     await user.click(
-      screen.getByRole('button', {
-        name: 'Refresh conflict state',
-      })
-    )
-    expect(conflictStore.load).toHaveBeenCalledWith(repository.path)
-  })
+      screen.getByRole("button", {
+        name: "Refresh conflict state",
+      }),
+    );
+    expect(conflictStore.load).toHaveBeenCalledWith(repository.path);
+  });
 
-  it('prepares complete repository history before changing the visible view', async () => {
+  it("prepares complete repository history before changing the visible view", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     historyStore.state = {
       repositoryPath: null,
       commits: [
         {
-          sha: 'a'.repeat(40),
-          shortSha: 'aaaaaaa',
-          summary: 'Start Phase 7c',
-          body: 'Render selected commit details.',
-          bodyNoCoAuthors: 'Render selected commit details.',
+          sha: "a".repeat(40),
+          shortSha: "aaaaaaa",
+          summary: "Start Phase 7c",
+          body: "Render selected commit details.",
+          bodyNoCoAuthors: "Render selected commit details.",
           author: {
-            name: 'Mona Lisa',
-            email: 'mona@example.com',
-            date: new Date('2026-07-30T12:00:00Z'),
+            name: "Mona Lisa",
+            email: "mona@example.com",
+            date: new Date("2026-07-30T12:00:00Z"),
           },
           committer: {
-            name: 'Mona Lisa',
-            email: 'mona@example.com',
-            date: new Date('2026-07-30T12:00:00Z'),
+            name: "Mona Lisa",
+            email: "mona@example.com",
+            date: new Date("2026-07-30T12:00:00Z"),
           },
-          parentSHAs: ['b'.repeat(40)],
-          tags: ['phase-7c'],
+          parentSHAs: ["b".repeat(40)],
+          tags: ["phase-7c"],
         },
       ],
-      selectedCommitSHA: 'a'.repeat(40),
+      selectedCommitSHA: "a".repeat(40),
       changeset: {
         files: [
           {
-            id: 'Modified+src/App.tsx',
-            path: 'src/App.tsx',
-            status: { kind: 'Modified' },
+            id: "Modified+src/App.tsx",
+            path: "src/App.tsx",
+            status: { kind: "Modified" },
           },
         ],
         linesAdded: 7,
         linesDeleted: 2,
       },
-      selectedFileID: 'Modified+src/App.tsx',
+      selectedFileID: "Modified+src/App.tsx",
       loading: false,
       error: null,
       detailsLoading: false,
       detailsError: null,
       diff: {
         kind: 0,
-        text: 'diff',
+        text: "diff",
         hunks: [
           {
             unifiedDiffStart: 4,
             lines: [
               {
-                text: '+selected commit diff',
+                text: "+selected commit diff",
                 type: 1,
                 oldLineNumber: null,
                 newLineNumber: 12,
@@ -1301,72 +1186,67 @@ describe('App', () => {
       },
       diffLoading: false,
       diffError: null,
-    }
-    let finishHistoryLoad: (() => void) | undefined
+    };
+    let finishHistoryLoad: (() => void) | undefined;
     historyStore.load.mockReturnValue(
-      new Promise<void>(resolve => {
-        finishHistoryLoad = resolve
-      })
-    )
-    const user = userEvent.setup()
-    render(<App />)
+      new Promise<void>((resolve) => {
+        finishHistoryLoad = resolve;
+      }),
+    );
+    const user = userEvent.setup();
+    render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'History' }))
+    await user.click(screen.getByRole("button", { name: "History" }));
 
-    expect(historyStore.load).toHaveBeenCalledWith(repository.path)
-    expect(screen.getByRole('button', { name: 'Changes' })).toHaveAttribute(
-      'aria-current',
-      'page'
-    )
-    expect(document.querySelector('.history')).toHaveAttribute('hidden')
-    await act(async () => finishHistoryLoad?.())
+    expect(historyStore.load).toHaveBeenCalledWith(repository.path);
+    expect(screen.getByRole("button", { name: "Changes" })).toHaveAttribute("aria-current", "page");
+    expect(document.querySelector(".history")).toHaveAttribute("hidden");
+    await act(async () => finishHistoryLoad?.());
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'History' })).toHaveAttribute(
-        'aria-current',
-        'page'
-      )
-    )
-    const history = screen.getByRole('region', { name: 'History' })
-    expect(history.querySelector('.history-list-pane')).not.toBeNull()
+      expect(screen.getByRole("button", { name: "History" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      ),
+    );
+    const history = screen.getByRole("region", { name: "History" });
+    expect(history.querySelector(".history-list-pane")).not.toBeNull();
     expect(
-      screen.getByRole('separator', { name: 'Resize History commit list' })
-    ).toBeInTheDocument()
+      screen.getByRole("separator", { name: "Resize History commit list" }),
+    ).toBeInTheDocument();
     expect(
-      screen.getByRole('separator', { name: 'Resize History changed files' })
-    ).toBeInTheDocument()
+      screen.getByRole("separator", { name: "Resize History changed files" }),
+    ).toBeInTheDocument();
     expect(
-      screen
-        .getByRole('region', { name: 'Selected commit details' })
-        .closest('.history')
-    ).toBe(history)
-    const selectedCommit = screen.getByRole('button', {
+      screen.getByRole("region", { name: "Selected commit details" }).closest(".history"),
+    ).toBe(history);
+    const selectedCommit = screen.getByRole("button", {
       name: /Start Phase 7c.*Mona Lisa/,
-    })
-    expect(selectedCommit).toHaveAttribute('aria-current', 'true')
-    expect(selectedCommit).not.toHaveTextContent('aaaaaaa')
-    expect(history).toHaveTextContent('Render selected commit details.')
-    expect(history).toHaveTextContent('Mona Lisa·aaaaaaa+7−2')
-    const copyCommitHash = screen.getByRole('button', {
-      name: 'Copy full commit hash',
-    })
-    expect(copyCommitHash).toHaveAttribute('data-tooltip', 'a'.repeat(40))
-    await user.click(copyCommitHash)
-    expect(await navigator.clipboard.readText()).toBe('a'.repeat(40))
-    expect(history).toHaveTextContent('1 changed file')
-    expect(screen.getByRole('img', { name: 'Modified' })).toBeInTheDocument()
-    expect(history).toHaveTextContent('+selected commit diff')
-    expect(screen.getByRole('button', { name: 'src/App.tsx' })).toHaveAttribute(
-      'aria-current',
-      'true'
-    )
-  })
+    });
+    expect(selectedCommit).toHaveAttribute("aria-current", "true");
+    expect(selectedCommit).not.toHaveTextContent("aaaaaaa");
+    expect(history).toHaveTextContent("Render selected commit details.");
+    expect(history).toHaveTextContent("Mona Lisa·aaaaaaa+7−2");
+    const copyCommitHash = screen.getByRole("button", {
+      name: "Copy full commit hash",
+    });
+    expect(copyCommitHash).toHaveAttribute("data-tooltip", "a".repeat(40));
+    await user.click(copyCommitHash);
+    expect(await navigator.clipboard.readText()).toBe("a".repeat(40));
+    expect(history).toHaveTextContent("1 changed file");
+    expect(screen.getByRole("img", { name: "Modified" })).toBeInTheDocument();
+    expect(history).toHaveTextContent("+selected commit diff");
+    expect(screen.getByRole("button", { name: "src/App.tsx" })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
 
-  it('renders working-tree updates in frontend-owned order', () => {
+  it("renders working-tree updates in frontend-owned order", () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
-    render(<App />)
+    };
+    render(<App />);
 
     act(() => {
       for (const [update] of workingTreeStore.onDidUpdate.mock.calls) {
@@ -1375,46 +1255,46 @@ describe('App', () => {
           workingDirectory: {
             files: [
               {
-                id: 'Modified+Alpha.ts',
-                path: 'Alpha.ts',
-                status: { kind: 'Modified' },
+                id: "Modified+Alpha.ts",
+                path: "Alpha.ts",
+                status: { kind: "Modified" },
                 isIncludedInCommit: () => true,
                 selection: { isSelected: () => true },
               },
               {
-                id: 'Untracked+zeta.ts',
-                path: 'zeta.ts',
-                status: { kind: 'Untracked' },
+                id: "Untracked+zeta.ts",
+                path: "zeta.ts",
+                status: { kind: "Untracked" },
                 isIncludedInCommit: () => true,
                 selection: { isSelected: () => true },
               },
             ],
           },
-          selectedFileID: 'Modified+Alpha.ts',
+          selectedFileID: "Modified+Alpha.ts",
           diff: {
             kind: 0,
-            text: '@@ -1 +1 @@\n-before\n+after',
+            text: "@@ -1 +1 @@\n-before\n+after",
             hunks: [
               {
                 unifiedDiffStart: 0,
                 lines: [
                   {
-                    text: '@@ -1 +1 @@',
-                    content: '@ -1 +1 @@',
+                    text: "@@ -1 +1 @@",
+                    content: "@ -1 +1 @@",
                     oldLineNumber: null,
                     newLineNumber: null,
                     isIncludeableLine: () => false,
                   },
                   {
-                    text: '-before',
-                    content: 'before',
+                    text: "-before",
+                    content: "before",
                     oldLineNumber: 1,
                     newLineNumber: null,
                     isIncludeableLine: () => true,
                   },
                   {
-                    text: '+after',
-                    content: 'after',
+                    text: "+after",
+                    content: "after",
                     oldLineNumber: null,
                     newLineNumber: 1,
                     isIncludeableLine: () => true,
@@ -1430,33 +1310,31 @@ describe('App', () => {
           hookFailure: null,
           loading: false,
           error: null,
-        })
+        });
       }
-    })
+    });
 
-    expect(screen.getByRole('region', { name: 'Changes' })).toHaveTextContent(
-      /2 changed files.*Alpha\.ts.*zeta\.ts/
-    )
-    expect(screen.getByRole('img', { name: 'Modified' })).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: 'New' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'File diff' })).toHaveTextContent(
-      /-before.*\+after/
-    )
-  })
+    expect(screen.getByRole("region", { name: "Changes" })).toHaveTextContent(
+      /2 changed files.*Alpha\.ts.*zeta\.ts/,
+    );
+    expect(screen.getByRole("img", { name: "Modified" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "New" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "File diff" })).toHaveTextContent(/-before.*\+after/);
+  });
 
-  it('loads the diff for a changed file selected in the shell', async () => {
+  it("loads the diff for a changed file selected in the shell", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     workingTreeStore.state = {
       repositoryPath: repository.path,
       workingDirectory: {
         files: [
           {
-            id: 'Modified+Alpha.ts',
-            path: 'Alpha.ts',
-            status: { kind: 'Modified' },
+            id: "Modified+Alpha.ts",
+            path: "Alpha.ts",
+            status: { kind: "Modified" },
             isIncludedInCommit: () => true,
           },
         ],
@@ -1470,41 +1348,39 @@ describe('App', () => {
       hookFailure: null,
       loading: false,
       error: null,
-    }
-    const user = userEvent.setup()
-    render(<App />)
+    };
+    const user = userEvent.setup();
+    render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Alpha.ts' }))
+    await user.click(screen.getByRole("button", { name: "Alpha.ts" }));
 
-    expect(workingTreeStore.selectFile).toHaveBeenCalledWith(
-      'Modified+Alpha.ts'
-    )
-  })
+    expect(workingTreeStore.selectFile).toHaveBeenCalledWith("Modified+Alpha.ts");
+  });
 
-  it('navigates changed files with the same keyboard contract', async () => {
+  it("navigates changed files with the same keyboard contract", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     workingTreeStore.state = {
       repositoryPath: repository.path,
       workingDirectory: {
         files: [
           {
-            id: 'Modified+Alpha.ts',
-            path: 'Alpha.ts',
-            status: { kind: 'Modified' },
+            id: "Modified+Alpha.ts",
+            path: "Alpha.ts",
+            status: { kind: "Modified" },
             isIncludedInCommit: () => true,
           },
           {
-            id: 'Untracked+Beta.ts',
-            path: 'Beta.ts',
-            status: { kind: 'Untracked' },
+            id: "Untracked+Beta.ts",
+            path: "Beta.ts",
+            status: { kind: "Untracked" },
             isIncludedInCommit: () => true,
           },
         ],
       },
-      selectedFileID: 'Modified+Alpha.ts',
+      selectedFileID: "Modified+Alpha.ts",
       diff: null,
       diffLoading: false,
       diffError: null,
@@ -1513,75 +1389,71 @@ describe('App', () => {
       hookFailure: null,
       loading: false,
       error: null,
-    }
-    const user = userEvent.setup()
-    render(<App />)
-    const first = screen.getByRole('button', {
-      name: 'Alpha.ts',
-    })
-    const second = screen.getByRole('button', {
-      name: 'Beta.ts',
-    })
+    };
+    const user = userEvent.setup();
+    render(<App />);
+    const first = screen.getByRole("button", {
+      name: "Alpha.ts",
+    });
+    const second = screen.getByRole("button", {
+      name: "Beta.ts",
+    });
 
-    first.focus()
-    await user.keyboard('{ArrowDown}')
-    expect(workingTreeStore.selectFile).toHaveBeenLastCalledWith(
-      'Untracked+Beta.ts'
-    )
-    expect(second).toHaveFocus()
-    await user.keyboard('{ArrowUp}')
-    expect(workingTreeStore.selectFile).toHaveBeenLastCalledWith(
-      'Modified+Alpha.ts'
-    )
-    expect(first).toHaveFocus()
-  })
+    first.focus();
+    await user.keyboard("{ArrowDown}");
+    expect(workingTreeStore.selectFile).toHaveBeenLastCalledWith("Untracked+Beta.ts");
+    expect(second).toHaveFocus();
+    await user.keyboard("{ArrowUp}");
+    expect(workingTreeStore.selectFile).toHaveBeenLastCalledWith("Modified+Alpha.ts");
+    expect(first).toHaveFocus();
+  });
 
-  it('changes inclusion using the displayed unified-diff index', async () => {
+  it("changes inclusion using the displayed unified-diff index", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     workingTreeStore.state = {
       repositoryPath: repository.path,
       workingDirectory: {
         files: [
           {
-            id: 'Modified+Alpha.ts',
-            path: 'Alpha.ts',
-            status: { kind: 'Modified' },
+            id: "Modified+Alpha.ts",
+            path: "Alpha.ts",
+            status: { kind: "Modified" },
             isIncludedInCommit: () => false,
-            selection: { isSelected: line => line !== 2 },
+            selection: { isSelected: (line) => line !== 2 },
           },
         ],
       },
-      selectedFileID: 'Modified+Alpha.ts',
+      selectedFileID: "Modified+Alpha.ts",
       diff: {
         kind: 0,
-        text: '@@ -0,0 +1,2 @@\n+first\n+second',
+        text: "@@ -0,0 +1,2 @@\n+first\n+second",
         hunks: [
           {
             unifiedDiffStart: 0,
             lines: [
               {
-                text: '@@ -0,0 +1,2 @@',
+                text: "@@ -0,0 +1,2 @@",
                 type: 3,
-                content: '@ -0,0 +1,2 @@',
+                content: "@ -0,0 +1,2 @@",
                 oldLineNumber: null,
                 newLineNumber: null,
                 isIncludeableLine: () => false,
               },
               {
-                text: '+first',
+                text: "+first",
                 type: 1,
-                content: 'first',
+                content: "first",
                 oldLineNumber: null,
                 newLineNumber: 1,
                 isIncludeableLine: () => true,
               },
               {
-                text: '+second',
+                text: "+second",
                 type: 1,
-                content: 'second',
+                content: "second",
                 oldLineNumber: null,
                 newLineNumber: 2,
                 isIncludeableLine: () => true,
@@ -1597,69 +1469,60 @@ describe('App', () => {
       hookFailure: null,
       loading: false,
       error: null,
-    }
-    const user = userEvent.setup()
-    render(<App />)
+    };
+    const user = userEvent.setup();
+    render(<App />);
 
-    const first = screen.getByRole('checkbox', {
-      name: 'Include diff line 1: first',
-    })
-    const second = screen.getByRole('checkbox', {
-      name: 'Include diff line 2: second',
-    })
-    expect(first).toBeChecked()
-    expect(second).not.toBeChecked()
-    const changes = screen
-      .getByRole('region', { name: 'Changes' })
-      .closest('.changes-workspace')
-    expect(changes).toContainElement(
-      screen.getByRole('region', { name: 'File diff' })
-    )
-    expect(changes).toContainElement(
-      screen.getByRole('form', { name: 'Commit changes' })
-    )
-    expect(document.querySelectorAll('.diff-line-add')).toHaveLength(2)
-    expect(document.querySelectorAll('.diff-line-hunk')).toHaveLength(1)
+    const first = screen.getByRole("checkbox", {
+      name: "Include diff line 1: first",
+    });
+    const second = screen.getByRole("checkbox", {
+      name: "Include diff line 2: second",
+    });
+    expect(first).toBeChecked();
+    expect(second).not.toBeChecked();
+    const changes = screen.getByRole("region", { name: "Changes" }).closest(".changes-workspace");
+    expect(changes).toContainElement(screen.getByRole("region", { name: "File diff" }));
+    expect(changes).toContainElement(screen.getByRole("form", { name: "Commit changes" }));
+    expect(document.querySelectorAll(".diff-line-add")).toHaveLength(2);
+    expect(document.querySelectorAll(".diff-line-hunk")).toHaveLength(1);
 
-    await user.click(second)
+    await user.click(second);
 
-    expect(workingTreeStore.setLineIncluded).toHaveBeenCalledWith(2, true)
+    expect(workingTreeStore.setLineIncluded).toHaveBeenCalledWith(2, true);
 
-    const discardSelectedLines = screen.getByRole('button', {
-      name: 'Discard selected lines',
-    })
-    expect(discardSelectedLines.querySelector('svg')).toHaveAttribute(
-      'data-icon',
-      'trash-can'
-    )
-    await user.click(discardSelectedLines)
-    expect(screen.getByRole('alertdialog')).toHaveTextContent(
-      'Selected changes cannot be restored from the operating system trash.'
-    )
-    await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+    const discardSelectedLines = screen.getByRole("button", {
+      name: "Discard selected lines",
+    });
+    expect(discardSelectedLines.querySelector("svg")).toHaveAttribute("data-icon", "trash-can");
+    await user.click(discardSelectedLines);
+    expect(screen.getByRole("alertdialog")).toHaveTextContent(
+      "Selected changes cannot be restored from the operating system trash.",
+    );
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
     expect(workingTreeStore.discardSelectedLines).toHaveBeenCalledWith(
-      workingTreeStore.getSelectedLinesDiscard.mock.results[0].value
-    )
-  })
+      workingTreeStore.getSelectedLinesDiscard.mock.results[0].value,
+    );
+  });
 
-  it('updates whole-file inclusion without staging eagerly', async () => {
+  it("updates whole-file inclusion without staging eagerly", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     workingTreeStore.state = {
       repositoryPath: repository.path,
       workingDirectory: {
         files: [
           {
-            id: 'Modified+Alpha.ts',
-            path: 'Alpha.ts',
-            status: { kind: 'Modified' },
+            id: "Modified+Alpha.ts",
+            path: "Alpha.ts",
+            status: { kind: "Modified" },
             isIncludedInCommit: () => true,
           },
         ],
       },
-      selectedFileID: 'Modified+Alpha.ts',
+      selectedFileID: "Modified+Alpha.ts",
       diff: null,
       diffLoading: false,
       diffError: null,
@@ -1668,36 +1531,33 @@ describe('App', () => {
       hookFailure: null,
       loading: false,
       error: null,
-    }
-    const user = userEvent.setup()
-    render(<App />)
+    };
+    const user = userEvent.setup();
+    render(<App />);
 
-    await user.click(screen.getByRole('checkbox', { name: 'Include Alpha.ts' }))
+    await user.click(screen.getByRole("checkbox", { name: "Include Alpha.ts" }));
 
-    expect(workingTreeStore.setFileIncluded).toHaveBeenCalledWith(
-      'Modified+Alpha.ts',
-      false
-    )
-  })
+    expect(workingTreeStore.setFileIncluded).toHaveBeenCalledWith("Modified+Alpha.ts", false);
+  });
 
-  it('confirms before discarding a changed file', async () => {
+  it("confirms before discarding a changed file", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     workingTreeStore.state = {
       repositoryPath: repository.path,
       workingDirectory: {
         files: [
           {
-            id: 'Modified+Alpha.ts',
-            path: 'Alpha.ts',
-            status: { kind: 'Modified' },
+            id: "Modified+Alpha.ts",
+            path: "Alpha.ts",
+            status: { kind: "Modified" },
             isIncludedInCommit: () => true,
           },
         ],
       },
-      selectedFileID: 'Modified+Alpha.ts',
+      selectedFileID: "Modified+Alpha.ts",
       diff: null,
       diffLoading: false,
       diffError: null,
@@ -1706,50 +1566,43 @@ describe('App', () => {
       hookFailure: null,
       loading: false,
       error: null,
-    }
-    const user = userEvent.setup()
-    render(<App />)
+    };
+    const user = userEvent.setup();
+    render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Discard Alpha.ts' }))
-    expect(workingTreeStore.discardFile).not.toHaveBeenCalled()
+    await user.click(screen.getByRole("button", { name: "Discard Alpha.ts" }));
+    expect(workingTreeStore.discardFile).not.toHaveBeenCalled();
     expect(
-      screen.getByRole('alertdialog', {
-        name: 'Confirm discard changes',
-      })
-    ).toHaveTextContent(
-      'Changes can be restored from the operating system trash.'
-    )
+      screen.getByRole("alertdialog", {
+        name: "Confirm discard changes",
+      }),
+    ).toHaveTextContent("Changes can be restored from the operating system trash.");
 
-    await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
 
-    expect(workingTreeStore.discardFile).toHaveBeenCalledWith(
-      'Modified+Alpha.ts',
-      false
-    )
-    await vi.waitFor(() =>
-      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-    )
-  })
+    expect(workingTreeStore.discardFile).toHaveBeenCalledWith("Modified+Alpha.ts", false);
+    await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  });
 
-  it('discards immediately when file confirmation is disabled', async () => {
+  it("discards immediately when file confirmation is disabled", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
-    preferencesStore.state.confirmDiscardChanges = false
+    };
+    preferencesStore.state.confirmDiscardChanges = false;
     workingTreeStore.state = {
       repositoryPath: repository.path,
       workingDirectory: {
         files: [
           {
-            id: 'Modified+Alpha.ts',
-            path: 'Alpha.ts',
-            status: { kind: 'Modified' },
+            id: "Modified+Alpha.ts",
+            path: "Alpha.ts",
+            status: { kind: "Modified" },
             isIncludedInCommit: () => true,
           },
         ],
       },
-      selectedFileID: 'Modified+Alpha.ts',
+      selectedFileID: "Modified+Alpha.ts",
       diff: null,
       diffLoading: false,
       diffError: null,
@@ -1758,37 +1611,34 @@ describe('App', () => {
       hookFailure: null,
       loading: false,
       error: null,
-    }
-    const user = userEvent.setup()
-    render(<App />)
+    };
+    const user = userEvent.setup();
+    render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Discard Alpha.ts' }))
+    await user.click(screen.getByRole("button", { name: "Discard Alpha.ts" }));
 
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-    expect(workingTreeStore.discardFile).toHaveBeenCalledWith(
-      'Modified+Alpha.ts',
-      false
-    )
-  })
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(workingTreeStore.discardFile).toHaveBeenCalledWith("Modified+Alpha.ts", false);
+  });
 
-  it('cancels a discard without touching the working tree', async () => {
+  it("cancels a discard without touching the working tree", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     workingTreeStore.state = {
       repositoryPath: repository.path,
       workingDirectory: {
         files: [
           {
-            id: 'Untracked+notes.txt',
-            path: 'notes.txt',
-            status: { kind: 'Untracked' },
+            id: "Untracked+notes.txt",
+            path: "notes.txt",
+            status: { kind: "Untracked" },
             isIncludedInCommit: () => true,
           },
         ],
       },
-      selectedFileID: 'Untracked+notes.txt',
+      selectedFileID: "Untracked+notes.txt",
       diff: null,
       diffLoading: false,
       diffError: null,
@@ -1797,35 +1647,35 @@ describe('App', () => {
       hookFailure: null,
       loading: false,
       error: null,
-    }
-    const user = userEvent.setup()
-    render(<App />)
+    };
+    const user = userEvent.setup();
+    render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Discard notes.txt' }))
-    await user.click(screen.getByRole('button', { name: 'Cancel' }))
+    await user.click(screen.getByRole("button", { name: "Discard notes.txt" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
 
-    expect(workingTreeStore.discardFile).not.toHaveBeenCalled()
-    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-  })
+    expect(workingTreeStore.discardFile).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
 
-  it('requires a second warning before permanent deletion after trash fails', async () => {
+  it("requires a second warning before permanent deletion after trash fails", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     workingTreeStore.state = {
       repositoryPath: repository.path,
       workingDirectory: {
         files: [
           {
-            id: 'Untracked+notes.txt',
-            path: 'notes.txt',
-            status: { kind: 'Untracked' },
+            id: "Untracked+notes.txt",
+            path: "notes.txt",
+            status: { kind: "Untracked" },
             isIncludedInCommit: () => true,
           },
         ],
       },
-      selectedFileID: 'Untracked+notes.txt',
+      selectedFileID: "Untracked+notes.txt",
       diff: null,
       diffLoading: false,
       diffError: null,
@@ -1834,55 +1684,53 @@ describe('App', () => {
       hookFailure: null,
       loading: false,
       error: null,
-    }
+    };
     workingTreeStore.discardFile
-      .mockResolvedValueOnce('trash-failed')
-      .mockResolvedValueOnce('discarded')
-    const user = userEvent.setup()
-    render(<App />)
+      .mockResolvedValueOnce("trash-failed")
+      .mockResolvedValueOnce("discarded");
+    const user = userEvent.setup();
+    render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Discard notes.txt' }))
-    await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+    await user.click(screen.getByRole("button", { name: "Discard notes.txt" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
 
     expect(
-      screen.getByRole('alertdialog', {
-        name: 'Permanently discard changes',
-      })
-    ).toHaveTextContent('Changes cannot be restored after deletion.')
+      screen.getByRole("alertdialog", {
+        name: "Permanently discard changes",
+      }),
+    ).toHaveTextContent("Changes cannot be restored after deletion.");
 
     await user.click(
-      screen.getByRole('button', {
-        name: 'Permanently discard changes',
-      })
-    )
+      screen.getByRole("button", {
+        name: "Permanently discard changes",
+      }),
+    );
 
     expect(workingTreeStore.discardFile.mock.calls).toEqual([
-      ['Untracked+notes.txt', false],
-      ['Untracked+notes.txt', true],
-    ])
-    await vi.waitFor(() =>
-      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-    )
-  })
+      ["Untracked+notes.txt", false],
+      ["Untracked+notes.txt", true],
+    ]);
+    await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  });
 
-  it('commits the frontend message and clears it after success', async () => {
+  it("commits the frontend message and clears it after success", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     workingTreeStore.state = {
       repositoryPath: repository.path,
       workingDirectory: {
         files: [
           {
-            id: 'Modified+Alpha.ts',
-            path: 'Alpha.ts',
-            status: { kind: 'Modified' },
+            id: "Modified+Alpha.ts",
+            path: "Alpha.ts",
+            status: { kind: "Modified" },
             isIncludedInCommit: () => true,
           },
         ],
       },
-      selectedFileID: 'Modified+Alpha.ts',
+      selectedFileID: "Modified+Alpha.ts",
       diff: null,
       diffLoading: false,
       diffError: null,
@@ -1891,81 +1739,74 @@ describe('App', () => {
       hookFailure: null,
       loading: false,
       error: null,
-    }
-    workingTreeStore.commit.mockResolvedValue('a'.repeat(40))
-    const user = userEvent.setup()
-    render(<App />)
+    };
+    workingTreeStore.commit.mockResolvedValue("a".repeat(40));
+    const user = userEvent.setup();
+    render(<App />);
 
-    const message = screen.getByRole('textbox', {
-      name: 'Commit summary',
-    })
-    await user.type(message, 'Commit from rdc')
-    await user.click(screen.getByText('Commit options'))
+    const message = screen.getByRole("textbox", {
+      name: "Commit summary",
+    });
+    await user.type(message, "Commit from rdc");
+    await user.click(screen.getByText("Commit options"));
     await user.click(
-      screen.getByRole('checkbox', {
-        name: 'Bypass hooks',
-      })
-    )
-    await user.click(screen.getByRole('button', { name: 'Commit 1 file' }))
+      screen.getByRole("checkbox", {
+        name: "Bypass hooks",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Commit 1 file" }));
 
-    expect(workingTreeStore.commit).toHaveBeenCalledWith(
-      'Commit from rdc',
-      true
-    )
-    await vi.waitFor(() => expect(message).toHaveValue(''))
-  })
+    expect(workingTreeStore.commit).toHaveBeenCalledWith("Commit from rdc", true);
+    await vi.waitFor(() => expect(message).toHaveValue(""));
+  });
 
-  it('offers abort and ignore when an intercepted hook fails', async () => {
+  it("offers abort and ignore when an intercepted hook fails", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
-    const user = userEvent.setup()
-    render(<App />)
-    const [listener] = workingTreeStore.onDidUpdate.mock.calls[0]
+    };
+    const user = userEvent.setup();
+    render(<App />);
+    const [listener] = workingTreeStore.onDidUpdate.mock.calls[0];
 
     act(() =>
       listener({
         ...workingTreeStore.state,
         hookFailure: {
-          hook: 'pre-commit',
-          terminalOutput: 'lint failed',
+          hook: "pre-commit",
+          terminalOutput: "lint failed",
         },
         commitLoading: true,
-      })
-    )
+      }),
+    );
 
-    const dialog = screen.getByRole('alertdialog')
-    expect(dialog).toHaveTextContent('pre-commit')
-    expect(dialog).toHaveTextContent('lint failed')
-    expect(
-      screen.getByRole('button', { name: 'Abort commit' })
-    ).toBeInTheDocument()
+    const dialog = screen.getByRole("alertdialog");
+    expect(dialog).toHaveTextContent("pre-commit");
+    expect(dialog).toHaveTextContent("lint failed");
+    expect(screen.getByRole("button", { name: "Abort commit" })).toBeInTheDocument();
 
-    await user.click(
-      screen.getByRole('button', { name: 'Ignore hook failure' })
-    )
-    expect(workingTreeStore.resolveHookFailure).toHaveBeenCalledWith('ignore')
-  })
+    await user.click(screen.getByRole("button", { name: "Ignore hook failure" }));
+    expect(workingTreeStore.resolveHookFailure).toHaveBeenCalledWith("ignore");
+  });
 
-  it('shows live commit terminal output and clears it with the buffer', () => {
+  it("shows live commit terminal output and clears it with the buffer", () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
+    };
     workingTreeStore.state = {
       repositoryPath: repository.path,
       workingDirectory: {
         files: [
           {
-            id: 'Modified+Alpha.ts',
-            path: 'Alpha.ts',
-            status: { kind: 'Modified' },
+            id: "Modified+Alpha.ts",
+            path: "Alpha.ts",
+            status: { kind: "Modified" },
             isIncludedInCommit: () => true,
           },
         ],
       },
-      selectedFileID: 'Modified+Alpha.ts',
+      selectedFileID: "Modified+Alpha.ts",
       diff: null,
       diffLoading: false,
       diffError: null,
@@ -1974,72 +1815,68 @@ describe('App', () => {
       hookFailure: null,
       loading: false,
       error: null,
-    }
-    render(<App />)
-    const [listener] = workingTreeStore.onCommitTerminalOutput.mock.calls[0]
+    };
+    render(<App />);
+    const [listener] = workingTreeStore.onCommitTerminalOutput.mock.calls[0];
 
-    act(() => listener('running pre-commit hook'))
+    act(() => listener("running pre-commit hook"));
 
-    expect(screen.getByLabelText('Commit terminal output')).toHaveTextContent(
-      'running pre-commit hook'
-    )
+    expect(screen.getByLabelText("Commit terminal output")).toHaveTextContent(
+      "running pre-commit hook",
+    );
 
-    act(() => listener(''))
+    act(() => listener(""));
 
-    expect(
-      screen.queryByLabelText('Commit terminal output')
-    ).not.toBeInTheDocument()
-  })
+    expect(screen.queryByLabelText("Commit terminal output")).not.toBeInTheDocument();
+  });
 
-  it('opens a repository contextual menu on secondary click', async () => {
+  it("opens a repository contextual menu on secondary click", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
-    const user = userEvent.setup()
-    render(<App />)
+    };
+    const user = userEvent.setup();
+    render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Repositories' }))
+    await user.click(screen.getByRole("button", { name: "Repositories" }));
     await user.pointer({
-      target: screen.getByRole('button', { name: 'Select rdc' }),
-      keys: '[MouseRight]',
-    })
+      target: screen.getByRole("button", { name: "Select rdc" }),
+      keys: "[MouseRight]",
+    });
 
-    expect(showContextMenu).toHaveBeenCalledOnce()
+    expect(showContextMenu).toHaveBeenCalledOnce();
     expect(showContextMenu.mock.calls[0][0]).toMatchObject([
-      { text: 'Open in New Window' },
-      { text: 'Show in File Manager' },
-      { type: 'separator' },
-      { text: 'Manage remotes…' },
-      { text: 'Remove' },
-    ])
-  })
+      { text: "Open in New Window" },
+      { text: "Show in File Manager" },
+      { type: "separator" },
+      { text: "Manage remotes…" },
+      { text: "Remove" },
+    ]);
+  });
 
-  it('routes contextual repository actions through the owning seams', async () => {
+  it("routes contextual repository actions through the owning seams", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
-    }
-    showContextMenu.mockImplementation(async items => {
-      items[0].action()
-      items[1].action()
-      items[4].action()
-    })
-    const user = userEvent.setup()
-    render(<App />)
+    };
+    showContextMenu.mockImplementation(async (items) => {
+      items[0].action();
+      items[1].action();
+      items[4].action();
+    });
+    const user = userEvent.setup();
+    render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'Repositories' }))
+    await user.click(screen.getByRole("button", { name: "Repositories" }));
     await user.pointer({
-      target: screen.getByRole('button', { name: 'Select rdc' }),
-      keys: '[MouseRight]',
-    })
+      target: screen.getByRole("button", { name: "Select rdc" }),
+      keys: "[MouseRight]",
+    });
 
-    expect(openRepositoryInNewWindow).toHaveBeenCalledWith(repository.path)
-    expect(showFolderContents).toHaveBeenCalledWith(repository.path)
-    expect(
-      screen.getByRole('alertdialog', { name: 'Remove repository' })
-    ).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Remove repository' }))
-    expect(appStore.removeRepository).toHaveBeenCalledWith(repository)
-  })
-})
+    expect(openRepositoryInNewWindow).toHaveBeenCalledWith(repository.path);
+    expect(showFolderContents).toHaveBeenCalledWith(repository.path);
+    expect(screen.getByRole("alertdialog", { name: "Remove repository" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Remove repository" }));
+    expect(appStore.removeRepository).toHaveBeenCalledWith(repository);
+  });
+});

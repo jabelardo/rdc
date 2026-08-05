@@ -11,8 +11,8 @@ import {
   type MouseEvent,
   type MouseEventHandler,
   type ReactElement,
-} from 'react'
-import { createPortal } from 'react-dom'
+} from "react";
+import { createPortal } from "react-dom";
 
 /**
  * Every mounted tooltip's own `hide`, so something outside the component tree can force-close
@@ -28,35 +28,35 @@ import { createPortal } from 'react-dom'
  * the tooltip is still there, rendered behind the native popup, until some unrelated interaction
  * eventually closes it.
  */
-const openTooltips = new Set<() => void>()
+const openTooltips = new Set<() => void>();
 
 /** Force-closes every mounted tooltip. Call before showing any native surface that can cover one. */
 export function dismissAllTooltips(): void {
   for (const hide of openTooltips) {
-    hide()
+    hide();
   }
 }
 
 type TooltipTargetProps = {
-  readonly disabled?: boolean
-  readonly onMouseEnter?: MouseEventHandler<HTMLElement>
-  readonly onMouseMove?: MouseEventHandler<HTMLElement>
-  readonly onMouseLeave?: MouseEventHandler<HTMLElement>
-  readonly onFocus?: FocusEventHandler<HTMLElement>
-  readonly onBlur?: FocusEventHandler<HTMLElement>
-  readonly 'aria-describedby'?: string
-  readonly 'data-tooltip'?: string
-}
+  readonly disabled?: boolean;
+  readonly onMouseEnter?: MouseEventHandler<HTMLElement>;
+  readonly onMouseMove?: MouseEventHandler<HTMLElement>;
+  readonly onMouseLeave?: MouseEventHandler<HTMLElement>;
+  readonly onFocus?: FocusEventHandler<HTMLElement>;
+  readonly onBlur?: FocusEventHandler<HTMLElement>;
+  readonly "aria-describedby"?: string;
+  readonly "data-tooltip"?: string;
+};
 
 type TooltipPosition = {
-  readonly left: number
-  readonly top: number
-}
+  readonly left: number;
+  readonly top: number;
+};
 
 type TooltipProps = {
-  readonly label: string
-  readonly children: ReactElement
-}
+  readonly label: string;
+  readonly children: ReactElement;
+};
 
 /**
  * Marks an element a tooltip must clear entirely, not merely its trigger.
@@ -70,7 +70,7 @@ type TooltipProps = {
  * came from `tooltip-appear` being held at `translateY(-0.15rem)` while a stray
  * `opacity: 1 !important` kept the bubble visible through the animation delay — see App.css.
  */
-const boundarySelector = '[data-tooltip-boundary]'
+const boundarySelector = "[data-tooltip-boundary]";
 
 /**
  * One application-owned tooltip for pointer and keyboard users.
@@ -81,83 +81,76 @@ const boundarySelector = '[data-tooltip-boundary]'
  * its trigger.
  */
 export function Tooltip({ label, children }: TooltipProps) {
-  const id = useId()
-  const tooltipRef = useRef<HTMLSpanElement>(null)
-  const anchorRect = useRef<DOMRect | null>(null)
-  const boundaryRect = useRef<DOMRect | null>(null)
-  const pointerYRef = useRef<number | null>(null)
-  const [open, setOpen] = useState(false)
-  const [position, setPosition] = useState<TooltipPosition | null>(null)
-  const child = Children.only(children) as ReactElement<TooltipTargetProps>
+  const id = useId();
+  const tooltipRef = useRef<HTMLSpanElement>(null);
+  const anchorRect = useRef<DOMRect | null>(null);
+  const boundaryRect = useRef<DOMRect | null>(null);
+  const pointerYRef = useRef<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const [position, setPosition] = useState<TooltipPosition | null>(null);
+  const child = Children.only(children) as ReactElement<TooltipTargetProps>;
 
   const show = (target: HTMLElement, clientY?: number) => {
-    anchorRect.current = target.getBoundingClientRect()
-    boundaryRect.current =
-      target.closest(boundarySelector)?.getBoundingClientRect() ?? null
-    pointerYRef.current = clientY ?? null
-    setPosition(null)
-    setOpen(true)
-  }
+    anchorRect.current = target.getBoundingClientRect();
+    boundaryRect.current = target.closest(boundarySelector)?.getBoundingClientRect() ?? null;
+    pointerYRef.current = clientY ?? null;
+    setPosition(null);
+    setOpen(true);
+  };
   const hide = () => {
-    setOpen(false)
-    setPosition(null)
-    boundaryRect.current = null
-    pointerYRef.current = null
-  }
+    setOpen(false);
+    setPosition(null);
+    boundaryRect.current = null;
+    pointerYRef.current = null;
+  };
 
   // Registered for the component's whole lifetime, not just while open: `dismissAllTooltips`
   // must be able to reach a tooltip the instant it opens, and calling `hide` when already closed
   // is a harmless no-op (`setOpen(false)` on `false`).
   useEffect(() => {
-    openTooltips.add(hide)
+    openTooltips.add(hide);
     return () => {
-      openTooltips.delete(hide)
-    }
-  }, [])
+      openTooltips.delete(hide);
+    };
+  }, []);
 
   useLayoutEffect(() => {
     if (!open || tooltipRef.current === null || anchorRect.current === null) {
-      return
+      return;
     }
-    const bubble = tooltipRef.current.getBoundingClientRect()
-    const anchor = anchorRect.current
-    const margin = 8
-    const titlebarGap = 36
-    const gap = 7
-    const desiredLeft = anchor.left + anchor.width / 2 - bubble.width / 2
-    const left = Math.min(
-      window.innerWidth - bubble.width - margin,
-      Math.max(margin, desiredLeft)
-    )
+    const bubble = tooltipRef.current.getBoundingClientRect();
+    const anchor = anchorRect.current;
+    const margin = 8;
+    const titlebarGap = 36;
+    const gap = 7;
+    const desiredLeft = anchor.left + anchor.width / 2 - bubble.width / 2;
+    const left = Math.min(window.innerWidth - bubble.width - margin, Math.max(margin, desiredLeft));
 
-    let top: number
+    let top: number;
     if (anchor.height > 100) {
-      const targetY = pointerYRef.current ?? anchor.top + anchor.height / 2
+      const targetY = pointerYRef.current ?? anchor.top + anchor.height / 2;
       top = Math.min(
         window.innerHeight - bubble.height - margin,
-        Math.max(titlebarGap, targetY - bubble.height / 2)
-      )
+        Math.max(titlebarGap, targetY - bubble.height / 2),
+      );
     } else {
       // Clear the whole boundary when the trigger sits inside one, so the bubble never lands on the
       // bar hosting it. Falls back to the trigger's own edges, which is the behaviour for any
       // control outside a bar. Symmetrical: flipping above has to clear the boundary's top for the
       // same reason it has to clear its bottom going down.
-      const boundary = boundaryRect.current
-      const clearanceBottom = Math.max(
-        anchor.bottom,
-        boundary?.bottom ?? anchor.bottom
-      )
-      const clearanceTop = Math.min(anchor.top, boundary?.top ?? anchor.top)
-      const below = clearanceBottom + gap
+      const boundary = boundaryRect.current;
+      const clearanceBottom = Math.max(anchor.bottom, boundary?.bottom ?? anchor.bottom);
+      const clearanceTop = Math.min(anchor.top, boundary?.top ?? anchor.top);
+      const below = clearanceBottom + gap;
       top =
         below + bubble.height <= window.innerHeight - margin
           ? below
-          : Math.max(titlebarGap, clearanceTop - bubble.height - gap)
+          : Math.max(titlebarGap, clearanceTop - bubble.height - gap);
     }
-    setPosition({ left, top })
-  }, [open, label])
+    setPosition({ left, top });
+  }, [open, label]);
 
-  const description = open ? id : child.props['aria-describedby']
+  const description = open ? id : child.props["aria-describedby"];
   const bubble =
     open &&
     createPortal(
@@ -167,68 +160,66 @@ export function Tooltip({ label, children }: TooltipProps) {
         className="app-tooltip"
         role="tooltip"
         style={
-          position === null
-            ? { visibility: 'hidden' }
-            : { left: position.left, top: position.top }
+          position === null ? { visibility: "hidden" } : { left: position.left, top: position.top }
         }
       >
         {label}
       </span>,
-      document.body
-    )
+      document.body,
+    );
 
   if (child.props.disabled === true) {
     return (
       <span
         className="disabled-tooltip-anchor"
         data-tooltip={label}
-        onMouseEnter={event => show(event.currentTarget, event.clientY)}
+        onMouseEnter={(event) => show(event.currentTarget, event.clientY)}
         onMouseLeave={hide}
       >
-        {cloneElement(child, { 'aria-describedby': description })}
+        {cloneElement(child, { "aria-describedby": description })}
         {bubble}
       </span>
-    )
+    );
   }
 
   return (
     <>
       {cloneElement(child, {
-        'aria-describedby': description,
-        'data-tooltip': label,
+        "aria-describedby": description,
+        "data-tooltip": label,
         onMouseEnter: (event: MouseEvent<HTMLElement>) => {
-          child.props.onMouseEnter?.(event)
-          show(event.currentTarget, event.clientY)
+          child.props.onMouseEnter?.(event);
+          show(event.currentTarget, event.clientY);
         },
         onMouseMove: (event: MouseEvent<HTMLElement>) => {
           if (anchorRect.current && anchorRect.current.height > 100) {
-            pointerYRef.current = event.clientY
+            pointerYRef.current = event.clientY;
             if (open && tooltipRef.current && anchorRect.current) {
-              const bubble = tooltipRef.current.getBoundingClientRect()
-              const margin = 8
-              const titlebarGap = 36
+              const bubble = tooltipRef.current.getBoundingClientRect();
+              const margin = 8;
+              const titlebarGap = 36;
               const top = Math.min(
                 window.innerHeight - bubble.height - margin,
-                Math.max(titlebarGap, event.clientY - bubble.height / 2)
-              )
-              setPosition(prev => (prev ? { ...prev, top } : prev))
+                Math.max(titlebarGap, event.clientY - bubble.height / 2),
+              );
+              setPosition((prev) => (prev ? { ...prev, top } : prev));
             }
           }
         },
         onMouseLeave: (event: MouseEvent<HTMLElement>) => {
-          child.props.onMouseLeave?.(event)
-          hide()
+          child.props.onMouseLeave?.(event);
+          hide();
         },
         onFocus: (event: FocusEvent<HTMLElement>) => {
-          child.props.onFocus?.(event)
-          show(event.currentTarget)
+          child.props.onFocus?.(event);
+          show(event.currentTarget);
         },
         onBlur: (event: FocusEvent<HTMLElement>) => {
-          child.props.onBlur?.(event)
-          hide()
+          child.props.onBlur?.(event);
+          hide();
         },
       })}
       {bubble}
     </>
-  )
+  );
 }

@@ -1,11 +1,11 @@
-import type { ConflictState, ConflictStore } from '../../stores/conflict-store'
+import type { ConflictState, ConflictStore } from "../../stores/conflict-store";
 
 type MergeConflictsProps = {
-  readonly repositoryPath: string
-  readonly state: ConflictState
-  readonly store: ConflictStore
-  readonly onStageResolved: (path: string) => void
-}
+  readonly repositoryPath: string;
+  readonly state: ConflictState;
+  readonly store: ConflictStore;
+  readonly onStageResolved: (path: string) => void;
+};
 
 /** In-progress merge state and resolved-file staging controls. */
 export function MergeConflicts({
@@ -14,32 +14,19 @@ export function MergeConflicts({
   store,
   onStageResolved,
 }: MergeConflictsProps) {
-  if (
-    !state.mergeInProgress &&
-    state.files.length === 0 &&
-    state.error === null
-  ) {
-    return null
+  if (!state.mergeInProgress && state.files.length === 0 && state.error === null) {
+    return null;
   }
 
   return (
     <section
       className="merge-conflicts absolute top-32 right-4 left-4 z-[2] rounded-[var(--radius-medium)] border border-[var(--color-warning-border)] bg-[var(--color-warning-surface)] p-4 text-left shadow-[0_0.5rem_1.5rem_rgb(23_32_51/15%)]"
-      aria-label={
-        state.mergeInProgress ? 'Merge conflicts' : 'Repository conflicts'
-      }
+      aria-label={state.mergeInProgress ? "Merge conflicts" : "Repository conflicts"}
     >
       <header className="flex items-start justify-between gap-4">
         <div>
-          <h3>
-            {state.mergeInProgress
-              ? 'Merge in progress'
-              : 'Repository conflicts'}
-          </h3>
-          <p>
-            Resolve files in your editor, then refresh and stage each
-            resolution.
-          </p>
+          <h3>{state.mergeInProgress ? "Merge in progress" : "Repository conflicts"}</h3>
+          <p>Resolve files in your editor, then refresh and stage each resolution.</p>
         </div>
         <button
           type="button"
@@ -59,7 +46,7 @@ export function MergeConflicts({
         <p>All conflict resolutions are staged.</p>
       ) : (
         <ul className="mt-4 grid list-none gap-[0.4rem] p-0">
-          {state.files.map(file => (
+          {state.files.map((file) => (
             <li
               className="grid items-center gap-3 [grid-template-columns:minmax(0,1fr)_auto_auto]"
               key={file.path}
@@ -67,26 +54,22 @@ export function MergeConflicts({
               <span>{file.path}</span>
               <small>
                 {file.resolvedInWorkingTree
-                  ? 'Resolved'
-                  : 'conflictMarkerCount' in file.status
+                  ? "Resolved"
+                  : "conflictMarkerCount" in file.status
                     ? `${file.status.conflictMarkerCount} ${
                         file.status.conflictMarkerCount === 1
-                          ? 'conflict marker'
-                          : 'conflict markers'
+                          ? "conflict marker"
+                          : "conflict markers"
                       }`
-                    : 'Choose a side outside rdc'}
+                    : "Choose a side outside rdc"}
               </small>
               <button
                 type="button"
                 aria-label={`Stage resolution for ${file.path}`}
-                disabled={
-                  !file.resolvedInWorkingTree || state.stagingPath !== null
-                }
+                disabled={!file.resolvedInWorkingTree || state.stagingPath !== null}
                 onClick={() => onStageResolved(file.path)}
               >
-                {state.stagingPath === file.path
-                  ? 'Staging…'
-                  : 'Stage resolution'}
+                {state.stagingPath === file.path ? "Staging…" : "Stage resolution"}
               </button>
             </li>
           ))}
@@ -98,5 +81,5 @@ export function MergeConflicts({
         </p>
       )}
     </section>
-  )
+  );
 }

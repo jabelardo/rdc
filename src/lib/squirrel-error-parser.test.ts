@@ -1,19 +1,19 @@
-import { describe, it } from 'vitest'
-import assert from 'node:assert'
-import { parseError } from './squirrel-error-parser'
+import { describe, it } from "vitest";
+import assert from "node:assert";
+import { parseError } from "./squirrel-error-parser";
 
-describe('parseError', () => {
-  it('parses a missing Squirrel error', () => {
+describe("parseError", () => {
+  it("parses a missing Squirrel error", () => {
     // Source:
     // https://github.com/electron/electron/blob/ad90de0c822490664bdb3a3d265f4a0fce3f69de/lib/browser/api/auto-updater/auto-updater-win.js#L29
-    const input = new Error('Can not find Squirrel')
+    const input = new Error("Can not find Squirrel");
 
-    const output = parseError(input)
+    const output = parseError(input);
 
-    assert(output !== null)
-  })
+    assert(output !== null);
+  });
 
-  it('parses a Squirrel network error', () => {
+  it("parses a Squirrel network error", () => {
     // see https://github.com/desktop/desktop/issues/2288 for context
     const input = new Error(`Command failed: 4294967295
     System.AggregateException: One or more errors occurred. ---> System.Net.WebException: The remote name could not be resolved: 'central.github.com'
@@ -73,14 +73,14 @@ describe('parseError', () => {
        at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
        at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
        at Squirrel.Update.Program.<Download>d__7.MoveNext()<---
-    `)
+    `);
 
-    const output = parseError(input)
+    const output = parseError(input);
 
-    assert(output !== null)
-  })
+    assert(output !== null);
+  });
 
-  it('parses a timeout error', () => {
+  it("parses a timeout error", () => {
     const input = new Error(`Command failed: 4294967295
     System.AggregateException: One or more errors occurred. ---> System.Net.WebException: Unable to connect to the remote server ---> System.Net.Sockets.SocketException: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond 54.82.67.239:443
        at System.Net.Sockets.Socket.EndConnect(IAsyncResult asyncResult)
@@ -144,18 +144,18 @@ describe('parseError', () => {
     --- End of stack trace from previous location where exception was thrown ---
        at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)
        at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)
-       at Squirrel.Update.Program.<Download>d__7.MoveNext()<---`)
+       at Squirrel.Update.Program.<Download>d__7.MoveNext()<---`);
 
-    const output = parseError(input)
+    const output = parseError(input);
 
-    assert(output !== null)
-  })
+    assert(output !== null);
+  });
 
-  it('passes through an empty error', () => {
-    const input = new Error()
+  it("passes through an empty error", () => {
+    const input = new Error();
 
-    const output = parseError(input)
+    const output = parseError(input);
 
-    assert(output === null)
-  })
-})
+    assert(output === null);
+  });
+});

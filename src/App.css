@@ -1,6 +1,6 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 /*
  ---break---
  */
@@ -93,7 +93,7 @@ body {
 
 code,
 pre {
-  font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+  font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
 }
 
 button {
@@ -128,11 +128,7 @@ button:disabled {
   height: 100vh;
   min-height: 0;
   grid-template-columns:
-    clamp(
-      125px,
-      var(--sidebar-width, 264px),
-      calc(100vw - var(--workspace-min-width, 490px))
-    )
+    clamp(125px, var(--sidebar-width, 264px), calc(100vw - var(--workspace-min-width, 490px)))
     minmax(var(--workspace-min-width, 490px), 1fr);
 }
 
@@ -168,7 +164,7 @@ button:disabled {
   left: 50%;
   width: 1px;
   background: var(--border);
-  content: '';
+  content: "";
   transform: translateX(-50%);
 }
 
@@ -190,11 +186,7 @@ button:disabled {
 .sidebar-resizer {
   top: 0;
   bottom: 0;
-  left: clamp(
-    125px,
-    var(--sidebar-width, 264px),
-    calc(100vw - var(--workspace-min-width, 490px))
-  );
+  left: clamp(125px, var(--sidebar-width, 264px), calc(100vw - var(--workspace-min-width, 490px)));
 }
 
 .application-shell.webview-titlebar .sidebar-resizer {
@@ -408,13 +400,13 @@ button:disabled {
   text-align: left;
 }
 
-.repository-list-selection:hover:not([aria-current='true']) {
+.repository-list-selection:hover:not([aria-current="true"]) {
   color: var(--color-accent);
   background: var(--color-accent-soft);
   border-color: transparent;
 }
 
-.repository-list-selection[aria-current='true'] {
+.repository-list-selection[aria-current="true"] {
   background: var(--color-accent-soft);
   box-shadow: inset 3px 0 0 var(--color-accent);
 }
@@ -545,16 +537,12 @@ button:disabled {
   width: 1px;
   height: 2.25rem;
   background: var(--border);
-  content: '';
+  content: "";
   transform: translateY(-50%);
 }
 
 .repository-toolbar
-  :is(
-    .repository-creation-actions,
-    .repository-toolbar-actions,
-    .remote-actions
-  )
+  :is(.repository-creation-actions, .repository-toolbar-actions, .remote-actions)
   button {
   display: grid;
   width: 2.25rem;
@@ -568,11 +556,7 @@ button:disabled {
 }
 
 .repository-toolbar
-  :is(
-    .repository-creation-actions,
-    .repository-toolbar-actions,
-    .remote-actions
-  )
+  :is(.repository-creation-actions, .repository-toolbar-actions, .remote-actions)
   button:hover {
   color: var(--color-accent);
   background: var(--color-accent-soft);
@@ -609,13 +593,13 @@ button:disabled {
   box-shadow: none;
 }
 
-:root .repository-view-navigation button:hover:not([aria-current='page']) {
+:root .repository-view-navigation button:hover:not([aria-current="page"]) {
   color: var(--color-accent);
   background: var(--color-accent-soft);
   border-color: transparent;
 }
 
-.repository-view-navigation button[aria-current='page'] {
+.repository-view-navigation button[aria-current="page"] {
   border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
   color: var(--color-accent);
   background: var(--color-accent-soft);
@@ -794,17 +778,17 @@ button:disabled {
   text-align: left;
 }
 
-.branch-list-selection:hover:not([aria-current='true']) {
+.branch-list-selection:hover:not([aria-current="true"]) {
   color: var(--color-accent);
   background: var(--color-accent-soft);
   border-color: transparent;
 }
 
-.branch-list-selection[aria-current='true'] {
+.branch-list-selection[aria-current="true"] {
   background: var(--color-accent-soft);
 }
 
-.branch-list-selection[aria-disabled='true']:not([aria-current='true']) {
+.branch-list-selection[aria-disabled="true"]:not([aria-current="true"]) {
   color: var(--color-text-muted);
 }
 
@@ -877,8 +861,8 @@ button:disabled {
     minmax(300px, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
-    'files diff'
-    'commit diff';
+    "files diff"
+    "commit diff";
 }
 
 .changes-resizer {
@@ -1019,7 +1003,7 @@ button:disabled {
   font-weight: 400;
 }
 
-.working-tree-file-selection[aria-current='true'] {
+.working-tree-file-selection[aria-current="true"] {
   background: var(--color-surface-subtle);
 }
 
@@ -1281,7 +1265,7 @@ button:disabled {
   flex: 0 0 auto;
 }
 
-.commit-form-footer button[type='submit'] {
+.commit-form-footer button[type="submit"] {
   min-width: 0;
   flex: 1 1 auto;
 }
@@ -1327,13 +1311,13 @@ button:disabled {
   width: 100%;
 }
 
-.commit-form button[type='submit'] {
+.commit-form button[type="submit"] {
   border-color: var(--primary);
   color: #fff;
   background: var(--primary);
 }
 
-.commit-form button[type='submit']:hover {
+.commit-form button[type="submit"]:hover {
   filter: brightness(1.08);
 }
 
@@ -1366,9 +1350,7 @@ button:disabled {
 }
 
 .working-tree-files li:hover .working-tree-file-status,
-.working-tree-files
-  li:has(.working-tree-file-discard:focus-visible)
-  .working-tree-file-status {
+.working-tree-files li:has(.working-tree-file-discard:focus-visible) .working-tree-file-status {
   opacity: 0;
 }
 
@@ -1423,7 +1405,7 @@ button:disabled {
   text-align: left;
 }
 
-.history-commits button[aria-current='true'] {
+.history-commits button[aria-current="true"] {
   background: var(--color-accent-soft);
   box-shadow: inset 3px 0 0 var(--color-accent);
 }
@@ -1610,7 +1592,7 @@ button:disabled {
   text-align: left;
 }
 
-.history-files button[aria-current='true'] {
+.history-files button[aria-current="true"] {
   background: var(--color-accent-soft);
   box-shadow: inset 3px 0 0 var(--color-accent);
 }
@@ -1785,8 +1767,8 @@ button:disabled {
   .changes-workspace {
     grid-template-rows: minmax(0, 1fr) minmax(0, auto);
     grid-template-areas:
-      'files diff'
-      'commit diff';
+      "files diff"
+      "commit diff";
     overflow: hidden;
   }
 
@@ -1839,7 +1821,7 @@ button:disabled {
   }
 }
 
-:root[data-theme='dark'] {
+:root[data-theme="dark"] {
   --background: #1d2129;
   --foreground: #f2f4f8;
   --card: #282d37;
@@ -1883,128 +1865,124 @@ button:disabled {
   --color-tooltip-border: #3b4252;
 }
 
-:root[data-theme='dark'] .repository-sidebar {
+:root[data-theme="dark"] .repository-sidebar {
   border-color: var(--border);
   background: var(--color-surface-subtle);
 }
 
-:root[data-theme='dark'] .sidebar-panel,
-:root[data-theme='dark'] .repository-view-navigation {
+:root[data-theme="dark"] .sidebar-panel,
+:root[data-theme="dark"] .repository-view-navigation {
   border-color: #414858;
 }
 
-:root[data-theme='dark'] .repository-toolbar {
+:root[data-theme="dark"] .repository-toolbar {
   border-color: var(--border);
   background: var(--color-surface-subtle);
 }
 
-:root[data-theme='dark'] .window-drag-region {
+:root[data-theme="dark"] .window-drag-region {
   background: var(--color-surface-subtle);
 }
 
-:root[data-theme='dark'] .history-commit-sha {
+:root[data-theme="dark"] .history-commit-sha {
   border-color: transparent;
   color: inherit;
   background: transparent;
 }
 
-:root[data-theme='dark'] .repository-view-navigation button {
+:root[data-theme="dark"] .repository-view-navigation button {
   border-color: transparent;
   background: transparent;
 }
 
-:root[data-theme='dark']
-  .repository-view-navigation
-  button[aria-current='page'] {
+:root[data-theme="dark"] .repository-view-navigation button[aria-current="page"] {
   border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
   color: var(--color-accent);
   background: var(--color-accent-soft);
 }
 
-:root[data-theme='dark']
-  .repository-view-navigation
-  button:hover:not([aria-current='page']) {
+:root[data-theme="dark"] .repository-view-navigation button:hover:not([aria-current="page"]) {
   background: var(--color-accent-soft);
 }
 
-:root[data-theme='dark'] .commit-form button[type='submit'] {
+:root[data-theme="dark"] .commit-form button[type="submit"] {
   border-color: var(--primary);
   color: #fff;
   background: var(--primary);
 }
 
-:root[data-theme='dark'] .destructive-button {
+:root[data-theme="dark"] .destructive-button {
   border-color: var(--destructive);
   color: #fff;
   background: #a82231;
 }
 
-:root[data-theme='dark'] .repository-list-selection[aria-current='true'] {
+:root[data-theme="dark"] .repository-list-selection[aria-current="true"] {
   background: var(--color-accent-soft);
 }
 
-:root[data-theme='dark'] .repository-list-selection span,
-:root[data-theme='dark'] .repository-list-empty,
-:root[data-theme='dark'] .history-commits small,
-:root[data-theme='dark'] .history-commits time,
-:root[data-theme='dark'] .history-details header code,
-:root[data-theme='dark'] .history-details header p,
-:root[data-theme='dark'] .merge-conflicts header p,
-:root[data-theme='dark'] .merge-conflicts li small {
+:root[data-theme="dark"] .repository-list-selection span,
+:root[data-theme="dark"] .repository-list-empty,
+:root[data-theme="dark"] .history-commits small,
+:root[data-theme="dark"] .history-commits time,
+:root[data-theme="dark"] .history-details header code,
+:root[data-theme="dark"] .history-details header p,
+:root[data-theme="dark"] .merge-conflicts header p,
+:root[data-theme="dark"] .merge-conflicts li small {
   color: #aeb6c6;
 }
 
-:root[data-theme='dark'] .working-tree-diff pre,
-:root[data-theme='dark'] .working-tree-diff-lines,
-:root[data-theme='dark'] .history-diff pre,
-:root[data-theme='dark'] .commit-terminal-output,
-:root[data-theme='dark'] .commit-form input,
-:root[data-theme='dark'] .commit-form textarea,
-:root[data-theme='dark'] .working-tree-filter input,
-:root[data-theme='dark'] .repository-filter input,
-:root[data-theme='dark'] .branch-filter input,
-:root[data-theme='dark'] .new-branch-form input {
+:root[data-theme="dark"] .working-tree-diff pre,
+:root[data-theme="dark"] .working-tree-diff-lines,
+:root[data-theme="dark"] .history-diff pre,
+:root[data-theme="dark"] .commit-terminal-output,
+:root[data-theme="dark"] .commit-form input,
+:root[data-theme="dark"] .commit-form textarea,
+:root[data-theme="dark"] .working-tree-filter input,
+:root[data-theme="dark"] .repository-filter input,
+:root[data-theme="dark"] .branch-filter input,
+:root[data-theme="dark"] .new-branch-form input {
   border-color: var(--border);
   color: var(--foreground);
   background: var(--card);
 }
 
-:root[data-theme='dark'] .history-details {
+:root[data-theme="dark"] .history-details {
   border-color: var(--border);
 }
 
-:root[data-theme='dark'] .merge-conflicts {
+:root[data-theme="dark"] .merge-conflicts {
   border-color: var(--color-warning-border);
   background: var(--color-warning-surface);
 }
 
-:root[data-theme='dark'] .diff-line-number {
+:root[data-theme="dark"] .diff-line-number {
   border-color: var(--border);
   color: var(--color-text-muted);
 }
 
-:root[data-theme='dark'] .confirmation-dialog {
+:root[data-theme="dark"] .confirmation-dialog {
   border-color: var(--border);
   background: var(--popover);
 }
 
-:root[data-theme='dark'] .preferences-fields select {
+:root[data-theme="dark"] .preferences-fields select {
   border-color: var(--border);
   color: var(--foreground);
   background-color: var(--card);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%23aeb6c6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
-:root[data-theme='dark'] .preferences-fields fieldset {
+:root[data-theme="dark"] .preferences-fields fieldset {
   border-color: var(--border);
 }
 
-:root[data-theme='dark'] .working-tree-file-discard {
+:root[data-theme="dark"] .working-tree-file-discard {
   color: var(--destructive);
   background: transparent;
 }
 
-:root[data-theme='dark'] .application-error {
+:root[data-theme="dark"] .application-error {
   border-color: var(--color-error-border);
   color: var(--color-error-text);
   background: var(--color-error-surface);
@@ -2016,8 +1994,7 @@ button:disabled {
   /* System font stack, matching what :root declared before this migration — shadcn's vendored
    * components use the `font-sans` utility (see `html { @apply font-sans }` below), so this is
    * the one place that stack needs to be declared now. */
-  --font-sans:
-    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);

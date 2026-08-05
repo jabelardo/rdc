@@ -1,8 +1,8 @@
-import { RemoteStore } from './remote-store'
+import { RemoteStore } from "./remote-store";
 
-let defaultRemoteStore: RemoteStore | undefined
+let defaultRemoteStore: RemoteStore | undefined;
 
 export function getDefaultRemoteStore(): RemoteStore {
-  defaultRemoteStore ??= new RemoteStore()
-  return defaultRemoteStore
+  defaultRemoteStore ??= new RemoteStore();
+  return defaultRemoteStore;
 }

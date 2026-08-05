@@ -20,16 +20,16 @@
  * post-MVP collaboration work.
  */
 
-import { Channel, invoke } from '@tauri-apps/api/core'
-import { hookFailureChannel, type IHookProgress } from './hook-ipc'
-import type { IHookOptions } from './git-ipc'
-import type { IRemote } from '../models/remote'
+import { Channel, invoke } from "@tauri-apps/api/core";
+import { hookFailureChannel, type IHookProgress } from "./hook-ipc";
+import type { IHookOptions } from "./git-ipc";
+import type { IRemote } from "../models/remote";
 import type {
   ICloneProgress,
   IFetchProgress,
   IPullProgress,
   IPushProgress,
-} from '../models/progress'
+} from "../models/progress";
 
 /** Options for {@linkcode push}. Both default to off. */
 export interface IPushOptions {
@@ -41,10 +41,10 @@ export interface IPushOptions {
    *
    * Ignored when `remoteBranch` is `null` — see {@linkcode push}.
    */
-  readonly forceWithLease?: boolean
+  readonly forceWithLease?: boolean;
 
   /** Skip the `pre-push` hook. */
-  readonly noVerify?: boolean
+  readonly noVerify?: boolean;
 }
 
 /**
@@ -65,13 +65,13 @@ export async function push(
   options: IPushOptions = {},
   progressCallback?: (progress: IPushProgress) => void,
   isBackgroundTask = false,
-  hooks?: IHookOptions
+  hooks?: IHookOptions,
 ): Promise<void> {
-  const onProgress = new Channel<IPushProgress>(progressCallback)
-  const onHookProgress = new Channel<IHookProgress>(hooks?.onHookProgress)
-  const onHookFailure = hookFailureChannel(hooks?.onHookFailure)
+  const onProgress = new Channel<IPushProgress>(progressCallback);
+  const onHookProgress = new Channel<IHookProgress>(hooks?.onHookProgress);
+  const onHookFailure = hookFailureChannel(hooks?.onHookFailure);
 
-  return await invoke<void>('push', {
+  return await invoke<void>("push", {
     repositoryPath,
     remoteName,
     localBranch,
@@ -83,7 +83,7 @@ export async function push(
     interceptHooks: hooks?.interceptHooks ?? false,
     onHookProgress,
     onHookFailure,
-  })
+  });
 }
 
 /**
@@ -99,14 +99,14 @@ export async function deleteRemoteBranch(
   repositoryPath: string,
   remoteName: string,
   remoteBranchName: string,
-  isBackgroundTask = false
+  isBackgroundTask = false,
 ): Promise<void> {
-  return invoke<void>('delete_remote_branch', {
+  return invoke<void>("delete_remote_branch", {
     repositoryPath,
     remoteName,
     remoteBranchName,
     isBackgroundTask,
-  })
+  });
 }
 
 /** Fetches from `remoteName`, pruning tracking refs for branches deleted upstream. */
@@ -114,16 +114,16 @@ export async function fetch(
   repositoryPath: string,
   remoteName: string,
   progressCallback?: (progress: IFetchProgress) => void,
-  isBackgroundTask = false
+  isBackgroundTask = false,
 ): Promise<void> {
-  const onProgress = new Channel<IFetchProgress>(progressCallback)
+  const onProgress = new Channel<IFetchProgress>(progressCallback);
 
-  return invoke<void>('fetch', {
+  return invoke<void>("fetch", {
     repositoryPath,
     remoteName,
     isBackgroundTask,
     onProgress,
-  })
+  });
 }
 
 /**
@@ -139,14 +139,14 @@ export async function fetchRefspec(
   repositoryPath: string,
   remoteName: string,
   refspec: string,
-  isBackgroundTask = false
+  isBackgroundTask = false,
 ): Promise<void> {
-  return invoke<void>('fetch_refspec', {
+  return invoke<void>("fetch_refspec", {
     repositoryPath,
     remoteName,
     refspec,
     isBackgroundTask,
-  })
+  });
 }
 
 /**
@@ -161,13 +161,13 @@ export async function pull(
   progressCallback?: (progress: IPullProgress) => void,
   noVerify = false,
   isBackgroundTask = false,
-  hooks?: IHookOptions
+  hooks?: IHookOptions,
 ): Promise<void> {
-  const onProgress = new Channel<IPullProgress>(progressCallback)
-  const onHookProgress = new Channel<IHookProgress>(hooks?.onHookProgress)
-  const onHookFailure = hookFailureChannel(hooks?.onHookFailure)
+  const onProgress = new Channel<IPullProgress>(progressCallback);
+  const onHookProgress = new Channel<IHookProgress>(hooks?.onHookProgress);
+  const onHookFailure = hookFailureChannel(hooks?.onHookFailure);
 
-  return await invoke<void>('pull', {
+  return await invoke<void>("pull", {
     repositoryPath,
     remoteName,
     noVerify,
@@ -176,7 +176,7 @@ export async function pull(
     interceptHooks: hooks?.interceptHooks ?? false,
     onHookProgress,
     onHookFailure,
-  })
+  });
 }
 
 /**
@@ -188,15 +188,15 @@ export async function pull(
  */
 export async function fastForwardBranches(
   repositoryPath: string,
-  branches: ReadonlyArray<readonly [string, string]>
+  branches: ReadonlyArray<readonly [string, string]>,
 ): Promise<void> {
-  return invoke<void>('fast_forward_branches', { repositoryPath, branches })
+  return invoke<void>("fast_forward_branches", { repositoryPath, branches });
 }
 
 /** Additional arguments for {@linkcode clone}. */
 export interface ICloneOptions {
   /** The branch to check out once the clone finishes. */
-  readonly branch?: string
+  readonly branch?: string;
 
   /**
    * The branch name to use if the repository turns out to be empty.
@@ -205,7 +205,7 @@ export interface ICloneOptions {
    * when the remote advertises it, which local and modern-protocol remotes do. This only decides when
    * the remote doesn't — so it is a fallback, not the usual path.
    */
-  readonly defaultBranch?: string
+  readonly defaultBranch?: string;
 }
 
 /**
@@ -221,18 +221,18 @@ export async function clone(
   login: string | null = null,
   options: ICloneOptions = {},
   progressCallback?: (progress: ICloneProgress) => void,
-  isBackgroundTask = false
+  isBackgroundTask = false,
 ): Promise<void> {
-  const onProgress = new Channel<ICloneProgress>(progressCallback)
+  const onProgress = new Channel<ICloneProgress>(progressCallback);
 
-  return invoke<void>('clone', {
+  return invoke<void>("clone", {
     url,
     path,
     login,
     options,
     isBackgroundTask,
     onProgress,
-  })
+  });
 }
 
 /**
@@ -243,44 +243,36 @@ export async function clone(
  *
  * Only fetch URLs are reported, even for a remote configured with a different push URL.
  */
-export async function getRemotes(
-  repositoryPath: string
-): Promise<ReadonlyArray<IRemote>> {
-  return invoke<ReadonlyArray<IRemote>>('get_remotes', { repositoryPath })
+export async function getRemotes(repositoryPath: string): Promise<ReadonlyArray<IRemote>> {
+  return invoke<ReadonlyArray<IRemote>>("get_remotes", { repositoryPath });
 }
 
 /** Adds a remote and resolves to it. Rejects if one of that name already exists. */
 export async function addRemote(
   repositoryPath: string,
   name: string,
-  url: string
+  url: string,
 ): Promise<IRemote> {
-  return invoke<IRemote>('add_remote', { repositoryPath, name, url })
+  return invoke<IRemote>("add_remote", { repositoryPath, name, url });
 }
 
 /** Removes a remote. Removing one that doesn't exist succeeds. */
-export async function removeRemote(
-  repositoryPath: string,
-  name: string
-): Promise<void> {
-  return invoke<void>('remove_remote', { repositoryPath, name })
+export async function removeRemote(repositoryPath: string, name: string): Promise<void> {
+  return invoke<void>("remove_remote", { repositoryPath, name });
 }
 
 /** Points an existing remote at a different URL. */
 export async function setRemoteURL(
   repositoryPath: string,
   name: string,
-  url: string
+  url: string,
 ): Promise<void> {
-  return invoke<void>('set_remote_url', { repositoryPath, name, url })
+  return invoke<void>("set_remote_url", { repositoryPath, name, url });
 }
 
 /** The fetch URL of a remote, or `null` if there is no such remote. */
-export async function getRemoteURL(
-  repositoryPath: string,
-  name: string
-): Promise<string | null> {
-  return invoke<string | null>('get_remote_url', { repositoryPath, name })
+export async function getRemoteURL(repositoryPath: string, name: string): Promise<string | null> {
+  return invoke<string | null>("get_remote_url", { repositoryPath, name });
 }
 
 /**
@@ -292,13 +284,13 @@ export async function getRemoteURL(
 export async function updateRemoteHEAD(
   repositoryPath: string,
   name: string,
-  isBackgroundTask = false
+  isBackgroundTask = false,
 ): Promise<void> {
-  return invoke<void>('update_remote_head', {
+  return invoke<void>("update_remote_head", {
     repositoryPath,
     name,
     isBackgroundTask,
-  })
+  });
 }
 
 /**
@@ -307,9 +299,6 @@ export async function updateRemoteHEAD(
  * Reads what {@linkcode updateRemoteHEAD} recorded, so it needs no network. Note a plain fetch already
  * records this when the remote advertises it.
  */
-export async function getRemoteHEAD(
-  repositoryPath: string,
-  name: string
-): Promise<string | null> {
-  return invoke<string | null>('get_remote_head', { repositoryPath, name })
+export async function getRemoteHEAD(repositoryPath: string, name: string): Promise<string | null> {
+  return invoke<string | null>("get_remote_head", { repositoryPath, name });
 }

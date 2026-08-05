@@ -21,6 +21,6 @@ export class Image {
   public constructor(
     public readonly url: string,
     public readonly mediaType: string,
-    public readonly bytes: number
+    public readonly bytes: number,
   ) {}
 }

@@ -1,29 +1,25 @@
-import { useRef, type CSSProperties } from 'react'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import {
-  faClone,
-  faFolderPlus,
-  faPlus,
-} from '@fortawesome/free-solid-svg-icons'
-import { showFolderContents } from '../../platform/files'
-import { HorizontalResizer } from '../horizontal-resizer'
-import { AppDialogs } from './app-dialogs'
-import { ChangesWorkspace } from './changes-workspace'
-import { HistoryWorkspace } from './history-workspace'
-import { MergeConflicts } from './merge-conflicts'
-import { RepositorySidebar } from './repository-sidebar'
-import { RepositoryToolbar } from './repository-toolbar'
-import type { AppController } from './use-app-controller'
-import { WindowDragStrip } from './window-drag-strip'
-import { remoteEnablement } from '../../remote-enablement'
+import { useRef, type CSSProperties } from "react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faClone, faFolderPlus, faPlus } from "@fortawesome/free-solid-svg-icons";
+import { showFolderContents } from "../../platform/files";
+import { HorizontalResizer } from "../horizontal-resizer";
+import { AppDialogs } from "./app-dialogs";
+import { ChangesWorkspace } from "./changes-workspace";
+import { HistoryWorkspace } from "./history-workspace";
+import { MergeConflicts } from "./merge-conflicts";
+import { RepositorySidebar } from "./repository-sidebar";
+import { RepositoryToolbar } from "./repository-toolbar";
+import type { AppController } from "./use-app-controller";
+import { WindowDragStrip } from "./window-drag-strip";
+import { remoteEnablement } from "../../remote-enablement";
 
 type AppShellProps = {
-  readonly controller: AppController
-}
+  readonly controller: AppController;
+};
 
 /** Layout composition for the application; state orchestration stays in the controller hook. */
 export function AppShell({ controller }: AppShellProps) {
-  const shellRef = useRef<HTMLElement>(null)
+  const shellRef = useRef<HTMLElement>(null);
   const {
     appState,
     branchState,
@@ -131,25 +127,25 @@ export function AppShell({ controller }: AppShellProps) {
     setSidebarWidth,
     showBranchCreation,
     setShowBranchCreation,
-  } = controller
-  const workspaceMinimum = appState.selectedRepository === null ? 490 : 560
-  const hasSelection = appState.selectedRepository !== null
+  } = controller;
+  const workspaceMinimum = appState.selectedRepository === null ? 490 : 560;
+  const hasSelection = appState.selectedRepository !== null;
   const { canFetch, canPush, canPull } = remoteEnablement({
     hasSelection,
     selectedRepositoryPath: appState.selectedRepository?.path ?? null,
     remoteState,
-  })
+  });
 
   return (
     <main
       ref={shellRef}
       className={`application-shell grid h-screen${
-        showWindowDragRegion ? ' webview-titlebar' : ''
-      }${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}
+        showWindowDragRegion ? " webview-titlebar" : ""
+      }${sidebarCollapsed ? " sidebar-collapsed" : ""}`}
       style={
         {
-          '--sidebar-width': `${sidebarWidth}px`,
-          '--workspace-min-width': `${workspaceMinimum}px`,
+          "--sidebar-width": `${sidebarWidth}px`,
+          "--workspace-min-width": `${workspaceMinimum}px`,
         } as CSSProperties
       }
     >
@@ -164,16 +160,14 @@ export function AppShell({ controller }: AppShellProps) {
         newBranchName={newBranchName}
         showBranchCreation={showBranchCreation}
         onShowBranchCreation={setShowBranchCreation}
-        onToggleCollapsed={() => setSidebarCollapsed(collapsed => !collapsed)}
+        onToggleCollapsed={() => setSidebarCollapsed((collapsed) => !collapsed)}
         onToggleSection={toggleSidebarSection}
         onActivateSection={activateSidebarSection}
-        onSelectRepository={repository => void selectRepository(repository)}
+        onSelectRepository={(repository) => void selectRepository(repository)}
         onRepositoryContextMenu={(repository, x, y) =>
           void openRepositoryContextMenu(repository, x, y)
         }
-        onBranchContextMenu={(branch, x, y) =>
-          void openBranchContextMenu(branch, x, y)
-        }
+        onBranchContextMenu={(branch, x, y) => void openBranchContextMenu(branch, x, y)}
         onBranchNameChange={setNewBranchName}
         onBranchChange={refreshAfterBranchChange}
       />
@@ -213,10 +207,7 @@ export function AppShell({ controller }: AppShellProps) {
                 <FontAwesomeIcon icon={faPlus} aria-hidden="true" />
                 Create repository
               </button>
-              <button
-                type="button"
-                onClick={() => void addExistingRepository()}
-              >
+              <button type="button" onClick={() => void addExistingRepository()}>
                 <FontAwesomeIcon icon={faFolderPlus} aria-hidden="true" />
                 Add existing repository
               </button>
@@ -241,34 +232,32 @@ export function AppShell({ controller }: AppShellProps) {
               onCloneRepository={openCloneDialog}
               onShowFiles={() =>
                 void runRepositoryAction(() =>
-                  showFolderContents(appState.selectedRepository!.path)
+                  showFolderContents(appState.selectedRepository!.path),
                 )
               }
               onOpenEditor={() =>
                 void runRepositoryAction(() =>
-                  openInExternalEditor(appState.selectedRepository!.path)
+                  openInExternalEditor(appState.selectedRepository!.path),
                 )
               }
               onOpenShell={() =>
-                void runRepositoryAction(() =>
-                  openInShell(appState.selectedRepository!.path)
-                )
+                void runRepositoryAction(() => openInShell(appState.selectedRepository!.path))
               }
               onFetch={() => void refreshAfterFetch()}
               onPull={() => void refreshAfterPull()}
               onPush={() => void refreshAfterPush()}
               onSelectView={setRepositoryView}
             />
-            {repositoryView === 'changes' && (
+            {repositoryView === "changes" && (
               <MergeConflicts
                 repositoryPath={appState.selectedRepository.path}
                 state={conflictState}
                 store={conflictStore}
-                onStageResolved={path => void stageResolvedConflict(path)}
+                onStageResolved={(path) => void stageResolvedConflict(path)}
               />
             )}
             <ChangesWorkspace
-              visible={repositoryView === 'changes'}
+              visible={repositoryView === "changes"}
               repositoryPath={appState.selectedRepository.path}
               state={workingTreeState}
               store={workingTreeStore}
@@ -281,7 +270,7 @@ export function AppShell({ controller }: AppShellProps) {
               onDiscard={requestDiscard}
             />
             <HistoryWorkspace
-              visible={repositoryView === 'history'}
+              visible={repositoryView === "history"}
               state={historyState}
               store={historyStore}
             />
@@ -351,7 +340,7 @@ export function AppShell({ controller }: AppShellProps) {
         manageRunning={manageRunning}
         onNewRemote={openAddRemote}
         onConfirmAddRemote={() => void confirmAddRemote()}
-        onConfirmRemoveRemote={name => void confirmRemoveRemote(name)}
+        onConfirmRemoveRemote={(name) => void confirmRemoveRemote(name)}
         onCloseAddRemote={closeAddRemote}
         onCloseManageRemotes={closeManageRemotes}
         onDismissAbout={() => setShowAboutDialog(false)}
@@ -363,5 +352,5 @@ export function AppShell({ controller }: AppShellProps) {
         onClonePathChange={setClonePath}
       />
     </main>
-  )
+  );
 }

@@ -5,7 +5,7 @@ import {
   getGitLabAPIEndpoint,
   getHTMLURL,
   IAPIEmail,
-} from '../lib/api'
+} from "../lib/api";
 /**
  * Returns a value indicating whether two account instances
  * can be considered equal. Equality is determined by comparing
@@ -15,15 +15,10 @@ import {
  * and a particular account.
  */
 export function accountEquals(x: Account, y: Account) {
-  return x.endpoint === y.endpoint && x.id === y.id && x.login === y.login
+  return x.endpoint === y.endpoint && x.id === y.id && x.login === y.login;
 }
 
-export type AccountAPIType =
-  | 'dotcom'
-  | 'enterprise'
-  | 'bitbucket'
-  | 'gitlab'
-  | 'codeberg'
+export type AccountAPIType = "dotcom" | "enterprise" | "bitbucket" | "gitlab" | "codeberg";
 
 export enum UnknownLogin {
   InitialAuthFetch,
@@ -37,23 +32,12 @@ export enum UnknownLogin {
 export class Account {
   /** Create an account which can be used to perform unauthenticated API actions */
   public static anonymous(): Account {
-    return new Account(
-      '',
-      getDotComAPIEndpoint(),
-      '',
-      '',
-      0,
-      [],
-      '',
-      -1,
-      '',
-      'free'
-    )
+    return new Account("", getDotComAPIEndpoint(), "", "", 0, [], "", -1, "", "free");
   }
 
-  private _friendlyEndpoint: string | undefined = undefined
+  private _friendlyEndpoint: string | undefined = undefined;
 
-  private _apiType: AccountAPIType | undefined = undefined
+  private _apiType: AccountAPIType | undefined = undefined;
 
   /**
    * Create an instance of an account
@@ -87,7 +71,7 @@ export class Account {
     public readonly copilotEndpoint?: string,
     public readonly isCopilotDesktopEnabled?: boolean,
     public readonly features?: ReadonlyArray<string>,
-    public readonly copilotLicenseType?: string
+    public readonly copilotLicenseType?: string,
   ) {}
 
   public withToken(token: string): Account {
@@ -104,15 +88,11 @@ export class Account {
       this.plan,
       this.copilotEndpoint,
       this.isCopilotDesktopEnabled,
-      this.features
-    )
+      this.features,
+    );
   }
 
-  public withRefreshToken(
-    token: string,
-    refreshToken: string,
-    tokenExpiresAt: number
-  ): Account {
+  public withRefreshToken(token: string, refreshToken: string, tokenExpiresAt: number): Account {
     return new Account(
       this.login,
       this.endpoint,
@@ -127,8 +107,8 @@ export class Account {
       this.copilotEndpoint,
       this.isCopilotDesktopEnabled,
       this.features,
-      this.copilotLicenseType
-    )
+      this.copilotLicenseType,
+    );
   }
 
   /**
@@ -138,7 +118,7 @@ export class Account {
    * However, if not defined, we return the login
    */
   public get friendlyName(): string {
-    return this.name !== '' ? this.name : this.login
+    return this.name !== "" ? this.name : this.login;
   }
 
   /**
@@ -150,30 +130,30 @@ export class Account {
    */
   public get friendlyEndpoint(): string {
     return (this._friendlyEndpoint ??= isDotComAccount(this)
-      ? 'GitHub.com'
-      : new URL(getHTMLURL(this.endpoint)).hostname)
+      ? "GitHub.com"
+      : new URL(getHTMLURL(this.endpoint)).hostname);
   }
 
   public get apiType(): AccountAPIType {
-    return (this._apiType ??= this.computeApiType())
+    return (this._apiType ??= this.computeApiType());
   }
 
   private computeApiType(): AccountAPIType {
     if (this.endpoint === getDotComAPIEndpoint()) {
-      return 'dotcom'
+      return "dotcom";
     } else if (this.endpoint === getBitbucketAPIEndpoint()) {
-      return 'bitbucket'
+      return "bitbucket";
     } else if (this.endpoint === getGitLabAPIEndpoint()) {
-      return 'gitlab'
+      return "gitlab";
     } else if (this.endpoint === getCodebergAPIEndpoint()) {
-      return 'codeberg'
+      return "codeberg";
     } else {
-      return 'enterprise'
+      return "enterprise";
     }
   }
 
   public get isAnonymous() {
-    return this.login === '' && this.token === ''
+    return this.login === "" && this.token === "";
   }
 }
 
@@ -181,12 +161,10 @@ export class Account {
  * Whether or not the given account is a GitHub.com account as opposed to
  * a GitHub Enteprise account.
  */
-export const isDotComAccount = (account: Account) =>
-  account.apiType === 'dotcom'
+export const isDotComAccount = (account: Account) => account.apiType === "dotcom";
 
 /**
  * Whether or not the given account is a GitHub Enterprise account (as opposed to
  * a GitHub.com account)
  */
-export const isEnterpriseAccount = (account: Account) =>
-  account.apiType === 'enterprise'
+export const isEnterpriseAccount = (account: Account) => account.apiType === "enterprise";

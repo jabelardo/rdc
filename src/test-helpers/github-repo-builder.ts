@@ -1,8 +1,8 @@
-import { GitHubRepository } from '../models/github-repository'
-import { Owner } from '../models/owner'
-import { getDotComAPIEndpoint } from '../lib/api'
+import { GitHubRepository } from "../models/github-repository";
+import { Owner } from "../models/owner";
+import { getDotComAPIEndpoint } from "../lib/api";
 
-let id_counter = 0
+let id_counter = 0;
 
 /**
  * Most of these fields are passed on to the
@@ -11,20 +11,20 @@ let id_counter = 0
  * Notable exception: `endpoint`
  */
 interface IGitHubRepoFixtureOptions {
-  owner: string
-  name: string
-  parent?: GitHubRepository
+  owner: string;
+  name: string;
+  parent?: GitHubRepository;
   /** defaults to 'main' */
-  defaultBranch?: string
-  isPrivate?: boolean
+  defaultBranch?: string;
+  isPrivate?: boolean;
 
   /**
    * Defaults to github.com if omitted.
    * We make an attempt at constructing a meaningful non-github.com
    * clone url and html url from this, even if its ''.
    */
-  endpoint?: string
-  login?: string
+  endpoint?: string;
+  login?: string;
 }
 
 /**
@@ -42,17 +42,11 @@ export function gitHubRepoFixture({
   isPrivate,
   login,
 }: IGitHubRepoFixtureOptions): GitHubRepository {
-  const htmlUrl = `${
-    endpoint !== undefined ? endpoint : 'https://github.com'
-  }/${owner}/${name}`
+  const htmlUrl = `${endpoint !== undefined ? endpoint : "https://github.com"}/${owner}/${name}`;
   return new GitHubRepository(
     name,
-    'github',
-    new Owner(
-      owner,
-      endpoint !== undefined ? endpoint : getDotComAPIEndpoint(),
-      id_counter++
-    ),
+    "github",
+    new Owner(owner, endpoint !== undefined ? endpoint : getDotComAPIEndpoint(), id_counter++),
     login,
     id_counter++,
     isPrivate !== undefined ? isPrivate : null,
@@ -61,6 +55,6 @@ export function gitHubRepoFixture({
     null,
     null,
     null,
-    parent
-  )
+    parent,
+  );
 }

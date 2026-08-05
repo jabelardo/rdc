@@ -1,8 +1,8 @@
-import { CloneStore } from './clone-store'
+import { CloneStore } from "./clone-store";
 
-let defaultCloneStore: CloneStore | undefined
+let defaultCloneStore: CloneStore | undefined;
 
 export function getDefaultCloneStore(): CloneStore {
-  defaultCloneStore ??= new CloneStore()
-  return defaultCloneStore
+  defaultCloneStore ??= new CloneStore();
+  return defaultCloneStore;
 }

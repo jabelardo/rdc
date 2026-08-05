@@ -1,6 +1,6 @@
-import { IAPIEmail } from './api'
-import { Account } from '../models/account'
-import { isCodeberg, isDotCom, isGHE, isGHES } from './endpoint-capabilities'
+import { IAPIEmail } from "./api";
+import { Account } from "../models/account";
+import { isCodeberg, isDotCom, isGHE, isGHES } from "./endpoint-capabilities";
 
 /**
  * Lookup a suitable email address to display in the application, based on the
@@ -15,27 +15,25 @@ import { isCodeberg, isDotCom, isGHE, isGHES } from './endpoint-capabilities'
  * @param emails array of email addresses associated with an account
  */
 export function lookupPreferredEmail(account: Account): string {
-  const emails = account.emails
+  const emails = account.emails;
 
   if (emails.length === 0) {
-    return getStealthEmailForUser(account.id, account.login, account.endpoint)
+    return getStealthEmailForUser(account.id, account.login, account.endpoint);
   }
 
-  const primary = emails.find(e => e.primary)
+  const primary = emails.find((e) => e.primary);
   if (primary && isEmailPublic(primary)) {
-    return primary.email
+    return primary.email;
   }
 
-  const stealthSuffix = `@${getStealthEmailHostForEndpoint(account.endpoint)}`
-  const noReply = emails.find(e =>
-    e.email.toLowerCase().endsWith(stealthSuffix)
-  )
+  const stealthSuffix = `@${getStealthEmailHostForEndpoint(account.endpoint)}`;
+  const noReply = emails.find((e) => e.email.toLowerCase().endsWith(stealthSuffix));
 
   if (noReply) {
-    return noReply.email
+    return noReply.email;
   }
 
-  return emails[0].email
+  return emails[0].email;
 }
 
 /**
@@ -44,7 +42,7 @@ export function lookupPreferredEmail(account: Account): string {
 function isEmailPublic(email: IAPIEmail): boolean {
   // If an email doesn't have a visibility setting it means it's coming from an
   // older Enterprise version which doesn't have the concept of visibility.
-  return email.visibility === 'public' || !email.visibility
+  return email.visibility === "public" || !email.visibility;
 }
 
 /**
@@ -54,16 +52,16 @@ function isEmailPublic(email: IAPIEmail): boolean {
  */
 const getStealthEmailHostForEndpoint = (endpoint: string) => {
   if (isGHES(endpoint)) {
-    return `users.noreply.${new URL(endpoint).hostname}`
+    return `users.noreply.${new URL(endpoint).hostname}`;
   } else if (isDotCom(endpoint)) {
-    return 'users.noreply.github.com'
+    return "users.noreply.github.com";
   } else if (isCodeberg(endpoint)) {
     // https://codeberg.org/forgejo/forgejo/issues/5055
-    return `noreply.${new URL(endpoint).hostname}`
+    return `noreply.${new URL(endpoint).hostname}`;
   } else {
-    return `[unknown email]`
+    return `[unknown email]`;
   }
-}
+};
 
 /**
  * Generate a legacy stealth email address for the user
@@ -77,8 +75,8 @@ const getStealthEmailHostForEndpoint = (endpoint: string) => {
  *                 instance
  */
 export function getLegacyStealthEmailForUser(login: string, endpoint: string) {
-  const stealthEmailHost = getStealthEmailHostForEndpoint(endpoint)
-  return `${login}@${stealthEmailHost}`
+  const stealthEmailHost = getStealthEmailHostForEndpoint(endpoint);
+  return `${login}@${stealthEmailHost}`;
 }
 
 /**
@@ -89,7 +87,7 @@ export function getLegacyStealthEmailForUser(login: string, endpoint: string) {
  * Ex: 123456+desktop@users.noreply.github.com
  */
 export const getStealthEmailForAccount = (account: Account) =>
-  getStealthEmailForUser(account.id, account.login, account.endpoint)
+  getStealthEmailForUser(account.id, account.login, account.endpoint);
 
 /**
  * Generate a stealth email address for the user on the given
@@ -105,16 +103,12 @@ export const getStealthEmailForAccount = (account: Account) =>
  *                 either GitHub.com or a GitHub Enterprise
  *                 instance
  */
-export function getStealthEmailForUser(
-  id: number,
-  login: string,
-  endpoint: string
-) {
+export function getStealthEmailForUser(id: number, login: string, endpoint: string) {
   if (!isDotCom(endpoint) && !isGHE(endpoint) && !isGHES(endpoint)) {
-    return getLegacyStealthEmailForUser(login, endpoint)
+    return getLegacyStealthEmailForUser(login, endpoint);
   }
-  const stealthEmailHost = getStealthEmailHostForEndpoint(endpoint)
-  return `${id}+${login}@${stealthEmailHost}`
+  const stealthEmailHost = getStealthEmailHostForEndpoint(endpoint);
+  return `${id}+${login}@${stealthEmailHost}`;
 }
 
 /**
@@ -132,15 +126,15 @@ export function getStealthEmailForUser(
  *  13171334+desktop@users.noreply.github.com
  */
 export const isAttributableEmailFor = (account: Account, email: string) => {
-  const { id, login, endpoint, emails } = account
-  const needle = email.toLowerCase()
+  const { id, login, endpoint, emails } = account;
+  const needle = email.toLowerCase();
 
   return (
-    emails.some(e => e.verified && e.email.toLowerCase() === needle) ||
+    emails.some((e) => e.verified && e.email.toLowerCase() === needle) ||
     getStealthEmailForUser(id, login, endpoint).toLowerCase() === needle ||
     getLegacyStealthEmailForUser(login, endpoint).toLowerCase() === needle
-  )
-}
+  );
+};
 
 /**
  * A regular expression meant to match both the legacy format GitHub.com
@@ -149,16 +143,16 @@ export const isAttributableEmailFor = (account: Account, email: string) => {
  * Yields two capture groups, the first being an optional capture of the
  * user id and the second being the mandatory login.
  */
-const StealthEmailRegexp = /^(?:(\d+)\+)?(.+?)@(users\.noreply\..+)$/i
+const StealthEmailRegexp = /^(?:(\d+)\+)?(.+?)@(users\.noreply\..+)$/i;
 
 export const parseStealthEmail = (email: string, endpoint: string) => {
-  const stealthEmailHost = getStealthEmailHostForEndpoint(endpoint)
-  const match = StealthEmailRegexp.exec(email)
+  const stealthEmailHost = getStealthEmailHostForEndpoint(endpoint);
+  const match = StealthEmailRegexp.exec(email);
 
   if (!match || stealthEmailHost !== match[3]) {
-    return null
+    return null;
   }
 
-  const [, id, login] = match
-  return { id: id ? parseInt(id, 10) : undefined, login }
-}
+  const [, id, login] = match;
+  return { id: id ? parseInt(id, 10) : undefined, login };
+};

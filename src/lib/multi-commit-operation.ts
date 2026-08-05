@@ -1,11 +1,11 @@
-import { Branch } from '../models/branch'
+import { Branch } from "../models/branch";
 import {
   ChooseBranchStep,
   conflictSteps,
   MultiCommitOperationStepKind,
-} from '../models/multi-commit-operation'
-import { TipState } from '../models/tip'
-import { IBranchesState } from './app-state/branches-state'
+} from "../models/multi-commit-operation";
+import { TipState } from "../models/tip";
+import { IBranchesState } from "./app-state/branches-state";
 
 /**
  * MIGRATION NOTE — the two parameter types below were **narrowed to the subset each function
@@ -22,13 +22,13 @@ import { IBranchesState } from './app-state/branches-state'
 
 /** The part of the repository state needed to choose a base branch. */
 type RepositoryStateForChooseBranch = {
-  readonly branchesState: IBranchesState
-}
+  readonly branchesState: IBranchesState;
+};
 
 /** The part of a multi-commit-operation's state needed to tell whether it is in a conflicts step. */
 type OperationStateForConflictsFlow = {
-  readonly step: { readonly kind: MultiCommitOperationStepKind }
-}
+  readonly step: { readonly kind: MultiCommitOperationStepKind };
+};
 
 /**
  * Setup the multi commit operation state when the user needs to select a branch as the
@@ -37,18 +37,17 @@ type OperationStateForConflictsFlow = {
 export function getMultiCommitOperationChooseBranchStep(
   state: RepositoryStateForChooseBranch,
   initialBranch?: Branch | null,
-  sourceBranch?: Branch
+  sourceBranch?: Branch,
 ): ChooseBranchStep {
-  const { defaultBranch, allBranches, recentBranches, tip } =
-    state.branchesState
-  let currentBranch: Branch | null = null
+  const { defaultBranch, allBranches, recentBranches, tip } = state.branchesState;
+  let currentBranch: Branch | null = null;
 
   if (tip.kind === TipState.Valid) {
-    currentBranch = tip.branch
+    currentBranch = tip.branch;
   } else {
     throw new Error(
-      'Tip is not in a valid state, which is required to start the multi commit operation'
-    )
+      "Tip is not in a valid state, which is required to start the multi commit operation",
+    );
   }
 
   return {
@@ -58,16 +57,16 @@ export function getMultiCommitOperationChooseBranchStep(
     allBranches,
     recentBranches,
     initialBranch: initialBranch !== null ? initialBranch : undefined,
-  }
+  };
 }
 
 export function isConflictsFlow(
   isMultiCommitOperationPopupOpen: boolean,
-  multiCommitOperationState: OperationStateForConflictsFlow | null
+  multiCommitOperationState: OperationStateForConflictsFlow | null,
 ): boolean {
   return (
     isMultiCommitOperationPopupOpen &&
     multiCommitOperationState !== null &&
     conflictSteps.includes(multiCommitOperationState.step.kind)
-  )
+  );
 }

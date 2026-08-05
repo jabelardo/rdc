@@ -1,25 +1,25 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const getPath = vi.hoisted(() => vi.fn())
-const showFolderContents = vi.hoisted(() => vi.fn())
+const getPath = vi.hoisted(() => vi.fn());
+const showFolderContents = vi.hoisted(() => vi.fn());
 
-vi.mock('../platform/paths', () => ({ getPath }))
-vi.mock('../platform/files', () => ({ showFolderContents }))
+vi.mock("../platform/paths", () => ({ getPath }));
+vi.mock("../platform/files", () => ({ showFolderContents }));
 
-const { showApplicationLogs } = await import('./logs')
+const { showApplicationLogs } = await import("./logs");
 
-describe('application log recovery', () => {
+describe("application log recovery", () => {
   beforeEach(() => {
-    getPath.mockReset()
-    showFolderContents.mockReset()
-    getPath.mockResolvedValue('/logs/rdc')
-    showFolderContents.mockResolvedValue(undefined)
-  })
+    getPath.mockReset();
+    showFolderContents.mockReset();
+    getPath.mockResolvedValue("/logs/rdc");
+    showFolderContents.mockResolvedValue(undefined);
+  });
 
-  it('opens the application log directory through the guarded folder boundary', async () => {
-    await showApplicationLogs()
+  it("opens the application log directory through the guarded folder boundary", async () => {
+    await showApplicationLogs();
 
-    expect(getPath).toHaveBeenCalledWith('logs')
-    expect(showFolderContents).toHaveBeenCalledWith('/logs/rdc')
-  })
-})
+    expect(getPath).toHaveBeenCalledWith("logs");
+    expect(showFolderContents).toHaveBeenCalledWith("/logs/rdc");
+  });
+});

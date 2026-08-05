@@ -2,6 +2,6 @@
 // as `--ours` and `--theirs` to git checkout. Please be careful
 // when modifying this type.
 export enum ManualConflictResolution {
-  theirs = 'theirs',
-  ours = 'ours',
+  theirs = "theirs",
+  ours = "ours",
 }

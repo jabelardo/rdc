@@ -1,6 +1,6 @@
 /** Throw an error. */
 export function fatalError(msg: string): never {
-  throw new Error(msg)
+  throw new Error(msg);
 }
 
 /**
@@ -16,7 +16,7 @@ export function fatalError(msg: string): never {
  * @param message   The message to be used in the runtime exception.
  */
 export function assertNever(_x: never, message: string): never {
-  throw new Error(message)
+  throw new Error(message);
 }
 
 /**
@@ -27,9 +27,9 @@ export function assertNever(_x: never, message: string): never {
  */
 export function forceUnwrap<T>(message: string, x: T | null | undefined): T {
   if (x == null) {
-    return fatalError(message)
+    return fatalError(message);
   } else {
-    return x
+    return x;
   }
 }
 
@@ -39,11 +39,8 @@ export function forceUnwrap<T>(message: string, x: T | null | undefined): T {
  * this will throw. The message should contain the rationale for knowing the
  * value is defined.
  */
-export function assertNonNullable<T>(
-  x: T,
-  message: string
-): asserts x is NonNullable<T> {
+export function assertNonNullable<T>(x: T, message: string): asserts x is NonNullable<T> {
   if (x == null) {
-    return fatalError(message)
+    return fatalError(message);
   }
 }

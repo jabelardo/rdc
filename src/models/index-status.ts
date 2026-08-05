@@ -33,4 +33,4 @@ export type NoRenameIndexStatus =
   | IndexStatus.Modified
   | IndexStatus.TypeChanged
   | IndexStatus.Unmerged
-  | IndexStatus.Unknown
+  | IndexStatus.Unknown;

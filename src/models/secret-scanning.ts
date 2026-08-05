@@ -16,12 +16,12 @@
 
 /** The reason a user gives for bypassing push protection. */
 export enum BypassReason {
-  FalsePositive = 'false_positive',
-  UsedInTests = 'used_in_tests',
-  WillFixLater = 'will_fix_later',
+  FalsePositive = "false_positive",
+  UsedInTests = "used_in_tests",
+  WillFixLater = "will_fix_later",
 }
 
 export type BypassReasonType =
   | BypassReason.FalsePositive
   | BypassReason.UsedInTests
-  | BypassReason.WillFixLater
+  | BypassReason.WillFixLater;

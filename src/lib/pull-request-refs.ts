@@ -1,6 +1,6 @@
-import { Commit } from '../models/commit'
-import { PullRequest } from '../models/pull-request'
-import { IssueReference } from './markdown-filters/issue-reference'
+import { Commit } from "../models/commit";
+import { PullRequest } from "../models/pull-request";
+import { IssueReference } from "./markdown-filters/issue-reference";
 
 /**
  * The canonical issue/PR reference matcher (the same one used to linkify
@@ -8,10 +8,7 @@ import { IssueReference } from './markdown-filters/issue-reference'
  * anchored on a non-word "leader" so we don't match tokens like `abc#123`
  * and made global so we can scan a whole commit message.
  */
-const IssueReferenceMatcher = new RegExp(
-  '(?<=^|\\W)' + IssueReference.source,
-  'gi'
-)
+const IssueReferenceMatcher = new RegExp("(?<=^|\\W)" + IssueReference.source, "gi");
 
 /**
  * Extract pull request numbers referenced in a list of commits by scanning
@@ -31,43 +28,43 @@ const IssueReferenceMatcher = new RegExp(
  * Numbers are returned in first-seen order with duplicates removed.
  */
 export function extractPullRequestNumbersFromCommits(
-  commits: ReadonlyArray<Commit>
+  commits: ReadonlyArray<Commit>,
 ): ReadonlyArray<number> {
-  const seen = new Set<number>()
-  const result: Array<number> = []
+  const seen = new Set<number>();
+  const result: Array<number> = [];
 
   for (const commit of commits) {
-    const fields = [commit.summary, commit.body]
+    const fields = [commit.summary, commit.body];
     for (const field of fields) {
       if (!field) {
-        continue
+        continue;
       }
       for (const match of field.matchAll(IssueReferenceMatcher)) {
-        const groups = match.groups
+        const groups = match.groups;
         if (groups === undefined) {
-          continue
+          continue;
         }
 
-        const { refNumber, ownerOrOwnerRepo, marker } = groups
+        const { refNumber, ownerOrOwnerRepo, marker } = groups;
         // Only bare, same-repo references via `#`/`gh-`; skip cross-repo
         // prefixes and URL-style markers we can't safely resolve here.
         if (ownerOrOwnerRepo !== undefined) {
-          continue
+          continue;
         }
-        if (marker !== '#' && marker?.toLowerCase() !== 'gh-') {
-          continue
+        if (marker !== "#" && marker?.toLowerCase() !== "gh-") {
+          continue;
         }
 
-        const prNumber = parseInt(refNumber, 10)
+        const prNumber = parseInt(refNumber, 10);
         if (prNumber > 0 && !seen.has(prNumber)) {
-          seen.add(prNumber)
-          result.push(prNumber)
+          seen.add(prNumber);
+          result.push(prNumber);
         }
       }
     }
   }
 
-  return result
+  return result;
 }
 
 /**
@@ -77,23 +74,23 @@ export function extractPullRequestNumbersFromCommits(
  */
 export function findPullRequestsByNumbers(
   numbers: ReadonlyArray<number>,
-  pullRequests: ReadonlyArray<PullRequest>
+  pullRequests: ReadonlyArray<PullRequest>,
 ): ReadonlyArray<PullRequest> {
   if (numbers.length === 0 || pullRequests.length === 0) {
-    return []
+    return [];
   }
 
-  const byNumber = new Map<number, PullRequest>()
+  const byNumber = new Map<number, PullRequest>();
   for (const pr of pullRequests) {
-    byNumber.set(pr.pullRequestNumber, pr)
+    byNumber.set(pr.pullRequestNumber, pr);
   }
 
-  const result: Array<PullRequest> = []
+  const result: Array<PullRequest> = [];
   for (const prNumber of numbers) {
-    const match = byNumber.get(prNumber)
+    const match = byNumber.get(prNumber);
     if (match !== undefined) {
-      result.push(match)
+      result.push(match);
     }
   }
-  return result
+  return result;
 }

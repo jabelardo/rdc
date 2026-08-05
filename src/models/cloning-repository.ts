@@ -1,24 +1,24 @@
-import { basename } from '../lib/path-utils'
+import { basename } from "../lib/path-utils";
 
 /**
  * A sufficiently large number that it's unlikely it'll ever collide with the id
  * of a real repository which is auto-incremented in the database. If someone
  * adds more that 1M repos, all bets are off.
  */
-let CloningRepositoryID = 1_000_000
+let CloningRepositoryID = 1_000_000;
 
 /** A repository which is currently being cloned. */
 export class CloningRepository {
-  public readonly id = CloningRepositoryID++
+  public readonly id = CloningRepositoryID++;
 
   public constructor(
     public readonly path: string,
     public readonly url: string,
-    public readonly login: string | null
+    public readonly login: string | null,
   ) {}
 
   public get name(): string {
-    return basename(this.url, '.git')
+    return basename(this.url, ".git");
   }
 
   /**
@@ -27,6 +27,6 @@ export class CloningRepository {
    * Objects with the same hash are guaranteed to be structurally equal.
    */
   public get hash(): string {
-    return `${this.id}+${this.path}+${this.url}+${this.login}`
+    return `${this.id}+${this.path}+${this.url}+${this.login}`;
   }
 }

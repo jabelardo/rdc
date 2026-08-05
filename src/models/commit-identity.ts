@@ -20,43 +20,43 @@ export class CommitIdentity {
     // Note also that this expects a date formatted with the RAW option in git see:
     //  https://github.com/git/git/blob/35f6318d4/date.c#L191
     //
-    const m = identity.match(/^(.*?) <(.*?)> (\d+) (\+|-)?(\d{2})(\d{2})/)
+    const m = identity.match(/^(.*?) <(.*?)> (\d+) (\+|-)?(\d{2})(\d{2})/);
     if (!m) {
-      throw new Error(`Couldn't parse identity ${identity}`)
+      throw new Error(`Couldn't parse identity ${identity}`);
     }
 
-    const name = m[1]
-    const email = m[2]
+    const name = m[1];
+    const email = m[2];
     // The date is specified as seconds from the epoch,
     // Date() expects milliseconds since the epoch.
-    const date = new Date(parseInt(m[3], 10) * 1000)
+    const date = new Date(parseInt(m[3], 10) * 1000);
 
     if (isNaN(date.valueOf())) {
-      throw new Error(`Couldn't parse identity ${identity}, invalid date`)
+      throw new Error(`Couldn't parse identity ${identity}, invalid date`);
     }
 
     // The RAW option never uses alphanumeric timezone identifiers and in my
     // testing I've never found it to omit the leading + for a positive offset
     // but the docs for strprintf seems to suggest it might on some systems so
     // we're playing it safe.
-    const tzSign = m[4] === '-' ? '-' : '+'
-    const tzHH = m[5]
-    const tzmm = m[6]
+    const tzSign = m[4] === "-" ? "-" : "+";
+    const tzHH = m[5];
+    const tzmm = m[6];
 
-    const tzMinutes = parseInt(tzHH, 10) * 60 + parseInt(tzmm, 10)
-    const tzOffset = tzMinutes * (tzSign === '-' ? -1 : 1)
+    const tzMinutes = parseInt(tzHH, 10) * 60 + parseInt(tzmm, 10);
+    const tzOffset = tzMinutes * (tzSign === "-" ? -1 : 1);
 
-    return new CommitIdentity(name, email, date, tzOffset)
+    return new CommitIdentity(name, email, date, tzOffset);
   }
 
   public constructor(
     public readonly name: string,
     public readonly email: string,
     public readonly date: Date,
-    public readonly tzOffset: number = new Date().getTimezoneOffset()
+    public readonly tzOffset: number = new Date().getTimezoneOffset(),
   ) {}
 
   public toString() {
-    return `${this.name} <${this.email}>`
+    return `${this.name} <${this.email}>`;
   }
 }

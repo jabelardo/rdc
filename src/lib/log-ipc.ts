@@ -12,23 +12,23 @@
  * *arguments* and the derived fields come out of the constructor for free.
  */
 
-import { invoke } from '@tauri-apps/api/core'
-import { Commit } from '../models/commit'
-import { CommitIdentity } from '../models/commit-identity'
-import { CommittedFileChange, type AppFileStatus } from '../models/status'
-import type { ITrailer } from '../models/trailer'
+import { invoke } from "@tauri-apps/api/core";
+import { Commit } from "../models/commit";
+import { CommitIdentity } from "../models/commit-identity";
+import { CommittedFileChange, type AppFileStatus } from "../models/status";
+import type { ITrailer } from "../models/trailer";
 
 /** A {@linkcode CommitIdentity} as it arrives over IPC. */
 export interface ICommitIdentityData {
-  readonly name: string
-  readonly email: string
+  readonly name: string;
+  readonly email: string;
   /**
    * Seconds since the Unix epoch.
    *
    * A number rather than a formatted string, so there is one representation of "when" on the wire
    * and no re-parsing here.
    */
-  readonly date: number
+  readonly date: number;
   /**
    * Offset from UTC in minutes, positive east of Greenwich.
    *
@@ -37,54 +37,47 @@ export interface ICommitIdentityData {
    * uses `getTimezoneOffset()` — and it is preserved rather than corrected, because flipping it would
    * silently shift every timestamp the UI renders.
    */
-  readonly tzOffset: number
+  readonly tzOffset: number;
 }
 
 /** A {@linkcode Commit} as it arrives over IPC: the constructor's arguments. */
 export interface ICommitData {
-  readonly sha: string
-  readonly shortSha: string
-  readonly summary: string
-  readonly body: string
-  readonly author: ICommitIdentityData
-  readonly committer: ICommitIdentityData
-  readonly parentSHAs: ReadonlyArray<string>
-  readonly trailers: ReadonlyArray<ITrailer>
-  readonly tags: ReadonlyArray<string>
+  readonly sha: string;
+  readonly shortSha: string;
+  readonly summary: string;
+  readonly body: string;
+  readonly author: ICommitIdentityData;
+  readonly committer: ICommitIdentityData;
+  readonly parentSHAs: ReadonlyArray<string>;
+  readonly trailers: ReadonlyArray<ITrailer>;
+  readonly tags: ReadonlyArray<string>;
 }
 
 /** A {@linkcode CommittedFileChange} as it arrives over IPC. */
 export interface ICommittedFileChangeData {
-  readonly path: string
-  readonly status: AppFileStatus
-  readonly commitish: string
-  readonly parentCommitish: string
+  readonly path: string;
+  readonly status: AppFileStatus;
+  readonly commitish: string;
+  readonly parentCommitish: string;
 }
 
 /** What a commit changed, and by how much. */
 export interface IChangesetData {
-  readonly files: ReadonlyArray<CommittedFileChange>
-  readonly linesAdded: number
-  readonly linesDeleted: number
+  readonly files: ReadonlyArray<CommittedFileChange>;
+  readonly linesAdded: number;
+  readonly linesDeleted: number;
 }
 
 /** {@linkcode IChangesetData} before hydration. */
 export interface IChangesetDataWire {
-  readonly files: ReadonlyArray<ICommittedFileChangeData>
-  readonly linesAdded: number
-  readonly linesDeleted: number
+  readonly files: ReadonlyArray<ICommittedFileChangeData>;
+  readonly linesAdded: number;
+  readonly linesDeleted: number;
 }
 
-export function hydrateCommitIdentity(
-  data: ICommitIdentityData
-): CommitIdentity {
+export function hydrateCommitIdentity(data: ICommitIdentityData): CommitIdentity {
   // The wire carries seconds; `Date` takes milliseconds.
-  return new CommitIdentity(
-    data.name,
-    data.email,
-    new Date(data.date * 1000),
-    data.tzOffset
-  )
+  return new CommitIdentity(data.name, data.email, new Date(data.date * 1000), data.tzOffset);
 }
 
 /**
@@ -101,19 +94,12 @@ export function hydrateCommit(data: ICommitData): Commit {
     hydrateCommitIdentity(data.committer),
     data.parentSHAs,
     data.trailers,
-    data.tags
-  )
+    data.tags,
+  );
 }
 
-export function hydrateCommittedFileChange(
-  data: ICommittedFileChangeData
-): CommittedFileChange {
-  return new CommittedFileChange(
-    data.path,
-    data.status,
-    data.commitish,
-    data.parentCommitish
-  )
+export function hydrateCommittedFileChange(data: ICommittedFileChangeData): CommittedFileChange {
+  return new CommittedFileChange(data.path, data.status, data.commitish, data.parentCommitish);
 }
 
 export function hydrateChangesetData(data: IChangesetDataWire): IChangesetData {
@@ -121,7 +107,7 @@ export function hydrateChangesetData(data: IChangesetDataWire): IChangesetData {
     files: data.files.map(hydrateCommittedFileChange),
     linesAdded: data.linesAdded,
     linesDeleted: data.linesDeleted,
-  }
+  };
 }
 
 /**
@@ -135,41 +121,38 @@ export async function getCommits(
   revisionRange?: string,
   limit?: number,
   skip?: number,
-  additionalArgs: ReadonlyArray<string> = []
+  additionalArgs: ReadonlyArray<string> = [],
 ): Promise<ReadonlyArray<Commit>> {
-  const commits = await invoke<ReadonlyArray<ICommitData>>('get_commits', {
+  const commits = await invoke<ReadonlyArray<ICommitData>>("get_commits", {
     repositoryPath,
     revisionRange,
     limit,
     skip,
     additionalArgs,
-  })
+  });
 
-  return commits.map(hydrateCommit)
+  return commits.map(hydrateCommit);
 }
 
 /** Reads a single commit, or `null` if `reference` doesn't resolve to one. */
-export async function getCommit(
-  repositoryPath: string,
-  reference: string
-): Promise<Commit | null> {
-  const commit = await invoke<ICommitData | null>('get_commit', {
+export async function getCommit(repositoryPath: string, reference: string): Promise<Commit | null> {
+  const commit = await invoke<ICommitData | null>("get_commit", {
     repositoryPath,
     reference,
-  })
+  });
 
-  return commit === null ? null : hydrateCommit(commit)
+  return commit === null ? null : hydrateCommit(commit);
 }
 
 /** Reads the files a commit changed, with its line counts. */
 export async function getChangedFiles(
   repositoryPath: string,
-  sha: string
+  sha: string,
 ): Promise<IChangesetData> {
-  const changeset = await invoke<IChangesetDataWire>('get_changed_files', {
+  const changeset = await invoke<IChangesetDataWire>("get_changed_files", {
     repositoryPath,
     sha,
-  })
+  });
 
-  return hydrateChangesetData(changeset)
+  return hydrateChangesetData(changeset);
 }

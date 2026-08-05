@@ -1,74 +1,71 @@
-import * as URL from 'url'
-import * as Path from 'path'
+import * as URL from "url";
+import * as Path from "path";
 
-import { Account } from '../models/account'
-import { IRemote } from '../models/remote'
-import { getHTMLURL } from './api'
-import { parseRemote, parseRepositoryIdentifier } from './remote-parsing'
-import { caseInsensitiveEquals } from './compare'
-import { GitHubRepository } from '../models/github-repository'
+import { Account } from "../models/account";
+import { IRemote } from "../models/remote";
+import { getHTMLURL } from "./api";
+import { parseRemote, parseRepositoryIdentifier } from "./remote-parsing";
+import { caseInsensitiveEquals } from "./compare";
+import { GitHubRepository } from "../models/github-repository";
 
 export interface IMatchedGitHubRepository {
   /**
    * The name of the repository, e.g., for https://github.com/user/repo, the
    * name is `repo`.
    */
-  readonly name: string
+  readonly name: string;
 
   /**
    * The login of the owner of the repository, e.g., for
    * https://github.com/user/repo, the owner is `user`.
    */
-  readonly owner: string
+  readonly owner: string;
 
   /** The account matching the repository remote */
-  readonly account: Account
+  readonly account: Account;
 }
 
 /** Try to use the list of users and a remote URL to guess a GitHub repository. */
 export function matchGitHubRepository(
   accounts: ReadonlyArray<Account>,
   remote: string,
-  login: string | null
+  login: string | null,
 ): IMatchedGitHubRepository | null {
-  const parsedRemote = parseRemote(remote)
+  const parsedRemote = parseRemote(remote);
   if (parsedRemote === null) {
-    return null
+    return null;
   }
 
   // If login is null, prefer the owner account, then fallback to the first account with a matching hostname.
-  let hostnameMatch: IMatchedGitHubRepository | null = null
+  let hostnameMatch: IMatchedGitHubRepository | null = null;
 
   for (const account of accounts) {
-    const htmlURL = getHTMLURL(account.endpoint)
-    const { hostname } = URL.parse(htmlURL)
+    const htmlURL = getHTMLURL(account.endpoint);
+    const { hostname } = URL.parse(htmlURL);
 
-    if (
-      hostname !== null &&
-      parsedRemote.hostname.toLowerCase() === hostname.toLowerCase()
-    ) {
+    if (hostname !== null && parsedRemote.hostname.toLowerCase() === hostname.toLowerCase()) {
       const matched: IMatchedGitHubRepository = {
         name: parsedRemote.name,
         owner: parsedRemote.owner,
         account,
-      }
+      };
 
       if (login !== null) {
         if (account.login === login) {
-          return matched
+          return matched;
         }
       } else {
         if (account.login === parsedRemote.owner) {
-          return matched
+          return matched;
         }
         if (hostnameMatch === null) {
-          hostnameMatch = matched
+          hostnameMatch = matched;
         }
       }
     }
   }
 
-  return hostnameMatch
+  return hostnameMatch;
 }
 
 /**
@@ -79,15 +76,15 @@ export function matchGitHubRepository(
  */
 export function matchExistingRepository<T extends { readonly path: string }>(
   repos: ReadonlyArray<T>,
-  path: string
+  path: string,
 ): T | undefined {
   // Windows is guaranteed to be case-insensitive so we can be a bit less strict
   const normalize = __WIN32__
     ? (p: string) => Path.normalize(p).toLowerCase()
-    : (p: string) => Path.normalize(p)
+    : (p: string) => Path.normalize(p);
 
-  const needle = normalize(path)
-  return repos.find(r => normalize(r.path) === needle)
+  const needle = normalize(path);
+  return repos.find((r) => normalize(r.path) === needle);
 }
 
 /**
@@ -98,12 +95,12 @@ export function matchExistingRepository<T extends { readonly path: string }>(
  */
 export function repositoryMatchesRemote(
   gitHubRepository: GitHubRepository,
-  remote: IRemote
+  remote: IRemote,
 ): boolean {
   return (
     urlMatchesRemote(gitHubRepository.htmlURL, remote) ||
     urlMatchesRemote(gitHubRepository.cloneURL, remote)
-  )
+  );
 }
 
 /**
@@ -115,32 +112,32 @@ export function repositoryMatchesRemote(
  */
 export function urlMatchesRemote(url: string | null, remote: IRemote): boolean {
   if (url == null) {
-    return false
+    return false;
   }
 
-  const cloneUrl = parseRemote(url)
-  const remoteUrl = parseRemote(remote.url)
+  const cloneUrl = parseRemote(url);
+  const remoteUrl = parseRemote(remote.url);
 
   if (remoteUrl == null || cloneUrl == null) {
-    return false
+    return false;
   }
 
   if (!caseInsensitiveEquals(remoteUrl.hostname, cloneUrl.hostname)) {
-    return false
+    return false;
   }
 
   if (remoteUrl.owner == null || cloneUrl.owner == null) {
-    return false
+    return false;
   }
 
   if (remoteUrl.name == null || cloneUrl.name == null) {
-    return false
+    return false;
   }
 
   return (
     caseInsensitiveEquals(remoteUrl.owner, cloneUrl.owner) &&
     caseInsensitiveEquals(remoteUrl.name, cloneUrl.name)
-  )
+  );
 }
 
 /**
@@ -149,20 +146,17 @@ export function urlMatchesRemote(url: string | null, remote: IRemote): boolean {
  * @param url A remote-like URL to verify against the existing information
  * @param gitHubRepository GitHub API details for a repository
  */
-export function urlMatchesCloneURL(
-  url: string,
-  gitHubRepository: GitHubRepository
-): boolean {
+export function urlMatchesCloneURL(url: string, gitHubRepository: GitHubRepository): boolean {
   if (gitHubRepository.cloneURL === null) {
-    return false
+    return false;
   }
 
-  return urlsMatch(gitHubRepository.cloneURL, url)
+  return urlsMatch(gitHubRepository.cloneURL, url);
 }
 
 export function urlsMatch(url1: string, url2: string) {
-  const firstIdentifier = parseRepositoryIdentifier(url1)
-  const secondIdentifier = parseRepositoryIdentifier(url2)
+  const firstIdentifier = parseRepositoryIdentifier(url1);
+  const secondIdentifier = parseRepositoryIdentifier(url2);
 
   return (
     firstIdentifier !== null &&
@@ -170,5 +164,5 @@ export function urlsMatch(url1: string, url2: string) {
     firstIdentifier.hostname === secondIdentifier.hostname &&
     firstIdentifier.owner === secondIdentifier.owner &&
     firstIdentifier.name === secondIdentifier.name
-  )
+  );
 }

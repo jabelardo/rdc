@@ -2,21 +2,20 @@
 // ASCII Control chars and space, DEL, ~ ^ : ? * [ \
 // | " < and > is technically a valid refname but not on Windows
 // the magic sequence @{, consecutive dots, leading and trailing dot, ref ending in .lock
-const invalidCharacterRegex =
-  /[\x00-\x20\x7F~^:?*\[\\|""<>]+|@{|\.\.+|^\.|\.$|\.lock$|\/$/g
+const invalidCharacterRegex = /[\x00-\x20\x7F~^:?*\[\\|""<>]+|@{|\.\.+|^\.|\.$|\.lock$|\/$/g;
 
-const alwaysInvalidCharacters = /[\x00-\x20\x7F~^:?*\[\\|""<>]+/g
+const alwaysInvalidCharacters = /[\x00-\x20\x7F~^:?*\[\\|""<>]+/g;
 
 /** Sanitize a proposed reference name by replacing illegal characters. */
 export function sanitizedRefName(name: string): string {
-  return name.replace(invalidCharacterRegex, '-').replace(/^[-\+]*/g, '')
+  return name.replace(invalidCharacterRegex, "-").replace(/^[-\+]*/g, "");
 }
 
 export function almostSanitizedRefName(name: string): string {
-  return name.replace(alwaysInvalidCharacters, '-').replace(/^[-\+]*/g, '')
+  return name.replace(alwaysInvalidCharacters, "-").replace(/^[-\+]*/g, "");
 }
 
 /** Validate that a reference does not contain any invalid characters */
 export function testForInvalidChars(name: string): boolean {
-  return invalidCharacterRegex.test(name)
+  return invalidCharacterRegex.test(name);
 }

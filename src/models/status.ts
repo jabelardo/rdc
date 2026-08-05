@@ -1,41 +1,38 @@
-import { DiffSelection, DiffSelectionType } from './diff'
+import { DiffSelection, DiffSelectionType } from "./diff";
 
 /**
  * The status entry code as reported by Git.
  */
 export enum GitStatusEntry {
-  Modified = 'M',
-  Added = 'A',
-  Deleted = 'D',
-  Renamed = 'R',
-  Copied = 'C',
-  Unchanged = '.',
-  Untracked = '?',
-  Ignored = '!',
-  UpdatedButUnmerged = 'U',
+  Modified = "M",
+  Added = "A",
+  Deleted = "D",
+  Renamed = "R",
+  Copied = "C",
+  Unchanged = ".",
+  Untracked = "?",
+  Ignored = "!",
+  UpdatedButUnmerged = "U",
 }
 
 /** The enum representation of a Git file change in GitHub Desktop. */
 export enum AppFileStatusKind {
-  New = 'New',
-  Modified = 'Modified',
-  Deleted = 'Deleted',
-  Copied = 'Copied',
-  Renamed = 'Renamed',
-  Conflicted = 'Conflicted',
-  Untracked = 'Untracked',
+  New = "New",
+  Modified = "Modified",
+  Deleted = "Deleted",
+  Copied = "Copied",
+  Renamed = "Renamed",
+  Conflicted = "Conflicted",
+  Untracked = "Untracked",
 }
 
 /**
  * Normal changes to a repository detected by GitHub Desktop
  */
 export type PlainFileStatus = {
-  kind:
-    | AppFileStatusKind.New
-    | AppFileStatusKind.Modified
-    | AppFileStatusKind.Deleted
-  submoduleStatus?: SubmoduleStatus
-}
+  kind: AppFileStatusKind.New | AppFileStatusKind.Modified | AppFileStatusKind.Deleted;
+  submoduleStatus?: SubmoduleStatus;
+};
 
 /**
  * Copied or renamed files are change staged in the index that have a source
@@ -45,120 +42,120 @@ export type PlainFileStatus = {
  * `oldPath` of a renamed file will be missing from the working directory.
  */
 export type CopiedOrRenamedFileStatus = {
-  kind: AppFileStatusKind.Copied | AppFileStatusKind.Renamed
-  oldPath: string
-  renameIncludesModifications: boolean
-  submoduleStatus?: SubmoduleStatus
-}
+  kind: AppFileStatusKind.Copied | AppFileStatusKind.Renamed;
+  oldPath: string;
+  renameIncludesModifications: boolean;
+  submoduleStatus?: SubmoduleStatus;
+};
 
 /**
  * Details about a file marked as conflicted in the index which may have
  * conflict markers to inspect.
  */
 export type ConflictsWithMarkers = {
-  kind: AppFileStatusKind.Conflicted
-  entry: TextConflictEntry
-  conflictMarkerCount: number
-  submoduleStatus?: SubmoduleStatus
-}
+  kind: AppFileStatusKind.Conflicted;
+  entry: TextConflictEntry;
+  conflictMarkerCount: number;
+  submoduleStatus?: SubmoduleStatus;
+};
 
 /**
  * Details about a file marked as conflicted in the index which needs to be
  * resolved manually by the user.
  */
 export type ManualConflict = {
-  kind: AppFileStatusKind.Conflicted
-  entry: ManualConflictEntry
-  submoduleStatus?: SubmoduleStatus
-}
+  kind: AppFileStatusKind.Conflicted;
+  entry: ManualConflictEntry;
+  submoduleStatus?: SubmoduleStatus;
+};
 
 /** Union of potential conflict scenarios the application should handle */
-export type ConflictedFileStatus = ConflictsWithMarkers | ManualConflict
+export type ConflictedFileStatus = ConflictsWithMarkers | ManualConflict;
 
 /** Custom typeguard to differentiate Conflict files from other types */
 export function isConflictedFileStatus(
-  appFileStatus: AppFileStatus
+  appFileStatus: AppFileStatus,
 ): appFileStatus is ConflictedFileStatus {
-  return appFileStatus.kind === AppFileStatusKind.Conflicted
+  return appFileStatus.kind === AppFileStatusKind.Conflicted;
 }
 
 /** Custom typeguard to differentiate ConflictsWithMarkers from other Conflict types */
 export function isConflictWithMarkers(
-  conflictedFileStatus: ConflictedFileStatus
+  conflictedFileStatus: ConflictedFileStatus,
 ): conflictedFileStatus is ConflictsWithMarkers {
-  return conflictedFileStatus.hasOwnProperty('conflictMarkerCount')
+  return conflictedFileStatus.hasOwnProperty("conflictMarkerCount");
 }
 
 /** Custom typeguard to differentiate ManualConflict from other Conflict types */
 export function isManualConflict(
-  conflictedFileStatus: ConflictedFileStatus
+  conflictedFileStatus: ConflictedFileStatus,
 ): conflictedFileStatus is ManualConflict {
-  return !conflictedFileStatus.hasOwnProperty('conflictMarkerCount')
+  return !conflictedFileStatus.hasOwnProperty("conflictMarkerCount");
 }
 
 /** Denotes an untracked file in the working directory) */
 export type UntrackedFileStatus = {
-  kind: AppFileStatusKind.Untracked
-  submoduleStatus?: SubmoduleStatus
-}
+  kind: AppFileStatusKind.Untracked;
+  submoduleStatus?: SubmoduleStatus;
+};
 
 /** The union of potential states associated with a file change in Desktop */
 export type AppFileStatus =
   | PlainFileStatus
   | CopiedOrRenamedFileStatus
   | ConflictedFileStatus
-  | UntrackedFileStatus
+  | UntrackedFileStatus;
 
 /** The status of a submodule */
 export type SubmoduleStatus = {
   /** Whether or not the submodule is pointing to a different commit */
-  readonly commitChanged: boolean
+  readonly commitChanged: boolean;
   /**
    * Whether or not the submodule contains modified changes that haven't been
    * committed yet
    */
-  readonly modifiedChanges: boolean
+  readonly modifiedChanges: boolean;
   /**
    * Whether or not the submodule contains untracked changes that haven't been
    * committed yet
    */
-  readonly untrackedChanges: boolean
-}
+  readonly untrackedChanges: boolean;
+};
 
 /** The porcelain status for an ordinary changed entry */
 type OrdinaryEntry = {
-  readonly kind: 'ordinary'
+  readonly kind: "ordinary";
   /** how we should represent the file in the application */
-  readonly type: 'added' | 'modified' | 'deleted'
+  readonly type: "added" | "modified" | "deleted";
   /** the status of the index for this entry (if known) */
-  readonly index?: GitStatusEntry
+  readonly index?: GitStatusEntry;
   /** the status of the working tree for this entry (if known) */
-  readonly workingTree?: GitStatusEntry
+  readonly workingTree?: GitStatusEntry;
   /** the submodule status for this entry */
-  readonly submoduleStatus?: SubmoduleStatus
-}
+  readonly submoduleStatus?: SubmoduleStatus;
+};
 
 /** The porcelain status for a renamed or copied entry */
 type RenamedOrCopiedEntry = {
-  readonly kind: 'renamed' | 'copied'
+  readonly kind: "renamed" | "copied";
   /** the status of the index for this entry (if known) */
-  readonly index?: GitStatusEntry
+  readonly index?: GitStatusEntry;
   /** the status of the working tree for this entry (if known) */
-  readonly workingTree?: GitStatusEntry
+  readonly workingTree?: GitStatusEntry;
   /** the submodule status for this entry */
-  readonly submoduleStatus?: SubmoduleStatus
+  readonly submoduleStatus?: SubmoduleStatus;
   /** The rename or copy score in the case of a renamed file */
-  readonly renameOrCopyScore?: number
-}
+  readonly renameOrCopyScore?: number;
+};
 
 export enum UnmergedEntrySummary {
-  AddedByUs = 'added-by-us',
-  DeletedByUs = 'deleted-by-us',
-  AddedByThem = 'added-by-them',
-  DeletedByThem = 'deleted-by-them',
-  BothDeleted = 'both-deleted',
-  BothAdded = 'both-added',
-  BothModified = 'both-modified',
+  AddedByUs = "added-by-us",
+  DeletedByUs = "deleted-by-us",
+  AddedByThem = "added-by-them",
+  DeletedByThem = "deleted-by-them",
+  BothDeleted = "both-deleted",
+  BothAdded = "both-added",
+  BothModified = "both-modified",
 }
 
 /**
@@ -167,21 +164,21 @@ export enum UnmergedEntrySummary {
  */
 type TextConflictDetails =
   | {
-      readonly action: UnmergedEntrySummary.BothAdded
-      readonly us: GitStatusEntry.Added
-      readonly them: GitStatusEntry.Added
+      readonly action: UnmergedEntrySummary.BothAdded;
+      readonly us: GitStatusEntry.Added;
+      readonly them: GitStatusEntry.Added;
     }
   | {
-      readonly action: UnmergedEntrySummary.BothModified
-      readonly us: GitStatusEntry.UpdatedButUnmerged
-      readonly them: GitStatusEntry.UpdatedButUnmerged
-    }
+      readonly action: UnmergedEntrySummary.BothModified;
+      readonly us: GitStatusEntry.UpdatedButUnmerged;
+      readonly them: GitStatusEntry.UpdatedButUnmerged;
+    };
 
 type TextConflictEntry = {
-  readonly kind: 'conflicted'
+  readonly kind: "conflicted";
   /** the submodule status for this entry */
-  readonly submoduleStatus?: SubmoduleStatus
-} & TextConflictDetails
+  readonly submoduleStatus?: SubmoduleStatus;
+} & TextConflictDetails;
 
 /**
  * Valid Git index states where the user needs to choose one of `us` or `them`
@@ -189,72 +186,68 @@ type TextConflictEntry = {
  */
 type ManualConflictDetails = {
   /** the submodule status for this entry */
-  readonly submoduleStatus?: SubmoduleStatus
+  readonly submoduleStatus?: SubmoduleStatus;
 } & (
   | {
-      readonly action: UnmergedEntrySummary.BothAdded
-      readonly us: GitStatusEntry.Added
-      readonly them: GitStatusEntry.Added
+      readonly action: UnmergedEntrySummary.BothAdded;
+      readonly us: GitStatusEntry.Added;
+      readonly them: GitStatusEntry.Added;
     }
   | {
-      readonly action: UnmergedEntrySummary.BothModified
-      readonly us: GitStatusEntry.UpdatedButUnmerged
-      readonly them: GitStatusEntry.UpdatedButUnmerged
+      readonly action: UnmergedEntrySummary.BothModified;
+      readonly us: GitStatusEntry.UpdatedButUnmerged;
+      readonly them: GitStatusEntry.UpdatedButUnmerged;
     }
   | {
-      readonly action: UnmergedEntrySummary.AddedByUs
-      readonly us: GitStatusEntry.Added
-      readonly them: GitStatusEntry.UpdatedButUnmerged
+      readonly action: UnmergedEntrySummary.AddedByUs;
+      readonly us: GitStatusEntry.Added;
+      readonly them: GitStatusEntry.UpdatedButUnmerged;
     }
   | {
-      readonly action: UnmergedEntrySummary.DeletedByThem
-      readonly us: GitStatusEntry.UpdatedButUnmerged
-      readonly them: GitStatusEntry.Deleted
+      readonly action: UnmergedEntrySummary.DeletedByThem;
+      readonly us: GitStatusEntry.UpdatedButUnmerged;
+      readonly them: GitStatusEntry.Deleted;
     }
   | {
-      readonly action: UnmergedEntrySummary.AddedByThem
-      readonly us: GitStatusEntry.UpdatedButUnmerged
-      readonly them: GitStatusEntry.Added
+      readonly action: UnmergedEntrySummary.AddedByThem;
+      readonly us: GitStatusEntry.UpdatedButUnmerged;
+      readonly them: GitStatusEntry.Added;
     }
   | {
-      readonly action: UnmergedEntrySummary.DeletedByUs
-      readonly us: GitStatusEntry.Deleted
-      readonly them: GitStatusEntry.UpdatedButUnmerged
+      readonly action: UnmergedEntrySummary.DeletedByUs;
+      readonly us: GitStatusEntry.Deleted;
+      readonly them: GitStatusEntry.UpdatedButUnmerged;
     }
   | {
-      readonly action: UnmergedEntrySummary.BothDeleted
-      readonly us: GitStatusEntry.Deleted
-      readonly them: GitStatusEntry.Deleted
+      readonly action: UnmergedEntrySummary.BothDeleted;
+      readonly us: GitStatusEntry.Deleted;
+      readonly them: GitStatusEntry.Deleted;
     }
-)
+);
 
 type ManualConflictEntry = {
-  readonly kind: 'conflicted'
+  readonly kind: "conflicted";
   /** the submodule status for this entry */
-  readonly submoduleStatus?: SubmoduleStatus
-} & ManualConflictDetails
+  readonly submoduleStatus?: SubmoduleStatus;
+} & ManualConflictDetails;
 
 /** The porcelain status for an unmerged entry */
-export type UnmergedEntry = TextConflictEntry | ManualConflictEntry
+export type UnmergedEntry = TextConflictEntry | ManualConflictEntry;
 
 /** The porcelain status for an unmerged entry */
 type UntrackedEntry = {
-  readonly kind: 'untracked'
+  readonly kind: "untracked";
   /** the submodule status for this entry */
-  readonly submoduleStatus?: SubmoduleStatus
-}
+  readonly submoduleStatus?: SubmoduleStatus;
+};
 
 /** The union of possible entries from the git status */
-export type FileEntry =
-  | OrdinaryEntry
-  | RenamedOrCopiedEntry
-  | UnmergedEntry
-  | UntrackedEntry
+export type FileEntry = OrdinaryEntry | RenamedOrCopiedEntry | UnmergedEntry | UntrackedEntry;
 
 /** encapsulate changes to a file associated with a commit */
 export class FileChange {
   /** An ID for the file change. */
-  public readonly id: string
+  public readonly id: string;
 
   /**
    * @param path The relative path to the file in the repository.
@@ -262,32 +255,29 @@ export class FileChange {
    */
   public constructor(
     public readonly path: string,
-    public readonly status: AppFileStatus
+    public readonly status: AppFileStatus,
   ) {
-    if (
-      status.kind === AppFileStatusKind.Renamed ||
-      status.kind === AppFileStatusKind.Copied
-    ) {
-      this.id = `${status.kind}+${path}+${status.oldPath}`
+    if (status.kind === AppFileStatusKind.Renamed || status.kind === AppFileStatusKind.Copied) {
+      this.id = `${status.kind}+${path}+${status.oldPath}`;
     } else {
-      this.id = `${status.kind}+${path}`
+      this.id = `${status.kind}+${path}`;
     }
   }
 
   public isDeleted(): boolean {
-    return this.status.kind === AppFileStatusKind.Deleted
+    return this.status.kind === AppFileStatusKind.Deleted;
   }
 
   public isNew(): boolean {
-    return this.status.kind === AppFileStatusKind.New
+    return this.status.kind === AppFileStatusKind.New;
   }
 
   public isModified(): boolean {
-    return this.status.kind === AppFileStatusKind.Modified
+    return this.status.kind === AppFileStatusKind.Modified;
   }
 
   public isUntracked(): boolean {
-    return this.status.kind === AppFileStatusKind.Untracked
+    return this.status.kind === AppFileStatusKind.Untracked;
   }
 }
 
@@ -302,31 +292,29 @@ export class WorkingDirectoryFileChange extends FileChange {
   public constructor(
     path: string,
     status: AppFileStatus,
-    public readonly selection: DiffSelection
+    public readonly selection: DiffSelection,
   ) {
-    super(path, status)
+    super(path, status);
   }
 
   /** Create a new WorkingDirectoryFileChange with the given includedness. */
   public withIncludeAll(include: boolean): WorkingDirectoryFileChange {
-    const newSelection = include
-      ? this.selection.withSelectAll()
-      : this.selection.withSelectNone()
+    const newSelection = include ? this.selection.withSelectAll() : this.selection.withSelectNone();
 
-    return this.withSelection(newSelection)
+    return this.withSelection(newSelection);
   }
 
   /** Create a new WorkingDirectoryFileChange with the given diff selection. */
   public withSelection(selection: DiffSelection): WorkingDirectoryFileChange {
-    return new WorkingDirectoryFileChange(this.path, this.status, selection)
+    return new WorkingDirectoryFileChange(this.path, this.status, selection);
   }
 
   public isIncludedInCommit(): boolean {
-    return this.selection.getSelectionType() === DiffSelectionType.All
+    return this.selection.getSelectionType() === DiffSelectionType.All;
   }
 
   public isExcludedFromCommit(): boolean {
-    return this.selection.getSelectionType() === DiffSelectionType.None
+    return this.selection.getSelectionType() === DiffSelectionType.None;
   }
 }
 
@@ -344,9 +332,9 @@ export class CommittedFileChange extends FileChange {
     path: string,
     status: AppFileStatus,
     public readonly commitish: string,
-    public readonly parentCommitish: string
+    public readonly parentCommitish: string,
   ) {
-    super(path, status)
+    super(path, status);
   }
 }
 
@@ -354,12 +342,12 @@ export class CommittedFileChange extends FileChange {
 export class WorkingDirectoryStatus {
   /** Create a new status with the given files. */
   public static fromFiles(
-    files: ReadonlyArray<WorkingDirectoryFileChange>
+    files: ReadonlyArray<WorkingDirectoryFileChange>,
   ): WorkingDirectoryStatus {
-    return new WorkingDirectoryStatus(files, getIncludeAllState(files))
+    return new WorkingDirectoryStatus(files, getIncludeAllState(files));
   }
 
-  private readonly fileIxById = new Map<string, number>()
+  private readonly fileIxById = new Map<string, number>();
   /**
    * @param files The list of changes in the repository's working directory.
    * @param includeAll Update the include checkbox state of the form.
@@ -368,52 +356,48 @@ export class WorkingDirectoryStatus {
    */
   private constructor(
     public readonly files: ReadonlyArray<WorkingDirectoryFileChange>,
-    public readonly includeAll: boolean | null = true
+    public readonly includeAll: boolean | null = true,
   ) {
-    files.forEach((f, ix) => this.fileIxById.set(f.id, ix))
+    files.forEach((f, ix) => this.fileIxById.set(f.id, ix));
   }
 
   /**
    * Update the include state of all files in the working directory
    */
   public withIncludeAllFiles(includeAll: boolean): WorkingDirectoryStatus {
-    const newFiles = this.files.map(f => f.withIncludeAll(includeAll))
-    return new WorkingDirectoryStatus(newFiles, includeAll)
+    const newFiles = this.files.map((f) => f.withIncludeAll(includeAll));
+    return new WorkingDirectoryStatus(newFiles, includeAll);
   }
 
   /** Find the file with the given ID. */
   public findFileWithID(id: string): WorkingDirectoryFileChange | null {
-    const ix = this.fileIxById.get(id)
-    return ix !== undefined ? this.files[ix] || null : null
+    const ix = this.fileIxById.get(id);
+    return ix !== undefined ? this.files[ix] || null : null;
   }
 
   /** Find the index of the file with the given ID. Returns -1 if not found */
   public findFileIndexByID(id: string): number {
-    const ix = this.fileIxById.get(id)
-    return ix !== undefined ? ix : -1
+    const ix = this.fileIxById.get(id);
+    return ix !== undefined ? ix : -1;
   }
 }
 
-function getIncludeAllState(
-  files: ReadonlyArray<WorkingDirectoryFileChange>
-): boolean | null {
+function getIncludeAllState(files: ReadonlyArray<WorkingDirectoryFileChange>): boolean | null {
   if (!files.length) {
-    return true
+    return true;
   }
 
-  const allSelected = files.every(
-    f => f.selection.getSelectionType() === DiffSelectionType.All
-  )
+  const allSelected = files.every((f) => f.selection.getSelectionType() === DiffSelectionType.All);
   const noneSelected = files.every(
-    f => f.selection.getSelectionType() === DiffSelectionType.None
-  )
+    (f) => f.selection.getSelectionType() === DiffSelectionType.None,
+  );
 
-  let includeAll: boolean | null = null
+  let includeAll: boolean | null = null;
   if (allSelected) {
-    includeAll = true
+    includeAll = true;
   } else if (noneSelected) {
-    includeAll = false
+    includeAll = false;
   }
 
-  return includeAll
+  return includeAll;
 }

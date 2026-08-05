@@ -1,1 +1,1 @@
-export type AppleActionOnDoubleClick = 'Maximize' | 'Minimize' | 'None'
+export type AppleActionOnDoubleClick = "Maximize" | "Minimize" | "None";

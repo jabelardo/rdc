@@ -8,9 +8,9 @@
 // read back — the assertion would pass even with persistence deleted outright. Selecting the
 // *later-registered* repository makes the fallback the wrong answer, so only real persistence
 // passes.
-import path from 'node:path'
-import { after, before, describe, it } from 'node:test'
-import { until } from 'selenium-webdriver'
+import path from "node:path";
+import { after, before, describe, it } from "node:test";
+import { until } from "selenium-webdriver";
 import {
   commitWorkingTreeBaseline,
   createFixtureRoot,
@@ -25,44 +25,41 @@ import {
   startApplication,
   stopApplication,
   waitForApplicationExit,
-} from './harness.mjs'
+} from "./harness.mjs";
 
-describe('restart recovery', () => {
-  let driver
-  let fixture
-  let secondRepository
+describe("restart recovery", () => {
+  let driver;
+  let fixture;
+  let secondRepository;
 
   before(async () => {
-    fixture = createFixtureRoot()
-    initCanonicalRepository(fixture)
-    commitWorkingTreeBaseline(fixture)
-    secondRepository = path.join(path.dirname(fixture.canonical), 'second')
-    initSimpleRepository(secondRepository)
+    fixture = createFixtureRoot();
+    initCanonicalRepository(fixture);
+    commitWorkingTreeBaseline(fixture);
+    secondRepository = path.join(path.dirname(fixture.canonical), "second");
+    initSimpleRepository(secondRepository);
 
-    driver = await startApplication()
-    await resetRepositoryFixtures(driver)
+    driver = await startApplication();
+    await resetRepositoryFixtures(driver);
     // Seed in order: canonical takes the lower id, so it is what the fallback would choose.
-    await seedRepositoryFixture(driver, fixture.canonical)
-    await seedRepositoryFixture(driver, secondRepository)
-    await driver.navigate().refresh()
-    await selectRepository(driver, secondRepository)
-  })
+    await seedRepositoryFixture(driver, fixture.canonical);
+    await seedRepositoryFixture(driver, secondRepository);
+    await driver.navigate().refresh();
+    await selectRepository(driver, secondRepository);
+  });
 
   after(async () => {
-    await driver?.quit().catch(() => undefined)
-    removeFixtureRoot(fixture)
-  })
+    await driver?.quit().catch(() => undefined);
+    removeFixtureRoot(fixture);
+  });
 
-  it('restores the persisted repository selection after the application process restarts', async () => {
-    stopApplication()
-    await waitForApplicationExit(driver)
-    await driver.quit().catch(() => undefined)
+  it("restores the persisted repository selection after the application process restarts", async () => {
+    stopApplication();
+    await waitForApplicationExit(driver);
+    await driver.quit().catch(() => undefined);
 
-    driver = await startApplication()
-    await expandSidebarSection(driver, 'repositories')
-    await driver.wait(
-      until.elementLocated(repositorySelector(secondRepository, true)),
-      5_000
-    )
-  })
-})
+    driver = await startApplication();
+    await expandSidebarSection(driver, "repositories");
+    await driver.wait(until.elementLocated(repositorySelector(secondRepository, true)), 5_000);
+  });
+});

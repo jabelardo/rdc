@@ -9,36 +9,36 @@ import {
   faSquareCaretUp,
   faSquareMinus,
   faSquarePlus,
-} from '@fortawesome/free-solid-svg-icons'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import type { Branch } from '../../models/branch'
-import type { Repository } from '../../models/repository'
+} from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import type { Branch } from "../../models/branch";
+import type { Repository } from "../../models/repository";
 import {
   type AppFileStatus,
   AppFileStatusKind,
   type WorkingDirectoryFileChange,
-} from '../../models/status'
-import { mapStatus } from '../status'
-import { handleListNavigation } from './list-navigation'
-import { Tooltip } from './tooltip'
-import type { VirtualListRow } from './virtual-list'
+} from "../../models/status";
+import { mapStatus } from "../status";
+import { handleListNavigation } from "./list-navigation";
+import { Tooltip } from "./tooltip";
+import type { VirtualListRow } from "./virtual-list";
 
 function formatBranchModifiedDate(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0')
+  const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
-    date.getDate()
-  )} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+    date.getDate(),
+  )} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 type RepositoryListRowProps = {
-  readonly index: number
-  readonly repositories: ReadonlyArray<Repository>
-  readonly repository: Repository
-  readonly row: VirtualListRow
-  readonly selectedRepository: Repository | null
-  readonly onContextMenu: (repository: Repository, x: number, y: number) => void
-  readonly onSelect: (repository: Repository) => void
-}
+  readonly index: number;
+  readonly repositories: ReadonlyArray<Repository>;
+  readonly repository: Repository;
+  readonly row: VirtualListRow;
+  readonly selectedRepository: Repository | null;
+  readonly onContextMenu: (repository: Repository, x: number, y: number) => void;
+  readonly onSelect: (repository: Repository) => void;
+};
 
 export function RepositoryListRow({
   index,
@@ -49,7 +49,7 @@ export function RepositoryListRow({
   row,
   selectedRepository,
 }: RepositoryListRowProps) {
-  const selected = selectedRepository?.id === repository.id
+  const selected = selectedRepository?.id === repository.id;
   return (
     <li
       ref={row.measureElement}
@@ -65,31 +65,25 @@ export function RepositoryListRow({
           data-keyboard-list-item
           data-keyboard-list-index={index}
           aria-label={`Select ${repository.name}`}
-          aria-current={selected ? 'true' : undefined}
-          tabIndex={
-            selected || (selectedRepository === null && index === 0) ? 0 : -1
-          }
+          aria-current={selected ? "true" : undefined}
+          tabIndex={selected || (selectedRepository === null && index === 0) ? 0 : -1}
           onClick={() => onSelect(repository)}
-          onKeyDown={event =>
+          onKeyDown={(event) =>
             handleListNavigation(
               event,
               index,
               repositories.length,
-              targetIndex => onSelect(repositories[targetIndex]),
-              row.focusIndex
+              (targetIndex) => onSelect(repositories[targetIndex]),
+              row.focusIndex,
             )
           }
-          onContextMenu={event => {
-            event.preventDefault()
-            onContextMenu(repository, event.clientX, event.clientY)
-            event.currentTarget.blur()
+          onContextMenu={(event) => {
+            event.preventDefault();
+            onContextMenu(repository, event.clientX, event.clientY);
+            event.currentTarget.blur();
           }}
         >
-          <FontAwesomeIcon
-            className="repository-list-icon"
-            icon={faFolder}
-            aria-hidden="true"
-          />
+          <FontAwesomeIcon className="repository-list-icon" icon={faFolder} aria-hidden="true" />
           <strong>{repository.name}</strong>
         </button>
       </Tooltip>
@@ -98,29 +92,29 @@ export function RepositoryListRow({
           type="button"
           className="repository-list-actions"
           aria-label={`More actions for ${repository.name}`}
-          onClick={e => {
-            onContextMenu(repository, e.clientX, e.clientY)
-            e.currentTarget.blur()
+          onClick={(e) => {
+            onContextMenu(repository, e.clientX, e.clientY);
+            e.currentTarget.blur();
           }}
         >
           <FontAwesomeIcon icon={faEllipsisVertical} aria-hidden="true" />
         </button>
       </Tooltip>
     </li>
-  )
+  );
 }
 
 type BranchListRowProps = {
-  readonly branch: Branch
-  readonly branches: ReadonlyArray<Branch>
-  readonly currentBranch: string | null
-  readonly groupLabel?: string
-  readonly index: number
-  readonly operationDisabled: boolean
-  readonly row: VirtualListRow
-  readonly onSelect: (branch: Branch) => void
-  readonly onContextMenu?: (branch: Branch, x: number, y: number) => void
-}
+  readonly branch: Branch;
+  readonly branches: ReadonlyArray<Branch>;
+  readonly currentBranch: string | null;
+  readonly groupLabel?: string;
+  readonly index: number;
+  readonly operationDisabled: boolean;
+  readonly row: VirtualListRow;
+  readonly onSelect: (branch: Branch) => void;
+  readonly onContextMenu?: (branch: Branch, x: number, y: number) => void;
+};
 
 export function BranchListRow({
   branch,
@@ -133,14 +127,12 @@ export function BranchListRow({
   onContextMenu,
   row,
 }: BranchListRowProps) {
-  const current = branch.name === currentBranch
-  const unavailable = operationDisabled || current
-  const description = current
-    ? `${branch.name} — current branch`
-    : `Check out ${branch.name}`
+  const current = branch.name === currentBranch;
+  const unavailable = operationDisabled || current;
+  const description = current ? `${branch.name} — current branch` : `Check out ${branch.name}`;
   const tooltipDescription = `${
-    current ? 'Current branch' : 'Check out branch'
-  }\nLast modified: ${formatBranchModifiedDate(branch.tip.author.date)}`
+    current ? "Current branch" : "Check out branch"
+  }\nLast modified: ${formatBranchModifiedDate(branch.tip.author.date)}`;
 
   return (
     <li
@@ -149,9 +141,7 @@ export function BranchListRow({
       data-index={row.virtualIndex}
       style={row.style}
     >
-      {groupLabel !== undefined && (
-        <h3 className="branch-list-group-heading">{groupLabel}</h3>
-      )}
+      {groupLabel !== undefined && <h3 className="branch-list-group-heading">{groupLabel}</h3>}
       <Tooltip label={tooltipDescription}>
         <button
           type="button"
@@ -160,35 +150,35 @@ export function BranchListRow({
           data-keyboard-list-item
           data-keyboard-list-index={index}
           aria-label={description}
-          aria-current={current ? 'true' : undefined}
+          aria-current={current ? "true" : undefined}
           aria-disabled={unavailable}
           tabIndex={current || (currentBranch === null && index === 0) ? 0 : -1}
           onClick={() => {
             if (!unavailable) {
-              onSelect(branch)
+              onSelect(branch);
             }
           }}
-          onKeyDown={event => {
+          onKeyDown={(event) => {
             handleListNavigation(
               event,
               index,
               branches.length,
-              targetIndex => {
-                const target = branches[targetIndex]
+              (targetIndex) => {
+                const target = branches[targetIndex];
                 if (!operationDisabled && target.name !== currentBranch) {
-                  onSelect(target)
+                  onSelect(target);
                 }
               },
-              row.focusIndex
-            )
+              row.focusIndex,
+            );
           }}
           onContextMenu={
             onContextMenu === undefined
               ? undefined
-              : event => {
-                  event.preventDefault()
-                  onContextMenu(branch, event.clientX, event.clientY)
-                  event.currentTarget.blur()
+              : (event) => {
+                  event.preventDefault();
+                  onContextMenu(branch, event.clientX, event.clientY);
+                  event.currentTarget.blur();
                 }
           }
         >
@@ -201,46 +191,46 @@ export function BranchListRow({
         </button>
       </Tooltip>
     </li>
-  )
+  );
 }
 
 type WorkingTreeFileRowProps = {
-  readonly file: WorkingDirectoryFileChange
-  readonly files: ReadonlyArray<WorkingDirectoryFileChange>
-  readonly index: number
-  readonly row: VirtualListRow
-  readonly selectedFileID: string | null
-  readonly onDiscard: (fileID: string) => void
-  readonly onSelect: (fileID: string) => void
-  readonly onSetIncluded: (fileID: string, included: boolean) => void
-}
+  readonly file: WorkingDirectoryFileChange;
+  readonly files: ReadonlyArray<WorkingDirectoryFileChange>;
+  readonly index: number;
+  readonly row: VirtualListRow;
+  readonly selectedFileID: string | null;
+  readonly onDiscard: (fileID: string) => void;
+  readonly onSelect: (fileID: string) => void;
+  readonly onSetIncluded: (fileID: string, included: boolean) => void;
+};
 
 function fileStatusIcon(kind: AppFileStatusKind): typeof faSquarePlus {
   switch (kind) {
     case AppFileStatusKind.New:
     case AppFileStatusKind.Untracked:
     case AppFileStatusKind.Copied:
-      return faSquarePlus
+      return faSquarePlus;
     case AppFileStatusKind.Deleted:
-      return faSquareMinus
+      return faSquareMinus;
     case AppFileStatusKind.Renamed:
-      return faArrowRight
+      return faArrowRight;
     case AppFileStatusKind.Conflicted:
-      return faExclamation
+      return faExclamation;
     case AppFileStatusKind.Modified:
-      return faSquareCaretUp
+      return faSquareCaretUp;
   }
 }
 
 /** One status glyph shared by working-tree and committed-file lists. */
 export function FileStatusIcon({
   status,
-  className = '',
+  className = "",
 }: {
-  readonly status: AppFileStatus
-  readonly className?: string
+  readonly status: AppFileStatus;
+  readonly className?: string;
 }) {
-  const label = mapStatus(status)
+  const label = mapStatus(status);
   return (
     <Tooltip label={label}>
       <small
@@ -248,13 +238,10 @@ export function FileStatusIcon({
         role="img"
         aria-label={label}
       >
-        <FontAwesomeIcon
-          icon={fileStatusIcon(status.kind)}
-          aria-hidden="true"
-        />
+        <FontAwesomeIcon icon={fileStatusIcon(status.kind)} aria-hidden="true" />
       </small>
     </Tooltip>
-  )
+  );
 }
 
 export function WorkingTreeFileRow({
@@ -267,7 +254,7 @@ export function WorkingTreeFileRow({
   row,
   selectedFileID,
 }: WorkingTreeFileRowProps) {
-  const selected = selectedFileID === file.id
+  const selected = selectedFileID === file.id;
   return (
     <li
       ref={row.measureElement}
@@ -279,23 +266,23 @@ export function WorkingTreeFileRow({
         type="checkbox"
         aria-label={`Include ${file.path}`}
         checked={file.isIncludedInCommit()}
-        onChange={event => onSetIncluded(file.id, event.currentTarget.checked)}
+        onChange={(event) => onSetIncluded(file.id, event.currentTarget.checked)}
       />
       <button
         type="button"
         className="working-tree-file-selection"
         data-keyboard-list-item
         data-keyboard-list-index={index}
-        aria-current={selected ? 'true' : undefined}
+        aria-current={selected ? "true" : undefined}
         tabIndex={selected || (selectedFileID === null && index === 0) ? 0 : -1}
         onClick={() => onSelect(file.id)}
-        onKeyDown={event =>
+        onKeyDown={(event) =>
           handleListNavigation(
             event,
             index,
             files.length,
-            targetIndex => onSelect(files[targetIndex].id),
-            row.focusIndex
+            (targetIndex) => onSelect(files[targetIndex].id),
+            row.focusIndex,
           )
         }
       >
@@ -316,5 +303,5 @@ export function WorkingTreeFileRow({
         </Tooltip>
       </span>
     </li>
-  )
+  );
 }

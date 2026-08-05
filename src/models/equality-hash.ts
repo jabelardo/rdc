@@ -3,7 +3,7 @@
  * As an example `1234.toString()` doesn't lose any information whereas
  * `({ foo: bar }).toString()` does (`[Object object]`).
  */
-type HashableType = number | string | boolean | undefined | null
+type HashableType = number | string | boolean | undefined | null;
 
 /**
  * Creates a string representation of the provided arguments.
@@ -13,5 +13,5 @@ type HashableType = number | string | boolean | undefined | null
  * comparisons.
  */
 export function createEqualityHash(...items: HashableType[]) {
-  return items.join('+')
+  return items.join("+");
 }

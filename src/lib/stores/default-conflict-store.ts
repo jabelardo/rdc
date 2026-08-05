@@ -1,8 +1,8 @@
-import { ConflictStore } from './conflict-store'
+import { ConflictStore } from "./conflict-store";
 
-let defaultConflictStore: ConflictStore | undefined
+let defaultConflictStore: ConflictStore | undefined;
 
 export function getDefaultConflictStore(): ConflictStore {
-  defaultConflictStore ??= new ConflictStore()
-  return defaultConflictStore
+  defaultConflictStore ??= new ConflictStore();
+  return defaultConflictStore;
 }

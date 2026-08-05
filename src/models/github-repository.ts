@@ -1,9 +1,9 @@
-import { createEqualityHash } from './equality-hash'
-import { Owner } from './owner'
+import { createEqualityHash } from "./equality-hash";
+import { Owner } from "./owner";
 
-export type GitHubRepositoryPermission = 'read' | 'write' | 'admin' | null
+export type GitHubRepositoryPermission = "read" | "write" | "admin" | null;
 
-export type RepoType = 'github' | 'bitbucket' | 'gitlab' | 'codeberg'
+export type RepoType = "github" | "bitbucket" | "gitlab" | "codeberg";
 
 /** A GitHub repository. */
 export class GitHubRepository {
@@ -12,7 +12,7 @@ export class GitHubRepository {
    *
    * Objects with the same hash are guaranteed to be structurally equal.
    */
-  public readonly hash: string
+  public readonly hash: string;
 
   public constructor(
     public readonly name: string,
@@ -31,7 +31,7 @@ export class GitHubRepository {
     public readonly isArchived: boolean | null = null,
     /** The user's permissions for this github repository. `null` if unknown. */
     public readonly permissions: GitHubRepositoryPermission = null,
-    public readonly parent: GitHubRepository | null = null
+    public readonly parent: GitHubRepository | null = null,
   ) {
     this.hash = createEqualityHash(
       this.name,
@@ -44,27 +44,27 @@ export class GitHubRepository {
       this.issuesEnabled,
       this.isArchived,
       this.permissions,
-      this.parent?.hash
-    )
+      this.parent?.hash,
+    );
   }
 
   public get endpoint(): string {
-    return this.owner.endpoint
+    return this.owner.endpoint;
   }
 
   /** Get the owner/name combo. */
   public get fullName(): string {
-    return `${this.owner.login}/${this.name}`
+    return `${this.owner.login}/${this.name}`;
   }
 
   /** Is the repository a fork? */
   public get fork(): boolean {
-    return !!this.parent
+    return !!this.parent;
   }
 
   public get loginForApi(): string {
     // If no login is set explicitly, assume we might be logged in as the repo owner
-    return this.login ?? this.owner.login
+    return this.login ?? this.owner.login;
   }
 }
 
@@ -75,36 +75,31 @@ export class GitHubRepository {
  * See `isRepositoryWithForkedGitHubRepository`
  */
 export type ForkedGitHubRepository = GitHubRepository & {
-  readonly parent: GitHubRepository
-  readonly fork: true
-}
+  readonly parent: GitHubRepository;
+  readonly fork: true;
+};
 
 /**
  * Can the user push to this GitHub repository?
  *
  * (If their permissions are unknown, we assume they can.)
  */
-export function hasWritePermission(
-  gitHubRepository: GitHubRepository
-): boolean {
-  return (
-    gitHubRepository.permissions === null ||
-    gitHubRepository.permissions !== 'read'
-  )
+export function hasWritePermission(gitHubRepository: GitHubRepository): boolean {
+  return gitHubRepository.permissions === null || gitHubRepository.permissions !== "read";
 }
 
 export function deduceRepositoryType(url: string): RepoType {
   try {
-    const host = new URL(url).hostname
-    if (host === 'bitbucket.org') {
-      return 'bitbucket'
-    } else if (host === 'gitlab.com') {
-      return 'gitlab'
-    } else if (host === 'codeberg.org') {
-      return 'codeberg'
+    const host = new URL(url).hostname;
+    if (host === "bitbucket.org") {
+      return "bitbucket";
+    } else if (host === "gitlab.com") {
+      return "gitlab";
+    } else if (host === "codeberg.org") {
+      return "codeberg";
     }
-    return 'github'
+    return "github";
   } catch (e) {
-    return 'github'
+    return "github";
   }
 }

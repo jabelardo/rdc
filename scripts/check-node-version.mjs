@@ -15,29 +15,29 @@
 //   - imported by `vite.config.ts`, so every vite/vitest run is covered, including a bare
 //     `npx vitest` that skips package scripts entirely;
 //   - run directly (`node scripts/check-node-version.mjs`) as the `pretest` hook and by hand.
-import { readFileSync, realpathSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import path from 'node:path'
-import process from 'node:process'
-import semver from 'semver'
+import { readFileSync, realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import process from "node:process";
+import semver from "semver";
 
 const packageJsonPath = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  '../package.json'
-)
+  "../package.json",
+);
 
 /**
  * @returns {string} the `engines.node` range this repository pins.
  */
 function pinnedRange() {
-  const manifest = JSON.parse(readFileSync(packageJsonPath, 'utf8'))
-  const range = manifest.engines?.node
-  if (typeof range !== 'string') {
+  const manifest = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+  const range = manifest.engines?.node;
+  if (typeof range !== "string") {
     throw new Error(
-      `package.json has no engines.node range; ${packageJsonPath} is the source of truth for the Node pin`
-    )
+      `package.json has no engines.node range; ${packageJsonPath} is the source of truth for the Node pin`,
+    );
   }
-  return range
+  return range;
 }
 
 /**
@@ -46,21 +46,21 @@ function pinnedRange() {
  * @param {string} [version] the Node version to check; defaults to the running one.
  */
 export function assertNodeVersion(version = process.versions.node) {
-  const range = pinnedRange()
+  const range = pinnedRange();
   if (semver.satisfies(version, range)) {
-    return
+    return;
   }
 
   throw new Error(
     [
       `rdc requires Node ${range}, but this process is Node ${version}.`,
-      '',
-      'Run `nvm use` (the repository has a .nvmrc) and try again.',
-      'Do not unpin the version to make something pass: Node 26 silently shadows',
+      "",
+      "Run `nvm use` (the repository has a .nvmrc) and try again.",
+      "Do not unpin the version to make something pass: Node 26 silently shadows",
       "jsdom's localStorage, so the failures you get instead look like broken",
-      'application code. See AGENTS.md.',
-    ].join('\n')
-  )
+      "application code. See AGENTS.md.",
+    ].join("\n"),
+  );
 }
 
 // `realpathSync`, not `path.resolve`: Node realpaths the entry specifier before setting
@@ -70,23 +70,20 @@ export function assertNodeVersion(version = process.versions.node) {
 // the exact mode this script exists to prevent.
 const invokedDirectly = (() => {
   if (process.argv[1] === undefined) {
-    return false
+    return false;
   }
   try {
-    return (
-      realpathSync(process.argv[1]) ===
-      realpathSync(fileURLToPath(import.meta.url))
-    )
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
   } catch {
-    return false
+    return false;
   }
-})()
+})();
 
 if (invokedDirectly) {
   try {
-    assertNodeVersion()
+    assertNodeVersion();
   } catch (error) {
-    console.error(`\n${error instanceof Error ? error.message : error}\n`)
-    process.exit(1)
+    console.error(`\n${error instanceof Error ? error.message : error}\n`);
+    process.exit(1);
   }
 }

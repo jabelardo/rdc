@@ -15,10 +15,10 @@
  * something git will never run — or, worse, forget one it will.
  */
 
-import { Channel, invoke } from '@tauri-apps/api/core'
+import { Channel, invoke } from "@tauri-apps/api/core";
 
 /** Where a hook is in its life. Matches the original's `onHookProgress` status strings. */
-export type HookStatus = 'started' | 'finished' | 'failed'
+export type HookStatus = "started" | "finished" | "failed";
 
 /** A hook starting, finishing or failing. */
 export interface IHookProgress {
@@ -28,27 +28,27 @@ export interface IHookProgress {
    * Present on every update so a start can be matched to its end. Pass it to {@linkcode abortHook} to stop
    * a hook that is taking too long — the Rust side holds the handle, because a callback cannot cross IPC.
    */
-  readonly id: number
+  readonly id: number;
 
   /** The hook's name, e.g. `pre-commit`. */
-  readonly hook: string
+  readonly hook: string;
 
-  readonly status: HookStatus
+  readonly status: HookStatus;
 }
 
-export type HookFailureResolution = 'abort' | 'ignore'
+export type HookFailureResolution = "abort" | "ignore";
 
 /** A failed hook waiting for the user's decision. */
 export interface IHookFailurePrompt {
-  readonly id: number
-  readonly hook: string
-  readonly terminalOutput: string
+  readonly id: number;
+  readonly hook: string;
+  readonly terminalOutput: string;
 }
 
 export type HookFailureCallback = (
   hook: string,
-  terminalOutput: string
-) => Promise<HookFailureResolution>
+  terminalOutput: string,
+) => Promise<HookFailureResolution>;
 
 /**
  * Stops a hook that is still running.
@@ -60,15 +60,15 @@ export type HookFailureCallback = (
  * same limitation the original's `AbortController` had.
  */
 export async function abortHook(id: number): Promise<boolean> {
-  return invoke<boolean>('abort_hook', { id })
+  return invoke<boolean>("abort_hook", { id });
 }
 
 /** Answers a failed-hook prompt. A stale prompt resolves to `false`. */
 export async function resolveHookFailure(
   id: number,
-  resolution: HookFailureResolution
+  resolution: HookFailureResolution,
 ): Promise<boolean> {
-  return invoke<boolean>('resolve_hook_failure', { id, resolution })
+  return invoke<boolean>("resolve_hook_failure", { id, resolution });
 }
 
 /**
@@ -77,14 +77,12 @@ export async function resolveHookFailure(
  * Missing callbacks and callback failures abort conservatively. In particular, Rust must never wait
  * forever merely because a caller enabled interception but forgot to install a prompt.
  */
-export function hookFailureChannel(
-  onFailure?: HookFailureCallback
-): Channel<IHookFailurePrompt> {
-  return new Channel<IHookFailurePrompt>(prompt => {
+export function hookFailureChannel(onFailure?: HookFailureCallback): Channel<IHookFailurePrompt> {
+  return new Channel<IHookFailurePrompt>((prompt) => {
     void Promise.resolve<HookFailureResolution>(
-      onFailure?.(prompt.hook, prompt.terminalOutput) ?? 'abort'
+      onFailure?.(prompt.hook, prompt.terminalOutput) ?? "abort",
     )
-      .catch((): HookFailureResolution => 'abort')
-      .then(resolution => resolveHookFailure(prompt.id, resolution))
-  })
+      .catch((): HookFailureResolution => "abort")
+      .then((resolution) => resolveHookFailure(prompt.id, resolution));
+  });
 }

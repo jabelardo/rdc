@@ -1,14 +1,14 @@
 export enum TutorialStep {
-  NotApplicable = 'NotApplicable',
-  PickEditor = 'PickEditor',
-  CreateBranch = 'CreateBranch',
-  EditFile = 'EditFile',
-  MakeCommit = 'MakeCommit',
-  PushBranch = 'PushBranch',
-  OpenPullRequest = 'OpenPullRequest',
-  AllDone = 'AllDone',
-  Paused = 'Paused',
-  Announced = 'Announced',
+  NotApplicable = "NotApplicable",
+  PickEditor = "PickEditor",
+  CreateBranch = "CreateBranch",
+  EditFile = "EditFile",
+  MakeCommit = "MakeCommit",
+  PushBranch = "PushBranch",
+  OpenPullRequest = "OpenPullRequest",
+  AllDone = "AllDone",
+  Paused = "Paused",
+  Announced = "Announced",
 }
 
 export type ValidTutorialStep =
@@ -19,12 +19,10 @@ export type ValidTutorialStep =
   | TutorialStep.PushBranch
   | TutorialStep.OpenPullRequest
   | TutorialStep.AllDone
-  | TutorialStep.Announced
+  | TutorialStep.Announced;
 
-export function isValidTutorialStep(
-  step: TutorialStep
-): step is ValidTutorialStep {
-  return step !== TutorialStep.NotApplicable && step !== TutorialStep.Paused
+export function isValidTutorialStep(step: TutorialStep): step is ValidTutorialStep {
+  return step !== TutorialStep.NotApplicable && step !== TutorialStep.Paused;
 }
 
 export const orderedTutorialSteps: ReadonlyArray<ValidTutorialStep> = [
@@ -36,4 +34,4 @@ export const orderedTutorialSteps: ReadonlyArray<ValidTutorialStep> = [
   TutorialStep.OpenPullRequest,
   TutorialStep.AllDone,
   TutorialStep.Announced,
-]
+];

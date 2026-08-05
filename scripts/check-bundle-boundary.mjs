@@ -16,44 +16,44 @@
 // Usage, from the repository root:
 //
 //   node scripts/check-bundle-boundary.mjs
-import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
-import path from 'node:path'
-import process from 'node:process'
-import { fileURLToPath } from 'node:url'
-import ts from 'typescript'
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import path from "node:path";
+import process from "node:process";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
-import { assertNodeVersion } from './check-node-version.mjs'
+import { assertNodeVersion } from "./check-node-version.mjs";
 
-const ENTRY = 'src/main.tsx'
+const ENTRY = "src/main.tsx";
 
 /**
  * Node builtins a webview cannot provide. `url` and `path` are the two this repository actually
  * carries debt for; the rest are here so a new one is caught the first time it appears.
  */
 const NODE_BUILTINS = new Set([
-  'assert',
-  'buffer',
-  'child_process',
-  'crypto',
-  'dns',
-  'events',
-  'fs',
-  'http',
-  'https',
-  'net',
-  'os',
-  'path',
-  'process',
-  'stream',
-  'tls',
-  'url',
-  'util',
-  'zlib',
-])
+  "assert",
+  "buffer",
+  "child_process",
+  "crypto",
+  "dns",
+  "events",
+  "fs",
+  "http",
+  "https",
+  "net",
+  "os",
+  "path",
+  "process",
+  "stream",
+  "tls",
+  "url",
+  "util",
+  "zlib",
+]);
 
 function isNodeBuiltin(specifier) {
-  const bare = specifier.startsWith('node:') ? specifier.slice(5) : specifier
-  return NODE_BUILTINS.has(bare)
+  const bare = specifier.startsWith("node:") ? specifier.slice(5) : specifier;
+  return NODE_BUILTINS.has(bare);
 }
 
 /**
@@ -63,21 +63,21 @@ function isNodeBuiltin(specifier) {
  * alone matches the directory itself and the caller then tries to read it.
  */
 function resolveRelative(fromFile, specifier) {
-  const base = path.join(path.dirname(fromFile), specifier)
+  const base = path.join(path.dirname(fromFile), specifier);
   const candidates = [
     base,
     `${base}.ts`,
     `${base}.tsx`,
-    path.join(base, 'index.ts'),
-    path.join(base, 'index.tsx'),
-  ]
-  return candidates.find(candidate => {
+    path.join(base, "index.ts"),
+    path.join(base, "index.tsx"),
+  ];
+  return candidates.find((candidate) => {
     try {
-      return statSync(candidate).isFile()
+      return statSync(candidate).isFile();
     } catch {
-      return false
+      return false;
     }
-  })
+  });
 }
 
 /**
@@ -95,7 +95,7 @@ function resolveRelative(fromFile, specifier) {
  * @returns {Array<{specifier: string, line: number}>}
  */
 function runtimeImports(file) {
-  const source = readFileSync(file, 'utf8')
+  const source = readFileSync(file, "utf8");
   const emitted = ts.transpileModule(source, {
     fileName: file,
     compilerOptions: {
@@ -104,110 +104,105 @@ function runtimeImports(file) {
       jsx: ts.JsxEmit.Preserve,
       verbatimModuleSyntax: false,
     },
-  }).outputText
+  }).outputText;
 
-  const specifiers = new Set()
+  const specifiers = new Set();
   for (const pattern of [
     /\bfrom\s*['"]([^'"]+)['"]/g,
     /\bimport\s*['"]([^'"]+)['"]/g,
     /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
   ]) {
     for (const match of emitted.matchAll(pattern)) {
-      specifiers.add(match[1])
+      specifiers.add(match[1]);
     }
   }
 
   // Line numbers come from the original source, since the emitted text's lines mean nothing to a
   // reader. Falls back to line 1 for a specifier written differently than it is emitted.
-  const lines = source.split('\n')
-  return [...specifiers].map(specifier => {
+  const lines = source.split("\n");
+  return [...specifiers].map((specifier) => {
     const index = lines.findIndex(
-      line => line.includes(`'${specifier}'`) || line.includes(`"${specifier}"`)
-    )
-    return { specifier, line: index === -1 ? 1 : index + 1 }
-  })
+      (line) => line.includes(`'${specifier}'`) || line.includes(`"${specifier}"`),
+    );
+    return { specifier, line: index === -1 ? 1 : index + 1 };
+  });
 }
 
 /** Walk the runtime import graph from the entry point. */
 function collectViolations() {
-  const seen = new Set()
-  const stack = [ENTRY]
-  const violations = []
+  const seen = new Set();
+  const stack = [ENTRY];
+  const violations = [];
 
   while (stack.length > 0) {
-    const file = stack.pop()
+    const file = stack.pop();
     if (seen.has(file)) {
-      continue
+      continue;
     }
-    seen.add(file)
+    seen.add(file);
 
     for (const { specifier, line } of runtimeImports(file)) {
       if (isNodeBuiltin(specifier)) {
-        violations.push({ file, line, specifier })
-        continue
+        violations.push({ file, line, specifier });
+        continue;
       }
-      if (!specifier.startsWith('.')) {
-        continue
+      if (!specifier.startsWith(".")) {
+        continue;
       }
-      const resolved = resolveRelative(file, specifier)
+      const resolved = resolveRelative(file, specifier);
       if (resolved !== undefined) {
-        stack.push(resolved)
+        stack.push(resolved);
       }
     }
   }
 
-  return { violations, moduleCount: seen.size }
+  return { violations, moduleCount: seen.size };
 }
 
 export function checkBundleBoundary() {
   if (!existsSync(ENTRY)) {
-    throw new Error(
-      `entry point ${ENTRY} not found; run from the repository root`
-    )
+    throw new Error(`entry point ${ENTRY} not found; run from the repository root`);
   }
-  return collectViolations()
+  return collectViolations();
 }
 
 const invokedDirectly = (() => {
   if (process.argv[1] === undefined) {
-    return false
+    return false;
   }
   try {
     // Realpaths, for the same reason as check-node-version.mjs: Node realpaths the entry specifier
     // before setting `import.meta.url`, so a symlinked checkout would otherwise skip the check.
-    return (
-      realpathSync(process.argv[1]) ===
-      realpathSync(fileURLToPath(import.meta.url))
-    )
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
   } catch {
-    return false
+    return false;
   }
-})()
+})();
 
 if (invokedDirectly) {
-  assertNodeVersion()
-  const { violations, moduleCount } = checkBundleBoundary()
+  assertNodeVersion();
+  const { violations, moduleCount } = checkBundleBoundary();
 
   if (violations.length > 0) {
     console.error(
-      `\n${violations.length} module(s) reachable from ${ENTRY} import a Node builtin, which a webview cannot provide:\n`
-    )
+      `\n${violations.length} module(s) reachable from ${ENTRY} import a Node builtin, which a webview cannot provide:\n`,
+    );
     for (const { file, line, specifier } of violations) {
-      console.error(`  ${file}:${line} imports '${specifier}'`)
+      console.error(`  ${file}:${line} imports '${specifier}'`);
     }
     console.error(
       [
-        '',
-        'Either keep the module out of the bundle, or settle its Node dependency first —',
-        'legacy `url.parse()` becomes WHATWG `URL`, Node `path` becomes browser-safe string work.',
-        'See MIGRATION_MAP.md §8 and REMAINING.md.',
-        '',
-      ].join('\n')
-    )
-    process.exit(1)
+        "",
+        "Either keep the module out of the bundle, or settle its Node dependency first —",
+        "legacy `url.parse()` becomes WHATWG `URL`, Node `path` becomes browser-safe string work.",
+        "See MIGRATION_MAP.md §8 and REMAINING.md.",
+        "",
+      ].join("\n"),
+    );
+    process.exit(1);
   }
 
   console.log(
-    `bundle boundary clean: ${moduleCount} modules reachable from ${ENTRY}, none importing a Node builtin`
-  )
+    `bundle boundary clean: ${moduleCount} modules reachable from ${ENTRY}, none importing a Node builtin`,
+  );
 }

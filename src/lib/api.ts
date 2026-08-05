@@ -1,9 +1,6 @@
-import * as URL from 'url'
-import { Account, UnknownLogin } from '../models/account'
-import {
-  ICopilotCommitMessage,
-  parseCopilotCommitMessage,
-} from './copilot-commit-message'
+import * as URL from "url";
+import { Account, UnknownLogin } from "../models/account";
+import { ICopilotCommitMessage, parseCopilotCommitMessage } from "./copilot-commit-message";
 
 import {
   request,
@@ -12,8 +9,8 @@ import {
   APIError,
   urlWithQueryString,
   getUserAgent,
-} from './http'
-import { GitProtocol, parseRemote } from './remote-parsing'
+} from "./http";
+import { GitProtocol, parseRemote } from "./remote-parsing";
 import {
   getEndpointVersion,
   isBitbucket,
@@ -23,68 +20,67 @@ import {
   isGHES,
   isGitLab,
   updateEndpointVersion,
-} from './endpoint-capabilities'
+} from "./endpoint-capabilities";
 import {
   clearCertificateErrorSuppressionFor,
   suppressCertificateErrorFor,
-} from './suppress-certificate-error'
-import { HttpStatusCode } from './http-status-code'
-import { CopilotError, parseCopilotPaymentRequiredError } from './copilot-error'
-import { BypassReasonType } from '../models/secret-scanning'
-import { assertNever } from './fatal-error'
-import { isKnownThirdPartyHost } from './trusted-remote-host'
+} from "./suppress-certificate-error";
+import { HttpStatusCode } from "./http-status-code";
+import { CopilotError, parseCopilotPaymentRequiredError } from "./copilot-error";
+import { BypassReasonType } from "../models/secret-scanning";
+import { assertNever } from "./fatal-error";
+import { isKnownThirdPartyHost } from "./trusted-remote-host";
 
-const envEndpoint = process.env['DESKTOP_GITHUB_DOTCOM_API_ENDPOINT']
-const envHTMLURL = process.env['DESKTOP_GITHUB_DOTCOM_HTML_URL']
-const envAdditionalCookies =
-  process.env['DESKTOP_GITHUB_DOTCOM_ADDITIONAL_COOKIES']
+const envEndpoint = process.env["DESKTOP_GITHUB_DOTCOM_API_ENDPOINT"];
+const envHTMLURL = process.env["DESKTOP_GITHUB_DOTCOM_HTML_URL"];
+const envAdditionalCookies = process.env["DESKTOP_GITHUB_DOTCOM_ADDITIONAL_COOKIES"];
 
 if (envAdditionalCookies !== undefined) {
-  document.cookie += '; ' + envAdditionalCookies
+  document.cookie += "; " + envAdditionalCookies;
 }
 
 const oauthRedirectUri = __DEV_SECRETS__
-  ? 'https://desktop-plus.org/oauth?dev=1'
-  : 'https://desktop-plus.org/oauth'
+  ? "https://desktop-plus.org/oauth?dev=1"
+  : "https://desktop-plus.org/oauth";
 
 type AffiliationFilter =
-  | 'owner'
-  | 'collaborator'
-  | 'organization_member'
-  | 'owner,collaborator'
-  | 'owner,organization_member'
-  | 'collaborator,organization_member'
-  | 'owner,collaborator,organization_member'
+  | "owner"
+  | "collaborator"
+  | "organization_member"
+  | "owner,collaborator"
+  | "owner,organization_member"
+  | "collaborator,organization_member"
+  | "owner,collaborator,organization_member";
 
 /** Response type of GraphQL query of Copilot-related info */
 type ViewerCopilotResponse = {
   readonly data: {
     readonly viewer: {
       readonly copilotEndpoints: {
-        readonly api: string
-      }
-      readonly copilotLicenseType: string
-      readonly isCopilotDesktopEnabled: boolean
-    }
-  }
-}
+        readonly api: string;
+      };
+      readonly copilotLicenseType: string;
+      readonly isCopilotDesktopEnabled: boolean;
+    };
+  };
+};
 
 /** Copilot-related info relevant to Desktop */
 type UserCopilotInfo = {
-  readonly isCopilotDesktopEnabled: boolean
-  readonly copilotEndpoint: string
-  readonly copilotLicenseType: string
-}
+  readonly isCopilotDesktopEnabled: boolean;
+  readonly copilotEndpoint: string;
+  readonly copilotLicenseType: string;
+};
 
 /** Response type Copilot chat completions response API */
 type CopilotChatCompletionResponse = {
   readonly choices: ReadonlyArray<{
-    readonly index: number
+    readonly index: number;
     readonly message: {
-      readonly content: string
-    }
-  }>
-}
+      readonly content: string;
+    };
+  }>;
+};
 
 /**
  * Optional set of configurable settings for the fetchAll method
@@ -94,7 +90,7 @@ interface IFetchAllOptions<T> {
    * The number of results to ask for on each page when making
    * requests to paged API endpoints.
    */
-  perPage?: number
+  perPage?: number;
 
   /**
    * An optional predicate which determines whether or not to
@@ -108,7 +104,7 @@ interface IFetchAllOptions<T> {
    *
    * @param results  All results retrieved thus far
    */
-  continue?: (results: ReadonlyArray<T>) => boolean | Promise<boolean>
+  continue?: (results: ReadonlyArray<T>) => boolean | Promise<boolean>;
 
   /**
    * An optional callback which is invoked after each page of results is loaded
@@ -116,7 +112,7 @@ interface IFetchAllOptions<T> {
    *
    * @param page The last fetched page of results
    */
-  onPage?: (page: ReadonlyArray<T>) => void
+  onPage?: (page: ReadonlyArray<T>) => void;
 
   /**
    * Calculate the next page path given the response.
@@ -124,7 +120,7 @@ interface IFetchAllOptions<T> {
    * Optional, see `getNextPagePathFromLink` for the default
    * implementation.
    */
-  getNextPagePath?: (response: Response) => string | null
+  getNextPagePath?: (response: Response) => string | null;
 
   /**
    * Whether or not to silently suppress request errors and
@@ -135,30 +131,22 @@ interface IFetchAllOptions<T> {
    * fetchAll method to throw if it encounters an API error
    * on any page.
    */
-  suppressErrors?: boolean
+  suppressErrors?: boolean;
 }
 
-const ClientID = process.env.TEST_ENV ? '' : __OAUTH_CLIENT_ID__
-const ClientSecret = process.env.TEST_ENV ? '' : __OAUTH_SECRET__
-const ClientIDBitbucket = process.env.TEST_ENV
-  ? ''
-  : __OAUTH_CLIENT_ID_BITBUCKET__
-const ClientSecretBitbucket = process.env.TEST_ENV
-  ? ''
-  : __OAUTH_SECRET_BITBUCKET__
-const ClientIDGitLab = process.env.TEST_ENV ? '' : __OAUTH_CLIENT_ID_GITLAB__
-const ClientSecretGitLab = process.env.TEST_ENV ? '' : __OAUTH_SECRET_GITLAB__
-const ClientIDCodeberg = process.env.TEST_ENV
-  ? ''
-  : __OAUTH_CLIENT_ID_CODEBERG__
-const ClientSecretCodeberg = process.env.TEST_ENV
-  ? ''
-  : __OAUTH_SECRET_CODEBERG__
+const ClientID = process.env.TEST_ENV ? "" : __OAUTH_CLIENT_ID__;
+const ClientSecret = process.env.TEST_ENV ? "" : __OAUTH_SECRET__;
+const ClientIDBitbucket = process.env.TEST_ENV ? "" : __OAUTH_CLIENT_ID_BITBUCKET__;
+const ClientSecretBitbucket = process.env.TEST_ENV ? "" : __OAUTH_SECRET_BITBUCKET__;
+const ClientIDGitLab = process.env.TEST_ENV ? "" : __OAUTH_CLIENT_ID_GITLAB__;
+const ClientSecretGitLab = process.env.TEST_ENV ? "" : __OAUTH_SECRET_GITLAB__;
+const ClientIDCodeberg = process.env.TEST_ENV ? "" : __OAUTH_CLIENT_ID_CODEBERG__;
+const ClientSecretCodeberg = process.env.TEST_ENV ? "" : __OAUTH_SECRET_CODEBERG__;
 
 if (!ClientID || !ClientID.length || !ClientSecret || !ClientSecret.length) {
   log.warn(
-    `DESKTOP_OAUTH_CLIENT_ID and/or DESKTOP_OAUTH_CLIENT_SECRET is undefined. You won't be able to authenticate new users.`
-  )
+    `DESKTOP_OAUTH_CLIENT_ID and/or DESKTOP_OAUTH_CLIENT_SECRET is undefined. You won't be able to authenticate new users.`,
+  );
 }
 if (
   !ClientIDBitbucket ||
@@ -167,8 +155,8 @@ if (
   !ClientSecretBitbucket.length
 ) {
   log.warn(
-    `DESKTOP_OAUTH_CLIENT_ID_BITBUCKET and/or DESKTOP_OAUTH_CLIENT_SECRET_BITBUCKET is undefined. You won't be able to authenticate new users.`
-  )
+    `DESKTOP_OAUTH_CLIENT_ID_BITBUCKET and/or DESKTOP_OAUTH_CLIENT_SECRET_BITBUCKET is undefined. You won't be able to authenticate new users.`,
+  );
 }
 if (
   !ClientIDGitLab ||
@@ -177,8 +165,8 @@ if (
   !ClientSecretGitLab.length
 ) {
   log.warn(
-    `DESKTOP_OAUTH_CLIENT_ID_GITLAB and/or DESKTOP_OAUTH_CLIENT_SECRET_GITLAB is undefined. You won't be able to authenticate new GitLab users.`
-  )
+    `DESKTOP_OAUTH_CLIENT_ID_GITLAB and/or DESKTOP_OAUTH_CLIENT_SECRET_GITLAB is undefined. You won't be able to authenticate new GitLab users.`,
+  );
 }
 if (
   !ClientIDCodeberg ||
@@ -187,52 +175,48 @@ if (
   !ClientSecretCodeberg.length
 ) {
   log.warn(
-    `DESKTOP_OAUTH_CLIENT_ID_CODEBERG and/or DESKTOP_OAUTH_CLIENT_SECRET_CODEBERG is undefined. You won't be able to authenticate new Codeberg users.`
-  )
+    `DESKTOP_OAUTH_CLIENT_ID_CODEBERG and/or DESKTOP_OAUTH_CLIENT_SECRET_CODEBERG is undefined. You won't be able to authenticate new Codeberg users.`,
+  );
 }
 
 const BitbucketBasicAuth = () =>
-  Buffer.from(`${ClientIDBitbucket}:${ClientSecretBitbucket}`).toString(
-    'base64'
-  )
+  Buffer.from(`${ClientIDBitbucket}:${ClientSecretBitbucket}`).toString("base64");
 
-export type GitHubAccountType = 'User' | 'Organization'
+export type GitHubAccountType = "User" | "Organization";
 
 /** The OAuth scopes we want to request */
-const oauthScopes = ['repo', 'user', 'workflow']
+const oauthScopes = ["repo", "user", "workflow"];
 
 /**
  * Information about a repository as returned by the GitHub API.
  */
 export interface IAPIRepository {
   // blank if unknown
-  readonly clone_url: string
-  readonly ssh_url: string
-  readonly html_url: string
-  readonly name: string
-  readonly owner: IAPIIdentity
-  readonly private: boolean | null // null if unknown
-  readonly fork: boolean
-  readonly default_branch: string
-  readonly pushed_at: string
-  readonly has_issues: boolean
-  readonly archived: boolean
+  readonly clone_url: string;
+  readonly ssh_url: string;
+  readonly html_url: string;
+  readonly name: string;
+  readonly owner: IAPIIdentity;
+  readonly private: boolean | null; // null if unknown
+  readonly fork: boolean;
+  readonly default_branch: string;
+  readonly pushed_at: string;
+  readonly has_issues: boolean;
+  readonly archived: boolean;
 }
 export interface IBitbucketAPIRepositorySummary {
-  readonly uuid: string
-  readonly full_name: string
-  readonly name: string // Display name
+  readonly uuid: string;
+  readonly full_name: string;
+  readonly name: string; // Display name
   readonly links: {
     readonly html: {
-      readonly href: string
-    }
-  }
+      readonly href: string;
+    };
+  };
 }
-function summaryToIAPIRepository(
-  repo: IBitbucketAPIRepositorySummary
-): IAPIRepository {
-  const sshUrl = `git@bitbucket.org:${repo.full_name}.git`
-  const [owner, name] = repo.full_name.split('/')
+function summaryToIAPIRepository(repo: IBitbucketAPIRepositorySummary): IAPIRepository {
+  const sshUrl = `git@bitbucket.org:${repo.full_name}.git`;
+  const [owner, name] = repo.full_name.split("/");
   return {
     clone_url: sshUrl,
     ssh_url: sshUrl,
@@ -241,29 +225,29 @@ function summaryToIAPIRepository(
     owner: {
       id: 0,
       login: owner,
-      avatar_url: '',
-      html_url: '',
-      type: 'User',
+      avatar_url: "",
+      html_url: "",
+      type: "User",
     },
     private: null,
     fork: false,
-    default_branch: '',
-    pushed_at: '',
+    default_branch: "",
+    pushed_at: "",
     has_issues: false,
     archived: false,
-  }
+  };
 }
 
 /** Information needed to clone a repository. */
 export interface IAPIRepositoryCloneInfo {
   /** Canonical clone URL of the repository. */
-  readonly url: string
+  readonly url: string;
 
   /**
    * Default branch of the repository, if any. This is usually either retrieved
    * from the API for GitHub repositories, or undefined for other repositories.
    */
-  readonly defaultBranch?: string
+  readonly defaultBranch?: string;
 }
 
 export interface IAPIFullRepository extends IAPIRepository {
@@ -280,7 +264,7 @@ export interface IAPIFullRepository extends IAPIRepository {
    * Without at least one non-optional type in this interface TypeScript will
    * happily let us pass an IAPIRepository in place of an IAPIFullRepository.
    */
-  readonly parent: IAPIRepository | undefined
+  readonly parent: IAPIRepository | undefined;
 
   /**
    * The high-level permissions that the currently authenticated
@@ -297,32 +281,32 @@ export interface IAPIFullRepository extends IAPIRepository {
    * will be present is when explicitly fetching the repository
    * through the `/repos/user/name` endpoint or similar.
    */
-  readonly permissions?: IAPIRepositoryPermissions
+  readonly permissions?: IAPIRepositoryPermissions;
 }
 export interface IBitbucketAPIRepository extends IBitbucketAPIRepositorySummary {
-  readonly slug: string // URL (for API calls)
-  readonly owner: IBitbucketAPIIdentity
-  readonly is_private: boolean
-  readonly parent?: IBitbucketAPIRepository
-  readonly has_issues: boolean
-  readonly updated_on: string
+  readonly slug: string; // URL (for API calls)
+  readonly owner: IBitbucketAPIIdentity;
+  readonly is_private: boolean;
+  readonly parent?: IBitbucketAPIRepository;
+  readonly has_issues: boolean;
+  readonly updated_on: string;
   readonly mainbranch: {
-    readonly name: string
-  }
+    readonly name: string;
+  };
   readonly links: {
     readonly html: {
-      readonly href: string
-    }
+      readonly href: string;
+    };
     readonly clone: ReadonlyArray<{
-      readonly name: string
-      readonly href: string
-    }>
-  }
+      readonly name: string;
+      readonly href: string;
+    }>;
+  };
 }
 function toIAPIRepository(repo: IBitbucketAPIRepository): IAPIRepository {
   const sshUrl =
-    repo.links.clone.filter(c => c.name === 'ssh')[0]?.href ||
-    `git@bitbucket.org:${repo.full_name}.git`
+    repo.links.clone.filter((c) => c.name === "ssh")[0]?.href ||
+    `git@bitbucket.org:${repo.full_name}.git`;
   return {
     // The Bitbucket integration does not currently provide repository access, users need to set up SSH keys.
     // For this reason, clone using SSH instead of HTTP.
@@ -337,11 +321,9 @@ function toIAPIRepository(repo: IBitbucketAPIRepository): IAPIRepository {
     pushed_at: repo.updated_on,
     has_issues: repo.has_issues,
     archived: false,
-  }
+  };
 }
-function toIAPIFullRepository(
-  repo: IBitbucketAPIRepository
-): IAPIFullRepository {
+function toIAPIFullRepository(repo: IBitbucketAPIRepository): IAPIFullRepository {
   return {
     ...toIAPIRepository(repo),
     parent: repo.parent ? toIAPIRepository(repo.parent) : undefined,
@@ -351,26 +333,26 @@ function toIAPIFullRepository(
       push: true,
       pull: true,
     },
-  }
+  };
 }
 
 /*
  * Information about how the user is permitted to interact with a repository.
  */
 export interface IAPIRepositoryPermissions {
-  readonly admin: boolean
+  readonly admin: boolean;
   /* aka 'write' */
-  readonly push: boolean
+  readonly push: boolean;
   /* aka 'read' */
-  readonly pull: boolean
+  readonly pull: boolean;
 }
 
 /**
  * Information about a commit as returned by the GitHub API.
  */
 export interface IAPICommit {
-  readonly sha: string
-  readonly author: IAPIIdentity | {} | null
+  readonly sha: string;
+  readonly author: IAPIIdentity | {} | null;
 }
 
 /**
@@ -380,34 +362,34 @@ export interface IAPICommit {
  * `IAPIIdentity` that callers might expect.
  */
 export interface IAPIOrganization {
-  readonly id: number
-  readonly url: string
-  readonly login: string
-  readonly avatar_url: string
+  readonly id: number;
+  readonly url: string;
+  readonly login: string;
+  readonly avatar_url: string;
 }
 
 /**
  * Minimum subset of an identity returned by the GitHub API
  */
 export interface IAPIIdentity {
-  readonly id: number
-  readonly login: string
-  readonly avatar_url: string
-  readonly html_url: string
-  readonly type: GitHubAccountType
+  readonly id: number;
+  readonly login: string;
+  readonly avatar_url: string;
+  readonly html_url: string;
+  readonly type: GitHubAccountType;
 }
 export interface IBitbucketAPIIdentity {
-  readonly uuid: string
-  readonly display_name: string
-  readonly username: string
+  readonly uuid: string;
+  readonly display_name: string;
+  readonly username: string;
   readonly links: {
     readonly avatar: {
-      readonly href: string
-    }
+      readonly href: string;
+    };
     readonly html: {
-      readonly href: string
-    }
-  }
+      readonly href: string;
+    };
+  };
 }
 function toIAPIIdentity(identity: IBitbucketAPIIdentity): IAPIIdentity {
   return {
@@ -415,8 +397,8 @@ function toIAPIIdentity(identity: IBitbucketAPIIdentity): IAPIIdentity {
     login: identity.display_name,
     avatar_url: identity.links.avatar.href,
     html_url: identity.links.html.href,
-    type: 'User',
-  }
+    type: "User",
+  };
 }
 
 /**
@@ -428,26 +410,26 @@ function toIAPIIdentity(identity: IBitbucketAPIIdentity): IAPIIdentity {
  * is returned.
  */
 interface IAPIFullIdentity {
-  readonly id: number
-  readonly html_url: string
-  readonly login: string
-  readonly avatar_url: string
+  readonly id: number;
+  readonly html_url: string;
+  readonly login: string;
+  readonly avatar_url: string;
 
   /**
    * The user's real name or null if the user hasn't provided
    * a real name for their public profile.
    */
-  readonly name: string | null
+  readonly name: string | null;
 
   /**
    * The email address for this user or null if the user has not
    * specified a public email address in their profile.
    */
-  readonly email: string | null
-  readonly type: GitHubAccountType
+  readonly email: string | null;
+  readonly type: GitHubAccountType;
   readonly plan?: {
-    readonly name: string
-  }
+    readonly name: string;
+  };
 }
 function toIAPIFullIdentity(identity: IBitbucketAPIIdentity): IAPIFullIdentity {
   return {
@@ -457,8 +439,8 @@ function toIAPIFullIdentity(identity: IBitbucketAPIIdentity): IAPIFullIdentity {
     html_url: identity.links.html.href,
     name: identity.display_name,
     email: null,
-    type: 'User',
-  }
+    type: "User",
+  };
 }
 
 /** The users we get from the mentionables endpoint. */
@@ -466,44 +448,42 @@ export interface IAPIMentionableUser {
   /**
    * A url to an avatar image chosen by the user
    */
-  readonly avatar_url: string
+  readonly avatar_url: string;
 
   /**
    * The user's attributable email address or null if the
    * user doesn't have an email address that they can be
    * attributed by
    */
-  readonly email: string | null
+  readonly email: string | null;
 
   /**
    * The username or "handle" of the user
    */
-  readonly login: string
+  readonly login: string;
 
   /**
    * The user's real name (or at least the name that the user
    * has configured to be shown) or null if the user hasn't provided
    * a real name for their public profile.
    */
-  readonly name: string | null
+  readonly name: string | null;
 }
 interface IBitbucketApiWorkspaceMembership {
-  user: IBitbucketAPIIdentity
+  user: IBitbucketAPIIdentity;
 }
-function toIAPIMentionableUser(
-  member: IBitbucketApiWorkspaceMembership
-): IAPIMentionableUser {
+function toIAPIMentionableUser(member: IBitbucketApiWorkspaceMembership): IAPIMentionableUser {
   return {
     avatar_url: member.user.links.avatar.href,
     email: null,
     login: member.user.display_name,
     name: member.user.display_name,
-  }
+  };
 }
 
 /** The response we get from the desktop_internal/features endpoint. */
 interface IUserFeaturesResponse {
-  readonly features: ReadonlyArray<string>
+  readonly features: ReadonlyArray<string>;
 }
 
 /**
@@ -517,76 +497,72 @@ export class MaxResultsError extends Error {}
  * set for the primary email address currently, but in the future visibility
  * may be defined for each email address.
  */
-export type EmailVisibility = 'public' | 'private' | null
+export type EmailVisibility = "public" | "private" | null;
 
 /**
  * Information about a user's email as returned by the GitHub API.
  */
 export interface IAPIEmail {
-  readonly email: string
-  readonly verified: boolean
-  readonly primary: boolean
-  readonly visibility: EmailVisibility
+  readonly email: string;
+  readonly verified: boolean;
+  readonly primary: boolean;
+  readonly visibility: EmailVisibility;
 }
 export interface IBitbucketAPIEmail {
-  readonly email: string
-  readonly is_primary: boolean
-  readonly is_confirmed: boolean
+  readonly email: string;
+  readonly is_primary: boolean;
+  readonly is_confirmed: boolean;
 }
 function toIAPIEmail(email: IBitbucketAPIEmail): IAPIEmail {
   return {
     email: email.email,
     verified: email.is_confirmed,
     primary: email.is_primary,
-    visibility: 'public',
-  }
+    visibility: "public",
+  };
 }
 
 /** Information about an issue as returned by the GitHub API. */
 export interface IAPIIssue {
-  readonly number: number
-  readonly title: string
-  readonly state: 'open' | 'closed'
-  readonly updated_at: string
+  readonly number: number;
+  readonly title: string;
+  readonly state: "open" | "closed";
+  readonly updated_at: string;
 }
 
 /** The combined state of a ref. */
-export type APIRefState = 'failure' | 'pending' | 'success' | 'error'
-export type BitbucketAPIRefState =
-  | 'FAILED'
-  | 'INPROGRESS'
-  | 'STOPPED'
-  | 'SUCCESSFUL'
+export type APIRefState = "failure" | "pending" | "success" | "error";
+export type BitbucketAPIRefState = "FAILED" | "INPROGRESS" | "STOPPED" | "SUCCESSFUL";
 export type GitLabAPIPipelineStatus =
-  | 'created'
-  | 'waiting_for_resource'
-  | 'preparing'
-  | 'pending'
-  | 'running'
-  | 'success'
-  | 'failed'
-  | 'canceled'
-  | 'skipped'
-  | 'manual'
-  | 'scheduled'
+  | "created"
+  | "waiting_for_resource"
+  | "preparing"
+  | "pending"
+  | "running"
+  | "success"
+  | "failed"
+  | "canceled"
+  | "skipped"
+  | "manual"
+  | "scheduled";
 
 /** The overall status of a check run */
 export enum APICheckStatus {
-  Queued = 'queued',
-  InProgress = 'in_progress',
-  Completed = 'completed',
+  Queued = "queued",
+  InProgress = "in_progress",
+  Completed = "completed",
 }
 
 /** The conclusion of a completed check run */
 export enum APICheckConclusion {
-  ActionRequired = 'action_required',
-  Canceled = 'cancelled',
-  TimedOut = 'timed_out',
-  Failure = 'failure',
-  Neutral = 'neutral',
-  Success = 'success',
-  Skipped = 'skipped',
-  Stale = 'stale',
+  ActionRequired = "action_required",
+  Canceled = "cancelled",
+  TimedOut = "timed_out",
+  Failure = "failure",
+  Neutral = "neutral",
+  Success = "success",
+  Skipped = "skipped",
+  Stale = "stale",
 }
 
 /**
@@ -594,77 +570,72 @@ export enum APICheckConclusion {
  * status for a given ref
  */
 export interface IAPIRefStatusItem {
-  readonly state: APIRefState
-  readonly target_url: string | null
-  readonly description: string
-  readonly context: string
-  readonly id: number
+  readonly state: APIRefState;
+  readonly target_url: string | null;
+  readonly description: string;
+  readonly context: string;
+  readonly id: number;
 }
 export interface IBitbucketAPICommitStatus {
-  readonly state: BitbucketAPIRefState
-  readonly url: string
-  readonly description: string
-  readonly name: string
+  readonly state: BitbucketAPIRefState;
+  readonly url: string;
+  readonly description: string;
+  readonly name: string;
 }
-function toIAPIRefStatusItem(
-  id: number,
-  status: IBitbucketAPICommitStatus
-): IAPIRefStatusItem {
+function toIAPIRefStatusItem(id: number, status: IBitbucketAPICommitStatus): IAPIRefStatusItem {
   return {
     state: mapRefState(status.state),
     target_url: status.url,
     description: status.description,
     context: status.name,
     id,
-  }
+  };
 }
 function mapRefState(state: BitbucketAPIRefState): APIRefState {
   switch (state) {
-    case 'FAILED':
-      return 'failure'
-    case 'INPROGRESS':
-      return 'pending'
-    case 'STOPPED':
-      return 'error'
-    case 'SUCCESSFUL':
-      return 'success'
+    case "FAILED":
+      return "failure";
+    case "INPROGRESS":
+      return "pending";
+    case "STOPPED":
+      return "error";
+    case "SUCCESSFUL":
+      return "success";
   }
 }
 
 /** The API response to a ref status request. */
 export interface IAPIRefStatus {
-  readonly state: APIRefState
-  readonly total_count: number
-  readonly statuses: ReadonlyArray<IAPIRefStatusItem>
+  readonly state: APIRefState;
+  readonly total_count: number;
+  readonly statuses: ReadonlyArray<IAPIRefStatusItem>;
 }
 
 export interface IAPIRefCheckRun {
-  readonly id: number
-  readonly url: string
-  readonly status: APICheckStatus
-  readonly conclusion: APICheckConclusion | null
-  readonly name: string
-  readonly check_suite: IAPIRefCheckRunCheckSuite
-  readonly app: IAPIRefCheckRunApp
-  readonly completed_at: string
-  readonly started_at: string
-  readonly html_url: string
-  readonly pull_requests: ReadonlyArray<IAPIPullRequest>
+  readonly id: number;
+  readonly url: string;
+  readonly status: APICheckStatus;
+  readonly conclusion: APICheckConclusion | null;
+  readonly name: string;
+  readonly check_suite: IAPIRefCheckRunCheckSuite;
+  readonly app: IAPIRefCheckRunApp;
+  readonly completed_at: string;
+  readonly started_at: string;
+  readonly html_url: string;
+  readonly pull_requests: ReadonlyArray<IAPIPullRequest>;
 }
 export interface IGitLabAPIPipelineStatus {
-  readonly status: GitLabAPIPipelineStatus
-  readonly web_url: string
-  readonly id: number
-  readonly iid: number
-  readonly source: string
-  readonly sha: string
-  readonly ref: string
-  readonly created_at: string
-  readonly updated_at: string
+  readonly status: GitLabAPIPipelineStatus;
+  readonly web_url: string;
+  readonly id: number;
+  readonly iid: number;
+  readonly source: string;
+  readonly sha: string;
+  readonly ref: string;
+  readonly created_at: string;
+  readonly updated_at: string;
 }
-function toIAPIRefCheckRunFromGitLab(
-  pipelineStatus: IGitLabAPIPipelineStatus
-): IAPIRefCheckRun {
+function toIAPIRefCheckRunFromGitLab(pipelineStatus: IGitLabAPIPipelineStatus): IAPIRefCheckRun {
   return {
     id: pipelineStatus.id,
     url: pipelineStatus.web_url,
@@ -675,132 +646,130 @@ function toIAPIRefCheckRunFromGitLab(
       id: pipelineStatus.id,
     },
     app: {
-      name: 'Pipelines',
+      name: "Pipelines",
     },
     completed_at: pipelineStatus.updated_at,
     started_at: pipelineStatus.created_at,
     html_url: pipelineStatus.web_url,
     pull_requests: [],
-  }
+  };
 }
-function toAPICheckStatusFromGitLab(
-  status: GitLabAPIPipelineStatus
-): APICheckStatus {
+function toAPICheckStatusFromGitLab(status: GitLabAPIPipelineStatus): APICheckStatus {
   switch (status) {
-    case 'created':
-    case 'waiting_for_resource':
-    case 'preparing':
-    case 'pending':
-    case 'scheduled':
-      return APICheckStatus.Queued
-    case 'running':
-      return APICheckStatus.InProgress
-    case 'manual':
-    case 'success':
-    case 'failed':
-    case 'canceled':
-    case 'skipped':
-      return APICheckStatus.Completed
+    case "created":
+    case "waiting_for_resource":
+    case "preparing":
+    case "pending":
+    case "scheduled":
+      return APICheckStatus.Queued;
+    case "running":
+      return APICheckStatus.InProgress;
+    case "manual":
+    case "success":
+    case "failed":
+    case "canceled":
+    case "skipped":
+      return APICheckStatus.Completed;
   }
 }
 function toAPICheckConclusionFromGitLab(
-  status: GitLabAPIPipelineStatus
+  status: GitLabAPIPipelineStatus,
 ): APICheckConclusion | null {
   switch (status) {
-    case 'created':
-    case 'waiting_for_resource':
-    case 'preparing':
-    case 'pending':
-    case 'scheduled':
-    case 'running':
-      return null
-    case 'manual':
-      return APICheckConclusion.ActionRequired
-    case 'success':
-      return APICheckConclusion.Success
-    case 'failed':
-      return APICheckConclusion.Failure
-    case 'canceled':
-      return APICheckConclusion.Canceled
-    case 'skipped':
-      return APICheckConclusion.Skipped
+    case "created":
+    case "waiting_for_resource":
+    case "preparing":
+    case "pending":
+    case "scheduled":
+    case "running":
+      return null;
+    case "manual":
+      return APICheckConclusion.ActionRequired;
+    case "success":
+      return APICheckConclusion.Success;
+    case "failed":
+      return APICheckConclusion.Failure;
+    case "canceled":
+      return APICheckConclusion.Canceled;
+    case "skipped":
+      return APICheckConclusion.Skipped;
   }
 }
 
 // NB. Only partially mapped
 export interface IAPIRefCheckRunApp {
-  readonly name: string
+  readonly name: string;
 }
 
 // NB. Only partially mapped
 export interface IAPIRefCheckRunOutput {
-  readonly title: string | null
-  readonly summary: string | null
-  readonly text: string | null
+  readonly title: string | null;
+  readonly summary: string | null;
+  readonly text: string | null;
 }
 
 export interface IAPIRefCheckRunCheckSuite {
-  readonly id: number
+  readonly id: number;
 }
 
 export interface IAPICheckSuite {
-  readonly id: number
-  readonly rerequestable: boolean
-  readonly runs_rerequestable: boolean
-  readonly status: APICheckStatus
-  readonly created_at: string
+  readonly id: number;
+  readonly rerequestable: boolean;
+  readonly runs_rerequestable: boolean;
+  readonly status: APICheckStatus;
+  readonly created_at: string;
 }
 
 export interface IAPIRefCheckRuns {
-  readonly total_count: number
-  readonly check_runs: IAPIRefCheckRun[]
+  readonly total_count: number;
+  readonly check_runs: IAPIRefCheckRun[];
 }
 
 interface IAPIWorkflowRuns {
-  readonly total_count: number
-  readonly workflow_runs: ReadonlyArray<IAPIWorkflowRun>
+  readonly total_count: number;
+  readonly workflow_runs: ReadonlyArray<IAPIWorkflowRun>;
 }
 // NB. Only partially mapped
 export interface IAPIWorkflowRun {
-  readonly id: number
+  readonly id: number;
   /**
    * The workflow_id is the id of the workflow not the individual run.
    **/
-  readonly workflow_id: number
-  readonly cancel_url: string
-  readonly created_at: string
-  readonly logs_url: string
-  readonly name: string
-  readonly rerun_url: string
-  readonly check_suite_id: number
-  readonly event: string
+  readonly workflow_id: number;
+  readonly cancel_url: string;
+  readonly created_at: string;
+  readonly logs_url: string;
+  readonly name: string;
+  readonly rerun_url: string;
+  readonly check_suite_id: number;
+  readonly event: string;
 }
 
 export interface IAPIWorkflowJobs {
-  readonly total_count: number
-  readonly jobs: IAPIWorkflowJob[]
+  readonly total_count: number;
+  readonly jobs: IAPIWorkflowJob[];
 }
 
 // NB. Only partially mapped
 export interface IAPIWorkflowJob {
-  readonly id: number
-  readonly name: string
-  readonly status: APICheckStatus
-  readonly conclusion: APICheckConclusion | null
-  readonly completed_at: string
-  readonly started_at: string
-  readonly steps: ReadonlyArray<IAPIWorkflowJobStep>
-  readonly html_url: string
+  readonly id: number;
+  readonly name: string;
+  readonly status: APICheckStatus;
+  readonly conclusion: APICheckConclusion | null;
+  readonly completed_at: string;
+  readonly started_at: string;
+  readonly steps: ReadonlyArray<IAPIWorkflowJobStep>;
+  readonly html_url: string;
 }
 
 export interface IAPIWorkflowJobStep {
-  readonly name: string
-  readonly number: number
-  readonly status: APICheckStatus
-  readonly conclusion: APICheckConclusion | null
-  readonly completed_at: string
-  readonly started_at: string
-  readonly log: string
+  readonly name: string;
+  readonly number: number;
+  readonly status: APICheckStatus;
+  readonly conclusion: APICheckConclusion | null;
+  readonly completed_at: string;
+  readonly started_at: string;
+  readonly log: string;
 }
 
 /** Protected branch information returned by the GitHub API */
@@ -810,14 +779,14 @@ export interface IAPIPushControl {
    *
    * Empty array if user is admin and branch is not admin-enforced
    */
-  required_status_checks: Array<string>
+  required_status_checks: Array<string>;
 
   /**
    * How many reviews are required before merging?
    *
    * 0 if user is admin and branch is not admin-enforced
    */
-  required_approving_review_count: number
+  required_approving_review_count: number;
 
   /**
    * Is user permitted?
@@ -827,16 +796,16 @@ export interface IAPIPushControl {
    * `true` if `Restrict who can push` is enabled and user is in list.
    * `false` if `Restrict who can push` is enabled and user is not in list.
    */
-  allow_actor: boolean
+  allow_actor: boolean;
 
   /**
    * Currently unused properties
    */
-  pattern: string | null
-  required_signatures: boolean
-  required_linear_history: boolean
-  allow_deletions: boolean
-  allow_force_pushes: boolean
+  pattern: string | null;
+  required_signatures: boolean;
+  required_linear_history: boolean;
+  allow_deletions: boolean;
+  allow_force_pushes: boolean;
 }
 
 /** Branch information returned by the GitHub API */
@@ -846,19 +815,19 @@ export interface IAPIBranch {
    *
    * NOTE: this is NOT a fully-qualified ref (i.e. `refs/heads/main`)
    */
-  readonly name: string
+  readonly name: string;
   /**
    * Branch protection settings:
    *
    *  - `true` indicates that the branch is protected in some way
    *  - `false` indicates no branch protection set
    */
-  readonly protected: boolean
+  readonly protected: boolean;
 }
 
 interface ICodebergAPIBranch {
-  readonly name: string
-  readonly protected: boolean
+  readonly name: string;
+  readonly protected: boolean;
 }
 
 /** Repository rule information returned by the GitHub API */
@@ -866,12 +835,12 @@ export interface IAPIRepoRule {
   /**
    * The ID of the ruleset this rule is configured in.
    */
-  readonly ruleset_id: number
+  readonly ruleset_id: number;
 
   /**
    * The type of the rule.
    */
-  readonly type: APIRepoRuleType
+  readonly type: APIRepoRuleType;
 
   /**
    * The parameters that apply to the rule if it is a metadata rule.
@@ -879,7 +848,7 @@ export interface IAPIRepoRule {
    * this app so they are ignored. Do not attempt to use this field
    * unless you know `type` matches a metadata rule type.
    */
-  readonly parameters?: IAPIRepoRuleMetadataParameters
+  readonly parameters?: IAPIRepoRuleMetadataParameters;
 }
 
 /**
@@ -887,16 +856,16 @@ export interface IAPIRepoRule {
  * types used by this app are included.
  */
 export enum APIRepoRuleType {
-  Creation = 'creation',
-  Update = 'update',
-  RequiredDeployments = 'required_deployments',
-  RequiredSignatures = 'required_signatures',
-  RequiredStatusChecks = 'required_status_checks',
-  PullRequest = 'pull_request',
-  CommitMessagePattern = 'commit_message_pattern',
-  CommitAuthorEmailPattern = 'commit_author_email_pattern',
-  CommitterEmailPattern = 'committer_email_pattern',
-  BranchNamePattern = 'branch_name_pattern',
+  Creation = "creation",
+  Update = "update",
+  RequiredDeployments = "required_deployments",
+  RequiredSignatures = "required_signatures",
+  RequiredStatusChecks = "required_status_checks",
+  PullRequest = "pull_request",
+  CommitMessagePattern = "commit_message_pattern",
+  CommitAuthorEmailPattern = "commit_author_email_pattern",
+  CommitterEmailPattern = "committer_email_pattern",
+  BranchNamePattern = "branch_name_pattern",
 }
 
 /**
@@ -905,7 +874,7 @@ export enum APIRepoRuleType {
  * only the ID is used.
  */
 export interface IAPISlimRepoRuleset {
-  readonly id: number
+  readonly id: number;
 }
 
 /**
@@ -915,7 +884,7 @@ export interface IAPIRepoRuleset extends IAPISlimRepoRuleset {
   /**
    * Whether the user making the API request can bypass the ruleset.
    */
-  readonly current_user_can_bypass: 'always' | 'pull_requests_only' | 'never'
+  readonly current_user_can_bypass: "always" | "pull_requests_only" | "never";
 }
 
 /**
@@ -925,89 +894,87 @@ export interface IAPIRepoRuleMetadataParameters {
   /**
    * User-supplied name/description of the rule
    */
-  name: string
+  name: string;
 
   /**
    * Whether the operator is negated. For example, if `true`
    * and `operator` is `starts_with`, then the rule
    * will be negated to 'does not start with'.
    */
-  negate: boolean
+  negate: boolean;
 
   /**
    * The pattern to match against. If the operator is 'regex', then
    * this is a regex string match. Otherwise, it is a raw string match
    * of the type specified by `operator` with no additional parsing.
    */
-  pattern: string
+  pattern: string;
 
   /**
    * The type of match to use for the pattern. For example, `starts_with`
    * means `pattern` must be at the start of the string.
    */
-  operator: APIRepoRuleMetadataOperator
+  operator: APIRepoRuleMetadataOperator;
 }
 
 export enum APIRepoRuleMetadataOperator {
-  StartsWith = 'starts_with',
-  EndsWith = 'ends_with',
-  Contains = 'contains',
-  RegexMatch = 'regex',
+  StartsWith = "starts_with",
+  EndsWith = "ends_with",
+  Contains = "contains",
+  RegexMatch = "regex",
 }
 
 interface IAPIPullRequestRef {
-  readonly ref: string
-  readonly sha: string
+  readonly ref: string;
+  readonly sha: string;
 
   /**
    * The repository in which this ref lives. It could be null if the repository
    * has been deleted since the PR was opened.
    */
-  readonly repo: IAPIRepository | null
+  readonly repo: IAPIRepository | null;
 }
 interface IBitbucketAPIPullRequestRef {
   readonly branch: {
-    readonly name: string
-  }
+    readonly name: string;
+  };
   readonly commit: {
-    readonly hash: string
-  } | null
-  readonly repository: IBitbucketAPIRepositorySummary
+    readonly hash: string;
+  } | null;
+  readonly repository: IBitbucketAPIRepositorySummary;
 }
-function toIAPIPullRequestRef(
-  ref: IBitbucketAPIPullRequestRef
-): IAPIPullRequestRef {
+function toIAPIPullRequestRef(ref: IBitbucketAPIPullRequestRef): IAPIPullRequestRef {
   return {
     ref: ref.branch.name,
-    sha: ref.commit?.hash ?? '',
+    sha: ref.commit?.hash ?? "",
     repo: summaryToIAPIRepository(ref.repository),
-  }
+  };
 }
 
 /** Information about a pull request as returned by the GitHub API. */
 export interface IAPIPullRequest {
-  readonly number: number
-  readonly title: string
-  readonly created_at: string
-  readonly updated_at: string
-  readonly user: IAPIIdentity
-  readonly head: IAPIPullRequestRef
-  readonly base: IAPIPullRequestRef
-  readonly body: string
-  readonly state: 'open' | 'closed'
-  readonly draft?: boolean
+  readonly number: number;
+  readonly title: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly user: IAPIIdentity;
+  readonly head: IAPIPullRequestRef;
+  readonly base: IAPIPullRequestRef;
+  readonly body: string;
+  readonly state: "open" | "closed";
+  readonly draft?: boolean;
 }
 interface IBitbucketAPIPullRequest {
-  readonly id: number
-  readonly title: string
-  readonly created_on: string
-  readonly updated_on: string
-  readonly author: IBitbucketAPIIdentity
-  readonly source: IBitbucketAPIPullRequestRef
-  readonly destination: IBitbucketAPIPullRequestRef
-  readonly description: string
-  readonly state: 'OPEN' | 'MERGED' | 'DECLINED'
-  readonly type: 'pullrequest'
+  readonly id: number;
+  readonly title: string;
+  readonly created_on: string;
+  readonly updated_on: string;
+  readonly author: IBitbucketAPIIdentity;
+  readonly source: IBitbucketAPIPullRequestRef;
+  readonly destination: IBitbucketAPIPullRequestRef;
+  readonly description: string;
+  readonly state: "OPEN" | "MERGED" | "DECLINED";
+  readonly type: "pullrequest";
 }
 function toIAPIPullRequest(pr: IBitbucketAPIPullRequest): IAPIPullRequest {
   return {
@@ -1019,17 +986,17 @@ function toIAPIPullRequest(pr: IBitbucketAPIPullRequest): IAPIPullRequest {
     head: toIAPIPullRequestRef(pr.source),
     base: toIAPIPullRequestRef(pr.destination),
     body: pr.description,
-    state: pr.state === 'OPEN' ? 'open' : 'closed',
-  }
+    state: pr.state === "OPEN" ? "open" : "closed",
+  };
 }
 
 // GitLab API Interfaces
 export interface IGitLabAPIIdentity {
-  readonly id: number
-  readonly username: string
-  readonly name: string
-  readonly avatar_url: string
-  readonly web_url: string
+  readonly id: number;
+  readonly username: string;
+  readonly name: string;
+  readonly avatar_url: string;
+  readonly web_url: string;
 }
 function toIAPIIdentityFromGitLab(identity: IGitLabAPIIdentity): IAPIIdentity {
   return {
@@ -1037,12 +1004,10 @@ function toIAPIIdentityFromGitLab(identity: IGitLabAPIIdentity): IAPIIdentity {
     login: identity.username,
     avatar_url: identity.avatar_url,
     html_url: identity.web_url,
-    type: 'User',
-  }
+    type: "User",
+  };
 }
-function toIAPIFullIdentityFromGitLab(
-  identity: IGitLabAPIIdentity
-): IAPIFullIdentity {
+function toIAPIFullIdentityFromGitLab(identity: IGitLabAPIIdentity): IAPIFullIdentity {
   return {
     id: identity.id,
     login: identity.username,
@@ -1050,51 +1015,46 @@ function toIAPIFullIdentityFromGitLab(
     html_url: identity.web_url,
     name: identity.name,
     email: null,
-    type: 'User',
-  }
+    type: "User",
+  };
 }
 
 export interface IGitLabAPIEmail {
-  readonly email: string
-  readonly confirmed_at: string | null
+  readonly email: string;
+  readonly confirmed_at: string | null;
 }
-function toIAPIEmailFromGitLab(
-  email: IGitLabAPIEmail,
-  index: number
-): IAPIEmail {
+function toIAPIEmailFromGitLab(email: IGitLabAPIEmail, index: number): IAPIEmail {
   return {
     email: email.email,
     verified: email.confirmed_at !== null,
     primary: index === 0,
-    visibility: 'public',
-  }
+    visibility: "public",
+  };
 }
 
 export interface IGitLabAPIRepository {
-  readonly id: number
-  readonly name: string
-  readonly path: string
-  readonly path_with_namespace: string
-  readonly web_url: string
-  readonly ssh_url_to_repo: string
-  readonly http_url_to_repo: string
+  readonly id: number;
+  readonly name: string;
+  readonly path: string;
+  readonly path_with_namespace: string;
+  readonly web_url: string;
+  readonly ssh_url_to_repo: string;
+  readonly http_url_to_repo: string;
   readonly namespace: {
-    readonly kind: string
-    readonly path: string
-    readonly full_path: string
-  }
-  readonly owner?: IGitLabAPIIdentity
-  readonly visibility: 'private' | 'internal' | 'public'
-  readonly default_branch: string
-  readonly last_activity_at: string
-  readonly issues_enabled: boolean
-  readonly archived: boolean
-  readonly forked_from_project?: IGitLabAPIRepository
+    readonly kind: string;
+    readonly path: string;
+    readonly full_path: string;
+  };
+  readonly owner?: IGitLabAPIIdentity;
+  readonly visibility: "private" | "internal" | "public";
+  readonly default_branch: string;
+  readonly last_activity_at: string;
+  readonly issues_enabled: boolean;
+  readonly archived: boolean;
+  readonly forked_from_project?: IGitLabAPIRepository;
 }
-function toIAPIRepositoryFromGitLab(
-  repo: IGitLabAPIRepository
-): IAPIRepository {
-  const ownerLogin = repo.path_with_namespace.split('/').slice(0, -1).join('/')
+function toIAPIRepositoryFromGitLab(repo: IGitLabAPIRepository): IAPIRepository {
+  const ownerLogin = repo.path_with_namespace.split("/").slice(0, -1).join("/");
   return {
     clone_url: repo.http_url_to_repo,
     ssh_url: repo.ssh_url_to_repo,
@@ -1103,21 +1063,19 @@ function toIAPIRepositoryFromGitLab(
     owner: {
       id: repo.owner?.id ?? 0,
       login: ownerLogin,
-      avatar_url: repo.owner?.avatar_url ?? '',
-      html_url: repo.owner?.web_url ?? '',
-      type: 'User',
+      avatar_url: repo.owner?.avatar_url ?? "",
+      html_url: repo.owner?.web_url ?? "",
+      type: "User",
     },
-    private: repo.visibility === 'private',
+    private: repo.visibility === "private",
     fork: !!repo.forked_from_project,
     default_branch: repo.default_branch,
     pushed_at: repo.last_activity_at,
     has_issues: repo.issues_enabled,
     archived: repo.archived,
-  }
+  };
 }
-function toIAPIFullRepositoryFromGitLab(
-  repo: IGitLabAPIRepository
-): IAPIFullRepository {
+function toIAPIFullRepositoryFromGitLab(repo: IGitLabAPIRepository): IAPIFullRepository {
   return {
     ...toIAPIRepositoryFromGitLab(repo),
     parent: repo.forked_from_project
@@ -1128,29 +1086,29 @@ function toIAPIFullRepositoryFromGitLab(
       push: true,
       pull: true,
     },
-  }
+  };
 }
 
 interface IGitLabAPIMergeRequest {
-  readonly iid: number
-  readonly title: string
-  readonly description: string
-  readonly state: 'opened' | 'closed' | 'locked' | 'merged'
-  readonly created_at: string
-  readonly updated_at: string
-  readonly author: IGitLabAPIIdentity
-  readonly source_branch: string
-  readonly target_branch: string
-  readonly source_project_id: number
-  readonly target_project_id: number
-  readonly sha: string
-  readonly draft: boolean
-  readonly web_url: string
+  readonly iid: number;
+  readonly title: string;
+  readonly description: string;
+  readonly state: "opened" | "closed" | "locked" | "merged";
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly author: IGitLabAPIIdentity;
+  readonly source_branch: string;
+  readonly target_branch: string;
+  readonly source_project_id: number;
+  readonly target_project_id: number;
+  readonly sha: string;
+  readonly draft: boolean;
+  readonly web_url: string;
 }
 function toIAPIPullRequestFromGitLab(
   mr: IGitLabAPIMergeRequest,
   sourceRepo: IGitLabAPIRepository | null,
-  targetRepo: IGitLabAPIRepository | null
+  targetRepo: IGitLabAPIRepository | null,
 ): IAPIPullRequest {
   return {
     number: mr.iid,
@@ -1169,66 +1127,60 @@ function toIAPIPullRequestFromGitLab(
       repo: targetRepo ? toIAPIFullRepositoryFromGitLab(targetRepo) : null,
     },
     body: mr.description,
-    state: mr.state === 'opened' ? 'open' : 'closed',
+    state: mr.state === "opened" ? "open" : "closed",
     draft: mr.draft,
-  }
+  };
 }
 
 export interface IGitLabAPIIssue {
-  readonly iid: number
-  readonly title: string
-  readonly state: 'opened' | 'closed'
-  readonly updated_at: string
+  readonly iid: number;
+  readonly title: string;
+  readonly state: "opened" | "closed";
+  readonly updated_at: string;
 }
 function toIAPIIssueFromGitLab(issue: IGitLabAPIIssue): IAPIIssue {
   return {
     number: issue.iid,
     title: issue.title,
-    state: issue.state === 'opened' ? 'open' : 'closed',
+    state: issue.state === "opened" ? "open" : "closed",
     updated_at: issue.updated_at,
-  }
+  };
 }
 
 export interface IGitLabAPIProjectMember {
-  readonly id: number
-  readonly username: string
-  readonly name: string
-  readonly avatar_url: string
-  readonly web_url: string
+  readonly id: number;
+  readonly username: string;
+  readonly name: string;
+  readonly avatar_url: string;
+  readonly web_url: string;
 }
-function toIAPIMentionableUserFromGitLab(
-  member: IGitLabAPIProjectMember
-): IAPIMentionableUser {
+function toIAPIMentionableUserFromGitLab(member: IGitLabAPIProjectMember): IAPIMentionableUser {
   return {
     avatar_url: member.avatar_url,
     email: null,
     login: member.username,
     name: member.name,
-  }
+  };
 }
 
 interface ICodebergAPIIdentity {
-  readonly id: number
-  readonly login: string
-  readonly full_name: string
-  readonly avatar_url: string
-  readonly html_url: string
-  readonly email: string
+  readonly id: number;
+  readonly login: string;
+  readonly full_name: string;
+  readonly avatar_url: string;
+  readonly html_url: string;
+  readonly email: string;
 }
-function toIAPIIdentityFromCodeberg(
-  identity: ICodebergAPIIdentity
-): IAPIIdentity {
+function toIAPIIdentityFromCodeberg(identity: ICodebergAPIIdentity): IAPIIdentity {
   return {
     id: identity.id,
     login: identity.login,
     avatar_url: identity.avatar_url,
     html_url: identity.html_url,
-    type: 'User',
-  }
+    type: "User",
+  };
 }
-function toIAPIFullIdentityFromCodeberg(
-  identity: ICodebergAPIIdentity
-): IAPIFullIdentity {
+function toIAPIFullIdentityFromCodeberg(identity: ICodebergAPIIdentity): IAPIFullIdentity {
   return {
     id: identity.id,
     login: identity.login,
@@ -1236,63 +1188,59 @@ function toIAPIFullIdentityFromCodeberg(
     html_url: identity.html_url,
     name: identity.full_name || null,
     email: identity.email || null,
-    type: 'User',
-  }
+    type: "User",
+  };
 }
 
 interface ICodebergAPIEmail {
-  readonly email: string
-  readonly verified: boolean
-  readonly primary: boolean
+  readonly email: string;
+  readonly verified: boolean;
+  readonly primary: boolean;
 }
 function toIAPIEmailFromCodeberg(email: ICodebergAPIEmail): IAPIEmail {
   return {
     email: email.email,
     verified: email.verified,
     primary: email.primary,
-    visibility: 'public',
-  }
+    visibility: "public",
+  };
 }
 
 interface ICodebergAPIOrganization {
-  readonly id: number
-  readonly name: string
-  readonly username: string
-  readonly avatar_url: string
+  readonly id: number;
+  readonly name: string;
+  readonly username: string;
+  readonly avatar_url: string;
 }
-function toIAPIOrganizationFromCodeberg(
-  org: ICodebergAPIOrganization
-): IAPIOrganization {
+function toIAPIOrganizationFromCodeberg(org: ICodebergAPIOrganization): IAPIOrganization {
   return {
     id: org.id,
-    url: '',
+    url: "",
     login: org.username || org.name,
     avatar_url: org.avatar_url,
-  }
+  };
 }
 
 interface ICodebergAPIRepository {
-  readonly name: string
-  readonly html_url: string
-  readonly ssh_url: string
-  readonly clone_url: string
-  readonly owner: ICodebergAPIIdentity
-  readonly private: boolean
-  readonly fork: boolean
-  readonly default_branch: string
-  readonly updated_at: string
-  readonly has_issues: boolean
-  readonly archived: boolean
-  readonly parent: ICodebergAPIRepository | null
+  readonly name: string;
+  readonly html_url: string;
+  readonly ssh_url: string;
+  readonly clone_url: string;
+  readonly owner: ICodebergAPIIdentity;
+  readonly private: boolean;
+  readonly fork: boolean;
+  readonly default_branch: string;
+  readonly updated_at: string;
+  readonly has_issues: boolean;
+  readonly archived: boolean;
+  readonly parent: ICodebergAPIRepository | null;
   readonly permissions?: {
-    readonly admin: boolean
-    readonly push: boolean
-    readonly pull: boolean
-  }
+    readonly admin: boolean;
+    readonly push: boolean;
+    readonly pull: boolean;
+  };
 }
-function toIAPIRepositoryFromCodeberg(
-  repo: ICodebergAPIRepository
-): IAPIRepository {
+function toIAPIRepositoryFromCodeberg(repo: ICodebergAPIRepository): IAPIRepository {
   return {
     clone_url: repo.clone_url,
     ssh_url: repo.ssh_url,
@@ -1305,47 +1253,41 @@ function toIAPIRepositoryFromCodeberg(
     pushed_at: repo.updated_at,
     has_issues: repo.has_issues,
     archived: repo.archived,
-  }
+  };
 }
-function toIAPIFullRepositoryFromCodeberg(
-  repo: ICodebergAPIRepository
-): IAPIFullRepository {
+function toIAPIFullRepositoryFromCodeberg(repo: ICodebergAPIRepository): IAPIFullRepository {
   return {
     ...toIAPIRepositoryFromCodeberg(repo),
     parent: repo.parent ? toIAPIRepositoryFromCodeberg(repo.parent) : undefined,
     permissions: repo.permissions ?? { admin: true, push: true, pull: true },
-  }
+  };
 }
 
 interface ICodebergAPIPullRequestRef {
-  readonly ref: string
-  readonly sha: string
-  readonly repo: ICodebergAPIRepository | null
+  readonly ref: string;
+  readonly sha: string;
+  readonly repo: ICodebergAPIRepository | null;
 }
-function toIAPIPullRequestRefFromCodeberg(
-  ref: ICodebergAPIPullRequestRef
-): IAPIPullRequestRef {
+function toIAPIPullRequestRefFromCodeberg(ref: ICodebergAPIPullRequestRef): IAPIPullRequestRef {
   return {
     ref: ref.ref,
     sha: ref.sha,
     repo: ref.repo ? toIAPIRepositoryFromCodeberg(ref.repo) : null,
-  }
+  };
 }
 interface ICodebergAPIPullRequest {
-  readonly number: number
-  readonly title: string
-  readonly body: string
-  readonly state: 'open' | 'closed'
-  readonly created_at: string
-  readonly updated_at: string
-  readonly user: ICodebergAPIIdentity
-  readonly head: ICodebergAPIPullRequestRef
-  readonly base: ICodebergAPIPullRequestRef
-  readonly draft: boolean
+  readonly number: number;
+  readonly title: string;
+  readonly body: string;
+  readonly state: "open" | "closed";
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly user: ICodebergAPIIdentity;
+  readonly head: ICodebergAPIPullRequestRef;
+  readonly base: ICodebergAPIPullRequestRef;
+  readonly draft: boolean;
 }
-function toIAPIPullRequestFromCodeberg(
-  pr: ICodebergAPIPullRequest
-): IAPIPullRequest {
+function toIAPIPullRequestFromCodeberg(pr: ICodebergAPIPullRequest): IAPIPullRequest {
   return {
     number: pr.number,
     title: pr.title,
@@ -1357,14 +1299,14 @@ function toIAPIPullRequestFromCodeberg(
     body: pr.body,
     state: pr.state,
     draft: pr.draft,
-  }
+  };
 }
 
 interface ICodebergAPIIssue {
-  readonly number: number
-  readonly title: string
-  readonly state: 'open' | 'closed'
-  readonly updated_at: string
+  readonly number: number;
+  readonly title: string;
+  readonly state: "open" | "closed";
+  readonly updated_at: string;
 }
 function toIAPIIssueFromCodeberg(issue: ICodebergAPIIssue): IAPIIssue {
   return {
@@ -1372,124 +1314,112 @@ function toIAPIIssueFromCodeberg(issue: ICodebergAPIIssue): IAPIIssue {
     title: issue.title,
     state: issue.state,
     updated_at: issue.updated_at,
-  }
+  };
 }
 
-type CodebergAPIStatusState =
-  | 'pending'
-  | 'success'
-  | 'error'
-  | 'failure'
-  | 'warning'
+type CodebergAPIStatusState = "pending" | "success" | "error" | "failure" | "warning";
 interface ICodebergAPICommitStatus {
-  readonly id: number
-  readonly status: CodebergAPIStatusState
-  readonly target_url: string | null
-  readonly description: string
-  readonly context: string
-  readonly created_at: string
-  readonly updated_at: string
+  readonly id: number;
+  readonly status: CodebergAPIStatusState;
+  readonly target_url: string | null;
+  readonly description: string;
+  readonly context: string;
+  readonly created_at: string;
+  readonly updated_at: string;
 }
 interface ICodebergAPICombinedStatus {
-  readonly state: CodebergAPIStatusState
-  readonly total_count: number
-  readonly statuses: ReadonlyArray<ICodebergAPICommitStatus> | null
+  readonly state: CodebergAPIStatusState;
+  readonly total_count: number;
+  readonly statuses: ReadonlyArray<ICodebergAPICommitStatus> | null;
 }
-function toIAPIRefStatusItemFromCodeberg(
-  status: ICodebergAPICommitStatus
-): IAPIRefStatusItem {
+function toIAPIRefStatusItemFromCodeberg(status: ICodebergAPICommitStatus): IAPIRefStatusItem {
   return {
     state: mapRefStateFromCodeberg(status.status),
     target_url: toCodebergAbsoluteURL(status.target_url),
     description: status.description,
     context: status.context,
     id: status.id,
-  }
+  };
 }
 function mapRefStateFromCodeberg(state: CodebergAPIStatusState): APIRefState {
   switch (state) {
-    case 'pending':
-      return 'pending'
-    case 'success':
-      return 'success'
-    case 'error':
-      return 'error'
-    case 'failure':
-      return 'failure'
-    case 'warning':
-      return 'success'
+    case "pending":
+      return "pending";
+    case "success":
+      return "success";
+    case "error":
+      return "error";
+    case "failure":
+      return "failure";
+    case "warning":
+      return "success";
     default:
-      return 'pending'
+      return "pending";
   }
 }
 function toCodebergAbsoluteURL(url: string | null): string | null {
   if (!url) {
-    return null
+    return null;
   }
   try {
     // Statuses reported by Forgejo Actions use a target_url that is relative
     // to the instance root (e.g. /owner/repo/actions/runs/123)
-    const host = new window.URL(getCodebergAPIEndpoint()).host
-    return new window.URL(url, `https://${host}`).toString()
+    const host = new window.URL(getCodebergAPIEndpoint()).host;
+    return new window.URL(url, `https://${host}`).toString();
   } catch {
-    return null
+    return null;
   }
 }
 
 /** Information about a pull request review as returned by the GitHub API. */
 export interface IAPIPullRequestReview {
-  readonly id: number
-  readonly user: IAPIIdentity
-  readonly body: string
-  readonly html_url: string
-  readonly submitted_at: string
-  readonly state:
-    | 'APPROVED'
-    | 'DISMISSED'
-    | 'PENDING'
-    | 'COMMENTED'
-    | 'CHANGES_REQUESTED'
+  readonly id: number;
+  readonly user: IAPIIdentity;
+  readonly body: string;
+  readonly html_url: string;
+  readonly submitted_at: string;
+  readonly state: "APPROVED" | "DISMISSED" | "PENDING" | "COMMENTED" | "CHANGES_REQUESTED";
 }
 
 /** Represents both issue comments and PR review comments */
 export interface IAPIComment {
-  readonly id: number
-  readonly body: string
-  readonly html_url: string
-  readonly user: IAPIIdentity
-  readonly created_at: string
+  readonly id: number;
+  readonly body: string;
+  readonly html_url: string;
+  readonly user: IAPIIdentity;
+  readonly created_at: string;
 }
 
 /** The server response when handling the OAuth callback (with code) to obtain an access token */
 interface IAPIAccessToken {
-  readonly access_token: string
-  readonly scope: string
-  readonly token_type: string
+  readonly access_token: string;
+  readonly scope: string;
+  readonly token_type: string;
 }
 interface IBitbucketAPIAccessToken {
-  readonly access_token: string
-  readonly token_type: string
-  readonly scopes: string
-  readonly expires_in: number
-  readonly refresh_token: string
+  readonly access_token: string;
+  readonly token_type: string;
+  readonly scopes: string;
+  readonly expires_in: number;
+  readonly refresh_token: string;
 }
 interface IGitLabAPIAccessToken {
-  readonly access_token: string
-  readonly token_type: string
-  readonly expires_in: number
-  readonly refresh_token: string
-  readonly created_at: number
+  readonly access_token: string;
+  readonly token_type: string;
+  readonly expires_in: number;
+  readonly refresh_token: string;
+  readonly created_at: number;
 }
 interface ICodebergAPIAccessToken {
-  readonly access_token: string
-  readonly expires_in: number
-  readonly refresh_token: string
+  readonly access_token: string;
+  readonly expires_in: number;
+  readonly refresh_token: string;
 }
 
 /** The response we receive from fetching mentionables. */
 interface IAPIMentionablesResponse {
-  readonly etag: string | undefined
-  readonly users: ReadonlyArray<IAPIMentionableUser>
+  readonly etag: string | undefined;
+  readonly users: ReadonlyArray<IAPIMentionableUser>;
 }
 
 /**
@@ -1499,23 +1429,23 @@ interface IAPIMentionablesResponse {
  * If no link rel next header is found this method returns null.
  */
 function getNextPagePathFromLink(response: Response): string | null {
-  const linkHeader = response.headers.get('Link')
+  const linkHeader = response.headers.get("Link");
 
   if (!linkHeader) {
-    return null
+    return null;
   }
 
-  for (const part of linkHeader.split(',')) {
+  for (const part of linkHeader.split(",")) {
     // https://github.com/philschatz/octokat.js/blob/5658abe442e8bf405cfda1c72629526a37554613/src/plugins/pagination.js#L17
-    const match = part.match(/<([^>]+)>; rel="([^"]+)"/)
+    const match = part.match(/<([^>]+)>; rel="([^"]+)"/);
 
-    if (match && match[2] === 'next') {
-      const nextURL = URL.parse(match[1])
-      return nextURL.path || null
+    if (match && match[2] === "next") {
+      const nextURL = URL.parse(match[1]);
+      return nextURL.path || null;
     }
   }
 
-  return null
+  return null;
 }
 
 /**
@@ -1567,45 +1497,45 @@ export function getNextPagePathWithIncreasingPageSize(
   response: Response,
   perPageParamName: string,
   pageParamName: string,
-  maxResults: number
+  maxResults: number,
 ) {
-  const nextPath = getNextPagePathFromLink(response)
+  const nextPath = getNextPagePathFromLink(response);
 
   if (!nextPath) {
-    return null
+    return null;
   }
 
-  const { pathname, query } = URL.parse(nextPath, true)
-  const { [perPageParamName]: perPage, [pageParamName]: page } = query
+  const { pathname, query } = URL.parse(nextPath, true);
+  const { [perPageParamName]: perPage, [pageParamName]: page } = query;
 
-  const pageSize = typeof perPage === 'string' ? parseInt(perPage, 10) : NaN
-  const pageNumber = typeof page === 'string' ? parseInt(page, 10) : NaN
+  const pageSize = typeof perPage === "string" ? parseInt(perPage, 10) : NaN;
+  const pageNumber = typeof page === "string" ? parseInt(page, 10) : NaN;
 
   if (!pageSize || !pageNumber) {
-    return nextPath
+    return nextPath;
   }
 
   // Confusing, but we're looking at the _next_ page path here
   // so the current is whatever came before it.
-  const currentPage = pageNumber - 1
+  const currentPage = pageNumber - 1;
 
   // Number of received items thus far
-  const received = currentPage * pageSize
+  const received = currentPage * pageSize;
 
   // Can't go above maxResults, that's the max the API will allow.
-  const nextPageSize = Math.min(maxResults, pageSize * 2)
+  const nextPageSize = Math.min(maxResults, pageSize * 2);
 
   // Have we received exactly the amount of items
   // such that doubling the page size and loading the
   // second page would seamlessly fit? No sense going
   // above 100 since that's the max the API supports
   if (pageSize !== nextPageSize && received % nextPageSize === 0) {
-    query[perPageParamName] = `${nextPageSize}`
-    query[pageParamName] = `${received / nextPageSize + 1}`
-    return URL.format({ pathname, query })
+    query[perPageParamName] = `${nextPageSize}`;
+    query[pageParamName] = `${received / nextPageSize + 1}`;
+    return URL.format({ pathname, query });
   }
 
-  return nextPath
+  return nextPath;
 }
 
 /**
@@ -1615,71 +1545,67 @@ export function getNextPagePathWithIncreasingPageSize(
  * so we won't send any back either.
  */
 function toGitHubIsoDateString(date: Date) {
-  return date.toISOString().replace(/\.\d{3}Z$/, 'Z')
+  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
 interface IAPIAliveSignedChannel {
-  readonly channel_name: string
-  readonly signed_channel: string
+  readonly channel_name: string;
+  readonly signed_channel: string;
 }
 
 interface IAPIAliveWebSocket {
-  readonly url: string
+  readonly url: string;
 }
 
 type TokenInvalidatedCallback = (
   endpoint: string,
   token: string,
-  login: string | UnknownLogin
-) => void
+  login: string | UnknownLogin,
+) => void;
 type TokenRefreshedCallback = (
   endpoint: string,
   token: string,
   refreshToken: string,
   expiresAt: number,
-  login: string | UnknownLogin
-) => void
+  login: string | UnknownLogin,
+) => void;
 
 export interface IAPICreatePushProtectionBypassResponse {
-  reason: BypassReasonType
-  expire_at: string
-  token_type: string
+  reason: BypassReasonType;
+  expire_at: string;
+  token_type: string;
 }
 
 interface IBitbucketAPIWorkspaceAccess {
-  administrator: boolean
-  workspace: IBitbucketAPIWorkspace
+  administrator: boolean;
+  workspace: IBitbucketAPIWorkspace;
 }
 interface IBitbucketAPIWorkspace {
-  uuid: string
-  name: string
+  uuid: string;
+  name: string;
 }
 
 /**
  * An object for making authenticated requests to the GitHub API
  */
 export class API {
-  private static readonly tokenInvalidatedListeners =
-    new Set<TokenInvalidatedCallback>()
-  private static readonly tokenRefreshedListeners =
-    new Set<TokenRefreshedCallback>()
+  private static readonly tokenInvalidatedListeners = new Set<TokenInvalidatedCallback>();
+  private static readonly tokenRefreshedListeners = new Set<TokenRefreshedCallback>();
 
   public static onTokenInvalidated(callback: TokenInvalidatedCallback) {
-    this.tokenInvalidatedListeners.add(callback)
+    this.tokenInvalidatedListeners.add(callback);
   }
 
   public static onTokenRefreshed(callback: TokenRefreshedCallback) {
-    this.tokenRefreshedListeners.add(callback)
+    this.tokenRefreshedListeners.add(callback);
   }
 
   protected static emitTokenInvalidated(
     endpoint: string,
     token: string,
-    login: string | UnknownLogin
+    login: string | UnknownLogin,
   ) {
-    this.tokenInvalidatedListeners.forEach(callback =>
-      callback(endpoint, token, login)
-    )
+    this.tokenInvalidatedListeners.forEach((callback) => callback(endpoint, token, login));
   }
 
   protected static emitTokenRefreshed(
@@ -1687,96 +1613,91 @@ export class API {
     token: string,
     refreshToken: string,
     expiresAt: number,
-    login: string | UnknownLogin
+    login: string | UnknownLogin,
   ) {
-    this.tokenRefreshedListeners.forEach(callback =>
-      callback(endpoint, token, refreshToken, expiresAt, login)
-    )
+    this.tokenRefreshedListeners.forEach((callback) =>
+      callback(endpoint, token, refreshToken, expiresAt, login),
+    );
   }
 
   /** Create a new API client from the given account. */
   public static fromAccount(account: Account): API {
     switch (account.apiType) {
-      case 'bitbucket':
+      case "bitbucket":
         // eslint-disable-next-line @typescript-eslint/no-use-before-define -- a necessary evil if we want to minimize the diff in other files
         return new BitbucketAPI(
           account.token,
           account.login,
           account.refreshToken,
-          account.tokenExpiresAt
-        )
-      case 'gitlab':
+          account.tokenExpiresAt,
+        );
+      case "gitlab":
         // eslint-disable-next-line @typescript-eslint/no-use-before-define -- a necessary evil if we want to minimize the diff in other files
         return GitLabAPI.get(
           account.token,
           account.login,
           account.refreshToken,
-          account.tokenExpiresAt
-        )
-      case 'codeberg':
+          account.tokenExpiresAt,
+        );
+      case "codeberg":
         // eslint-disable-next-line @typescript-eslint/no-use-before-define -- a necessary evil if we want to minimize the diff in other files
         return CodebergAPI.get(
           account.token,
           account.login,
           account.refreshToken,
-          account.tokenExpiresAt
-        )
-      case 'dotcom':
-      case 'enterprise':
-        return new API(
-          account.endpoint,
-          account.token,
-          account.login,
-          account.copilotEndpoint
-        )
+          account.tokenExpiresAt,
+        );
+      case "dotcom":
+      case "enterprise":
+        return new API(account.endpoint, account.token, account.login, account.copilotEndpoint);
       default:
-        assertNever(account.apiType, 'Unknown API type')
+        assertNever(account.apiType, "Unknown API type");
     }
   }
 
-  protected endpoint: string
-  protected token: string
-  protected login: string | UnknownLogin
-  private copilotEndpoint?: string
-  private refreshTokenPromise?: Promise<void>
+  protected endpoint: string;
+  protected token: string;
+  protected login: string | UnknownLogin;
+  private copilotEndpoint?: string;
+  private refreshTokenPromise?: Promise<void>;
 
   /** Create a new API client for the endpoint, authenticated with the token. */
   public constructor(
     endpoint: string,
     token: string,
     login: string | UnknownLogin,
-    copilotEndpoint?: string
+    copilotEndpoint?: string,
   ) {
-    this.endpoint = endpoint
-    this.token = token
-    this.login = login
-    this.copilotEndpoint = copilotEndpoint
+    this.endpoint = endpoint;
+    this.token = token;
+    this.login = login;
+    this.copilotEndpoint = copilotEndpoint;
   }
 
   public getToken() {
-    return this.token
+    return this.token;
   }
   public getRefreshToken() {
-    return ''
+    return "";
   }
   public getExpiresAt() {
-    return 0
+    return 0;
   }
 
   protected get maxPerPage() {
-    return 100
+    return 100;
   }
   protected get perPageParamName() {
-    return 'per_page'
+    return "per_page";
   }
   protected get pageParamName() {
-    return 'page'
+    return "page";
   }
   protected get paginatorNextPage() {
-    return ''
+    return "";
   }
   protected get paginatorValues() {
-    return ''
+    return "";
   }
 
   /**
@@ -1785,12 +1706,12 @@ export class API {
    */
   public async getAliveDesktopChannel(): Promise<IAPIAliveSignedChannel | null> {
     try {
-      const res = await this.ghRequest('GET', '/desktop_internal/alive-channel')
-      const signedChannel = await parsedResponse<IAPIAliveSignedChannel>(res)
-      return signedChannel
+      const res = await this.ghRequest("GET", "/desktop_internal/alive-channel");
+      const signedChannel = await parsedResponse<IAPIAliveSignedChannel>(res);
+      return signedChannel;
     } catch (e) {
-      log.warn(`Alive channel request failed: ${e}`)
-      return null
+      log.warn(`Alive channel request failed: ${e}`);
+      return null;
     }
   }
 
@@ -1805,15 +1726,15 @@ export class API {
    */
   public async getAliveWebSocketURL(): Promise<string | null> {
     try {
-      const res = await this.ghRequest('GET', '/alive_internal/websocket-url')
+      const res = await this.ghRequest("GET", "/alive_internal/websocket-url");
       if (res.status === HttpStatusCode.NotFound) {
-        return null
+        return null;
       }
-      const websocket = await parsedResponse<IAPIAliveWebSocket>(res)
-      return websocket.url
+      const websocket = await parsedResponse<IAPIAliveWebSocket>(res);
+      return websocket.url;
     } catch (e) {
-      log.warn(`Alive web socket request failed: ${e}`)
-      throw e
+      log.warn(`Alive web socket request failed: ${e}`);
+      throw e;
     }
   }
 
@@ -1830,26 +1751,26 @@ export class API {
   public async fetchIssueComment(
     owner: string,
     name: string,
-    commentId: string
+    commentId: string,
   ): Promise<IAPIComment | null> {
     try {
       const response = await this.ghRequest(
-        'GET',
-        `repos/${owner}/${name}/issues/comments/${commentId}`
-      )
+        "GET",
+        `repos/${owner}/${name}/issues/comments/${commentId}`,
+      );
       if (response.status === HttpStatusCode.NotFound) {
         log.warn(
-          `fetchIssueComment: '${owner}/${name}/issues/comments/${commentId}' returned a 404`
-        )
-        return null
+          `fetchIssueComment: '${owner}/${name}/issues/comments/${commentId}' returned a 404`,
+        );
+        return null;
       }
-      return await parsedResponse<IAPIComment>(response)
+      return await parsedResponse<IAPIComment>(response);
     } catch (e) {
       log.warn(
         `fetchIssueComment: an error occurred for '${owner}/${name}/issues/comments/${commentId}'`,
-        e
-      )
-      return null
+        e,
+      );
+      return null;
     }
   }
 
@@ -1867,44 +1788,41 @@ export class API {
   public async fetchPullRequestReviewComment(
     owner: string,
     name: string,
-    commentId: string
+    commentId: string,
   ): Promise<IAPIComment | null> {
     try {
       const response = await this.ghRequest(
-        'GET',
-        `repos/${owner}/${name}/pulls/comments/${commentId}`
-      )
+        "GET",
+        `repos/${owner}/${name}/pulls/comments/${commentId}`,
+      );
       if (response.status === HttpStatusCode.NotFound) {
         log.warn(
-          `fetchPullRequestReviewComment: '${owner}/${name}/pulls/comments/${commentId}' returned a 404`
-        )
-        return null
+          `fetchPullRequestReviewComment: '${owner}/${name}/pulls/comments/${commentId}' returned a 404`,
+        );
+        return null;
       }
-      return await parsedResponse<IAPIComment>(response)
+      return await parsedResponse<IAPIComment>(response);
     } catch (e) {
       log.warn(
         `fetchPullRequestReviewComment: an error occurred for '${owner}/${name}/pulls/comments/${commentId}'`,
-        e
-      )
-      return null
+        e,
+      );
+      return null;
     }
   }
 
   /** Fetch a repo by its owner and name. */
-  public async fetchRepository(
-    owner: string,
-    name: string
-  ): Promise<IAPIFullRepository | null> {
+  public async fetchRepository(owner: string, name: string): Promise<IAPIFullRepository | null> {
     try {
-      const response = await this.ghRequest('GET', `repos/${owner}/${name}`)
+      const response = await this.ghRequest("GET", `repos/${owner}/${name}`);
       if (response.status === HttpStatusCode.NotFound) {
-        log.warn(`fetchRepository: '${owner}/${name}' returned a 404`)
-        return null
+        log.warn(`fetchRepository: '${owner}/${name}' returned a 404`);
+        return null;
       }
-      return await parsedResponse<IAPIFullRepository>(response)
+      return await parsedResponse<IAPIFullRepository>(response);
     } catch (e) {
-      log.warn(`fetchRepository: an error occurred for '${owner}/${name}'`, e)
-      return null
+      log.warn(`fetchRepository: an error occurred for '${owner}/${name}'`, e);
+      return null;
     }
   }
 
@@ -1931,23 +1849,23 @@ export class API {
   public async fetchRepositoryCloneInfo(
     owner: string,
     name: string,
-    protocol: GitProtocol | undefined
+    protocol: GitProtocol | undefined,
   ): Promise<IAPIRepositoryCloneInfo | null> {
-    const response = await this.ghRequest('GET', `repos/${owner}/${name}`, {
+    const response = await this.ghRequest("GET", `repos/${owner}/${name}`, {
       // Make sure we don't run into cache issues when fetching the repositories,
       // specially after repositories have been renamed.
       reloadCache: true,
-    })
+    });
 
     if (response.status === HttpStatusCode.NotFound) {
-      return null
+      return null;
     }
 
-    const repo = await parsedResponse<IAPIRepository>(response)
+    const repo = await parsedResponse<IAPIRepository>(response);
     return {
-      url: protocol === 'ssh' ? repo.ssh_url : repo.clone_url,
+      url: protocol === "ssh" ? repo.ssh_url : repo.clone_url,
       defaultBranch: repo.default_branch,
-    }
+    };
   }
 
   /**
@@ -1957,11 +1875,11 @@ export class API {
   public async streamUserRepositories(
     callback: (repos: ReadonlyArray<IAPIRepository>) => void,
     affiliation?: AffiliationFilter,
-    options?: IFetchAllOptions<IAPIRepository>
+    options?: IFetchAllOptions<IAPIRepository>,
   ) {
     try {
-      const base = 'user/repos'
-      const path = affiliation ? `${base}?affiliation=${affiliation}` : base
+      const base = "user/repos";
+      const path = affiliation ? `${base}?affiliation=${affiliation}` : base;
 
       await this.fetchAll<IAPIRepository>(path, {
         ...options,
@@ -1973,16 +1891,13 @@ export class API {
         // they can linger for longer than we'd like so we'll make
         // sure to exclude any such dangling repository, chances are
         // they won't be cloneable anyway.
-        onPage: page => {
-          callback(page.filter(x => x.owner !== null))
-          options?.onPage?.(page)
+        onPage: (page) => {
+          callback(page.filter((x) => x.owner !== null));
+          options?.onPage?.(page);
         },
-      })
+      });
     } catch (error) {
-      log.warn(
-        `streamUserRepositories: failed with endpoint ${this.endpoint}`,
-        error
-      )
+      log.warn(`streamUserRepositories: failed with endpoint ${this.endpoint}`, error);
     }
   }
 
@@ -1991,14 +1906,14 @@ export class API {
     if (this.refreshTokenPromise) {
       // Another refresh is already in progress in the event loop, just need to wait for it to finish.
       // If the other refresh fails, ignore the error and continue with the request, which will invalidate the account.
-      await this.refreshTokenPromise.catch(() => {})
-      return
+      await this.refreshTokenPromise.catch(() => {});
+      return;
     }
-    this.refreshTokenPromise = this.refreshToken()
+    this.refreshTokenPromise = this.refreshToken();
     try {
-      await this.refreshTokenPromise
+      await this.refreshTokenPromise;
     } finally {
-      this.refreshTokenPromise = undefined
+      this.refreshTokenPromise = undefined;
     }
   }
 
@@ -2009,35 +1924,35 @@ export class API {
   /** Fetch the logged in account. */
   public async fetchAccount(): Promise<IAPIFullIdentity> {
     try {
-      const response = await this.ghRequest('GET', 'user')
-      const result = await parsedResponse<IAPIFullIdentity>(response)
-      return result
+      const response = await this.ghRequest("GET", "user");
+      const result = await parsedResponse<IAPIFullIdentity>(response);
+      return result;
     } catch (e) {
-      log.warn(`fetchAccount: failed with endpoint ${this.endpoint}`, e)
-      throw e
+      log.warn(`fetchAccount: failed with endpoint ${this.endpoint}`, e);
+      throw e;
     }
   }
 
   /** Fetch the current user's emails. */
   public async fetchEmails(): Promise<ReadonlyArray<IAPIEmail>> {
     try {
-      const response = await this.ghRequest('GET', 'user/emails')
-      const result = await parsedResponse<ReadonlyArray<IAPIEmail>>(response)
+      const response = await this.ghRequest("GET", "user/emails");
+      const result = await parsedResponse<ReadonlyArray<IAPIEmail>>(response);
 
-      return Array.isArray(result) ? result : []
+      return Array.isArray(result) ? result : [];
     } catch (e) {
-      log.warn(`fetchEmails: failed with endpoint ${this.endpoint}`, e)
-      return []
+      log.warn(`fetchEmails: failed with endpoint ${this.endpoint}`, e);
+      return [];
     }
   }
 
   /** Fetch all the orgs to which the user belongs. */
   public async fetchOrgs(): Promise<ReadonlyArray<IAPIOrganization>> {
     try {
-      return await this.fetchAll<IAPIOrganization>('user/orgs')
+      return await this.fetchAll<IAPIOrganization>("user/orgs");
     } catch (e) {
-      log.warn(`fetchOrgs: failed with endpoint ${this.endpoint}`, e)
-      return []
+      log.warn(`fetchOrgs: failed with endpoint ${this.endpoint}`, e);
+      return [];
     }
   }
 
@@ -2046,51 +1961,45 @@ export class API {
     org: IAPIOrganization | null,
     name: string,
     description: string,
-    private_: boolean
+    private_: boolean,
   ): Promise<IAPIFullRepository> {
     try {
-      const apiPath = org ? `orgs/${org.login}/repos` : 'user/repos'
-      const response = await this.ghRequest('POST', apiPath, {
+      const apiPath = org ? `orgs/${org.login}/repos` : "user/repos";
+      const response = await this.ghRequest("POST", apiPath, {
         body: {
           name,
           description,
           private: private_,
         },
-      })
+      });
 
-      return await parsedResponse<IAPIFullRepository>(response)
+      return await parsedResponse<IAPIFullRepository>(response);
     } catch (e) {
       if (e instanceof APIError) {
         if (org !== null) {
           throw new Error(
-            `Unable to create repository for organization '${org.login}'. Verify that the repository does not already exist and that you have permission to create a repository there.`
-          )
+            `Unable to create repository for organization '${org.login}'. Verify that the repository does not already exist and that you have permission to create a repository there.`,
+          );
         }
-        throw e
+        throw e;
       }
 
-      log.error(`createRepository: failed with endpoint ${this.endpoint}`, e)
+      log.error(`createRepository: failed with endpoint ${this.endpoint}`, e);
       throw new Error(
-        `Unable to publish repository. Please check if you have an internet connection and try again.`
-      )
+        `Unable to publish repository. Please check if you have an internet connection and try again.`,
+      );
     }
   }
 
   /** Create a new GitHub fork of this repository (owner and name) */
-  public async forkRepository(
-    owner: string,
-    name: string
-  ): Promise<IAPIFullRepository> {
+  public async forkRepository(owner: string, name: string): Promise<IAPIFullRepository> {
     try {
-      const apiPath = `/repos/${owner}/${name}/forks`
-      const response = await this.ghRequest('POST', apiPath)
-      return await parsedResponse<IAPIFullRepository>(response)
+      const apiPath = `/repos/${owner}/${name}/forks`;
+      const response = await this.ghRequest("POST", apiPath);
+      return await parsedResponse<IAPIFullRepository>(response);
     } catch (e) {
-      log.error(
-        `forkRepository: failed to fork ${owner}/${name} at endpoint: ${this.endpoint}`,
-        e
-      )
-      throw e
+      log.error(`forkRepository: failed to fork ${owner}/${name} at endpoint: ${this.endpoint}`, e);
+      throw e;
     }
   }
 
@@ -2101,38 +2010,38 @@ export class API {
   public async fetchIssues(
     owner: string,
     name: string,
-    state: 'open' | 'closed' | 'all',
-    since: Date | null
+    state: "open" | "closed" | "all",
+    since: Date | null,
   ): Promise<ReadonlyArray<IAPIIssue>> {
     const params: { [key: string]: string } = {
       state,
-    }
+    };
     if (since && !isNaN(since.getTime())) {
-      params.since = toGitHubIsoDateString(since)
+      params.since = toGitHubIsoDateString(since);
     }
 
-    const url = urlWithQueryString(`repos/${owner}/${name}/issues`, params)
+    const url = urlWithQueryString(`repos/${owner}/${name}/issues`, params);
     try {
-      const issues = await this.fetchAll<IAPIIssue>(url)
+      const issues = await this.fetchAll<IAPIIssue>(url);
 
       // PRs are issues! But we only want Really Seriously Issues.
-      return issues.filter((i: any) => !i.pullRequest)
+      return issues.filter((i: any) => !i.pullRequest);
     } catch (e) {
-      log.warn(`fetchIssues: failed for repository ${owner}/${name}`, e)
-      throw e
+      log.warn(`fetchIssues: failed for repository ${owner}/${name}`, e);
+      throw e;
     }
   }
 
   /** Fetch all open pull requests in the given repository. */
   public async fetchAllOpenPullRequests(owner: string, name: string) {
     const url = urlWithQueryString(`repos/${owner}/${name}/pulls`, {
-      state: 'open',
-    })
+      state: "open",
+    });
     try {
-      return await this.fetchAll<IAPIPullRequest>(url)
+      return await this.fetchAll<IAPIPullRequest>(url);
     } catch (e) {
-      log.warn(`failed fetching open PRs for repository ${owner}/${name}`, e)
-      throw e
+      log.warn(`failed fetching open PRs for repository ${owner}/${name}`, e);
+      throw e;
     }
   }
 
@@ -2158,14 +2067,14 @@ export class API {
     // 320 is chosen because with a ramp-up page size starting with
     // a page size of 10 we'll reach 320 in exactly 7 pages. See
     // getNextPagePathWithIncreasingPageSize
-    maxResults = 320
+    maxResults = 320,
   ) {
-    const sinceTime = since.getTime()
+    const sinceTime = since.getTime();
     const url = urlWithQueryString(`repos/${owner}/${name}/pulls`, {
-      state: 'all',
-      sort: 'updated',
-      direction: 'desc',
-    })
+      state: "all",
+      sort: "updated",
+      direction: "desc",
+    });
 
     try {
       const prs = await this.fetchAll<IAPIPullRequest>(url, {
@@ -2179,35 +2088,35 @@ export class API {
         // ramp up the page size (see getNextPagePathWithIncreasingPageSize)
         // if it turns out there's a lot of updated PRs.
         perPage: 10,
-        getNextPagePath: response =>
+        getNextPagePath: (response) =>
           getNextPagePathWithIncreasingPageSize(
             response,
             this.perPageParamName,
             this.pageParamName,
-            this.maxPerPage
+            this.maxPerPage,
           ),
         continue(results) {
           if (results.length >= maxResults) {
-            throw new MaxResultsError('got max pull requests, aborting')
+            throw new MaxResultsError("got max pull requests, aborting");
           }
 
           // Given that we sort the results in descending order by their
           // updated_at field we can safely say that if the last item
           // is modified after our sinceTime then haven't reached the
           // end of updated PRs.
-          const last = results.at(-1)
-          return last !== undefined && Date.parse(last.updated_at) > sinceTime
+          const last = results.at(-1);
+          return last !== undefined && Date.parse(last.updated_at) > sinceTime;
         },
         // We can't ignore errors here as that might mean that we haven't
         // retrieved enough pages to fully capture the changes since the
         // last time we updated. Ignoring errors here would mean that we'd
         // store an incorrect lastUpdated field in the database.
         suppressErrors: false,
-      })
-      return prs.filter(pr => Date.parse(pr.updated_at) >= sinceTime)
+      });
+      return prs.filter((pr) => Date.parse(pr.updated_at) >= sinceTime);
     } catch (e) {
-      log.warn(`failed fetching updated PRs for repository ${owner}/${name}`, e)
-      throw e
+      log.warn(`failed fetching updated PRs for repository ${owner}/${name}`, e);
+      throw e;
     }
   }
 
@@ -2216,12 +2125,12 @@ export class API {
    */
   public async fetchPullRequest(owner: string, name: string, prNumber: string) {
     try {
-      const path = `/repos/${owner}/${name}/pulls/${prNumber}`
-      const response = await this.ghRequest('GET', path)
-      return await parsedResponse<IAPIPullRequest>(response)
+      const path = `/repos/${owner}/${name}/pulls/${prNumber}`;
+      const response = await this.ghRequest("GET", path);
+      return await parsedResponse<IAPIPullRequest>(response);
     } catch (e) {
-      log.warn(`failed fetching PR for ${owner}/${name}/pulls/${prNumber}`, e)
-      throw e
+      log.warn(`failed fetching PR for ${owner}/${name}/pulls/${prNumber}`, e);
+      throw e;
     }
   }
 
@@ -2232,37 +2141,27 @@ export class API {
     owner: string,
     name: string,
     prNumber: string,
-    reviewId: string
+    reviewId: string,
   ) {
     try {
-      const path = `/repos/${owner}/${name}/pulls/${prNumber}/reviews/${reviewId}`
-      const response = await this.ghRequest('GET', path)
-      return await parsedResponse<IAPIPullRequestReview>(response)
+      const path = `/repos/${owner}/${name}/pulls/${prNumber}/reviews/${reviewId}`;
+      const response = await this.ghRequest("GET", path);
+      return await parsedResponse<IAPIPullRequestReview>(response);
     } catch (e) {
-      log.debug(
-        `failed fetching PR review ${reviewId} for ${owner}/${name}/pulls/${prNumber}`,
-        e
-      )
-      return null
+      log.debug(`failed fetching PR review ${reviewId} for ${owner}/${name}/pulls/${prNumber}`, e);
+      return null;
     }
   }
 
   /** Fetches all reviews from a given pull request. */
-  public async fetchPullRequestReviews(
-    owner: string,
-    name: string,
-    prNumber: string
-  ) {
+  public async fetchPullRequestReviews(owner: string, name: string, prNumber: string) {
     try {
-      const path = `/repos/${owner}/${name}/pulls/${prNumber}/reviews`
-      const response = await this.ghRequest('GET', path)
-      return await parsedResponse<IAPIPullRequestReview[]>(response)
+      const path = `/repos/${owner}/${name}/pulls/${prNumber}/reviews`;
+      const response = await this.ghRequest("GET", path);
+      return await parsedResponse<IAPIPullRequestReview[]>(response);
     } catch (e) {
-      log.debug(
-        `failed fetching PR reviews for ${owner}/${name}/pulls/${prNumber}`,
-        e
-      )
-      return []
+      log.debug(`failed fetching PR reviews for ${owner}/${name}/pulls/${prNumber}`, e);
+      return [];
     }
   }
 
@@ -2271,56 +2170,39 @@ export class API {
     owner: string,
     name: string,
     prNumber: string,
-    reviewId: string
+    reviewId: string,
   ) {
     try {
-      const path = `/repos/${owner}/${name}/pulls/${prNumber}/reviews/${reviewId}/comments`
-      const response = await this.ghRequest('GET', path)
-      return await parsedResponse<IAPIComment[]>(response)
+      const path = `/repos/${owner}/${name}/pulls/${prNumber}/reviews/${reviewId}/comments`;
+      const response = await this.ghRequest("GET", path);
+      return await parsedResponse<IAPIComment[]>(response);
     } catch (e) {
-      log.debug(
-        `failed fetching PR review comments for ${owner}/${name}/pulls/${prNumber}`,
-        e
-      )
-      return []
+      log.debug(`failed fetching PR review comments for ${owner}/${name}/pulls/${prNumber}`, e);
+      return [];
     }
   }
 
   /** Fetches all review comments from a given pull request. */
-  public async fetchPullRequestComments(
-    owner: string,
-    name: string,
-    prNumber: string
-  ) {
+  public async fetchPullRequestComments(owner: string, name: string, prNumber: string) {
     try {
-      const path = `/repos/${owner}/${name}/pulls/${prNumber}/comments`
-      const response = await this.ghRequest('GET', path)
-      return await parsedResponse<IAPIComment[]>(response)
+      const path = `/repos/${owner}/${name}/pulls/${prNumber}/comments`;
+      const response = await this.ghRequest("GET", path);
+      return await parsedResponse<IAPIComment[]>(response);
     } catch (e) {
-      log.debug(
-        `failed fetching PR comments for ${owner}/${name}/pulls/${prNumber}`,
-        e
-      )
-      return []
+      log.debug(`failed fetching PR comments for ${owner}/${name}/pulls/${prNumber}`, e);
+      return [];
     }
   }
 
   /** Fetches all comments from a given issue. */
-  public async fetchIssueComments(
-    owner: string,
-    name: string,
-    issueNumber: string
-  ) {
+  public async fetchIssueComments(owner: string, name: string, issueNumber: string) {
     try {
-      const path = `/repos/${owner}/${name}/issues/${issueNumber}/comments`
-      const response = await this.ghRequest('GET', path)
-      return await parsedResponse<IAPIComment[]>(response)
+      const path = `/repos/${owner}/${name}/issues/${issueNumber}/comments`;
+      const response = await this.ghRequest("GET", path);
+      return await parsedResponse<IAPIComment[]>(response);
     } catch (e) {
-      log.debug(
-        `failed fetching issue comments for ${owner}/${name}/issues/${issueNumber}`,
-        e
-      )
-      return []
+      log.debug(`failed fetching issue comments for ${owner}/${name}/issues/${issueNumber}`, e);
+      return [];
     }
   }
 
@@ -2331,22 +2213,19 @@ export class API {
     owner: string,
     name: string,
     ref: string,
-    reloadCache: boolean = false
+    reloadCache: boolean = false,
   ): Promise<IAPIRefStatus | null> {
-    const safeRef = encodeURIComponent(ref)
-    const path = `repos/${owner}/${name}/commits/${safeRef}/status?per_page=100`
-    const response = await this.ghRequest('GET', path, {
+    const safeRef = encodeURIComponent(ref);
+    const path = `repos/${owner}/${name}/commits/${safeRef}/status?per_page=100`;
+    const response = await this.ghRequest("GET", path, {
       reloadCache,
-    })
+    });
 
     try {
-      return await parsedResponse<IAPIRefStatus>(response)
+      return await parsedResponse<IAPIRefStatus>(response);
     } catch (err) {
-      log.debug(
-        `Failed fetching check runs for ref ${ref} (${owner}/${name})`,
-        err
-      )
-      return null
+      log.debug(`Failed fetching check runs for ref ${ref} (${owner}/${name})`, err);
+      return null;
     }
   }
 
@@ -2357,27 +2236,24 @@ export class API {
     owner: string,
     name: string,
     ref: string,
-    reloadCache: boolean = false
+    reloadCache: boolean = false,
   ): Promise<IAPIRefCheckRuns | null> {
-    const safeRef = encodeURIComponent(ref)
-    const path = `repos/${owner}/${name}/commits/${safeRef}/check-runs?per_page=100`
+    const safeRef = encodeURIComponent(ref);
+    const path = `repos/${owner}/${name}/commits/${safeRef}/check-runs?per_page=100`;
     const headers = {
-      Accept: 'application/vnd.github.antiope-preview+json',
-    }
+      Accept: "application/vnd.github.antiope-preview+json",
+    };
 
-    const response = await this.ghRequest('GET', path, {
+    const response = await this.ghRequest("GET", path, {
       customHeaders: headers,
       reloadCache,
-    })
+    });
 
     try {
-      return await parsedResponse<IAPIRefCheckRuns>(response)
+      return await parsedResponse<IAPIRefCheckRuns>(response);
     } catch (err) {
-      log.debug(
-        `Failed fetching check runs for ref ${ref} (${owner}/${name})`,
-        err
-      )
-      return null
+      log.debug(`Failed fetching check runs for ref ${ref} (${owner}/${name})`, err);
+      return null;
     }
   }
 
@@ -2388,23 +2264,21 @@ export class API {
   public async fetchPRWorkflowRunsByBranchName(
     owner: string,
     name: string,
-    branchName: string
+    branchName: string,
   ): Promise<IAPIWorkflowRuns | null> {
     const path = `repos/${owner}/${name}/actions/runs?event=pull_request&branch=${encodeURIComponent(
-      branchName
-    )}`
+      branchName,
+    )}`;
     const customHeaders = {
-      Accept: 'application/vnd.github.antiope-preview+json',
-    }
-    const response = await this.ghRequest('GET', path, { customHeaders })
+      Accept: "application/vnd.github.antiope-preview+json",
+    };
+    const response = await this.ghRequest("GET", path, { customHeaders });
     try {
-      return await parsedResponse<IAPIWorkflowRuns>(response)
+      return await parsedResponse<IAPIWorkflowRuns>(response);
     } catch (err) {
-      log.debug(
-        `Failed fetching workflow runs for ${branchName} (${owner}/${name})`
-      )
+      log.debug(`Failed fetching workflow runs for ${branchName} (${owner}/${name})`);
     }
-    return null
+    return null;
   }
 
   /**
@@ -2423,25 +2297,23 @@ export class API {
   public async fetchPRActionWorkflowRunByCheckSuiteId(
     owner: string,
     name: string,
-    checkSuiteId: number
+    checkSuiteId: number,
   ): Promise<IAPIWorkflowRun | null> {
-    const path = `repos/${owner}/${name}/actions/runs?event=pull_request&check_suite_id=${checkSuiteId}`
+    const path = `repos/${owner}/${name}/actions/runs?event=pull_request&check_suite_id=${checkSuiteId}`;
     const customHeaders = {
-      Accept: 'application/vnd.github.antiope-preview+json',
-    }
-    const response = await this.ghRequest('GET', path, { customHeaders })
+      Accept: "application/vnd.github.antiope-preview+json",
+    };
+    const response = await this.ghRequest("GET", path, { customHeaders });
     try {
-      const apiWorkflowRuns = await parsedResponse<IAPIWorkflowRuns>(response)
+      const apiWorkflowRuns = await parsedResponse<IAPIWorkflowRuns>(response);
 
       if (apiWorkflowRuns.workflow_runs.length > 0) {
-        return apiWorkflowRuns.workflow_runs[0]
+        return apiWorkflowRuns.workflow_runs[0];
       }
     } catch (err) {
-      log.debug(
-        `Failed fetching workflow runs for ${checkSuiteId} (${owner}/${name})`
-      )
+      log.debug(`Failed fetching workflow runs for ${checkSuiteId} (${owner}/${name})`);
     }
-    return null
+    return null;
   }
 
   /**
@@ -2450,23 +2322,21 @@ export class API {
   public async fetchWorkflowRunJobs(
     owner: string,
     name: string,
-    workflowRunId: number
+    workflowRunId: number,
   ): Promise<IAPIWorkflowJobs | null> {
-    const path = `repos/${owner}/${name}/actions/runs/${workflowRunId}/jobs`
+    const path = `repos/${owner}/${name}/actions/runs/${workflowRunId}/jobs`;
     const customHeaders = {
-      Accept: 'application/vnd.github.antiope-preview+json',
-    }
-    const response = await this.ghRequest('GET', path, {
+      Accept: "application/vnd.github.antiope-preview+json",
+    };
+    const response = await this.ghRequest("GET", path, {
       customHeaders,
-    })
+    });
     try {
-      return await parsedResponse<IAPIWorkflowJobs>(response)
+      return await parsedResponse<IAPIWorkflowJobs>(response);
     } catch (err) {
-      log.debug(
-        `Failed fetching workflow jobs (${owner}/${name}) workflow run: ${workflowRunId}`
-      )
+      log.debug(`Failed fetching workflow jobs (${owner}/${name}) workflow run: ${workflowRunId}`);
     }
-    return null
+    return null;
   }
 
   /**
@@ -2476,19 +2346,16 @@ export class API {
   public async rerequestCheckSuite(
     owner: string,
     name: string,
-    checkSuiteId: number
+    checkSuiteId: number,
   ): Promise<boolean> {
-    const path = `/repos/${owner}/${name}/check-suites/${checkSuiteId}/rerequest`
+    const path = `/repos/${owner}/${name}/check-suites/${checkSuiteId}/rerequest`;
 
-    return this.ghRequest('POST', path)
-      .then(x => x.ok)
-      .catch(err => {
-        log.debug(
-          `Failed retry check suite id ${checkSuiteId} (${owner}/${name})`,
-          err
-        )
-        return false
-      })
+    return this.ghRequest("POST", path)
+      .then((x) => x.ok)
+      .catch((err) => {
+        log.debug(`Failed retry check suite id ${checkSuiteId} (${owner}/${name})`, err);
+        return false;
+      });
   }
 
   /**
@@ -2498,57 +2365,47 @@ export class API {
   public async rerunFailedJobs(
     owner: string,
     name: string,
-    workflowRunId: number
+    workflowRunId: number,
   ): Promise<boolean> {
-    const path = `/repos/${owner}/${name}/actions/runs/${workflowRunId}/rerun-failed-jobs`
+    const path = `/repos/${owner}/${name}/actions/runs/${workflowRunId}/rerun-failed-jobs`;
 
-    return this.ghRequest('POST', path)
-      .then(x => x.ok)
-      .catch(err => {
+    return this.ghRequest("POST", path)
+      .then((x) => x.ok)
+      .catch((err) => {
         log.debug(
           `Failed to rerun failed workflow jobs for (${owner}/${name}): ${workflowRunId}`,
-          err
-        )
-        return false
-      })
+          err,
+        );
+        return false;
+      });
   }
 
   /**
    * Re-run a job and its dependent jobs in a workflow run.
    */
-  public async rerunJob(
-    owner: string,
-    name: string,
-    jobId: number
-  ): Promise<boolean> {
-    const path = `/repos/${owner}/${name}/actions/jobs/${jobId}/rerun`
+  public async rerunJob(owner: string, name: string, jobId: number): Promise<boolean> {
+    const path = `/repos/${owner}/${name}/actions/jobs/${jobId}/rerun`;
 
-    return this.ghRequest('POST', path)
-      .then(x => x.ok)
-      .catch(err => {
-        log.debug(
-          `Failed to rerun workflow job (${owner}/${name}): ${jobId}`,
-          err
-        )
-        return false
-      })
+    return this.ghRequest("POST", path)
+      .then((x) => x.ok)
+      .catch((err) => {
+        log.debug(`Failed to rerun workflow job (${owner}/${name}): ${jobId}`, err);
+        return false;
+      });
   }
 
   public async getAvatarToken() {
-    return this.ghRequest('GET', `/desktop/avatar-token`)
-      .then(x => x.json())
+    return this.ghRequest("GET", `/desktop/avatar-token`)
+      .then((x) => x.json())
       .then((x: unknown) =>
-        x &&
-        typeof x === 'object' &&
-        'avatar_token' in x &&
-        typeof x.avatar_token === 'string'
+        x && typeof x === "object" && "avatar_token" in x && typeof x.avatar_token === "string"
           ? x.avatar_token
-          : null
+          : null,
       )
-      .catch(err => {
-        log.debug(`Failed to load avatar token`, err)
-        return null
-      })
+      .catch((err) => {
+        log.debug(`Failed to load avatar token`, err);
+        return null;
+      });
   }
 
   /**
@@ -2557,20 +2414,18 @@ export class API {
   public async fetchCheckSuite(
     owner: string,
     name: string,
-    checkSuiteId: number
+    checkSuiteId: number,
   ): Promise<IAPICheckSuite | null> {
-    const path = `/repos/${owner}/${name}/check-suites/${checkSuiteId}`
-    const response = await this.ghRequest('GET', path)
+    const path = `/repos/${owner}/${name}/check-suites/${checkSuiteId}`;
+    const response = await this.ghRequest("GET", path);
 
     try {
-      return await parsedResponse<IAPICheckSuite>(response)
+      return await parsedResponse<IAPICheckSuite>(response);
     } catch (_) {
-      log.debug(
-        `[fetchCheckSuite] Failed fetch check suite id ${checkSuiteId} (${owner}/${name})`
-      )
+      log.debug(`[fetchCheckSuite] Failed fetch check suite id ${checkSuiteId} (${owner}/${name})`);
     }
 
-    return null
+    return null;
   }
 
   /**
@@ -2581,26 +2436,21 @@ export class API {
   public async fetchPushControl(
     owner: string,
     name: string,
-    branch: string
+    branch: string,
   ): Promise<IAPIPushControl> {
-    const path = `repos/${owner}/${name}/branches/${encodeURIComponent(
-      branch
-    )}/push_control`
+    const path = `repos/${owner}/${name}/branches/${encodeURIComponent(branch)}/push_control`;
 
     const headers: any = {
-      Accept: 'application/vnd.github.phandalin-preview',
-    }
+      Accept: "application/vnd.github.phandalin-preview",
+    };
 
     try {
-      const response = await this.ghRequest('GET', path, {
+      const response = await this.ghRequest("GET", path, {
         customHeaders: headers,
-      })
-      return await parsedResponse<IAPIPushControl>(response)
+      });
+      return await parsedResponse<IAPIPushControl>(response);
     } catch (err) {
-      log.info(
-        `[fetchPushControl] unable to check if branch is potentially pushable`,
-        err
-      )
+      log.info(`[fetchPushControl] unable to check if branch is potentially pushable`, err);
       return {
         pattern: null,
         required_signatures: false,
@@ -2610,24 +2460,21 @@ export class API {
         allow_actor: true,
         allow_deletions: true,
         allow_force_pushes: true,
-      }
+      };
     }
   }
 
   public async fetchProtectedBranches(
     owner: string,
-    name: string
+    name: string,
   ): Promise<ReadonlyArray<IAPIBranch>> {
-    const path = `repos/${owner}/${name}/branches?protected=true`
+    const path = `repos/${owner}/${name}/branches?protected=true`;
     try {
-      const response = await this.ghRequest('GET', path)
-      return await parsedResponse<IAPIBranch[]>(response)
+      const response = await this.ghRequest("GET", path);
+      return await parsedResponse<IAPIBranch[]>(response);
     } catch (err) {
-      log.info(
-        `[fetchProtectedBranches] unable to list protected branches`,
-        err
-      )
-      return new Array<IAPIBranch>()
+      log.info(`[fetchProtectedBranches] unable to list protected branches`, err);
+      return new Array<IAPIBranch>();
     }
   }
 
@@ -2637,14 +2484,12 @@ export class API {
   public async fetchRepoRulesForBranch(
     owner: string,
     name: string,
-    branch: string
+    branch: string,
   ): Promise<ReadonlyArray<IAPIRepoRule>> {
-    const path = `repos/${owner}/${name}/rules/branches/${encodeURIComponent(
-      branch
-    )}`
+    const path = `repos/${owner}/${name}/rules/branches/${encodeURIComponent(branch)}`;
     try {
-      const response = await this.ghRequest('GET', path)
-      return await parsedResponse<IAPIRepoRule[]>(response)
+      const response = await this.ghRequest("GET", path);
+      return await parsedResponse<IAPIRepoRule[]>(response);
     } catch (err) {
       // If the repository isn't owned by the current user there's no way for us
       // to preemptively check whether rulesets are enabled so we give it a shot
@@ -2653,10 +2498,10 @@ export class API {
       if (!isRulesetsNotEnabledError(err) && !isNotFoundApiError(err)) {
         log.info(
           `[fetchRepoRulesForBranch] unable to fetch repo rules for branch: ${branch} | ${path}`,
-          err
-        )
+          err,
+        );
       }
-      return new Array<IAPIRepoRule>()
+      return new Array<IAPIRepoRule>();
     }
   }
 
@@ -2666,24 +2511,21 @@ export class API {
    */
   public async fetchAllRepoRulesets(
     owner: string,
-    name: string
+    name: string,
   ): Promise<ReadonlyArray<IAPISlimRepoRuleset> | null> {
-    const path = `repos/${owner}/${name}/rulesets`
+    const path = `repos/${owner}/${name}/rulesets`;
     try {
-      const response = await this.ghRequest('GET', path)
-      return await parsedResponse<ReadonlyArray<IAPISlimRepoRuleset>>(response)
+      const response = await this.ghRequest("GET", path);
+      return await parsedResponse<ReadonlyArray<IAPISlimRepoRuleset>>(response);
     } catch (err) {
       // If the repository isn't owned by the current user there's no way for us
       // to preemptively check whether rulesets are enabled so we give it a shot
       // but there's no need to log if it fails. Same with 404s, i.e the user
       // doesn't have access to the repo any more or it's been deleted.
       if (!isRulesetsNotEnabledError(err) && !isNotFoundApiError(err)) {
-        log.info(
-          `[fetchAllRepoRulesets] unable to fetch all repo rulesets | ${path}`,
-          err
-        )
+        log.info(`[fetchAllRepoRulesets] unable to fetch all repo rulesets | ${path}`, err);
       }
-      return null
+      return null;
     }
   }
 
@@ -2694,18 +2536,15 @@ export class API {
   public async fetchRepoRuleset(
     owner: string,
     name: string,
-    id: number
+    id: number,
   ): Promise<IAPIRepoRuleset | null> {
-    const path = `repos/${owner}/${name}/rulesets/${id}`
+    const path = `repos/${owner}/${name}/rulesets/${id}`;
     try {
-      const response = await this.ghRequest('GET', path)
-      return await parsedResponse<IAPIRepoRuleset>(response)
+      const response = await this.ghRequest("GET", path);
+      return await parsedResponse<IAPIRepoRuleset>(response);
     } catch (err) {
-      log.info(
-        `[fetchRepoRuleset] unable to fetch repo ruleset for ID: ${id} | ${path}`,
-        err
-      )
-      return null
+      log.info(`[fetchRepoRuleset] unable to fetch repo ruleset for ID: ${id} | ${path}`, err);
+      return null;
     }
   }
 
@@ -2717,73 +2556,71 @@ export class API {
    * one array when done.
    */
   protected async fetchAll<T>(path: string, options?: IFetchAllOptions<T>) {
-    const buf = new Array<T>()
-    const opts: IFetchAllOptions<T> = { perPage: this.maxPerPage, ...options }
-    const params = { [this.perPageParamName]: `${opts.perPage}` }
+    const buf = new Array<T>();
+    const opts: IFetchAllOptions<T> = { perPage: this.maxPerPage, ...options };
+    const params = { [this.perPageParamName]: `${opts.perPage}` };
 
-    let nextPath: string | null = urlWithQueryString(path, params)
+    let nextPath: string | null = urlWithQueryString(path, params);
     do {
-      const response: Response = await this.ghRequest('GET', nextPath)
+      const response: Response = await this.ghRequest("GET", nextPath);
       if (opts.suppressErrors !== false && !response.ok) {
-        log.warn(`fetchAll: '${path}' returned a ${response.status}`)
-        return buf
+        log.warn(`fetchAll: '${path}' returned a ${response.status}`);
+        return buf;
       }
 
-      const responseObject = await parsedResponse(response)
-      const { paginatorNext, page } = this.parsePaginator<T>(responseObject)
+      const responseObject = await parsedResponse(response);
+      const { paginatorNext, page } = this.parsePaginator<T>(responseObject);
       if (page) {
-        buf.push(...page)
-        opts.onPage?.(page)
+        buf.push(...page);
+        opts.onPage?.(page);
       }
 
       if (paginatorNext !== false) {
-        nextPath = paginatorNext
+        nextPath = paginatorNext;
       } else {
         nextPath = opts.getNextPagePath
           ? opts.getNextPagePath(response)
-          : getNextPagePathFromLink(response)
+          : getNextPagePathFromLink(response);
       }
-    } while (nextPath && (!opts.continue || (await opts.continue(buf))))
+    } while (nextPath && (!opts.continue || (await opts.continue(buf))));
 
-    return buf
+    return buf;
   }
 
   protected parsePaginator<T>(responseObject: unknown): {
-    paginatorNext: string | null | false
-    page: ReadonlyArray<T>
+    paginatorNext: string | null | false;
+    page: ReadonlyArray<T>;
   } {
     if (Array.isArray(responseObject)) {
       return {
         paginatorNext: false,
         page: responseObject,
-      }
+      };
     }
     if (this.isPaginatorResponse(responseObject)) {
       return {
-        paginatorNext:
-          (responseObject[this.paginatorNextPage] as string | undefined) ||
-          null,
+        paginatorNext: (responseObject[this.paginatorNextPage] as string | undefined) || null,
         page: (responseObject[this.paginatorValues] as ReadonlyArray<T>) || [],
-      }
+      };
     }
     console.warn(
       "Response object doesn't match expected paginator format, falling back to Link header parsing.",
-      responseObject
-    )
+      responseObject,
+    );
     return {
       paginatorNext: false,
       page: [],
-    }
+    };
   }
 
   private isPaginatorResponse(responseObject: unknown): responseObject is {
-    [key: string]: unknown
+    [key: string]: unknown;
   } {
     return (
       responseObject !== null &&
-      typeof responseObject === 'object' &&
+      typeof responseObject === "object" &&
       this.paginatorValues in responseObject
-    )
+    );
   }
 
   /** Make an authenticated request to the client's endpoint with its token. */
@@ -2792,15 +2629,15 @@ export class API {
     method: HTTPMethod,
     path: string,
     options: {
-      body?: Object
-      customHeaders?: Object
-      reloadCache?: boolean
-    } = {}
+      body?: Object;
+      customHeaders?: Object;
+      reloadCache?: boolean;
+    } = {},
   ): Promise<Response> {
-    const expiration = this.getTokenExpiration()
+    const expiration = this.getTokenExpiration();
     if (expiration !== null && expiration.getTime() < Date.now()) {
-      log.warn(`Token expired for endpoint ${this.endpoint}, refreshing token`)
-      await this.refreshTokenWithMutex()
+      log.warn(`Token expired for endpoint ${this.endpoint}, refreshing token`);
+      await this.refreshTokenWithMutex();
     }
 
     return await request(
@@ -2810,8 +2647,8 @@ export class API {
       path,
       options.body,
       { ...this.getExtraHeaders(), ...options.customHeaders },
-      options.reloadCache
-    )
+      options.reloadCache,
+    );
   }
 
   /**
@@ -2822,18 +2659,18 @@ export class API {
     method: HTTPMethod,
     path: string,
     options: {
-      body?: Object
-      customHeaders?: Object
-      reloadCache?: boolean
-    } = {}
+      body?: Object;
+      customHeaders?: Object;
+      reloadCache?: boolean;
+    } = {},
   ): Promise<Response> {
-    const response = await this.request(this.endpoint, method, path, options)
+    const response = await this.request(this.endpoint, method, path, options);
 
-    this.checkTokenInvalidated(response)
+    this.checkTokenInvalidated(response);
 
-    tryUpdateEndpointVersionFromResponse(this.endpoint, response)
+    tryUpdateEndpointVersionFromResponse(this.endpoint, response);
 
-    return response
+    return response;
   }
 
   protected checkTokenInvalidated(response: Response) {
@@ -2844,19 +2681,19 @@ export class API {
     // behind a 401 is the fact that any kind of 2 factor auth is required.
     if (
       response.status === HttpStatusCode.Unauthorized &&
-      response.headers.has('X-GitHub-Request-Id') &&
-      !response.headers.has('X-GitHub-OTP')
+      response.headers.has("X-GitHub-Request-Id") &&
+      !response.headers.has("X-GitHub-OTP")
     ) {
-      API.emitTokenInvalidated(this.endpoint, this.token, this.login)
+      API.emitTokenInvalidated(this.endpoint, this.token, this.login);
     }
   }
 
   protected getTokenExpiration(): Date | null {
-    return null
+    return null;
   }
 
   protected getExtraHeaders(): Object {
-    return {}
+    return {};
   }
 
   /**
@@ -2865,114 +2702,85 @@ export class API {
    */
   private async copilotRequest(
     path: string,
-    message: string
+    message: string,
   ): Promise<CopilotChatCompletionResponse> {
     if (!this.copilotEndpoint) {
-      throw new Error('No Copilot endpoint available')
+      throw new Error("No Copilot endpoint available");
     }
 
-    const response = await this.request(this.copilotEndpoint, 'POST', path, {
+    const response = await this.request(this.copilotEndpoint, "POST", path, {
       body: {
         messages: [
           {
-            role: 'user',
+            role: "user",
             content: message,
           },
         ],
         stream: false,
         response_format: {
-          type: 'json_object',
+          type: "json_object",
         },
       },
       customHeaders: {
-        'X-Initiator': 'user',
-        'X-Interaction-ID': crypto.randomUUID(),
-        'X-Interaction-Type': 'generateCommitMessage',
+        "X-Initiator": "user",
+        "X-Interaction-ID": crypto.randomUUID(),
+        "X-Interaction-Type": "generateCommitMessage",
       },
-    })
+    });
 
     if (response.status === HttpStatusCode.TooManyRequests) {
-      const retryAfter = response.headers.get('Retry-After')
+      const retryAfter = response.headers.get("Retry-After");
       if (retryAfter) {
-        throw new CopilotError(
-          `Rate limited, retry after ${retryAfter} seconds.`,
-          response.status
-        )
+        throw new CopilotError(`Rate limited, retry after ${retryAfter} seconds.`, response.status);
       } else {
-        throw new CopilotError(
-          'Rate limited, try again in a few minutes.',
-          response.status
-        )
+        throw new CopilotError("Rate limited, try again in a few minutes.", response.status);
       }
     } else if (response.status === HttpStatusCode.PaymentRequired) {
       throw parseCopilotPaymentRequiredError(
         await response.text(),
-        response.headers.get('Retry-After')
-      )
+        response.headers.get("Retry-After"),
+      );
     } else if (response.status === HttpStatusCode.Unauthorized) {
-      throw new CopilotError(
-        'Unauthorized: error with authentication.',
-        response.status
-      )
+      throw new CopilotError("Unauthorized: error with authentication.", response.status);
     } else if (response.status === HttpStatusCode.Forbidden) {
-      const body = await response.text()
-      if (body.includes('unauthorized: not licensed to use Copilot')) {
+      const body = await response.text();
+      if (body.includes("unauthorized: not licensed to use Copilot")) {
+        throw new CopilotError("Unauthorized: not licensed to use Copilot.", response.status);
+      } else if (body.includes("unauthorized: not authorized to use this Copilot feature")) {
         throw new CopilotError(
-          'Unauthorized: not licensed to use Copilot.',
-          response.status
-        )
-      } else if (
-        body.includes(
-          'unauthorized: not authorized to use this Copilot feature'
-        )
-      ) {
-        throw new CopilotError(
-          'Unauthorized: not authorized to use this Copilot feature.',
-          response.status
-        )
-      } else if (
-        body.includes('integration does not have GitHub chat enabled')
-      ) {
-        throw new CopilotError(
-          'Integration does not have GitHub chat enabled.',
-          response.status
-        )
+          "Unauthorized: not authorized to use this Copilot feature.",
+          response.status,
+        );
+      } else if (body.includes("integration does not have GitHub chat enabled")) {
+        throw new CopilotError("Integration does not have GitHub chat enabled.", response.status);
       } else {
-        throw new CopilotError('Unauthorized: unknown.', response.status)
+        throw new CopilotError("Unauthorized: unknown.", response.status);
       }
     } else if (response.status === 466) {
-      throw new CopilotError(
-        'Client issue: unsupported API version.',
-        response.status
-      )
+      throw new CopilotError("Client issue: unsupported API version.", response.status);
     } else if (response.status >= HttpStatusCode.BadRequest) {
       const internalError = `Internal server error, code: ${
         response.status
-      }, request ID: ${response.headers.get('X-Github-Request-Id')}.`
-      console.error(
-        `Copilot request failed with status ${response.status}: ${internalError}`
-      )
-      throw new CopilotError(
-        'Something went wrong. Please, try again later.',
-        response.status
-      )
+      }, request ID: ${response.headers.get("X-Github-Request-Id")}.`;
+      console.error(`Copilot request failed with status ${response.status}: ${internalError}`);
+      throw new CopilotError("Something went wrong. Please, try again later.", response.status);
     }
 
-    const text = await response.text()
+    const text = await response.text();
 
     // Responses include multiple lines starting with "data: " followed by
     // a JSON object. We're only interested in the JSON object of the first line.
-    const lines = text.split('\n')
-    const DataLinePrefix = 'data: '
+    const lines = text.split("\n");
+    const DataLinePrefix = "data: ";
 
     for (const line of lines) {
       if (line.startsWith(DataLinePrefix)) {
-        const json = JSON.parse(line.substring(DataLinePrefix.length))
-        return json as CopilotChatCompletionResponse
+        const json = JSON.parse(line.substring(DataLinePrefix.length));
+        return json as CopilotChatCompletionResponse;
       }
     }
 
-    throw new Error('No data line found in response')
+    throw new Error("No data line found in response");
   }
 
   /**
@@ -2982,33 +2790,28 @@ export class API {
    * @param diff Diff of changes to be committed, in git format
    * @returns Commit details (title and description) generated by Copilot
    */
-  public async getDiffChangesCommitMessage(
-    diff: string
-  ): Promise<ICopilotCommitMessage> {
+  public async getDiffChangesCommitMessage(diff: string): Promise<ICopilotCommitMessage> {
     try {
       const response = await this.copilotRequest(
-        '/agents/github-desktop-commit-message-generation',
-        diff
-      )
+        "/agents/github-desktop-commit-message-generation",
+        diff,
+      );
 
-      const choice = response.choices.at(0)
+      const choice = response.choices.at(0);
 
       if (!choice) {
-        throw new Error('No choice found in response')
+        throw new Error("No choice found in response");
       }
 
-      const message = choice.message.content
+      const message = choice.message.content;
       if (!message) {
-        throw new Error('No message found in response')
+        throw new Error("No message found in response");
       }
 
-      return parseCopilotCommitMessage(message)
+      return parseCopilotCommitMessage(message);
     } catch (e) {
-      log.warn(
-        `getDiffChangesCommitMessage: failed with endpoint ${this.endpoint}`,
-        e
-      )
-      throw e
+      log.warn(`getDiffChangesCommitMessage: failed with endpoint ${this.endpoint}`, e);
+      throw e;
     }
   }
 
@@ -3016,22 +2819,19 @@ export class API {
    * Get the allowed poll interval for fetching. If an error occurs it will
    * return null.
    */
-  public async getFetchPollInterval(
-    owner: string,
-    name: string
-  ): Promise<number | null> {
-    const path = `repos/${owner}/${name}/git`
+  public async getFetchPollInterval(owner: string, name: string): Promise<number | null> {
+    const path = `repos/${owner}/${name}/git`;
     try {
-      const response = await this.ghRequest('HEAD', path)
-      const interval = response.headers.get('x-poll-interval')
+      const response = await this.ghRequest("HEAD", path);
+      const interval = response.headers.get("x-poll-interval");
       if (interval) {
-        const parsed = parseInt(interval, 10)
-        return isNaN(parsed) ? null : parsed
+        const parsed = parseInt(interval, 10);
+        return isNaN(parsed) ? null : parsed;
       }
-      return null
+      return null;
     } catch (e) {
-      log.warn(`getFetchPollInterval: failed for ${owner}/${name}`, e)
-      return null
+      log.warn(`getFetchPollInterval: failed for ${owner}/${name}`, e);
+      return null;
     }
   }
 
@@ -3039,38 +2839,37 @@ export class API {
   public async fetchMentionables(
     owner: string,
     name: string,
-    etag: string | undefined
+    etag: string | undefined,
   ): Promise<IAPIMentionablesResponse | null> {
     // NB: this custom `Accept` is required for the `mentionables` endpoint.
     const headers: any = {
-      Accept: 'application/vnd.github.jerry-maguire-preview',
-    }
+      Accept: "application/vnd.github.jerry-maguire-preview",
+    };
 
     if (etag !== undefined) {
-      headers['If-None-Match'] = etag
+      headers["If-None-Match"] = etag;
     }
 
     try {
-      const path = `repos/${owner}/${name}/mentionables/users`
-      const response = await this.ghRequest('GET', path, {
+      const path = `repos/${owner}/${name}/mentionables/users`;
+      const response = await this.ghRequest("GET", path, {
         customHeaders: headers,
-      })
+      });
 
       if (response.status === HttpStatusCode.NotFound) {
-        log.warn(`fetchMentionables: '${path}' returned a 404`)
-        return null
+        log.warn(`fetchMentionables: '${path}' returned a 404`);
+        return null;
       }
 
       if (response.status === HttpStatusCode.NotModified) {
-        return null
+        return null;
       }
-      const users =
-        await parsedResponse<ReadonlyArray<IAPIMentionableUser>>(response)
-      const etag = response.headers.get('etag') || undefined
-      return { users, etag }
+      const users = await parsedResponse<ReadonlyArray<IAPIMentionableUser>>(response);
+      const etag = response.headers.get("etag") || undefined;
+      return { users, etag };
     } catch (e) {
-      log.warn(`fetchMentionables: failed for ${owner}/${name}`, e)
-      return null
+      log.warn(`fetchMentionables: failed for ${owner}/${name}`, e);
+      return null;
     }
   }
 
@@ -3080,19 +2879,16 @@ export class API {
    */
   public async fetchUser(login: string): Promise<IAPIFullIdentity | null> {
     try {
-      const response = await this.ghRequest(
-        'GET',
-        `users/${encodeURIComponent(login)}`
-      )
+      const response = await this.ghRequest("GET", `users/${encodeURIComponent(login)}`);
 
       if (response.status === HttpStatusCode.NotFound) {
-        return null
+        return null;
       }
 
-      return await parsedResponse<IAPIFullIdentity>(response)
+      return await parsedResponse<IAPIFullIdentity>(response);
     } catch (e) {
-      log.warn(`fetchUser: failed with endpoint ${this.endpoint}`, e)
-      throw e
+      log.warn(`fetchUser: failed with endpoint ${this.endpoint}`, e);
+      throw e;
     }
   }
 
@@ -3103,13 +2899,12 @@ export class API {
    */
   public async fetchFeatureFlags(): Promise<ReadonlyArray<string> | undefined> {
     try {
-      const response = await this.ghRequest('GET', '/desktop_internal/features')
-      const featuresResponse =
-        await parsedResponse<IUserFeaturesResponse>(response)
-      return featuresResponse.features
+      const response = await this.ghRequest("GET", "/desktop_internal/features");
+      const featuresResponse = await parsedResponse<IUserFeaturesResponse>(response);
+      return featuresResponse.features;
     } catch (e) {
-      log.warn(`fetchFeatureFlags: failed with endpoint ${this.endpoint}`, e)
-      return undefined
+      log.warn(`fetchFeatureFlags: failed with endpoint ${this.endpoint}`, e);
+      return undefined;
     }
   }
 
@@ -3121,7 +2916,7 @@ export class API {
   public async fetchUserCopilotInfo(): Promise<UserCopilotInfo | undefined> {
     // Copilot is not available on GHES
     if (isGHES(this.endpoint)) {
-      return undefined
+      return undefined;
     }
 
     const graphql = `
@@ -3135,30 +2930,29 @@ export class API {
         isCopilotDesktopEnabled
       }
     }
-    `
+    `;
 
     try {
-      const response = await this.ghRequest('POST', '/graphql', {
+      const response = await this.ghRequest("POST", "/graphql", {
         body: { query: graphql },
         customHeaders: {
-          'GraphQL-Features': 'copilot_iap_max_sku',
+          "GraphQL-Features": "copilot_iap_max_sku",
         },
-      })
+      });
       if (response === null) {
-        return undefined
+        return undefined;
       }
 
-      const json: ViewerCopilotResponse =
-        (await response.json()) as ViewerCopilotResponse
-      const { viewer } = json.data
+      const json: ViewerCopilotResponse = (await response.json()) as ViewerCopilotResponse;
+      const { viewer } = json.data;
       return {
         copilotEndpoint: viewer.copilotEndpoints.api,
         isCopilotDesktopEnabled: viewer.isCopilotDesktopEnabled,
         copilotLicenseType: viewer.copilotLicenseType,
-      }
+      };
     } catch (e) {
-      log.warn(`fetchUserCopilotInfo: failed with endpoint ${this.endpoint}`, e)
-      return undefined
+      log.warn(`fetchUserCopilotInfo: failed with endpoint ${this.endpoint}`, e);
+      return undefined;
     }
   }
 
@@ -3182,19 +2976,17 @@ export class API {
     name: string,
     reason: BypassReasonType,
     placeholderId: string,
-    bypassURL: string
+    bypassURL: string,
   ): Promise<IAPICreatePushProtectionBypassResponse> {
-    const path = `repos/${owner}/${name}/secret-scanning/push-protection-bypasses`
+    const path = `repos/${owner}/${name}/secret-scanning/push-protection-bypasses`;
     const body = {
       reason,
       placeholder_id: placeholderId,
-    }
+    };
 
     try {
-      const response = await this.ghRequest('POST', path, { body })
-      return await parsedResponse<IAPICreatePushProtectionBypassResponse>(
-        response
-      )
+      const response = await this.ghRequest("POST", path, { body });
+      return await parsedResponse<IAPICreatePushProtectionBypassResponse>(response);
     } catch (e) {
       const msg = `Unable to create push protection bypass.
 
@@ -3202,30 +2994,30 @@ export class API {
     Reason: ${reason}
     Placeholder Id: ${placeholderId}.
 
-    Try again at: ${bypassURL}`
+    Try again at: ${bypassURL}`;
 
-      log.error(msg, e)
-      throw new Error(msg)
+      log.error(msg, e);
+      throw new Error(msg);
     }
   }
 }
 
 export async function deleteToken(account: Account) {
   try {
-    const creds = Buffer.from(`${ClientID}:${ClientSecret}`).toString('base64')
+    const creds = Buffer.from(`${ClientID}:${ClientSecret}`).toString("base64");
     const response = await request(
       account.endpoint,
       null,
-      'DELETE',
+      "DELETE",
       `applications/${ClientID}/token`,
       { access_token: account.token },
-      { Authorization: `Basic ${creds}` }
-    )
+      { Authorization: `Basic ${creds}` },
+    );
 
-    return response.status === 204
+    return response.status === 204;
   } catch (e) {
-    log.error(`deleteToken: failed with endpoint ${account.endpoint}`, e)
-    return false
+    log.error(`deleteToken: failed with endpoint ${account.endpoint}`, e);
+    return false;
   }
 }
 
@@ -3235,20 +3027,20 @@ export async function fetchUser(
   token: string,
   refreshToken: string,
   expiresAt: number,
-  login: string | UnknownLogin
+  login: string | UnknownLogin,
 ): Promise<Account> {
-  let api: API
+  let api: API;
   if (endpoint === getBitbucketAPIEndpoint()) {
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    api = new BitbucketAPI(token, login, refreshToken, expiresAt)
+    api = new BitbucketAPI(token, login, refreshToken, expiresAt);
   } else if (endpoint === getGitLabAPIEndpoint()) {
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    api = GitLabAPI.get(token, login, refreshToken, expiresAt)
+    api = GitLabAPI.get(token, login, refreshToken, expiresAt);
   } else if (endpoint === getCodebergAPIEndpoint()) {
     // eslint-disable-next-line @typescript-eslint/no-use-before-define
-    api = CodebergAPI.get(token, login, refreshToken, expiresAt)
+    api = CodebergAPI.get(token, login, refreshToken, expiresAt);
   } else {
-    api = new API(endpoint, token, login)
+    api = new API(endpoint, token, login);
   }
   try {
     const [user, emails, copilotInfo, features] = await Promise.all([
@@ -3256,7 +3048,7 @@ export async function fetchUser(
       api.fetchEmails(),
       api.fetchUserCopilotInfo(),
       api.fetchFeatureFlags(),
-    ])
+    ]);
 
     return new Account(
       user.login,
@@ -3272,16 +3064,16 @@ export async function fetchUser(
       copilotInfo?.copilotEndpoint,
       copilotInfo?.isCopilotDesktopEnabled,
       features,
-      copilotInfo?.copilotLicenseType
-    )
+      copilotInfo?.copilotLicenseType,
+    );
   } catch (e) {
-    log.warn(`fetchUser: failed with endpoint ${endpoint}`, e)
-    throw e
+    log.warn(`fetchUser: failed with endpoint ${endpoint}`, e);
+    throw e;
   }
 }
 
 function toExpiresAt(expiresInSeconds: number) {
-  return Date.now() + expiresInSeconds * 900 // 10% safety buffer
+  return Date.now() + expiresInSeconds * 900; // 10% safety buffer
 }
 
 /**
@@ -3291,21 +3083,21 @@ function toExpiresAt(expiresInSeconds: number) {
  * http://github.mycompany.com/my-team/my-project -> http://github.mycompany.com/api
  */
 export function getEndpointForRepository(url: string): string | null {
-  const parsed = parseRemote(url)
+  const parsed = parseRemote(url);
   if (!parsed) {
-    log.warn(`getEndpointForRepository: failed to parse url ${url}`)
-    return null
+    log.warn(`getEndpointForRepository: failed to parse url ${url}`);
+    return null;
   }
-  if (parsed.hostname === 'github.com') {
-    return getDotComAPIEndpoint()
-  } else if (parsed.hostname === 'bitbucket.org') {
-    return getBitbucketAPIEndpoint()
-  } else if (parsed.hostname === 'gitlab.com') {
-    return getGitLabAPIEndpoint()
-  } else if (parsed.hostname === 'codeberg.org') {
-    return getCodebergAPIEndpoint()
+  if (parsed.hostname === "github.com") {
+    return getDotComAPIEndpoint();
+  } else if (parsed.hostname === "bitbucket.org") {
+    return getBitbucketAPIEndpoint();
+  } else if (parsed.hostname === "gitlab.com") {
+    return getGitLabAPIEndpoint();
+  } else if (parsed.hostname === "codeberg.org") {
+    return getCodebergAPIEndpoint();
   } else {
-    return `${parsed.protocol}//${parsed.hostname}/api`
+    return `${parsed.protocol}//${parsed.hostname}/api`;
   }
 }
 
@@ -3317,7 +3109,7 @@ export function getEndpointForRepository(url: string): string | null {
  */
 export function getHTMLURL(endpoint: string): string {
   if (envHTMLURL !== undefined) {
-    return envHTMLURL
+    return envHTMLURL;
   }
 
   // In the case of GitHub.com, the HTML site lives on the parent domain.
@@ -3329,28 +3121,28 @@ export function getHTMLURL(endpoint: string): string {
   //
   // We need to normalize them.
   if (endpoint === getDotComAPIEndpoint() && !envEndpoint) {
-    return 'https://github.com'
+    return "https://github.com";
   } else if (endpoint === getBitbucketAPIEndpoint()) {
-    return 'https://bitbucket.org'
+    return "https://bitbucket.org";
   } else if (endpoint === getGitLabAPIEndpoint()) {
-    return 'https://gitlab.com'
+    return "https://gitlab.com";
   } else if (endpoint === getCodebergAPIEndpoint()) {
-    return 'https://codeberg.org'
+    return "https://codeberg.org";
   } else {
     if (isGHE(endpoint)) {
-      const url = new window.URL(endpoint)
+      const url = new window.URL(endpoint);
 
-      url.pathname = '/'
+      url.pathname = "/";
 
-      if (url.hostname.startsWith('api.')) {
-        url.hostname = url.hostname.replace(/^api\./, '')
+      if (url.hostname.startsWith("api.")) {
+        url.hostname = url.hostname.replace(/^api\./, "");
       }
 
-      return url.toString()
+      return url.toString();
     }
 
-    const parsed = URL.parse(endpoint)
-    return `${parsed.protocol}//${parsed.hostname}`
+    const parsed = URL.parse(endpoint);
+    return `${parsed.protocol}//${parsed.hostname}`;
   }
 }
 
@@ -3360,26 +3152,26 @@ export function getHTMLURL(endpoint: string): string {
  * http://github.mycompany.com -> https://github.mycompany.com/api/v3
  */
 export function getEnterpriseAPIURL(endpoint: string): string {
-  const { host } = new window.URL(endpoint)
+  const { host } = new window.URL(endpoint);
 
-  return isGHE(endpoint) ? `https://api.${host}/` : `https://${host}/api/v3`
+  return isGHE(endpoint) ? `https://api.${host}/` : `https://${host}/api/v3`;
 }
 
 export const getAPIEndpoint = (endpoint: string) => {
   if (isDotCom(endpoint)) {
-    return getDotComAPIEndpoint()
+    return getDotComAPIEndpoint();
   }
   if (isBitbucket(endpoint)) {
-    return getBitbucketAPIEndpoint()
+    return getBitbucketAPIEndpoint();
   }
   if (isGitLab(endpoint)) {
-    return getGitLabAPIEndpoint()
+    return getGitLabAPIEndpoint();
   }
   if (isCodeberg(endpoint)) {
-    return getCodebergAPIEndpoint()
+    return getCodebergAPIEndpoint();
   }
-  return getEnterpriseAPIURL(endpoint)
-}
+  return getEnterpriseAPIURL(endpoint);
+};
 
 /** Get github.com's API endpoint. */
 export function getDotComAPIEndpoint(): string {
@@ -3389,22 +3181,22 @@ export function getDotComAPIEndpoint(): string {
   // the server-side interaction. For all other cases you should leave this
   // unset.
   if (envEndpoint && envEndpoint.length > 0) {
-    return envEndpoint
+    return envEndpoint;
   }
 
-  return 'https://api.github.com'
+  return "https://api.github.com";
 }
 
 export function getBitbucketAPIEndpoint(): string {
-  return 'https://api.bitbucket.org/2.0'
+  return "https://api.bitbucket.org/2.0";
 }
 
 export function getGitLabAPIEndpoint(): string {
-  return 'https://gitlab.com/api/v4'
+  return "https://gitlab.com/api/v4";
 }
 
 export function getCodebergAPIEndpoint(): string {
-  return 'https://codeberg.org/api/v1'
+  return "https://codeberg.org/api/v1";
 }
 
 /** Get the account for the endpoint. */
@@ -3412,201 +3204,175 @@ export function getAccountForEndpoint(
   accounts: ReadonlyArray<Account>,
   endpoint: string,
   login: string,
-  strict: boolean = false
+  strict: boolean = false,
 ): Account | null {
   return (
-    accounts.find(a => a.endpoint === endpoint && a.login === login) ||
-    (!strict && accounts.find(a => a.endpoint === endpoint)) ||
+    accounts.find((a) => a.endpoint === endpoint && a.login === login) ||
+    (!strict && accounts.find((a) => a.endpoint === endpoint)) ||
     null
-  )
+  );
 }
 
 function pkceChallengeParams(codeChallenge: string): string {
-  return `code_challenge=${codeChallenge}&code_challenge_method=S256`
+  return `code_challenge=${codeChallenge}&code_challenge_method=S256`;
 }
 
 export function getOAuthAuthorizationURL(
   endpoint: string,
   state: string,
-  codeChallenge: string
+  codeChallenge: string,
 ): string {
-  const urlBase = getHTMLURL(endpoint)
-  const scope = encodeURIComponent(oauthScopes.join(' '))
-  const pkceParams = pkceChallengeParams(codeChallenge)
+  const urlBase = getHTMLURL(endpoint);
+  const scope = encodeURIComponent(oauthScopes.join(" "));
+  const pkceParams = pkceChallengeParams(codeChallenge);
 
   return new window.URL(
     `/login/oauth/authorize?client_id=${ClientID}&scope=${scope}&state=${state}&${pkceParams}`,
-    urlBase
-  ).toString()
+    urlBase,
+  ).toString();
 }
 
-export function getBitbucketOAuthAuthorizationURL(
-  state: string,
-  codeChallenge: string
-): string {
-  const pkceParams = pkceChallengeParams(codeChallenge)
-  return `https://bitbucket.org/site/oauth2/authorize?client_id=${ClientIDBitbucket}&response_type=code&state=${state}&${pkceParams}`
+export function getBitbucketOAuthAuthorizationURL(state: string, codeChallenge: string): string {
+  const pkceParams = pkceChallengeParams(codeChallenge);
+  return `https://bitbucket.org/site/oauth2/authorize?client_id=${ClientIDBitbucket}&response_type=code&state=${state}&${pkceParams}`;
 }
 
-export function getGitLabOAuthAuthorizationURL(
-  state: string,
-  codeChallenge: string
-): string {
-  const scope = encodeURIComponent('read_user read_api read_repository')
-  const encodedRedirectUri = encodeURIComponent(oauthRedirectUri)
-  const pkceParams = pkceChallengeParams(codeChallenge)
-  return `https://gitlab.com/oauth/authorize?client_id=${ClientIDGitLab}&redirect_uri=${encodedRedirectUri}&response_type=code&scope=${scope}&state=${state}&${pkceParams}`
+export function getGitLabOAuthAuthorizationURL(state: string, codeChallenge: string): string {
+  const scope = encodeURIComponent("read_user read_api read_repository");
+  const encodedRedirectUri = encodeURIComponent(oauthRedirectUri);
+  const pkceParams = pkceChallengeParams(codeChallenge);
+  return `https://gitlab.com/oauth/authorize?client_id=${ClientIDGitLab}&redirect_uri=${encodedRedirectUri}&response_type=code&scope=${scope}&state=${state}&${pkceParams}`;
 }
 
-export function getCodebergOAuthAuthorizationURL(
-  state: string,
-  codeChallenge: string
-): string {
-  const encodedRedirectUri = encodeURIComponent(oauthRedirectUri)
-  const pkceParams = pkceChallengeParams(codeChallenge)
-  return `https://codeberg.org/login/oauth/authorize?client_id=${ClientIDCodeberg}&redirect_uri=${encodedRedirectUri}&response_type=code&state=${state}&${pkceParams}`
+export function getCodebergOAuthAuthorizationURL(state: string, codeChallenge: string): string {
+  const encodedRedirectUri = encodeURIComponent(oauthRedirectUri);
+  const pkceParams = pkceChallengeParams(codeChallenge);
+  return `https://codeberg.org/login/oauth/authorize?client_id=${ClientIDCodeberg}&redirect_uri=${encodedRedirectUri}&response_type=code&state=${state}&${pkceParams}`;
 }
 
 export async function requestOAuthToken(
   endpoint: string,
   code: string,
-  codeVerifier: string
+  codeVerifier: string,
 ): Promise<[string, string, number] | null> {
   try {
-    const urlBase = getHTMLURL(endpoint)
-    const response = await request(
-      urlBase,
-      null,
-      'POST',
-      'login/oauth/access_token',
-      {
-        client_id: ClientID,
-        client_secret: ClientSecret,
-        code: code,
-        code_verifier: codeVerifier,
-      }
-    )
-    tryUpdateEndpointVersionFromResponse(endpoint, response)
+    const urlBase = getHTMLURL(endpoint);
+    const response = await request(urlBase, null, "POST", "login/oauth/access_token", {
+      client_id: ClientID,
+      client_secret: ClientSecret,
+      code: code,
+      code_verifier: codeVerifier,
+    });
+    tryUpdateEndpointVersionFromResponse(endpoint, response);
 
-    const result = await parsedResponse<IAPIAccessToken>(response)
-    return [result.access_token, '', 0]
+    const result = await parsedResponse<IAPIAccessToken>(response);
+    return [result.access_token, "", 0];
   } catch (e) {
-    log.warn(`requestOAuthToken: failed with endpoint ${endpoint}`, e)
-    return null
+    log.warn(`requestOAuthToken: failed with endpoint ${endpoint}`, e);
+    return null;
   }
 }
 
 export async function requestOAuthTokenBitbucket(
   code: string,
-  codeVerifier: string
+  codeVerifier: string,
 ): Promise<[string, string, number] | null> {
   try {
-    const response = await fetch(
-      'https://bitbucket.org/site/oauth2/access_token',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Basic ${BitbucketBasicAuth()}`,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `grant_type=authorization_code&code=${code}&code_verifier=${codeVerifier}`,
-      }
-    )
+    const response = await fetch("https://bitbucket.org/site/oauth2/access_token", {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${BitbucketBasicAuth()}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: `grant_type=authorization_code&code=${code}&code_verifier=${codeVerifier}`,
+    });
 
-    const result = await parsedResponse<IBitbucketAPIAccessToken>(response)
-    const expiresAt = toExpiresAt(result.expires_in)
-    return [result.access_token, result.refresh_token, expiresAt]
+    const result = await parsedResponse<IBitbucketAPIAccessToken>(response);
+    const expiresAt = toExpiresAt(result.expires_in);
+    return [result.access_token, result.refresh_token, expiresAt];
   } catch (e) {
-    log.warn('requestOAuthTokenBitbucket failed', e)
-    return null
+    log.warn("requestOAuthTokenBitbucket failed", e);
+    return null;
   }
 }
 
 export async function requestOAuthTokenGitLab(
   code: string,
-  codeVerifier: string
+  codeVerifier: string,
 ): Promise<[string, string, number] | null> {
   try {
-    const response = await fetch('https://gitlab.com/oauth/token', {
-      method: 'POST',
+    const response = await fetch("https://gitlab.com/oauth/token", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         client_id: ClientIDGitLab,
         client_secret: ClientSecretGitLab,
         code: code,
-        grant_type: 'authorization_code',
+        grant_type: "authorization_code",
         redirect_uri: oauthRedirectUri,
         code_verifier: codeVerifier,
       }),
-    })
+    });
 
-    const result = await parsedResponse<IGitLabAPIAccessToken>(response)
-    const expiresAt = toExpiresAt(result.expires_in)
-    return [result.access_token, result.refresh_token, expiresAt]
+    const result = await parsedResponse<IGitLabAPIAccessToken>(response);
+    const expiresAt = toExpiresAt(result.expires_in);
+    return [result.access_token, result.refresh_token, expiresAt];
   } catch (e) {
-    log.warn('requestOAuthTokenGitLab failed', e)
-    return null
+    log.warn("requestOAuthTokenGitLab failed", e);
+    return null;
   }
 }
 
 export async function requestOAuthTokenCodeberg(
   code: string,
-  codeVerifier: string
+  codeVerifier: string,
 ): Promise<[string, string, number] | null> {
   try {
-    const response = await fetch(
-      'https://codeberg.org/login/oauth/access_token',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          client_id: ClientIDCodeberg,
-          client_secret: ClientSecretCodeberg,
-          code: code,
-          grant_type: 'authorization_code',
-          redirect_uri: oauthRedirectUri,
-          code_verifier: codeVerifier,
-        }),
-      }
-    )
+    const response = await fetch("https://codeberg.org/login/oauth/access_token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        client_id: ClientIDCodeberg,
+        client_secret: ClientSecretCodeberg,
+        code: code,
+        grant_type: "authorization_code",
+        redirect_uri: oauthRedirectUri,
+        code_verifier: codeVerifier,
+      }),
+    });
 
-    const result = await parsedResponse<ICodebergAPIAccessToken>(response)
-    const expiresAt = toExpiresAt(result.expires_in)
-    return [result.access_token, result.refresh_token, expiresAt]
+    const result = await parsedResponse<ICodebergAPIAccessToken>(response);
+    const expiresAt = toExpiresAt(result.expires_in);
+    return [result.access_token, result.refresh_token, expiresAt];
   } catch (e) {
-    log.warn('requestOAuthTokenCodeberg failed', e)
-    return null
+    log.warn("requestOAuthTokenCodeberg failed", e);
+    return null;
   }
 }
 
-function tryUpdateEndpointVersionFromResponse(
-  endpoint: string,
-  response: Response
-) {
-  const gheVersion = response.headers.get('x-github-enterprise-version')
+function tryUpdateEndpointVersionFromResponse(endpoint: string, response: Response) {
+  const gheVersion = response.headers.get("x-github-enterprise-version");
   if (gheVersion !== null) {
-    updateEndpointVersion(endpoint, gheVersion)
+    updateEndpointVersion(endpoint, gheVersion);
   }
 }
 
-function getCombinedRefStatus(
-  checkRuns: ReadonlyArray<IAPIRefStatusItem>
-): APIRefState {
+function getCombinedRefStatus(checkRuns: ReadonlyArray<IAPIRefStatusItem>): APIRefState {
   // https://docs.github.com/en/rest/commits/statuses?apiVersion=2022-11-28#get-the-combined-status-for-a-specific-reference
-  if (checkRuns.some(cr => cr.state === 'failure' || cr.state === 'error')) {
-    return 'failure'
+  if (checkRuns.some((cr) => cr.state === "failure" || cr.state === "error")) {
+    return "failure";
   }
-  if (checkRuns.length === 0 || checkRuns.some(cr => cr.state === 'pending')) {
-    return 'pending'
+  if (checkRuns.length === 0 || checkRuns.some((cr) => cr.state === "pending")) {
+    return "pending";
   }
-  return 'success'
+  return "success";
 }
 
-export { isTrustedRemoteHost } from './trusted-remote-host'
+export { isTrustedRemoteHost } from "./trusted-remote-host";
 
 /**
  * Attempts to determine whether or not the url belongs to a GitHub host.
@@ -3615,174 +3381,168 @@ export { isTrustedRemoteHost } from './trusted-remote-host'
  * an error making the discovery request
  */
 export async function isGitHubHost(url: string) {
-  const { hostname } = new window.URL(url)
+  const { hostname } = new window.URL(url);
 
   const endpoint =
-    hostname === 'github.com' || hostname === 'api.github.com'
+    hostname === "github.com" || hostname === "api.github.com"
       ? getDotComAPIEndpoint()
-      : getEnterpriseAPIURL(url)
+      : getEnterpriseAPIURL(url);
 
   if (isDotCom(endpoint) || isGHE(endpoint)) {
-    return true
+    return true;
   }
 
   if (isKnownThirdPartyHost(hostname)) {
-    return false
+    return false;
   }
 
   // github.example.com,
   if (/(^|\.)(github)\./.test(hostname)) {
-    return true
+    return true;
   }
 
   // bitbucket.example.com, etc
   if (/(^|\.)(bitbucket|gitlab|codeberg|forgejo|gitea)\./.test(hostname)) {
-    return false
+    return false;
   }
 
   if (getEndpointVersion(endpoint) !== null) {
-    return true
+    return true;
   }
 
   // Add a unique identifier to the URL to make sure our certificate error
   // supression only catches this request
-  const metaUrl = `${endpoint}/meta?ghd=${crypto.randomUUID()}`
+  const metaUrl = `${endpoint}/meta?ghd=${crypto.randomUUID()}`;
 
-  const ac = new AbortController()
-  const timeoutId = setTimeout(() => ac.abort(), 2000)
-  suppressCertificateErrorFor(metaUrl)
+  const ac = new AbortController();
+  const timeoutId = setTimeout(() => ac.abort(), 2000);
+  suppressCertificateErrorFor(metaUrl);
   try {
     const response = await fetch(metaUrl, {
-      headers: { 'user-agent': getUserAgent() },
+      headers: { "user-agent": getUserAgent() },
       signal: ac.signal,
-      credentials: 'omit',
-      method: 'HEAD',
-      redirect: 'error',
-    })
+      credentials: "omit",
+      method: "HEAD",
+      redirect: "error",
+    });
 
-    tryUpdateEndpointVersionFromResponse(endpoint, response)
+    tryUpdateEndpointVersionFromResponse(endpoint, response);
 
-    return response.headers.has('x-github-request-id')
+    return response.headers.has("x-github-request-id");
   } catch (e) {
-    log.debug(`isGitHubHost: failed with endpoint ${endpoint}`, e)
-    return undefined
+    log.debug(`isGitHubHost: failed with endpoint ${endpoint}`, e);
+    return undefined;
   } finally {
-    clearTimeout(timeoutId)
-    clearCertificateErrorSuppressionFor(metaUrl)
+    clearTimeout(timeoutId);
+    clearCertificateErrorSuppressionFor(metaUrl);
   }
 }
 
 const isRulesetsNotEnabledError = (error: any) =>
   error instanceof APIError &&
   error.responseStatus === 403 &&
-  /upgrade.*to enable this feature.*/i.test(error.apiError?.message ?? '')
+  /upgrade.*to enable this feature.*/i.test(error.apiError?.message ?? "");
 
 const isNotFoundApiError = (error: any) =>
-  error instanceof APIError && error.responseStatus === 404
+  error instanceof APIError && error.responseStatus === 404;
 
 export class BitbucketAPI extends API {
-  private apiRefreshToken: string
-  private expiresAt: Date | null = null
+  private apiRefreshToken: string;
+  private expiresAt: Date | null = null;
 
   public constructor(
     token: string,
     login: string | UnknownLogin,
     refreshToken: string,
-    expiresAt: number
+    expiresAt: number,
   ) {
-    super(getBitbucketAPIEndpoint(), token, login)
-    this.apiRefreshToken = refreshToken
-    this.expiresAt = expiresAt ? new Date(expiresAt) : null
+    super(getBitbucketAPIEndpoint(), token, login);
+    this.apiRefreshToken = refreshToken;
+    this.expiresAt = expiresAt ? new Date(expiresAt) : null;
   }
 
   public override getRefreshToken() {
-    return this.apiRefreshToken
+    return this.apiRefreshToken;
   }
   public override getExpiresAt() {
-    return this.expiresAt?.getTime() ?? 0
+    return this.expiresAt?.getTime() ?? 0;
   }
 
   // https://developer.atlassian.com/cloud/bitbucket/rest/intro/#pagination
   protected override get maxPerPage() {
-    return 100
+    return 100;
   }
   protected override get perPageParamName() {
-    return 'pagelen'
+    return "pagelen";
   }
   protected override get pageParamName() {
-    return 'page'
+    return "page";
   }
   protected override get paginatorNextPage() {
-    return 'next'
+    return "next";
   }
   protected override get paginatorValues() {
-    return 'values'
+    return "values";
   }
 
   protected override async refreshToken() {
     try {
-      const response = await fetch(
-        'https://bitbucket.org/site/oauth2/access_token',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Basic ${BitbucketBasicAuth()}`,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: `grant_type=refresh_token&refresh_token=${this.apiRefreshToken}`,
-        }
-      )
+      const response = await fetch("https://bitbucket.org/site/oauth2/access_token", {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${BitbucketBasicAuth()}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: `grant_type=refresh_token&refresh_token=${this.apiRefreshToken}`,
+      });
 
-      const result = await parsedResponse<IBitbucketAPIAccessToken>(response)
-      this.token = result.access_token
-      this.apiRefreshToken = result.refresh_token
-      this.expiresAt = new Date(toExpiresAt(result.expires_in))
+      const result = await parsedResponse<IBitbucketAPIAccessToken>(response);
+      this.token = result.access_token;
+      this.apiRefreshToken = result.refresh_token;
+      this.expiresAt = new Date(toExpiresAt(result.expires_in));
       API.emitTokenRefreshed(
         this.endpoint,
         this.token,
         this.apiRefreshToken,
         this.expiresAt.getTime(),
-        this.login
-      )
+        this.login,
+      );
     } catch (e) {
-      log.warn('refreshOAuthTokenBitbucket failed', e)
+      log.warn("refreshOAuthTokenBitbucket failed", e);
     }
   }
 
   protected override getExtraHeaders(): Object {
     return {
       Authorization: `Bearer ${this.token}`,
-    }
+    };
   }
 
   protected override checkTokenInvalidated(response: Response) {
     if (response.status === 401) {
-      API.emitTokenInvalidated(this.endpoint, this.token, this.login)
+      API.emitTokenInvalidated(this.endpoint, this.token, this.login);
     }
   }
 
   protected override getTokenExpiration(): Date | null {
-    return this.expiresAt
+    return this.expiresAt;
   }
 
   public override async fetchAllOpenPullRequests(
     owner: string,
-    name: string
+    name: string,
   ): Promise<IAPIPullRequest[]> {
-    const url = urlWithQueryString(
-      `repositories/${owner}/${name}/pullrequests`,
-      {
-        state: 'OPEN',
-      }
-    )
+    const url = urlWithQueryString(`repositories/${owner}/${name}/pullrequests`, {
+      state: "OPEN",
+    });
     try {
       const prs = await this.fetchAll<IBitbucketAPIPullRequest>(url, {
         perPage: 50,
-      })
-      return prs.map(toIAPIPullRequest)
+      });
+      return prs.map(toIAPIPullRequest);
     } catch (e) {
-      log.warn(`failed fetching open PRs for repository ${owner}/${name}`, e)
-      throw e
+      log.warn(`failed fetching open PRs for repository ${owner}/${name}`, e);
+      throw e;
     }
   }
 
@@ -3790,105 +3550,94 @@ export class BitbucketAPI extends API {
     owner: string,
     name: string,
     since: Date,
-    maxResults = 320
+    maxResults = 320,
   ) {
-    const sinceTime = since.getTime()
-    const url = urlWithQueryString(
-      `repositories/${owner}/${name}/pullrequests`,
-      {
-        state: ['OPEN', 'MERGED', 'DECLINED', 'SUPERSEDED'],
-        sort: '-updated_on',
-      }
-    )
+    const sinceTime = since.getTime();
+    const url = urlWithQueryString(`repositories/${owner}/${name}/pullrequests`, {
+      state: ["OPEN", "MERGED", "DECLINED", "SUPERSEDED"],
+      sort: "-updated_on",
+    });
 
     try {
       const prs = await this.fetchAll<IBitbucketAPIPullRequest>(url, {
         // See explaination for perPage=10 in API.fetchUpdatedPullRequests
         // Max page in Bitbucket API for PRs is 50: https://jira.atlassian.com/browse/BCLOUD-9659
         perPage: 10,
-        getNextPagePath: response =>
+        getNextPagePath: (response) =>
           getNextPagePathWithIncreasingPageSize(
             response,
             this.perPageParamName,
             this.pageParamName,
-            50
+            50,
           ),
         continue(results) {
           if (results.length >= maxResults) {
-            throw new MaxResultsError('got max pull requests, aborting')
+            throw new MaxResultsError("got max pull requests, aborting");
           }
 
           // Given that we sort the results in descending order by their
           // updated_at field we can safely say that if the last item
           // is modified after our sinceTime then haven't reached the
           // end of updated PRs.
-          const last = results.at(-1)
-          return last !== undefined && Date.parse(last.updated_on) > sinceTime
+          const last = results.at(-1);
+          return last !== undefined && Date.parse(last.updated_on) > sinceTime;
         },
         // We can't ignore errors here as that might mean that we haven't
         // retrieved enough pages to fully capture the changes since the
         // last time we updated. Ignoring errors here would mean that we'd
         // store an incorrect lastUpdated field in the database.
         suppressErrors: false,
-      })
-      return prs
-        .filter(pr => Date.parse(pr.updated_on) >= sinceTime)
-        .map(toIAPIPullRequest)
+      });
+      return prs.filter((pr) => Date.parse(pr.updated_on) >= sinceTime).map(toIAPIPullRequest);
     } catch (e) {
-      log.warn(`failed fetching updated PRs for repository ${owner}/${name}`, e)
-      throw e
+      log.warn(`failed fetching updated PRs for repository ${owner}/${name}`, e);
+      throw e;
     }
   }
 
   public override async fetchAccount(): Promise<IAPIFullIdentity> {
-    const response = await this.request(this.endpoint, 'GET', 'user')
-    return toIAPIFullIdentity(
-      await parsedResponse<IBitbucketAPIIdentity>(response)
-    )
+    const response = await this.request(this.endpoint, "GET", "user");
+    return toIAPIFullIdentity(await parsedResponse<IBitbucketAPIIdentity>(response));
   }
 
   public override async fetchEmails(): Promise<ReadonlyArray<IAPIEmail>> {
-    const emails = await this.fetchAll<IBitbucketAPIEmail>('user/emails')
-    return emails.map(toIAPIEmail)
+    const emails = await this.fetchAll<IBitbucketAPIEmail>("user/emails");
+    return emails.map(toIAPIEmail);
   }
 
   public async fetchMentionables(
     owner: string,
-    name: string
+    name: string,
   ): Promise<IAPIMentionablesResponse | null> {
     try {
       const response = await this.fetchAll<IBitbucketApiWorkspaceMembership>(
-        `workspaces/${owner}/members`
-      )
+        `workspaces/${owner}/members`,
+      );
       return {
         etag: undefined,
-        users: response.map(member => toIAPIMentionableUser(member)),
-      }
+        users: response.map((member) => toIAPIMentionableUser(member)),
+      };
     } catch (e) {
-      log.warn(`fetchMentionables: failed for ${owner}/${name}`, e)
-      return null
+      log.warn(`fetchMentionables: failed for ${owner}/${name}`, e);
+      return null;
     }
   }
 
   public override async fetchRepository(
     owner: string,
-    name: string
+    name: string,
   ): Promise<IAPIFullRepository | null> {
     try {
-      const response = await this.request(
-        this.endpoint,
-        'GET',
-        `repositories/${owner}/${name}`
-      )
+      const response = await this.request(this.endpoint, "GET", `repositories/${owner}/${name}`);
       if (response.status === HttpStatusCode.NotFound) {
-        log.warn(`fetchRepository: '${owner}/${name}' returned a 404`)
-        return null
+        log.warn(`fetchRepository: '${owner}/${name}' returned a 404`);
+        return null;
       }
-      const repo = await parsedResponse<IBitbucketAPIRepository>(response)
-      return toIAPIFullRepository(repo)
+      const repo = await parsedResponse<IBitbucketAPIRepository>(response);
+      return toIAPIFullRepository(repo);
     } catch (e) {
-      log.warn(`fetchRepository: an error occurred for '${owner}/${name}'`, e)
-      return null
+      log.warn(`fetchRepository: an error occurred for '${owner}/${name}'`, e);
+      return null;
     }
   }
 
@@ -3896,7 +3645,7 @@ export class BitbucketAPI extends API {
     // This could be implemented with GET /repositories/{workspace}/{repo_slug}/branch-restrictions,
     // but it would require increasing the OAuth scope to admin:repository, and currently this is
     // only being used for metrics collection, so it's not necessary.
-    return []
+    return [];
   }
 
   public async fetchPushControl(): Promise<IAPIPushControl> {
@@ -3909,111 +3658,98 @@ export class BitbucketAPI extends API {
       allow_actor: true,
       allow_deletions: true,
       allow_force_pushes: true,
-    }
+    };
   }
 
   public override async getFetchPollInterval(): Promise<number | null> {
-    return null
+    return null;
   }
 
   public override async fetchIssues(): Promise<ReadonlyArray<IAPIIssue>> {
     // The Bitbucket issue tracker has been deprecated and the API doesn't seem to support fetching Jira issues.
     // https://community.atlassian.com/forums/Bitbucket-articles/Announcing-sunset-of-Bitbucket-Issues-and-Wikis/ba-p/3193882
-    return []
+    return [];
   }
 
   public override async fetchCombinedRefStatus(
     owner: string,
     name: string,
-    ref: string
+    ref: string,
   ): Promise<IAPIRefStatus | null> {
-    const match = ref.match(/refs\/pull\/(\d+)\/head/)
+    const match = ref.match(/refs\/pull\/(\d+)\/head/);
     if (!match) {
-      log.warn(`unexpected ref format for Bitbucket PR check runs: ${ref}`)
-      return null
+      log.warn(`unexpected ref format for Bitbucket PR check runs: ${ref}`);
+      return null;
     }
-    const path = `repositories/${owner}/${name}/pullrequests/${match[1]}/statuses`
+    const path = `repositories/${owner}/${name}/pullrequests/${match[1]}/statuses`;
 
     try {
-      const statuses = await this.fetchAll<IBitbucketAPICommitStatus>(path)
-      const checkRuns = statuses.map((status, index) =>
-        toIAPIRefStatusItem(index, status)
-      )
+      const statuses = await this.fetchAll<IBitbucketAPICommitStatus>(path);
+      const checkRuns = statuses.map((status, index) => toIAPIRefStatusItem(index, status));
       return {
         state: getCombinedRefStatus(checkRuns),
         total_count: checkRuns.length,
         statuses: checkRuns,
-      }
+      };
     } catch (err) {
-      log.debug(
-        `Failed fetching check runs for ref ${ref} (${owner}/${name})`,
-        err
-      )
-      return null
+      log.debug(`Failed fetching check runs for ref ${ref} (${owner}/${name})`, err);
+      return null;
     }
   }
 
   public override async fetchRepositoryCloneInfo(
     owner: string,
     name: string,
-    protocol: GitProtocol | undefined
+    protocol: GitProtocol | undefined,
   ): Promise<IAPIRepositoryCloneInfo | null> {
-    const response = await this.request(
-      this.endpoint,
-      'GET',
-      `repositories/${owner}/${name}`
-    )
+    const response = await this.request(this.endpoint, "GET", `repositories/${owner}/${name}`);
 
     if (response.status === HttpStatusCode.NotFound) {
-      return null
+      return null;
     }
 
-    const bitbucketRepo =
-      await parsedResponse<IBitbucketAPIRepository>(response)
-    const repo = toIAPIRepository(bitbucketRepo)
+    const bitbucketRepo = await parsedResponse<IBitbucketAPIRepository>(response);
+    const repo = toIAPIRepository(bitbucketRepo);
     return {
-      url: protocol === 'ssh' ? repo.ssh_url : repo.clone_url,
+      url: protocol === "ssh" ? repo.ssh_url : repo.clone_url,
       defaultBranch: repo.default_branch,
-    }
+    };
   }
 
   public override async streamUserRepositories(
-    callback: (repos: ReadonlyArray<IAPIRepository>) => void
+    callback: (repos: ReadonlyArray<IAPIRepository>) => void,
   ) {
     try {
-      const workspaceAccessList = await this.getAllWorkspaces()
+      const workspaceAccessList = await this.getAllWorkspaces();
       for (const workspaceAccess of workspaceAccessList) {
-        const path = `repositories/${workspaceAccess.workspace.uuid}`
-        const repos = await this.fetchAll<IBitbucketAPIRepository>(path)
-        callback(repos.map(toIAPIRepository))
+        const path = `repositories/${workspaceAccess.workspace.uuid}`;
+        const repos = await this.fetchAll<IBitbucketAPIRepository>(path);
+        callback(repos.map(toIAPIRepository));
       }
     } catch (error) {
-      log.warn(
-        `streamUserRepositories: failed with endpoint ${this.endpoint}`,
-        error
-      )
+      log.warn(`streamUserRepositories: failed with endpoint ${this.endpoint}`, error);
     }
   }
 
   public override async fetchRefCheckRuns(): Promise<IAPIRefCheckRuns | null> {
-    return null
+    return null;
   }
 
   public override async fetchUserCopilotInfo(): Promise<undefined> {
-    return undefined
+    return undefined;
   }
 
   public override async fetchFeatureFlags(): Promise<undefined> {
-    return undefined
+    return undefined;
   }
 
   private async getAllWorkspaces(): Promise<IBitbucketAPIWorkspaceAccess[]> {
     try {
-      const path = 'user/workspaces'
-      return await this.fetchAll<IBitbucketAPIWorkspaceAccess>(path)
+      const path = "user/workspaces";
+      return await this.fetchAll<IBitbucketAPIWorkspaceAccess>(path);
     } catch (err) {
-      log.debug(`Failed fetching workspaces`, err)
-      return []
+      log.debug(`Failed fetching workspaces`, err);
+      return [];
     }
   }
 }
@@ -4021,261 +3757,247 @@ export class BitbucketAPI extends API {
 export class GitLabAPI extends API {
   // Refreshing the token also invalidates both the old token and the old refresh token.
   // We need to make GitLabAPI a per-login singleton to ensure there are no race conditions when refreshing the token
-  private static instances: Map<string, GitLabAPI> = new Map()
+  private static instances: Map<string, GitLabAPI> = new Map();
 
   public static get(
     token: string,
     login: string | UnknownLogin,
     refreshToken: string,
-    expiresAt: number
+    expiresAt: number,
   ): GitLabAPI {
     if (login === UnknownLogin.InitialAuthFetch) {
-      return new GitLabAPI(token, login, refreshToken, expiresAt)
+      return new GitLabAPI(token, login, refreshToken, expiresAt);
     }
-    const instance = this.instances.get(login)
+    const instance = this.instances.get(login);
     if (!instance || !instance.token) {
-      const newInstance = new GitLabAPI(token, login, refreshToken, expiresAt)
-      this.instances.set(login, newInstance)
-      return newInstance
+      const newInstance = new GitLabAPI(token, login, refreshToken, expiresAt);
+      this.instances.set(login, newInstance);
+      return newInstance;
     }
-    return instance
+    return instance;
   }
 
-  private apiRefreshToken: string
-  private expiresAt: Date | null = null
+  private apiRefreshToken: string;
+  private expiresAt: Date | null = null;
 
   private constructor(
     token: string,
     login: string | UnknownLogin,
     refreshToken: string,
-    expiresAt: number
+    expiresAt: number,
   ) {
-    super(getGitLabAPIEndpoint(), token, login)
-    this.apiRefreshToken = refreshToken
-    this.expiresAt = expiresAt ? new Date(expiresAt) : null
+    super(getGitLabAPIEndpoint(), token, login);
+    this.apiRefreshToken = refreshToken;
+    this.expiresAt = expiresAt ? new Date(expiresAt) : null;
   }
 
   public override getRefreshToken() {
-    return this.apiRefreshToken
+    return this.apiRefreshToken;
   }
   public override getExpiresAt() {
-    return this.expiresAt?.getTime() ?? 0
+    return this.expiresAt?.getTime() ?? 0;
   }
 
   // https://docs.gitlab.com/api/rest/#offset-based-pagination
   protected override get maxPerPage() {
-    return 100
+    return 100;
   }
   protected override get perPageParamName() {
-    return 'per_page'
+    return "per_page";
   }
   protected override get pageParamName() {
-    return 'page'
+    return "page";
   }
   protected override get paginatorNextPage() {
-    return ''
+    return "";
   }
   protected override get paginatorValues() {
-    return ''
+    return "";
   }
 
   protected override async refreshToken() {
     try {
-      const response = await fetch('https://gitlab.com/oauth/token', {
-        method: 'POST',
+      const response = await fetch("https://gitlab.com/oauth/token", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           client_id: ClientIDGitLab,
           client_secret: ClientSecretGitLab,
           refresh_token: this.apiRefreshToken,
-          grant_type: 'refresh_token',
+          grant_type: "refresh_token",
         }),
-      })
+      });
 
-      const result = await parsedResponse<IGitLabAPIAccessToken>(response)
-      this.token = result.access_token
-      this.apiRefreshToken = result.refresh_token
-      this.expiresAt = new Date(toExpiresAt(result.expires_in))
+      const result = await parsedResponse<IGitLabAPIAccessToken>(response);
+      this.token = result.access_token;
+      this.apiRefreshToken = result.refresh_token;
+      this.expiresAt = new Date(toExpiresAt(result.expires_in));
       API.emitTokenRefreshed(
         this.endpoint,
         this.token,
         this.apiRefreshToken,
         this.expiresAt.getTime(),
-        this.login
-      )
+        this.login,
+      );
     } catch (e) {
-      log.warn('refreshOAuthTokenGitLab failed', e)
+      log.warn("refreshOAuthTokenGitLab failed", e);
     }
   }
 
   protected override getExtraHeaders(): Object {
     return {
       Authorization: `Bearer ${this.token}`,
-    }
+    };
   }
 
   protected override checkTokenInvalidated(response: Response) {
     if (response.status === 401) {
-      API.emitTokenInvalidated(this.endpoint, this.token, this.login)
+      API.emitTokenInvalidated(this.endpoint, this.token, this.login);
     }
   }
 
   protected override getTokenExpiration(): Date | null {
-    return this.expiresAt
+    return this.expiresAt;
   }
 
   public override async fetchAllOpenPullRequests(
     owner: string,
-    name: string
+    name: string,
   ): Promise<IAPIPullRequest[]> {
-    const projectPath = encodeURIComponent(`${owner}/${name}`)
-    const url = `projects/${projectPath}/merge_requests?state=opened`
+    const projectPath = encodeURIComponent(`${owner}/${name}`);
+    const url = `projects/${projectPath}/merge_requests?state=opened`;
     try {
-      const mrs = await this.fetchAll<IGitLabAPIMergeRequest>(url)
-      return await this.fetchReposAndMapMergeRequests(mrs)
+      const mrs = await this.fetchAll<IGitLabAPIMergeRequest>(url);
+      return await this.fetchReposAndMapMergeRequests(mrs);
     } catch (e) {
-      log.warn(`failed fetching open MRs for repository ${owner}/${name}`, e)
-      throw e
+      log.warn(`failed fetching open MRs for repository ${owner}/${name}`, e);
+      throw e;
     }
   }
 
   private async fetchReposAndMapMergeRequests(mrs: IGitLabAPIMergeRequest[]) {
-    const projectIdsToFetch = new Set<number>()
+    const projectIdsToFetch = new Set<number>();
     for (const mr of mrs) {
-      projectIdsToFetch.add(mr.source_project_id)
-      projectIdsToFetch.add(mr.target_project_id)
+      projectIdsToFetch.add(mr.source_project_id);
+      projectIdsToFetch.add(mr.target_project_id);
     }
     const projects = await Promise.all(
-      Array.from(projectIdsToFetch).map(id => this.fetchRepositoryById(id))
-    )
-    return mrs.map(mr =>
+      Array.from(projectIdsToFetch).map((id) => this.fetchRepositoryById(id)),
+    );
+    return mrs.map((mr) =>
       toIAPIPullRequestFromGitLab(
         mr,
-        projects.find(p => p?.id === mr.source_project_id) ?? null,
-        projects.find(p => p?.id === mr.target_project_id) ?? null
-      )
-    )
+        projects.find((p) => p?.id === mr.source_project_id) ?? null,
+        projects.find((p) => p?.id === mr.target_project_id) ?? null,
+      ),
+    );
   }
 
   public override async fetchUpdatedPullRequests(
     owner: string,
     name: string,
     since: Date,
-    maxResults = 320
+    maxResults = 320,
   ) {
-    const sinceTime = since.getTime()
-    const projectPath = encodeURIComponent(`${owner}/${name}`)
-    const sinceISO = since.toISOString()
-    const url = `projects/${projectPath}/merge_requests?updated_after=${sinceISO}&order_by=updated_at&sort=desc`
+    const sinceTime = since.getTime();
+    const projectPath = encodeURIComponent(`${owner}/${name}`);
+    const sinceISO = since.toISOString();
+    const url = `projects/${projectPath}/merge_requests?updated_after=${sinceISO}&order_by=updated_at&sort=desc`;
 
     try {
       const mrs = await this.fetchAll<IGitLabAPIMergeRequest>(url, {
         perPage: 10,
-        getNextPagePath: response =>
+        getNextPagePath: (response) =>
           getNextPagePathWithIncreasingPageSize(
             response,
             this.perPageParamName,
             this.pageParamName,
-            this.maxPerPage
+            this.maxPerPage,
           ),
         continue(results) {
           if (results.length >= maxResults) {
-            throw new MaxResultsError('got max merge requests, aborting')
+            throw new MaxResultsError("got max merge requests, aborting");
           }
 
-          const last = results.at(-1)
-          return last !== undefined && Date.parse(last.updated_at) > sinceTime
+          const last = results.at(-1);
+          return last !== undefined && Date.parse(last.updated_at) > sinceTime;
         },
         suppressErrors: false,
-      })
-      const filteredMrs = mrs.filter(
-        mr => Date.parse(mr.updated_at) >= sinceTime
-      )
-      return await this.fetchReposAndMapMergeRequests(filteredMrs)
+      });
+      const filteredMrs = mrs.filter((mr) => Date.parse(mr.updated_at) >= sinceTime);
+      return await this.fetchReposAndMapMergeRequests(filteredMrs);
     } catch (e) {
-      log.warn(`failed fetching updated MRs for repository ${owner}/${name}`, e)
-      throw e
+      log.warn(`failed fetching updated MRs for repository ${owner}/${name}`, e);
+      throw e;
     }
   }
 
   public override async fetchAccount(): Promise<IAPIFullIdentity> {
-    const response = await this.request(this.endpoint, 'GET', 'user')
-    return toIAPIFullIdentityFromGitLab(
-      await parsedResponse<IGitLabAPIIdentity>(response)
-    )
+    const response = await this.request(this.endpoint, "GET", "user");
+    return toIAPIFullIdentityFromGitLab(await parsedResponse<IGitLabAPIIdentity>(response));
   }
 
   public override async fetchEmails(): Promise<ReadonlyArray<IAPIEmail>> {
-    const emails = await this.fetchAll<IGitLabAPIEmail>('user/emails')
-    return emails.map((email, index) => toIAPIEmailFromGitLab(email, index))
+    const emails = await this.fetchAll<IGitLabAPIEmail>("user/emails");
+    return emails.map((email, index) => toIAPIEmailFromGitLab(email, index));
   }
 
   public async fetchMentionables(
     owner: string,
-    name: string
+    name: string,
   ): Promise<IAPIMentionablesResponse | null> {
     try {
-      const projectPath = encodeURIComponent(`${owner}/${name}`)
+      const projectPath = encodeURIComponent(`${owner}/${name}`);
       const response = await this.fetchAll<IGitLabAPIProjectMember>(
-        `projects/${projectPath}/members`
-      )
+        `projects/${projectPath}/members`,
+      );
       return {
         etag: undefined,
-        users: response.map(member => toIAPIMentionableUserFromGitLab(member)),
-      }
+        users: response.map((member) => toIAPIMentionableUserFromGitLab(member)),
+      };
     } catch (e) {
-      log.warn(`fetchMentionables: failed for ${owner}/${name}`, e)
-      return null
+      log.warn(`fetchMentionables: failed for ${owner}/${name}`, e);
+      return null;
     }
   }
 
   public override async fetchRepository(
     owner: string,
-    name: string
+    name: string,
   ): Promise<IAPIFullRepository | null> {
     try {
-      const projectPath = encodeURIComponent(`${owner}/${name}`)
-      const response = await this.request(
-        this.endpoint,
-        'GET',
-        `projects/${projectPath}`
-      )
+      const projectPath = encodeURIComponent(`${owner}/${name}`);
+      const response = await this.request(this.endpoint, "GET", `projects/${projectPath}`);
       if (response.status === HttpStatusCode.NotFound) {
-        log.warn(`fetchRepository: '${owner}/${name}' returned a 404`)
-        return null
+        log.warn(`fetchRepository: '${owner}/${name}' returned a 404`);
+        return null;
       }
-      const repo = await parsedResponse<IGitLabAPIRepository>(response)
-      return toIAPIFullRepositoryFromGitLab(repo)
+      const repo = await parsedResponse<IGitLabAPIRepository>(response);
+      return toIAPIFullRepositoryFromGitLab(repo);
     } catch (e) {
-      log.warn(`fetchRepository: an error occurred for '${owner}/${name}'`, e)
-      return null
+      log.warn(`fetchRepository: an error occurred for '${owner}/${name}'`, e);
+      return null;
     }
   }
 
-  private async fetchRepositoryById(
-    id: number
-  ): Promise<IGitLabAPIRepository | null> {
+  private async fetchRepositoryById(id: number): Promise<IGitLabAPIRepository | null> {
     try {
-      const response = await this.request(
-        this.endpoint,
-        'GET',
-        `projects/${id}`
-      )
+      const response = await this.request(this.endpoint, "GET", `projects/${id}`);
       if (response.status === HttpStatusCode.NotFound) {
-        log.warn(`fetchRepositoryById: '${id}' returned a 404`)
-        return null
+        log.warn(`fetchRepositoryById: '${id}' returned a 404`);
+        return null;
       }
-      return await parsedResponse<IGitLabAPIRepository>(response)
+      return await parsedResponse<IGitLabAPIRepository>(response);
     } catch (e) {
-      log.warn(`fetchRepositoryById: an error occurred for '${id}'`, e)
-      return null
+      log.warn(`fetchRepositoryById: an error occurred for '${id}'`, e);
+      return null;
     }
   }
 
   public override async fetchProtectedBranches() {
-    return []
+    return [];
   }
 
   public async fetchPushControl(): Promise<IAPIPushControl> {
@@ -4288,121 +4010,111 @@ export class GitLabAPI extends API {
       allow_actor: true,
       allow_deletions: true,
       allow_force_pushes: true,
-    }
+    };
   }
 
   public override async getFetchPollInterval(): Promise<number | null> {
-    return null
+    return null;
   }
 
   public override async fetchIssues(
     owner: string,
     name: string,
-    state: 'open' | 'closed' | 'all',
-    _since: Date | null
+    state: "open" | "closed" | "all",
+    _since: Date | null,
   ): Promise<ReadonlyArray<IAPIIssue>> {
-    const projectPath = encodeURIComponent(`${owner}/${name}`)
+    const projectPath = encodeURIComponent(`${owner}/${name}`);
     const stateParam = {
-      open: '&state=opened',
-      closed: '&state=closed',
-      all: '',
-    }[state]
-    const url = `projects/${projectPath}/issues?scope=all${stateParam}`
+      open: "&state=opened",
+      closed: "&state=closed",
+      all: "",
+    }[state];
+    const url = `projects/${projectPath}/issues?scope=all${stateParam}`;
     try {
-      const issues = await this.fetchAll<IGitLabAPIIssue>(url)
-      return issues.map(toIAPIIssueFromGitLab)
+      const issues = await this.fetchAll<IGitLabAPIIssue>(url);
+      return issues.map(toIAPIIssueFromGitLab);
     } catch (e) {
-      log.warn(`fetchIssues: failed for repository ${owner}/${name}`, e)
-      throw e
+      log.warn(`fetchIssues: failed for repository ${owner}/${name}`, e);
+      throw e;
     }
   }
 
   public override async fetchCombinedRefStatus(): Promise<IAPIRefStatus | null> {
-    return null
+    return null;
   }
 
   public override async fetchRefCheckRuns(
     owner: string,
     name: string,
     ref: string,
-    _reloadCache: boolean = false
+    _reloadCache: boolean = false,
   ): Promise<IAPIRefCheckRuns | null> {
-    const match = ref.match(/refs\/pull\/(\d+)\/head/)
+    const match = ref.match(/refs\/pull\/(\d+)\/head/);
     if (!match) {
-      log.warn(`unexpected ref format for GitLab MR pipeline check: ${ref}`)
-      return null
+      log.warn(`unexpected ref format for GitLab MR pipeline check: ${ref}`);
+      return null;
     }
-    const projectPath = encodeURIComponent(`${owner}/${name}`)
-    const path = `projects/${projectPath}/merge_requests/${match[1]}/pipelines`
+    const projectPath = encodeURIComponent(`${owner}/${name}`);
+    const path = `projects/${projectPath}/merge_requests/${match[1]}/pipelines`;
 
     try {
-      const statuses = await this.fetchAll<IGitLabAPIPipelineStatus>(path)
+      const statuses = await this.fetchAll<IGitLabAPIPipelineStatus>(path);
       return {
         total_count: statuses.length,
         check_runs: statuses.map(toIAPIRefCheckRunFromGitLab),
-      }
+      };
     } catch (err) {
-      log.debug(
-        `Failed fetching check runs for ref ${ref} (${owner}/${name})`,
-        err
-      )
-      return null
+      log.debug(`Failed fetching check runs for ref ${ref} (${owner}/${name})`, err);
+      return null;
     }
   }
 
   public override async fetchRepositoryCloneInfo(
     owner: string,
     name: string,
-    protocol: GitProtocol | undefined
+    protocol: GitProtocol | undefined,
   ): Promise<IAPIRepositoryCloneInfo | null> {
-    const projectPath = encodeURIComponent(`${owner}/${name}`)
-    const response = await this.request(
-      this.endpoint,
-      'GET',
-      `projects/${projectPath}`
-    )
+    const projectPath = encodeURIComponent(`${owner}/${name}`);
+    const response = await this.request(this.endpoint, "GET", `projects/${projectPath}`);
 
     if (response.status === HttpStatusCode.NotFound) {
-      return null
+      return null;
     }
 
-    const gitLabRepo = await parsedResponse<IGitLabAPIRepository>(response)
-    const repo = toIAPIRepositoryFromGitLab(gitLabRepo)
+    const gitLabRepo = await parsedResponse<IGitLabAPIRepository>(response);
+    const repo = toIAPIRepositoryFromGitLab(gitLabRepo);
     return {
-      url: protocol === 'ssh' ? repo.ssh_url : repo.clone_url,
+      url: protocol === "ssh" ? repo.ssh_url : repo.clone_url,
       defaultBranch: repo.default_branch,
-    }
+    };
   }
 
   public override async streamUserRepositories(
-    callback: (repos: ReadonlyArray<IAPIRepository>) => void
+    callback: (repos: ReadonlyArray<IAPIRepository>) => void,
   ) {
     try {
-      const path = `projects?membership=true`
-      const repos = await this.fetchAll<IGitLabAPIRepository>(path)
-      callback(repos.map(toIAPIRepositoryFromGitLab))
+      const path = `projects?membership=true`;
+      const repos = await this.fetchAll<IGitLabAPIRepository>(path);
+      callback(repos.map(toIAPIRepositoryFromGitLab));
     } catch (error) {
-      log.warn(
-        `streamUserRepositories: failed with endpoint ${this.endpoint}`,
-        error
-      )
+      log.warn(`streamUserRepositories: failed with endpoint ${this.endpoint}`, error);
     }
   }
 
   public override async fetchPRWorkflowRunsByBranchName(): Promise<IAPIWorkflowRuns | null> {
-    return null
+    return null;
   }
 
   public override async fetchWorkflowRunJobs(): Promise<IAPIWorkflowJobs | null> {
-    return null
+    return null;
   }
 
   public override async fetchUserCopilotInfo(): Promise<undefined> {
-    return undefined
+    return undefined;
   }
 
   public override async fetchFeatureFlags(): Promise<undefined> {
-    return undefined
+    return undefined;
   }
 }
 
@@ -4411,198 +4123,187 @@ export class CodebergAPI extends API {
   // access token (depending on the server's INVALIDATE_REFRESH_TOKENS
   // setting), so use a per-login singleton to guarantee a single
   // token-refresh chain per account.
-  private static instances: Map<string, CodebergAPI> = new Map()
+  private static instances: Map<string, CodebergAPI> = new Map();
 
   public static get(
     token: string,
     login: string | UnknownLogin,
     refreshToken: string,
-    expiresAt: number
+    expiresAt: number,
   ): CodebergAPI {
     if (login === UnknownLogin.InitialAuthFetch) {
-      return new CodebergAPI(token, login, refreshToken, expiresAt)
+      return new CodebergAPI(token, login, refreshToken, expiresAt);
     }
-    const instance = this.instances.get(login)
+    const instance = this.instances.get(login);
     if (!instance || !instance.token) {
-      const newInstance = new CodebergAPI(token, login, refreshToken, expiresAt)
-      this.instances.set(login, newInstance)
-      return newInstance
+      const newInstance = new CodebergAPI(token, login, refreshToken, expiresAt);
+      this.instances.set(login, newInstance);
+      return newInstance;
     }
-    return instance
+    return instance;
   }
 
-  private apiRefreshToken: string
-  private expiresAt: Date | null = null
+  private apiRefreshToken: string;
+  private expiresAt: Date | null = null;
 
   private constructor(
     token: string,
     login: string | UnknownLogin,
     refreshToken: string,
-    expiresAt: number
+    expiresAt: number,
   ) {
-    super(getCodebergAPIEndpoint(), token, login)
-    this.apiRefreshToken = refreshToken
-    this.expiresAt = expiresAt ? new Date(expiresAt) : null
+    super(getCodebergAPIEndpoint(), token, login);
+    this.apiRefreshToken = refreshToken;
+    this.expiresAt = expiresAt ? new Date(expiresAt) : null;
   }
 
   public override getRefreshToken() {
-    return this.apiRefreshToken
+    return this.apiRefreshToken;
   }
 
   public override getExpiresAt() {
-    return this.expiresAt?.getTime() ?? 0
+    return this.expiresAt?.getTime() ?? 0;
   }
 
   // https://forgejo.org/docs/latest/user/api-usage/
   protected override get maxPerPage() {
-    return 50
+    return 50;
   }
   protected override get perPageParamName() {
-    return 'limit'
+    return "limit";
   }
   protected override get pageParamName() {
-    return 'page'
+    return "page";
   }
   protected override get paginatorNextPage() {
-    return ''
+    return "";
   }
   protected override get paginatorValues() {
-    return ''
+    return "";
   }
 
   protected override async refreshToken() {
     try {
-      const response = await fetch(
-        'https://codeberg.org/login/oauth/access_token',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            client_id: ClientIDCodeberg,
-            client_secret: ClientSecretCodeberg,
-            refresh_token: this.apiRefreshToken,
-            grant_type: 'refresh_token',
-          }),
-        }
-      )
+      const response = await fetch("https://codeberg.org/login/oauth/access_token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          client_id: ClientIDCodeberg,
+          client_secret: ClientSecretCodeberg,
+          refresh_token: this.apiRefreshToken,
+          grant_type: "refresh_token",
+        }),
+      });
 
-      const result = await parsedResponse<ICodebergAPIAccessToken>(response)
-      this.token = result.access_token
-      this.apiRefreshToken = result.refresh_token ?? ''
-      this.expiresAt = new Date(toExpiresAt(result.expires_in))
+      const result = await parsedResponse<ICodebergAPIAccessToken>(response);
+      this.token = result.access_token;
+      this.apiRefreshToken = result.refresh_token ?? "";
+      this.expiresAt = new Date(toExpiresAt(result.expires_in));
       API.emitTokenRefreshed(
         this.endpoint,
         this.token,
         this.apiRefreshToken,
         this.expiresAt.getTime(),
-        this.login
-      )
+        this.login,
+      );
     } catch (e) {
-      log.warn('refreshOAuthTokenCodeberg failed', e)
+      log.warn("refreshOAuthTokenCodeberg failed", e);
     }
   }
 
   protected override getExtraHeaders(): Object {
     return {
       Authorization: `Bearer ${this.token}`,
-    }
+    };
   }
 
   protected override checkTokenInvalidated(response: Response) {
     if (response.status === 401) {
-      API.emitTokenInvalidated(this.endpoint, this.token, this.login)
+      API.emitTokenInvalidated(this.endpoint, this.token, this.login);
     }
   }
 
   protected override getTokenExpiration(): Date | null {
-    return this.expiresAt
+    return this.expiresAt;
   }
 
   public override async fetchAccount(): Promise<IAPIFullIdentity> {
-    const response = await this.request(this.endpoint, 'GET', 'user')
-    return toIAPIFullIdentityFromCodeberg(
-      await parsedResponse<ICodebergAPIIdentity>(response)
-    )
+    const response = await this.request(this.endpoint, "GET", "user");
+    return toIAPIFullIdentityFromCodeberg(await parsedResponse<ICodebergAPIIdentity>(response));
   }
 
   public override async fetchEmails(): Promise<ReadonlyArray<IAPIEmail>> {
     try {
-      const emails = await this.fetchAll<ICodebergAPIEmail>('user/emails')
-      return emails.map(toIAPIEmailFromCodeberg)
+      const emails = await this.fetchAll<ICodebergAPIEmail>("user/emails");
+      return emails.map(toIAPIEmailFromCodeberg);
     } catch (e) {
       if (
         e instanceof APIError &&
         (e.responseStatus === HttpStatusCode.NotFound ||
           e.responseStatus === HttpStatusCode.Forbidden)
       ) {
-        log.warn('Codeberg user/emails unavailable, continuing without emails')
-        return []
+        log.warn("Codeberg user/emails unavailable, continuing without emails");
+        return [];
       }
 
-      throw e
+      throw e;
     }
   }
 
   public override async fetchMentionables(
     owner: string,
-    name: string
+    name: string,
   ): Promise<IAPIMentionablesResponse | null> {
     try {
-      const users = await this.fetchAll<ICodebergAPIIdentity>(
-        `repos/${owner}/${name}/assignees`
-      )
+      const users = await this.fetchAll<ICodebergAPIIdentity>(`repos/${owner}/${name}/assignees`);
       return {
         etag: undefined,
-        users: users.map(user => ({
+        users: users.map((user) => ({
           avatar_url: user.avatar_url,
           email: user.email || null,
           login: user.login,
           name: user.full_name || null,
         })),
-      }
+      };
     } catch (e) {
-      log.warn(`fetchMentionables: failed for ${owner}/${name}`, e)
-      return null
+      log.warn(`fetchMentionables: failed for ${owner}/${name}`, e);
+      return null;
     }
   }
 
   public override async fetchRepository(
     owner: string,
-    name: string
+    name: string,
   ): Promise<IAPIFullRepository | null> {
     try {
-      const response = await this.request(
-        this.endpoint,
-        'GET',
-        `repos/${owner}/${name}`
-      )
+      const response = await this.request(this.endpoint, "GET", `repos/${owner}/${name}`);
       if (response.status === HttpStatusCode.NotFound) {
-        log.warn(`fetchRepository: '${owner}/${name}' returned a 404`)
-        return null
+        log.warn(`fetchRepository: '${owner}/${name}' returned a 404`);
+        return null;
       }
-      const repo = await parsedResponse<ICodebergAPIRepository>(response)
-      return toIAPIFullRepositoryFromCodeberg(repo)
+      const repo = await parsedResponse<ICodebergAPIRepository>(response);
+      return toIAPIFullRepositoryFromCodeberg(repo);
     } catch (e) {
-      log.warn(`fetchRepository: an error occurred for '${owner}/${name}'`, e)
-      return null
+      log.warn(`fetchRepository: an error occurred for '${owner}/${name}'`, e);
+      return null;
     }
   }
 
   public override async fetchAllOpenPullRequests(
     owner: string,
-    name: string
+    name: string,
   ): Promise<IAPIPullRequest[]> {
     const url = urlWithQueryString(`repos/${owner}/${name}/pulls`, {
-      state: 'open',
-    })
+      state: "open",
+    });
     try {
-      const prs = await this.fetchAll<ICodebergAPIPullRequest>(url)
-      return prs.map(toIAPIPullRequestFromCodeberg)
+      const prs = await this.fetchAll<ICodebergAPIPullRequest>(url);
+      return prs.map(toIAPIPullRequestFromCodeberg);
     } catch (e) {
-      log.warn(`failed fetching open PRs for repository ${owner}/${name}`, e)
-      throw e
+      log.warn(`failed fetching open PRs for repository ${owner}/${name}`, e);
+      throw e;
     }
   }
 
@@ -4610,193 +4311,169 @@ export class CodebergAPI extends API {
     owner: string,
     name: string,
     since: Date,
-    maxResults = 320
+    maxResults = 320,
   ) {
-    const sinceTime = since.getTime()
+    const sinceTime = since.getTime();
     const url = urlWithQueryString(`repos/${owner}/${name}/pulls`, {
-      state: 'all',
-      sort: 'recentupdate',
-    })
+      state: "all",
+      sort: "recentupdate",
+    });
 
     try {
       const prs = await this.fetchAll<ICodebergAPIPullRequest>(url, {
         // See explanation for perPage=10 in API.fetchUpdatedPullRequests
         perPage: 10,
-        getNextPagePath: response =>
+        getNextPagePath: (response) =>
           getNextPagePathWithIncreasingPageSize(
             response,
             this.perPageParamName,
             this.pageParamName,
-            this.maxPerPage
+            this.maxPerPage,
           ),
         continue(results) {
           if (results.length >= maxResults) {
-            throw new MaxResultsError('got max pull requests, aborting')
+            throw new MaxResultsError("got max pull requests, aborting");
           }
 
-          const last = results.at(-1)
-          return last !== undefined && Date.parse(last.updated_at) > sinceTime
+          const last = results.at(-1);
+          return last !== undefined && Date.parse(last.updated_at) > sinceTime;
         },
         suppressErrors: false,
-      })
+      });
       return prs
-        .filter(pr => Date.parse(pr.updated_at) >= sinceTime)
-        .map(toIAPIPullRequestFromCodeberg)
+        .filter((pr) => Date.parse(pr.updated_at) >= sinceTime)
+        .map(toIAPIPullRequestFromCodeberg);
     } catch (e) {
-      log.warn(`failed fetching updated PRs for repository ${owner}/${name}`, e)
-      throw e
+      log.warn(`failed fetching updated PRs for repository ${owner}/${name}`, e);
+      throw e;
     }
   }
 
   public override async fetchIssues(
     owner: string,
     name: string,
-    state: 'open' | 'closed' | 'all',
-    since: Date | null
+    state: "open" | "closed" | "all",
+    since: Date | null,
   ): Promise<ReadonlyArray<IAPIIssue>> {
-    const params: { [key: string]: string } = { state, type: 'issues' }
+    const params: { [key: string]: string } = { state, type: "issues" };
     if (since && !isNaN(since.getTime())) {
-      params.since = toGitHubIsoDateString(since)
+      params.since = toGitHubIsoDateString(since);
     }
 
-    const url = urlWithQueryString(`repos/${owner}/${name}/issues`, params)
+    const url = urlWithQueryString(`repos/${owner}/${name}/issues`, params);
     try {
-      const issues = await this.fetchAll<ICodebergAPIIssue>(url)
-      return issues.map(toIAPIIssueFromCodeberg)
+      const issues = await this.fetchAll<ICodebergAPIIssue>(url);
+      return issues.map(toIAPIIssueFromCodeberg);
     } catch (e) {
-      log.warn(`fetchIssues: failed for repository ${owner}/${name}`, e)
-      throw e
+      log.warn(`fetchIssues: failed for repository ${owner}/${name}`, e);
+      throw e;
     }
   }
 
   public override async fetchCombinedRefStatus(
     owner: string,
     name: string,
-    ref: string
+    ref: string,
   ): Promise<IAPIRefStatus | null> {
     try {
-      const commitRef = await this.ensureCommitRef(owner, name, ref)
+      const commitRef = await this.ensureCommitRef(owner, name, ref);
       // Use the combined status endpoint (rather than the plain statuses
       // list) because it only returns the latest status for each context
-      const path = `repos/${owner}/${name}/commits/${commitRef}/status?limit=${this.maxPerPage}`
-      const response = await this.request(this.endpoint, 'GET', path)
-      const combined =
-        await parsedResponse<ICodebergAPICombinedStatus>(response)
-      const statuses = (combined.statuses ?? []).map(
-        toIAPIRefStatusItemFromCodeberg
-      )
+      const path = `repos/${owner}/${name}/commits/${commitRef}/status?limit=${this.maxPerPage}`;
+      const response = await this.request(this.endpoint, "GET", path);
+      const combined = await parsedResponse<ICodebergAPICombinedStatus>(response);
+      const statuses = (combined.statuses ?? []).map(toIAPIRefStatusItemFromCodeberg);
       return {
         state: mapRefStateFromCodeberg(combined.state),
         total_count: statuses.length,
         statuses,
-      }
+      };
     } catch (err) {
-      log.debug(
-        `Failed fetching combined status for ref ${ref} (${owner}/${name})`,
-        err
-      )
-      return null
+      log.debug(`Failed fetching combined status for ref ${ref} (${owner}/${name})`, err);
+      return null;
     }
   }
 
   public override async fetchRefCheckRuns(): Promise<IAPIRefCheckRuns | null> {
     // Don't call /statuses, otherwise checks will appear twice in the PR view.
-    return null
+    return null;
   }
 
-  private async ensureCommitRef(
-    owner: string,
-    name: string,
-    ref: string
-  ): Promise<string> {
+  private async ensureCommitRef(owner: string, name: string, ref: string): Promise<string> {
     // The ref can be a branch name or a commit SHA, but also the synthetic
     // refs/pull/{n}/head ref produced by getRefForPullRequest, which
     // Forgejo's commit status endpoint can't resolve. Look up the pull
     // request's head SHA in that case.
-    const prMatch = ref.match(/^refs\/pull\/(\d+)\/head$/)
+    const prMatch = ref.match(/^refs\/pull\/(\d+)\/head$/);
     if (!prMatch) {
-      return ref
+      return ref;
     }
-    const prNumber = prMatch[1]
-    const headSha = await this.fetchPullRequestHeadSha(owner, name, prNumber)
+    const prNumber = prMatch[1];
+    const headSha = await this.fetchPullRequestHeadSha(owner, name, prNumber);
     if (!headSha) {
-      throw new Error(
-        `Unable to resolve head SHA for PR ${prNumber} (${owner}/${name})`
-      )
+      throw new Error(`Unable to resolve head SHA for PR ${prNumber} (${owner}/${name})`);
     }
-    return encodeURIComponent(headSha)
+    return encodeURIComponent(headSha);
   }
 
   public override async fetchRepositoryCloneInfo(
     owner: string,
     name: string,
-    protocol: GitProtocol | undefined
+    protocol: GitProtocol | undefined,
   ): Promise<IAPIRepositoryCloneInfo | null> {
-    const response = await this.request(
-      this.endpoint,
-      'GET',
-      `repos/${owner}/${name}`
-    )
+    const response = await this.request(this.endpoint, "GET", `repos/${owner}/${name}`);
 
     if (response.status === HttpStatusCode.NotFound) {
-      return null
+      return null;
     }
 
-    const codebergRepo = await parsedResponse<ICodebergAPIRepository>(response)
-    const repo = toIAPIRepositoryFromCodeberg(codebergRepo)
+    const codebergRepo = await parsedResponse<ICodebergAPIRepository>(response);
+    const repo = toIAPIRepositoryFromCodeberg(codebergRepo);
     return {
-      url: protocol === 'ssh' ? repo.ssh_url : repo.clone_url,
+      url: protocol === "ssh" ? repo.ssh_url : repo.clone_url,
       defaultBranch: repo.default_branch,
-    }
+    };
   }
 
   public override async streamUserRepositories(
-    callback: (repos: ReadonlyArray<IAPIRepository>) => void
+    callback: (repos: ReadonlyArray<IAPIRepository>) => void,
   ) {
     try {
-      const repos = await this.fetchAll<ICodebergAPIRepository>('user/repos')
-      callback(repos.map(toIAPIRepositoryFromCodeberg))
+      const repos = await this.fetchAll<ICodebergAPIRepository>("user/repos");
+      callback(repos.map(toIAPIRepositoryFromCodeberg));
     } catch (error) {
-      log.warn(
-        `streamUserRepositories: failed with endpoint ${this.endpoint}`,
-        error
-      )
+      log.warn(`streamUserRepositories: failed with endpoint ${this.endpoint}`, error);
     }
   }
 
   public override async fetchProtectedBranches(
     owner: string,
-    name: string
+    name: string,
   ): Promise<ReadonlyArray<IAPIBranch>> {
     try {
-      const branches = await this.fetchAll<ICodebergAPIBranch>(
-        `repos/${owner}/${name}/branches`
-      )
-      return branches.filter(branch => branch.protected)
+      const branches = await this.fetchAll<ICodebergAPIBranch>(`repos/${owner}/${name}/branches`);
+      return branches.filter((branch) => branch.protected);
     } catch (err) {
-      log.info(
-        `[fetchProtectedBranches] unable to list protected branches`,
-        err
-      )
-      return []
+      log.info(`[fetchProtectedBranches] unable to list protected branches`, err);
+      return [];
     }
   }
 
   public override async fetchPRWorkflowRunsByBranchName(): Promise<IAPIWorkflowRuns | null> {
-    return null
+    return null;
   }
 
   public override async fetchWorkflowRunJobs(): Promise<IAPIWorkflowJobs | null> {
-    return null
+    return null;
   }
 
   public override async fetchOrgs(): Promise<ReadonlyArray<IAPIOrganization>> {
     try {
-      const orgs = await this.fetchAll<ICodebergAPIOrganization>('user/orgs')
-      return orgs.map(toIAPIOrganizationFromCodeberg)
+      const orgs = await this.fetchAll<ICodebergAPIOrganization>("user/orgs");
+      return orgs.map(toIAPIOrganizationFromCodeberg);
     } catch (e) {
-      log.warn(`fetchOrgs: failed with endpoint ${this.endpoint}`, e)
-      return []
+      log.warn(`fetchOrgs: failed with endpoint ${this.endpoint}`, e);
+      return [];
     }
   }
 
@@ -4804,56 +4481,50 @@ export class CodebergAPI extends API {
     org: IAPIOrganization | null,
     name: string,
     description: string,
-    private_: boolean
+    private_: boolean,
   ): Promise<IAPIFullRepository> {
     try {
-      const apiPath = org ? `orgs/${org.login}/repos` : 'user/repos'
-      const response = await this.request(this.endpoint, 'POST', apiPath, {
+      const apiPath = org ? `orgs/${org.login}/repos` : "user/repos";
+      const response = await this.request(this.endpoint, "POST", apiPath, {
         body: {
           name,
           description,
           private: private_,
         },
-      })
-      const repo = await parsedResponse<ICodebergAPIRepository>(response)
-      return toIAPIFullRepositoryFromCodeberg(repo)
+      });
+      const repo = await parsedResponse<ICodebergAPIRepository>(response);
+      return toIAPIFullRepositoryFromCodeberg(repo);
     } catch (e) {
       if (e instanceof APIError) {
         if (org !== null) {
           throw new Error(
-            `Unable to create repository for organization '${org.login}'. Verify that the repository does not already exist and that you have permission to create a repository there.`
-          )
+            `Unable to create repository for organization '${org.login}'. Verify that the repository does not already exist and that you have permission to create a repository there.`,
+          );
         }
-        throw e
+        throw e;
       }
 
-      log.error(`createRepository: failed with endpoint ${this.endpoint}`, e)
+      log.error(`createRepository: failed with endpoint ${this.endpoint}`, e);
       throw new Error(
-        `Unable to publish repository. Please check if you have an internet connection and try again.`
-      )
+        `Unable to publish repository. Please check if you have an internet connection and try again.`,
+      );
     }
   }
 
-  public override async forkRepository(
-    owner: string,
-    name: string
-  ): Promise<IAPIFullRepository> {
+  public override async forkRepository(owner: string, name: string): Promise<IAPIFullRepository> {
     try {
       const response = await this.request(
         this.endpoint,
-        'POST',
+        "POST",
         `repos/${owner}/${name}/forks`,
         // Forgejo requires a JSON body (CreateForkOption) even if empty
-        { body: {} }
-      )
-      const repo = await parsedResponse<ICodebergAPIRepository>(response)
-      return toIAPIFullRepositoryFromCodeberg(repo)
+        { body: {} },
+      );
+      const repo = await parsedResponse<ICodebergAPIRepository>(response);
+      return toIAPIFullRepositoryFromCodeberg(repo);
     } catch (e) {
-      log.error(
-        `forkRepository: failed to fork ${owner}/${name} at endpoint: ${this.endpoint}`,
-        e
-      )
-      throw e
+      log.error(`forkRepository: failed to fork ${owner}/${name} at endpoint: ${this.endpoint}`, e);
+      throw e;
     }
   }
 
@@ -4867,35 +4538,35 @@ export class CodebergAPI extends API {
       allow_actor: true,
       allow_deletions: true,
       allow_force_pushes: true,
-    }
+    };
   }
 
   public override async getFetchPollInterval(): Promise<number | null> {
-    return null
+    return null;
   }
 
   private async fetchPullRequestHeadSha(
     owner: string,
     name: string,
-    prNumber: string
+    prNumber: string,
   ): Promise<string | null> {
     const response = await this.request(
       this.endpoint,
-      'GET',
-      `repos/${owner}/${name}/pulls/${prNumber}`
-    )
+      "GET",
+      `repos/${owner}/${name}/pulls/${prNumber}`,
+    );
     if (!response.ok) {
-      return null
+      return null;
     }
-    const pr = await parsedResponse<ICodebergAPIPullRequest>(response)
-    return pr.head.sha || null
+    const pr = await parsedResponse<ICodebergAPIPullRequest>(response);
+    return pr.head.sha || null;
   }
 
   public override async fetchUserCopilotInfo(): Promise<undefined> {
-    return undefined
+    return undefined;
   }
 
   public override async fetchFeatureFlags(): Promise<undefined> {
-    return undefined
+    return undefined;
   }
 }

@@ -25,13 +25,13 @@
  */
 export function compare<T>(x: T, y: T): number {
   if (x < y) {
-    return -1
+    return -1;
   }
   if (x > y) {
-    return 1
+    return 1;
   }
 
-  return 0
+  return 0;
 }
 
 /**
@@ -56,13 +56,13 @@ export function compare<T>(x: T, y: T): number {
  */
 export function compareDescending<T>(x: T, y: T): number {
   if (x < y) {
-    return 1
+    return 1;
   }
   if (x > y) {
-    return -1
+    return -1;
   }
 
-  return 0
+  return 0;
 }
 
 /**
@@ -70,7 +70,7 @@ export function compareDescending<T>(x: T, y: T): number {
  * indicating whether these are equal
  */
 export function caseInsensitiveEquals(x: string, y: string): boolean {
-  return x.toLowerCase() === y.toLowerCase()
+  return x.toLowerCase() === y.toLowerCase();
 }
 
 /**
@@ -79,7 +79,7 @@ export function caseInsensitiveEquals(x: string, y: string): boolean {
  * used in a sort operation the comparands will be sorted in ascending order.
  */
 export function caseInsensitiveCompare(x: string, y: string): number {
-  return compare(x.toLowerCase(), y.toLowerCase())
+  return compare(x.toLowerCase(), y.toLowerCase());
 }
 
 /**
@@ -88,5 +88,5 @@ export function caseInsensitiveCompare(x: string, y: string): number {
  * used in a sort operation the comparands will be sorted in descending order.
  */
 export function caseInsensitiveCompareDescending(x: string, y: string): number {
-  return compareDescending(x.toLowerCase(), y.toLowerCase())
+  return compareDescending(x.toLowerCase(), y.toLowerCase());
 }

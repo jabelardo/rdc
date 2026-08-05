@@ -12,16 +12,16 @@
  */
 export interface ICustomIntegration {
   /** The path to the custom integration */
-  readonly path: string
+  readonly path: string;
   /** The arguments to pass to the custom integration */
-  readonly arguments: string
+  readonly arguments: string;
   /** The bundle ID of the custom integration (macOS only) */
-  readonly bundleID?: string
+  readonly bundleID?: string;
 }
 
 /** Result of checking whether a custom tool path can be launched. */
 export interface ICustomIntegrationPathValidation {
-  readonly isValid: boolean
+  readonly isValid: boolean;
   /** Present only for a valid macOS application bundle. */
-  readonly bundleID?: string
+  readonly bundleID?: string;
 }

@@ -1,4 +1,4 @@
 export interface ILastThankYou {
-  version: string
-  checkedUsers: ReadonlyArray<string>
+  version: string;
+  checkedUsers: ReadonlyArray<string>;
 }

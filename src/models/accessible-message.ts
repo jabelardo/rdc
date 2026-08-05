@@ -1,6 +1,6 @@
 // React 19 removed the global `JSX` namespace that this file relied on under
 // React 16 — it must now be imported explicitly from 'react'.
-import type { JSX } from 'react'
+import type { JSX } from "react";
 
 /** This is helper interface used when we have a message displayed that is a
  * JSX.Element for visual styling and that message also needs to be given to
@@ -9,8 +9,8 @@ import type { JSX } from 'react'
  * as screen reader only messages are visually hidden */
 export interface IAccessibleMessage {
   /** A message presented to screen reader users via an aria-live component. */
-  screenReaderMessage: string
+  screenReaderMessage: string;
 
   /** A message visually displayed to the user. */
-  displayedMessage: string | JSX.Element
+  displayedMessage: string | JSX.Element;
 }

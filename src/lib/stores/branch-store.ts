@@ -1,75 +1,68 @@
-import { BranchType, type Branch } from '../../models/branch'
-import { ComputedAction } from '../../models/computed-action'
-import type { ICheckoutProgress } from '../../models/progress'
-import type { IRemote } from '../../models/remote'
-import { getBranches } from '../branch-ipc'
+import { BranchType, type Branch } from "../../models/branch";
+import { ComputedAction } from "../../models/computed-action";
+import type { ICheckoutProgress } from "../../models/progress";
+import type { IRemote } from "../../models/remote";
+import { getBranches } from "../branch-ipc";
 import {
   checkoutBranch,
   getStatus,
   mergeBranch,
   MergeResult,
   type IStatusResult,
-} from '../git-ipc'
+} from "../git-ipc";
 import {
   createBranch,
   deleteLocalBranch,
   deleteRef,
   renameBranch as renameBranchCommand,
-} from '../branch-ipc'
-import { determineMergeability, getRecentBranches } from '../misc-ipc'
-import { getRemoteHEAD, getRemotes } from '../remote-ipc'
-import { testForInvalidChars } from '../sanitize-ref-name'
+} from "../branch-ipc";
+import { determineMergeability, getRecentBranches } from "../misc-ipc";
+import { getRemoteHEAD, getRemotes } from "../remote-ipc";
+import { testForInvalidChars } from "../sanitize-ref-name";
 
-export type BranchOperation =
-  | 'creating'
-  | 'checking-out'
-  | 'renaming'
-  | 'deleting'
-  | 'merging'
+export type BranchOperation = "creating" | "checking-out" | "renaming" | "deleting" | "merging";
 
 /** The outcome of an in-app merge initiation. */
 export type MergeInitiationResult =
-  | 'up-to-date'
-  | 'merged'
-  | 'conflict'
-  | 'invalid'
-  | 'dirty'
-  | 'failed'
+  | "up-to-date"
+  | "merged"
+  | "conflict"
+  | "invalid"
+  | "dirty"
+  | "failed";
 
 export type BranchState = {
-  readonly repositoryPath: string | null
-  readonly branches: ReadonlyArray<Branch>
-  readonly currentBranch: string | null
-  readonly defaultBranch: string | null
-  readonly recentBranches: ReadonlyArray<string>
-  readonly loading: boolean
-  readonly error: string | null
-  readonly operation: BranchOperation | null
-  readonly progress: ICheckoutProgress | null
-  readonly operationError: string | null
-}
+  readonly repositoryPath: string | null;
+  readonly branches: ReadonlyArray<Branch>;
+  readonly currentBranch: string | null;
+  readonly defaultBranch: string | null;
+  readonly recentBranches: ReadonlyArray<string>;
+  readonly loading: boolean;
+  readonly error: string | null;
+  readonly operation: BranchOperation | null;
+  readonly progress: ICheckoutProgress | null;
+  readonly operationError: string | null;
+};
 
-type BranchFactsStatus = Pick<IStatusResult, 'currentBranch'>
+type BranchFactsStatus = Pick<IStatusResult, "currentBranch">;
 
 type BranchStoreDependencies = {
-  readonly getBranches: (
-    repositoryPath: string
-  ) => Promise<ReadonlyArray<Branch>>
+  readonly getBranches: (repositoryPath: string) => Promise<ReadonlyArray<Branch>>;
   readonly getStatus: (
     repositoryPath: string,
-    listUntrackedFilesIndividually: boolean
-  ) => Promise<BranchFactsStatus | null>
-  readonly getRecentBranches: typeof getRecentBranches
-  readonly getRemotes: typeof getRemotes
-  readonly getRemoteHEAD: typeof getRemoteHEAD
-  readonly createBranch: typeof createBranch
-  readonly checkoutBranch: typeof checkoutBranch
-  readonly renameBranch: typeof renameBranchCommand
-  readonly deleteLocalBranch: typeof deleteLocalBranch
-  readonly deleteRef: typeof deleteRef
-  readonly determineMergeability: typeof determineMergeability
-  readonly mergeBranch: typeof mergeBranch
-}
+    listUntrackedFilesIndividually: boolean,
+  ) => Promise<BranchFactsStatus | null>;
+  readonly getRecentBranches: typeof getRecentBranches;
+  readonly getRemotes: typeof getRemotes;
+  readonly getRemoteHEAD: typeof getRemoteHEAD;
+  readonly createBranch: typeof createBranch;
+  readonly checkoutBranch: typeof checkoutBranch;
+  readonly renameBranch: typeof renameBranchCommand;
+  readonly deleteLocalBranch: typeof deleteLocalBranch;
+  readonly deleteRef: typeof deleteRef;
+  readonly determineMergeability: typeof determineMergeability;
+  readonly mergeBranch: typeof mergeBranch;
+};
 
 const defaultDependencies: BranchStoreDependencies = {
   getBranches,
@@ -84,7 +77,7 @@ const defaultDependencies: BranchStoreDependencies = {
   deleteRef,
   determineMergeability,
   mergeBranch,
-}
+};
 
 const EmptyState: BranchState = {
   repositoryPath: null,
@@ -97,29 +90,28 @@ const EmptyState: BranchState = {
   operation: null,
   progress: null,
   operationError: null,
-}
+};
 
 function findDefaultLocalBranch(
   branches: ReadonlyArray<Branch>,
   remoteName: string | null,
-  remoteHead: string | null
+  remoteHead: string | null,
 ): string | null {
   if (remoteName === null || remoteHead === null) {
-    return null
+    return null;
   }
 
-  const upstream = `${remoteName}/${remoteHead}`
+  const upstream = `${remoteName}/${remoteHead}`;
   const tracking = branches.filter(
-    branch => branch.type === BranchType.Local && branch.upstream === upstream
-  )
+    (branch) => branch.type === BranchType.Local && branch.upstream === upstream,
+  );
   return (
-    tracking.find(branch => branch.name === remoteHead)?.name ??
+    tracking.find((branch) => branch.name === remoteHead)?.name ??
     tracking[0]?.name ??
-    branches.find(
-      branch => branch.type === BranchType.Local && branch.name === remoteHead
-    )?.name ??
+    branches.find((branch) => branch.type === BranchType.Local && branch.name === remoteHead)
+      ?.name ??
     null
-  )
+  );
 }
 
 /**
@@ -130,28 +122,28 @@ function findDefaultLocalBranch(
  * afterwards so the UI never infers the current branch from branch ordering.
  */
 export class BranchStore {
-  private currentState = EmptyState
-  private requestID = 0
-  private operationID = 0
-  private readonly dependencies: BranchStoreDependencies
-  private readonly listeners = new Set<(state: BranchState) => void>()
+  private currentState = EmptyState;
+  private requestID = 0;
+  private operationID = 0;
+  private readonly dependencies: BranchStoreDependencies;
+  private readonly listeners = new Set<(state: BranchState) => void>();
 
   public constructor(dependencies: Partial<BranchStoreDependencies> = {}) {
-    this.dependencies = { ...defaultDependencies, ...dependencies }
+    this.dependencies = { ...defaultDependencies, ...dependencies };
   }
 
   public get state(): BranchState {
-    return this.currentState
+    return this.currentState;
   }
 
   public onDidUpdate(listener: (state: BranchState) => void): () => void {
-    this.listeners.add(listener)
-    return () => this.listeners.delete(listener)
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   public async load(repositoryPath: string): Promise<void> {
-    const requestID = ++this.requestID
-    this.operationID++
+    const requestID = ++this.requestID;
+    this.operationID++;
     this.update({
       repositoryPath,
       branches: [],
@@ -163,12 +155,12 @@ export class BranchStore {
       operation: null,
       progress: null,
       operationError: null,
-    })
+    });
 
     try {
-      const facts = await this.loadFacts(repositoryPath)
+      const facts = await this.loadFacts(repositoryPath);
       if (requestID !== this.requestID) {
-        return
+        return;
       }
       this.update({
         repositoryPath,
@@ -178,10 +170,10 @@ export class BranchStore {
         operation: null,
         progress: null,
         operationError: null,
-      })
+      });
     } catch (error) {
       if (requestID !== this.requestID) {
-        return
+        return;
       }
       this.update({
         repositoryPath,
@@ -194,88 +186,77 @@ export class BranchStore {
         operation: null,
         progress: null,
         operationError: null,
-      })
+      });
     }
   }
 
   public async createAndCheckout(name: string): Promise<boolean> {
-    const branchName = name.trim()
+    const branchName = name.trim();
     if (branchName.length === 0) {
       this.update({
         ...this.currentState,
-        operationError: 'Enter a branch name.',
-      })
-      return false
+        operationError: "Enter a branch name.",
+      });
+      return false;
     }
-    const repositoryPath = this.currentState.repositoryPath
+    const repositoryPath = this.currentState.repositoryPath;
     if (repositoryPath === null) {
-      return false
+      return false;
     }
 
-    const operationID = ++this.operationID
-    const requestID = this.requestID
+    const operationID = ++this.operationID;
+    const requestID = this.requestID;
     this.update({
       ...this.currentState,
-      operation: 'creating',
+      operation: "creating",
       progress: null,
       operationError: null,
-    })
+    });
     try {
-      await this.dependencies.createBranch(
-        repositoryPath,
-        branchName,
-        undefined,
-        false
-      )
+      await this.dependencies.createBranch(repositoryPath, branchName, undefined, false);
       if (!this.isCurrentOperation(requestID, operationID)) {
-        return false
+        return false;
       }
       this.update({
         ...this.currentState,
-        operation: 'checking-out',
-      })
-      await this.dependencies.checkoutBranch(
-        repositoryPath,
-        branchName,
-        progress => this.publishProgress(requestID, operationID, progress)
-      )
-      return await this.finishOperation(repositoryPath, requestID, operationID)
+        operation: "checking-out",
+      });
+      await this.dependencies.checkoutBranch(repositoryPath, branchName, (progress) =>
+        this.publishProgress(requestID, operationID, progress),
+      );
+      return await this.finishOperation(repositoryPath, requestID, operationID);
     } catch (error) {
-      return this.failOperation(requestID, operationID, error)
+      return this.failOperation(requestID, operationID, error);
     }
   }
 
   public async checkout(name: string): Promise<boolean> {
-    const branch = this.currentState.branches.find(
-      branch => branch.name === name
-    )
+    const branch = this.currentState.branches.find((branch) => branch.name === name);
     if (
       branch === undefined ||
       branch.type !== BranchType.Local ||
       branch.name === this.currentState.currentBranch ||
       this.currentState.repositoryPath === null
     ) {
-      return false
+      return false;
     }
 
-    const repositoryPath = this.currentState.repositoryPath
-    const operationID = ++this.operationID
-    const requestID = this.requestID
+    const repositoryPath = this.currentState.repositoryPath;
+    const operationID = ++this.operationID;
+    const requestID = this.requestID;
     this.update({
       ...this.currentState,
-      operation: 'checking-out',
+      operation: "checking-out",
       progress: null,
       operationError: null,
-    })
+    });
     try {
-      await this.dependencies.checkoutBranch(
-        repositoryPath,
-        branch.name,
-        progress => this.publishProgress(requestID, operationID, progress)
-      )
-      return await this.finishOperation(repositoryPath, requestID, operationID)
+      await this.dependencies.checkoutBranch(repositoryPath, branch.name, (progress) =>
+        this.publishProgress(requestID, operationID, progress),
+      );
+      return await this.finishOperation(repositoryPath, requestID, operationID);
     } catch (error) {
-      return this.failOperation(requestID, operationID, error)
+      return this.failOperation(requestID, operationID, error);
     }
   }
 
@@ -287,65 +268,55 @@ export class BranchStore {
    * collision with an existing branch, so the failure surfaces as a product
    * message rather than a raw git error.
    */
-  public async renameBranch(
-    currentName: string,
-    newName: string
-  ): Promise<boolean> {
-    const repositoryPath = this.currentState.repositoryPath
+  public async renameBranch(currentName: string, newName: string): Promise<boolean> {
+    const repositoryPath = this.currentState.repositoryPath;
     const branch = this.currentState.branches.find(
-      branch => branch.type === BranchType.Local && branch.name === currentName
-    )
+      (branch) => branch.type === BranchType.Local && branch.name === currentName,
+    );
     if (repositoryPath === null || branch === undefined) {
-      return false
+      return false;
     }
-    const target = newName.trim()
+    const target = newName.trim();
     if (target.length === 0) {
       this.update({
         ...this.currentState,
-        operationError: 'Enter a branch name.',
-      })
-      return false
+        operationError: "Enter a branch name.",
+      });
+      return false;
     }
     if (testForInvalidChars(target)) {
       this.update({
         ...this.currentState,
         operationError: `'${target}' is not a valid branch name.`,
-      })
-      return false
+      });
+      return false;
     }
     // A case-only rename is legitimate, so the collision check excludes the branch
     // being renamed itself.
     const collision = this.currentState.branches.some(
-      branch =>
-        branch.name.toLowerCase() === target.toLowerCase() &&
-        branch.name !== currentName
-    )
+      (branch) => branch.name.toLowerCase() === target.toLowerCase() && branch.name !== currentName,
+    );
     if (collision) {
       this.update({
         ...this.currentState,
         operationError: `A branch named '${target}' already exists.`,
-      })
-      return false
+      });
+      return false;
     }
 
-    const operationID = ++this.operationID
-    const requestID = this.requestID
+    const operationID = ++this.operationID;
+    const requestID = this.requestID;
     this.update({
       ...this.currentState,
-      operation: 'renaming',
+      operation: "renaming",
       progress: null,
       operationError: null,
-    })
+    });
     try {
-      await this.dependencies.renameBranch(
-        repositoryPath,
-        currentName,
-        target,
-        undefined
-      )
-      return await this.finishOperation(repositoryPath, requestID, operationID)
+      await this.dependencies.renameBranch(repositoryPath, currentName, target, undefined);
+      return await this.finishOperation(repositoryPath, requestID, operationID);
     } catch (error) {
-      return this.failOperation(requestID, operationID, error)
+      return this.failOperation(requestID, operationID, error);
     }
   }
 
@@ -359,58 +330,54 @@ export class BranchStore {
    */
   public async deleteBranch(
     branchName: string,
-    options: { readonly pruneTrackingRef?: boolean } = {}
+    options: { readonly pruneTrackingRef?: boolean } = {},
   ): Promise<boolean> {
-    const repositoryPath = this.currentState.repositoryPath
+    const repositoryPath = this.currentState.repositoryPath;
     const branch = this.currentState.branches.find(
-      branch => branch.type === BranchType.Local && branch.name === branchName
-    )
+      (branch) => branch.type === BranchType.Local && branch.name === branchName,
+    );
     if (repositoryPath === null || branch === undefined) {
-      return false
+      return false;
     }
-    const { currentBranch, defaultBranch } = this.currentState
+    const { currentBranch, defaultBranch } = this.currentState;
     if (branch.name === currentBranch) {
       this.update({
         ...this.currentState,
         operationError: `You cannot delete the current branch '${branch.name}'.`,
-      })
-      return false
+      });
+      return false;
     }
     if (currentBranch === null) {
       this.update({
         ...this.currentState,
-        operationError:
-          'You cannot delete a branch while on an unborn or detached HEAD.',
-      })
-      return false
+        operationError: "You cannot delete a branch while on an unborn or detached HEAD.",
+      });
+      return false;
     }
     if (branch.name === defaultBranch) {
       this.update({
         ...this.currentState,
         operationError: `You cannot delete the default branch '${branch.name}'.`,
-      })
-      return false
+      });
+      return false;
     }
 
-    const operationID = ++this.operationID
-    const requestID = this.requestID
+    const operationID = ++this.operationID;
+    const requestID = this.requestID;
     this.update({
       ...this.currentState,
-      operation: 'deleting',
+      operation: "deleting",
       progress: null,
       operationError: null,
-    })
+    });
     try {
-      await this.dependencies.deleteLocalBranch(repositoryPath, branch.name)
+      await this.dependencies.deleteLocalBranch(repositoryPath, branch.name);
       if (options.pruneTrackingRef && branch.upstream !== null) {
-        await this.dependencies.deleteRef(
-          repositoryPath,
-          `refs/remotes/${branch.upstream}`
-        )
+        await this.dependencies.deleteRef(repositoryPath, `refs/remotes/${branch.upstream}`);
       }
-      return await this.finishOperation(repositoryPath, requestID, operationID)
+      return await this.finishOperation(repositoryPath, requestID, operationID);
     } catch (error) {
-      return this.failOperation(requestID, operationID, error)
+      return this.failOperation(requestID, operationID, error);
     }
   }
 
@@ -429,64 +396,60 @@ export class BranchStore {
    */
   public async initiateMerge(
     targetBranchName: string,
-    options: { readonly workingTreeDirty: boolean }
+    options: { readonly workingTreeDirty: boolean },
   ): Promise<MergeInitiationResult> {
-    const repositoryPath = this.currentState.repositoryPath
-    const current = this.currentState.currentBranch
+    const repositoryPath = this.currentState.repositoryPath;
+    const current = this.currentState.currentBranch;
     const target = this.currentState.branches.find(
-      branch =>
-        branch.type === BranchType.Local && branch.name === targetBranchName
-    )
+      (branch) => branch.type === BranchType.Local && branch.name === targetBranchName,
+    );
     if (
       repositoryPath === null ||
       target === undefined ||
       current === null ||
       current === targetBranchName
     ) {
-      return 'failed'
+      return "failed";
     }
     if (options.workingTreeDirty) {
-      return 'dirty'
+      return "dirty";
     }
 
-    const operationID = ++this.operationID
-    const requestID = this.requestID
+    const operationID = ++this.operationID;
+    const requestID = this.requestID;
     this.update({
       ...this.currentState,
-      operation: 'merging',
+      operation: "merging",
       progress: null,
       operationError: null,
-    })
+    });
     try {
       const mergeability = await this.dependencies.determineMergeability(
         repositoryPath,
         current,
-        targetBranchName
-      )
+        targetBranchName,
+      );
       if (!this.isCurrentOperation(requestID, operationID)) {
-        return 'failed'
+        return "failed";
       }
       if (mergeability.kind === ComputedAction.Invalid) {
-        this.finishWithoutRefresh(requestID, operationID)
-        return 'invalid'
+        this.finishWithoutRefresh(requestID, operationID);
+        return "invalid";
       }
 
-      const result = await this.dependencies.mergeBranch(
-        repositoryPath,
-        targetBranchName
-      )
-      await this.finishOperation(repositoryPath, requestID, operationID)
+      const result = await this.dependencies.mergeBranch(repositoryPath, targetBranchName);
+      await this.finishOperation(repositoryPath, requestID, operationID);
       switch (result) {
         case MergeResult.Success:
-          return 'merged'
+          return "merged";
         case MergeResult.AlreadyUpToDate:
-          return 'up-to-date'
+          return "up-to-date";
         case MergeResult.Failed:
-          return 'conflict'
+          return "conflict";
       }
     } catch (error) {
-      this.failOperation(requestID, operationID, error)
-      return 'failed'
+      this.failOperation(requestID, operationID, error);
+      return "failed";
     }
   }
 
@@ -497,14 +460,14 @@ export class BranchStore {
         operation: null,
         progress: null,
         operationError: null,
-      })
+      });
     }
   }
 
   public clear(): void {
-    this.requestID++
-    this.operationID++
-    this.update(EmptyState)
+    this.requestID++;
+    this.operationID++;
+    this.update(EmptyState);
   }
 
   private async loadFacts(repositoryPath: string) {
@@ -514,48 +477,41 @@ export class BranchStore {
       this.dependencies
         .getRecentBranches(repositoryPath, 6)
         .catch(() => [] as ReadonlyArray<string>),
-      this.dependencies
-        .getRemotes(repositoryPath)
-        .catch(() => [] as ReadonlyArray<IRemote>),
-    ])
-    const currentBranch = status?.currentBranch ?? null
+      this.dependencies.getRemotes(repositoryPath).catch(() => [] as ReadonlyArray<IRemote>),
+    ]);
+    const currentBranch = status?.currentBranch ?? null;
     const current = branches.find(
-      branch =>
-        branch.type === BranchType.Local && branch.name === currentBranch
-    )
+      (branch) => branch.type === BranchType.Local && branch.name === currentBranch,
+    );
     const defaultRemote =
-      remotes.find(remote => remote.name === current?.upstreamRemoteName) ??
-      remotes.find(remote => remote.name === 'origin') ??
+      remotes.find((remote) => remote.name === current?.upstreamRemoteName) ??
+      remotes.find((remote) => remote.name === "origin") ??
       remotes[0] ??
-      null
+      null;
     const remoteHead =
       defaultRemote === null
         ? null
         : await this.dependencies
             .getRemoteHEAD(repositoryPath, defaultRemote.name)
-            .catch(() => null)
-    const defaultBranch = findDefaultLocalBranch(
-      branches,
-      defaultRemote?.name ?? null,
-      remoteHead
-    )
+            .catch(() => null);
+    const defaultBranch = findDefaultLocalBranch(branches, defaultRemote?.name ?? null, remoteHead);
 
     return {
       branches,
       currentBranch,
       defaultBranch,
       recentBranches,
-    }
+    };
   }
 
   private async finishOperation(
     repositoryPath: string,
     requestID: number,
-    operationID: number
+    operationID: number,
   ): Promise<boolean> {
-    const facts = await this.loadFacts(repositoryPath)
+    const facts = await this.loadFacts(repositoryPath);
     if (!this.isCurrentOperation(requestID, operationID)) {
-      return false
+      return false;
     }
     this.update({
       repositoryPath,
@@ -565,44 +521,40 @@ export class BranchStore {
       operation: null,
       progress: null,
       operationError: null,
-    })
-    return true
+    });
+    return true;
   }
 
-  private failOperation(
-    requestID: number,
-    operationID: number,
-    error: unknown
-  ): false {
+  private failOperation(requestID: number, operationID: number, error: unknown): false {
     if (this.isCurrentOperation(requestID, operationID)) {
       this.update({
         ...this.currentState,
         operation: null,
         progress: null,
         operationError: String(error),
-      })
+      });
     }
-    return false
+    return false;
   }
 
   private publishProgress(
     requestID: number,
     operationID: number,
-    progress: ICheckoutProgress
+    progress: ICheckoutProgress,
   ): void {
     if (this.isCurrentOperation(requestID, operationID)) {
-      this.update({ ...this.currentState, progress })
+      this.update({ ...this.currentState, progress });
     }
   }
 
   private isCurrentOperation(requestID: number, operationID: number): boolean {
-    return requestID === this.requestID && operationID === this.operationID
+    return requestID === this.requestID && operationID === this.operationID;
   }
 
   private update(state: BranchState): void {
-    this.currentState = state
+    this.currentState = state;
     for (const listener of this.listeners) {
-      listener(state)
+      listener(state);
     }
   }
 }

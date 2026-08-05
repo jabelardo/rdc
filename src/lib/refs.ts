@@ -17,15 +17,15 @@
  * with a remote ref of the same name — so both spellings have to arrive at `refs/heads/<name>`.
  */
 export function formatAsLocalRef(name: string): string {
-  if (name.startsWith('heads/')) {
+  if (name.startsWith("heads/")) {
     // Git reported it this way to disambiguate from a remote ref.
-    return `refs/${name}`
+    return `refs/${name}`;
   }
 
-  if (!name.startsWith('refs/heads/')) {
+  if (!name.startsWith("refs/heads/")) {
     // Git drops the `heads/` prefix unless it has to include it.
-    return `refs/heads/${name}`
+    return `refs/heads/${name}`;
   }
 
-  return name
+  return name;
 }

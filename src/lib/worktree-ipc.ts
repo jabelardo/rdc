@@ -5,8 +5,8 @@
  * one `src/models/worktree.ts` already declares, so nothing needs hydrating — every field is plain data.
  */
 
-import { invoke } from '@tauri-apps/api/core'
-import type { WorktreeEntry } from '../models/worktree'
+import { invoke } from "@tauri-apps/api/core";
+import type { WorktreeEntry } from "../models/worktree";
 
 /**
  * The worktrees a repository has.
@@ -14,12 +14,10 @@ import type { WorktreeEntry } from '../models/worktree'
  * The main worktree is included, and git lists it first — so a repository with no linked worktrees still
  * reports one entry rather than none.
  */
-export async function listWorktrees(
-  repositoryPath: string
-): Promise<ReadonlyArray<WorktreeEntry>> {
-  return invoke<ReadonlyArray<WorktreeEntry>>('list_worktrees', {
+export async function listWorktrees(repositoryPath: string): Promise<ReadonlyArray<WorktreeEntry>> {
+  return invoke<ReadonlyArray<WorktreeEntry>>("list_worktrees", {
     repositoryPath,
-  })
+  });
 }
 
 /**
@@ -29,11 +27,11 @@ export async function listWorktrees(
  * directory has been deleted, for instance — where the git directory is the only handle left.
  */
 export async function listWorktreesFromGitDir(
-  gitDir: string
+  gitDir: string,
 ): Promise<ReadonlyArray<WorktreeEntry>> {
-  return invoke<ReadonlyArray<WorktreeEntry>>('list_worktrees_from_git_dir', {
+  return invoke<ReadonlyArray<WorktreeEntry>>("list_worktrees_from_git_dir", {
     gitDir,
-  })
+  });
 }
 
 /**
@@ -43,12 +41,9 @@ export async function listWorktreesFromGitDir(
  * happens.
  */
 export async function listWorktreesFromGitDirFallback(
-  gitDir: string
+  gitDir: string,
 ): Promise<ReadonlyArray<WorktreeEntry>> {
-  return invoke<ReadonlyArray<WorktreeEntry>>(
-    'list_worktrees_from_git_dir_fallback',
-    { gitDir }
-  )
+  return invoke<ReadonlyArray<WorktreeEntry>>("list_worktrees_from_git_dir_fallback", { gitDir });
 }
 
 /**
@@ -60,14 +55,14 @@ export async function listWorktreesFromGitDirFallback(
 export async function addWorktree(
   repositoryPath: string,
   path: string,
-  options: { createBranch?: string; commitish?: string } = {}
+  options: { createBranch?: string; commitish?: string } = {},
 ): Promise<void> {
-  await invoke('add_worktree', {
+  await invoke("add_worktree", {
     repositoryPath,
     path,
     createBranch: options.createBranch,
     commitish: options.commitish,
-  })
+  });
 }
 
 /**
@@ -79,16 +74,16 @@ export async function addWorktree(
 export async function removeWorktree(
   repositoryPath: string,
   worktree: string,
-  force = false
+  force = false,
 ): Promise<void> {
-  await invoke('remove_worktree', { repositoryPath, worktree, force })
+  await invoke("remove_worktree", { repositoryPath, worktree, force });
 }
 
 /** Moves a linked worktree to a new path. */
 export async function moveWorktree(
   repositoryPath: string,
   oldPath: string,
-  newPath: string
+  newPath: string,
 ): Promise<void> {
-  await invoke('move_worktree', { repositoryPath, oldPath, newPath })
+  await invoke("move_worktree", { repositoryPath, oldPath, newPath });
 }

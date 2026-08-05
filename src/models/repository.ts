@@ -26,46 +26,43 @@
  * git (`rev_parse::resolve_git_dir`). Nothing in TypeScript needs it.
  */
 
-import { GitHubRepository, ForkedGitHubRepository } from './github-repository'
-import { IAheadBehind } from './branch'
-import { WorktreeEntry } from './worktree'
-import {
-  WorkflowPreferences,
-  ForkContributionTarget,
-} from './workflow-preferences'
-import { UpdateBranchStrategy } from '../lib/update-branch-strategy'
-import { assertNever, fatalError } from '../lib/fatal-error'
-import { createEqualityHash } from './equality-hash'
-import { isTrustedRemoteHost } from '../lib/trusted-remote-host'
-import { EditorOverride } from './editor-override'
-import { basename } from '../lib/path-utils'
+import { GitHubRepository, ForkedGitHubRepository } from "./github-repository";
+import { IAheadBehind } from "./branch";
+import { WorktreeEntry } from "./worktree";
+import { WorkflowPreferences, ForkContributionTarget } from "./workflow-preferences";
+import { UpdateBranchStrategy } from "../lib/update-branch-strategy";
+import { assertNever, fatalError } from "../lib/fatal-error";
+import { createEqualityHash } from "./equality-hash";
+import { isTrustedRemoteHost } from "../lib/trusted-remote-host";
+import { EditorOverride } from "./editor-override";
+import { basename } from "../lib/path-utils";
 
 export enum LoginSpecialValue {
   ForceNullLogin = 1,
 }
 
 function getBaseName(path: string): string {
-  const baseName = basename(path)
+  const baseName = basename(path);
 
   if (baseName.length === 0) {
     // the repository is at the root of the drive
     // -> show the full path here to show _something_
-    return path
+    return path;
   }
 
-  return baseName
+  return baseName;
 }
 
 /** A local repository. */
 export class Repository {
-  public readonly name: string
+  public readonly name: string;
 
   /**
    * A hash of the properties of the object.
    *
    * Objects with the same hash are guaranteed to be structurally equal.
    */
-  public hash: string
+  public hash: string;
 
   /**
    * @param path The working directory of this repository
@@ -105,9 +102,9 @@ export class Repository {
      * git are still the same repository, and including it would invalidate equality checks whenever
      * a remote was reconfigured.
      */
-    public readonly url: string | null = null
+    public readonly url: string | null = null,
   ) {
-    this.name = (gitHubRepository && gitHubRepository.name) || getBaseName(path)
+    this.name = (gitHubRepository && gitHubRepository.name) || getBaseName(path);
 
     this.hash = createEqualityHash(
       path,
@@ -121,26 +118,25 @@ export class Repository {
       this.workflowPreferences.forkContributionTarget,
       this.workflowPreferences.updateBranchStrategy,
       this.isTutorialRepository,
-      this.overrideLogin
-    )
+      this.overrideLogin,
+    );
   }
 
   public get login(): string | null {
     if (this.overrideLogin != null) {
-      return this.overrideLogin &&
-        this.overrideLogin !== LoginSpecialValue.ForceNullLogin
+      return this.overrideLogin && this.overrideLogin !== LoginSpecialValue.ForceNullLogin
         ? this.overrideLogin
-        : null
+        : null;
     } else {
-      return this.gitHubRepository?.login ?? null
+      return this.gitHubRepository?.login ?? null;
     }
   }
 }
 
 /** Identical to `Repository`, except it **must** have a `gitHubRepository` */
 export type RepositoryWithGitHubRepository = Repository & {
-  readonly gitHubRepository: GitHubRepository
-}
+  readonly gitHubRepository: GitHubRepository;
+};
 
 /**
  * Identical to `Repository`, except it **must** have a `gitHubRepository`
@@ -148,8 +144,8 @@ export type RepositoryWithGitHubRepository = Repository & {
  * or Enterprise) fork.
  */
 export type RepositoryWithForkedGitHubRepository = Repository & {
-  readonly gitHubRepository: ForkedGitHubRepository
-}
+  readonly gitHubRepository: ForkedGitHubRepository;
+};
 
 /**
  * Returns whether the passed repository is a GitHub repository.
@@ -158,19 +154,19 @@ export type RepositoryWithForkedGitHubRepository = Repository & {
  * RepositoryWithGitHubRepository if it returns true.
  */
 export function isRepositoryWithGitHubRepository(
-  repository: Repository
+  repository: Repository,
 ): repository is RepositoryWithGitHubRepository {
-  return repository.gitHubRepository instanceof GitHubRepository
+  return repository.gitHubRepository instanceof GitHubRepository;
 }
 
 /**
  * Asserts that the passed repository is a GitHub repository.
  */
 export function assertIsRepositoryWithGitHubRepository(
-  repository: Repository
+  repository: Repository,
 ): asserts repository is RepositoryWithGitHubRepository {
   if (!isRepositoryWithGitHubRepository(repository)) {
-    return fatalError(`Repository must be GitHub repository`)
+    return fatalError(`Repository must be GitHub repository`);
   }
 }
 
@@ -181,12 +177,11 @@ export function assertIsRepositoryWithGitHubRepository(
  * RepositoryWithForkedGitHubRepository if it returns true.
  */
 export function isRepositoryWithForkedGitHubRepository(
-  repository: Repository
+  repository: Repository,
 ): repository is RepositoryWithForkedGitHubRepository {
   return (
-    isRepositoryWithGitHubRepository(repository) &&
-    repository.gitHubRepository.parent !== null
-  )
+    isRepositoryWithGitHubRepository(repository) && repository.gitHubRepository.parent !== null
+  );
 }
 
 /**
@@ -195,7 +190,7 @@ export function isRepositoryWithForkedGitHubRepository(
  * This function does not check the validity of the URL.
  */
 export function hasDefaultRemoteUrl(repository: Repository): boolean {
-  return (getGitHubHtmlUrl(repository) ?? getNonGitHubUrl(repository)) !== null
+  return (getGitHubHtmlUrl(repository) ?? getNonGitHubUrl(repository)) !== null;
 }
 
 /**
@@ -206,25 +201,25 @@ export interface ILocalRepositoryState {
    * The ahead/behind count for the current branch, or `null` if no tracking
    * branch found.
    */
-  readonly aheadBehind: IAheadBehind | null
+  readonly aheadBehind: IAheadBehind | null;
   /**
    * The number of uncommitted changes currently in the repository.
    */
-  readonly changedFilesCount: number
+  readonly changedFilesCount: number;
   /**
    * The name of the currently checked out branch, or `undefined` if the
    * branch name is not available (e.g. detached HEAD).
    */
-  readonly branchName: string | null
+  readonly branchName: string | null;
   /**
    * The name of the default branch, or `undefined` if not available.
    */
-  readonly defaultBranchName: string | null
+  readonly defaultBranchName: string | null;
   /**
    * The worktrees associated with this repository (including the main
    * worktree), or an empty array when not loaded / the feature is disabled.
    */
-  readonly worktrees: ReadonlyArray<WorktreeEntry>
+  readonly worktrees: ReadonlyArray<WorktreeEntry>;
 }
 
 /**
@@ -232,9 +227,9 @@ export interface ILocalRepositoryState {
  * otherwise the folder name that contains the repository
  */
 export function nameOf(repository: Repository) {
-  const { gitHubRepository } = repository
+  const { gitHubRepository } = repository;
 
-  return gitHubRepository !== null ? gitHubRepository.fullName : repository.name
+  return gitHubRepository !== null ? gitHubRepository.fullName : repository.name;
 }
 
 /**
@@ -244,10 +239,10 @@ export function nameOf(repository: Repository) {
  */
 export function getGitHubHtmlUrl(repository: Repository): string | null {
   if (!isRepositoryWithGitHubRepository(repository)) {
-    return null
+    return null;
   }
 
-  return getNonForkGitHubRepository(repository).htmlURL
+  return getNonForkGitHubRepository(repository).htmlURL;
 }
 
 /**
@@ -258,23 +253,23 @@ export function getGitHubHtmlUrl(repository: Repository): string | null {
 export function getNonGitHubUrl(repository: Repository): string | null {
   // Usually, this method will not be called for GitHub repositories, but better be safe than sorry.
   if (isRepositoryWithGitHubRepository(repository)) {
-    return null
+    return null;
   }
 
   if (!repository.url) {
-    return null
+    return null;
   }
 
   // Convert potentially SSH URLs (e.g., git@github.com:user/repo.git) to HTTPS URLs (e.g., https://github.com/user/repo.git)
   // If the URL is already HTTPS, this will be a no-op.
-  const httpsUrl = repository.url.replace(/^[^@]+@([^:]+):/, 'https://$1/')
+  const httpsUrl = repository.url.replace(/^[^@]+@([^:]+):/, "https://$1/");
 
   // Only return URLs that belong to trusted hosts.
   if (isTrustedRemoteHost(httpsUrl)) {
-    return httpsUrl
+    return httpsUrl;
   }
 
-  return null
+  return null;
 }
 
 /**
@@ -283,71 +278,57 @@ export function getNonGitHubUrl(repository: Repository): string | null {
  * is passed, returns the parent GitHubRepository otherwise.
  */
 export function getNonForkGitHubRepository(
-  repository: RepositoryWithGitHubRepository
+  repository: RepositoryWithGitHubRepository,
 ): GitHubRepository {
   if (!isRepositoryWithForkedGitHubRepository(repository)) {
     // If the repository is not a fork, we don't have to worry about anything.
-    return repository.gitHubRepository
+    return repository.gitHubRepository;
   }
 
-  const forkContributionTarget = getForkContributionTarget(repository)
+  const forkContributionTarget = getForkContributionTarget(repository);
 
   switch (forkContributionTarget) {
     case ForkContributionTarget.Self:
-      return repository.gitHubRepository
+      return repository.gitHubRepository;
     case ForkContributionTarget.Parent:
-      return repository.gitHubRepository.parent
+      return repository.gitHubRepository.parent;
     default:
-      return assertNever(
-        forkContributionTarget,
-        'Invalid fork contribution target'
-      )
+      return assertNever(forkContributionTarget, "Invalid fork contribution target");
   }
 }
 
 /**
  * Returns a non-undefined forkContributionTarget for the specified repository.
  */
-export function getForkContributionTarget(
-  repository: Repository
-): ForkContributionTarget {
+export function getForkContributionTarget(repository: Repository): ForkContributionTarget {
   return repository.workflowPreferences.forkContributionTarget !== undefined
     ? repository.workflowPreferences.forkContributionTarget
-    : ForkContributionTarget.Parent
+    : ForkContributionTarget.Parent;
 }
 
 /**
  * Returns how the "Update from <default branch>" action should update the
  * current branch.
  */
-export function getUpdateBranchStrategy(
-  repository: Repository
-): UpdateBranchStrategy {
-  return (
-    repository.workflowPreferences.updateBranchStrategy ??
-    UpdateBranchStrategy.Merge
-  )
+export function getUpdateBranchStrategy(repository: Repository): UpdateBranchStrategy {
+  return repository.workflowPreferences.updateBranchStrategy ?? UpdateBranchStrategy.Merge;
 }
 
 /**
  * Returns whether the fork is contributing to the parent
  */
-export function isForkedRepositoryContributingToParent(
-  repository: Repository
-): boolean {
+export function isForkedRepositoryContributingToParent(repository: Repository): boolean {
   return (
     isRepositoryWithForkedGitHubRepository(repository) &&
     getForkContributionTarget(repository) === ForkContributionTarget.Parent
-  )
+  );
 }
 
-function getCustomOverrideHash(
-  customEditorOverride: EditorOverride | null
-): string {
+function getCustomOverrideHash(customEditorOverride: EditorOverride | null): string {
   return createEqualityHash(
     customEditorOverride?.selectedExternalEditor,
     customEditorOverride?.useCustomEditor,
     customEditorOverride?.customEditor?.path,
-    customEditorOverride?.customEditor?.arguments
-  )
+    customEditorOverride?.customEditor?.arguments,
+  );
 }

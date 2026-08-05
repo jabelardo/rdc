@@ -5,9 +5,9 @@
  * branch-shaped convenience on top of it.
  */
 
-import { invoke } from '@tauri-apps/api/core'
-import { BranchType, type Branch, type IAheadBehind } from '../models/branch'
-import { revSymmetricDifference } from './rev-range'
+import { invoke } from "@tauri-apps/api/core";
+import { BranchType, type Branch, type IAheadBehind } from "../models/branch";
+import { revSymmetricDifference } from "./rev-range";
 
 /**
  * How many commits each side of `range` has that the other does not.
@@ -18,12 +18,12 @@ import { revSymmetricDifference } from './rev-range'
  */
 export async function getAheadBehind(
   repositoryPath: string,
-  range: string
+  range: string,
 ): Promise<IAheadBehind | null> {
-  return invoke<IAheadBehind | null>('get_ahead_behind', {
+  return invoke<IAheadBehind | null>("get_ahead_behind", {
     repositoryPath,
     range,
-  })
+  });
 }
 
 /**
@@ -39,18 +39,15 @@ export async function getAheadBehind(
  */
 export async function getBranchAheadBehind(
   repositoryPath: string,
-  branch: Branch
+  branch: Branch,
 ): Promise<IAheadBehind | null> {
   if (branch.type === BranchType.Remote) {
-    return null
+    return null;
   }
 
   if (!branch.upstream) {
-    return null
+    return null;
   }
 
-  return getAheadBehind(
-    repositoryPath,
-    revSymmetricDifference(branch.name, branch.upstream)
-  )
+  return getAheadBehind(repositoryPath, revSymmetricDifference(branch.name, branch.upstream));
 }

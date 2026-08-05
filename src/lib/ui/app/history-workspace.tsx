@@ -1,47 +1,42 @@
-import { useRef, useState, type CSSProperties } from 'react'
-import { DiffLineType, DiffType } from '../../../models/diff'
-import { formatRelative } from '../../format-relative'
-import type { HistoryState, HistoryStore } from '../../stores/history-store'
-import { handleListNavigation } from '../list-navigation'
-import { HorizontalResizer } from '../horizontal-resizer'
-import { FileStatusIcon } from '../mvp-list-rows'
-import { Tooltip } from '../tooltip'
+import { useRef, useState, type CSSProperties } from "react";
+import { DiffLineType, DiffType } from "../../../models/diff";
+import { formatRelative } from "../../format-relative";
+import type { HistoryState, HistoryStore } from "../../stores/history-store";
+import { handleListNavigation } from "../list-navigation";
+import { HorizontalResizer } from "../horizontal-resizer";
+import { FileStatusIcon } from "../mvp-list-rows";
+import { Tooltip } from "../tooltip";
 
 function diffLineClassName(type: DiffLineType): string {
   switch (type) {
     case DiffLineType.Add:
-      return 'diff-line-add'
+      return "diff-line-add";
     case DiffLineType.Delete:
-      return 'diff-line-delete'
+      return "diff-line-delete";
     case DiffLineType.Hunk:
-      return 'diff-line-hunk'
+      return "diff-line-hunk";
     case DiffLineType.Context:
-      return 'diff-line-context'
+      return "diff-line-context";
   }
 }
 
 type HistoryWorkspaceProps = {
-  readonly visible: boolean
-  readonly state: HistoryState
-  readonly store: HistoryStore
-}
+  readonly visible: boolean;
+  readonly state: HistoryState;
+  readonly store: HistoryStore;
+};
 
 /** Commit list, details, changed files, and the selected historical diff. */
-export function HistoryWorkspace({
-  visible,
-  state,
-  store,
-}: HistoryWorkspaceProps) {
-  const historyRef = useRef<HTMLElement>(null)
-  const changeWorkspaceRef = useRef<HTMLDivElement>(null)
-  const [commitListWidth, setCommitListWidth] = useState(270)
-  const [changedFilesWidth, setChangedFilesWidth] = useState(240)
-  const [copyStatus, setCopyStatus] = useState('')
+export function HistoryWorkspace({ visible, state, store }: HistoryWorkspaceProps) {
+  const historyRef = useRef<HTMLElement>(null);
+  const changeWorkspaceRef = useRef<HTMLDivElement>(null);
+  const [commitListWidth, setCommitListWidth] = useState(270);
+  const [changedFilesWidth, setChangedFilesWidth] = useState(240);
+  const [copyStatus, setCopyStatus] = useState("");
   const selectedCommit =
-    state.commits.find(commit => commit.sha === state.selectedCommitSHA) ?? null
+    state.commits.find((commit) => commit.sha === state.selectedCommitSHA) ?? null;
   const selectedFile =
-    state.changeset?.files.find(file => file.id === state.selectedFileID) ??
-    null
+    state.changeset?.files.find((file) => file.id === state.selectedFileID) ?? null;
 
   return (
     <section
@@ -52,7 +47,7 @@ export function HistoryWorkspace({
       ref={historyRef}
       style={
         {
-          '--history-list-width': `${commitListWidth}px`,
+          "--history-list-width": `${commitListWidth}px`,
         } as CSSProperties
       }
     >
@@ -66,20 +61,14 @@ export function HistoryWorkspace({
         ) : state.commits.length === 0 ? (
           <p>No commits yet.</p>
         ) : (
-          <ul
-            className="history-commits"
-            aria-label="Commits"
-            data-keyboard-list
-          >
+          <ul className="history-commits" aria-label="Commits" data-keyboard-list>
             {state.commits.map((commit, index) => (
               <li key={commit.sha}>
                 <button
                   type="button"
                   data-commit-sha={commit.sha}
                   data-keyboard-list-item
-                  aria-current={
-                    state.selectedCommitSHA === commit.sha ? 'true' : undefined
-                  }
+                  aria-current={state.selectedCommitSHA === commit.sha ? "true" : undefined}
                   tabIndex={
                     state.selectedCommitSHA === commit.sha ||
                     (state.selectedCommitSHA === null && index === 0)
@@ -87,15 +76,10 @@ export function HistoryWorkspace({
                       : -1
                   }
                   onClick={() => void store.selectCommit(commit.sha)}
-                  onKeyDown={event =>
-                    handleListNavigation(
-                      event,
-                      index,
-                      state.commits.length,
-                      targetIndex => {
-                        void store.selectCommit(state.commits[targetIndex].sha)
-                      }
-                    )
+                  onKeyDown={(event) =>
+                    handleListNavigation(event, index, state.commits.length, (targetIndex) => {
+                      void store.selectCommit(state.commits[targetIndex].sha);
+                    })
                   }
                 >
                   <strong>{commit.summary}</strong>
@@ -104,9 +88,7 @@ export function HistoryWorkspace({
                     <span aria-hidden="true"> · </span>
                     <Tooltip label={commit.author.date.toLocaleString()}>
                       <time dateTime={commit.author.date.toISOString()}>
-                        {formatRelative(
-                          commit.author.date.getTime() - Date.now()
-                        )}
+                        {formatRelative(commit.author.date.getTime() - Date.now())}
                       </time>
                     </Tooltip>
                   </small>
@@ -132,18 +114,14 @@ export function HistoryWorkspace({
         aria-label="Selected commit details"
       >
         {selectedCommit === null ? (
-          <p className="history-details-empty">
-            Select a commit to inspect its files and diff.
-          </p>
+          <p className="history-details-empty">Select a commit to inspect its files and diff.</p>
         ) : (
           <>
             <header className="history-details-header">
               <h4>{selectedCommit.summary}</h4>
             </header>
             {selectedCommit.bodyNoCoAuthors.trim().length > 0 && (
-              <pre className="history-commit-body">
-                {selectedCommit.bodyNoCoAuthors}
-              </pre>
+              <pre className="history-commit-body">{selectedCommit.bodyNoCoAuthors}</pre>
             )}
             <p className="history-commit-meta">
               <span>{selectedCommit.author.name}</span>
@@ -156,10 +134,8 @@ export function HistoryWorkspace({
                   onClick={() => {
                     void navigator.clipboard
                       .writeText(selectedCommit.sha)
-                      .then(() => setCopyStatus('Full commit hash copied.'))
-                      .catch(() =>
-                        setCopyStatus('Unable to copy the full commit hash.')
-                      )
+                      .then(() => setCopyStatus("Full commit hash copied."))
+                      .catch(() => setCopyStatus("Unable to copy the full commit hash."));
                   }}
                 >
                   <code>{selectedCommit.shortSha}</code>
@@ -170,12 +146,8 @@ export function HistoryWorkspace({
               </span>
               {state.changeset !== null && (
                 <>
-                  <span className="history-lines-added">
-                    +{state.changeset.linesAdded}
-                  </span>
-                  <span className="history-lines-deleted">
-                    −{state.changeset.linesDeleted}
-                  </span>
+                  <span className="history-lines-added">+{state.changeset.linesAdded}</span>
+                  <span className="history-lines-deleted">−{state.changeset.linesDeleted}</span>
                 </>
               )}
             </p>
@@ -184,55 +156,38 @@ export function HistoryWorkspace({
               ref={changeWorkspaceRef}
               style={
                 {
-                  '--history-files-width': `${changedFilesWidth}px`,
+                  "--history-files-width": `${changedFilesWidth}px`,
                 } as CSSProperties
               }
             >
-              <section
-                className="history-file-section"
-                aria-label="Changed files"
-              >
+              <section className="history-file-section" aria-label="Changed files">
                 {state.detailsLoading ? (
-                  <p className="history-details-status">
-                    Loading commit details…
-                  </p>
+                  <p className="history-details-status">Loading commit details…</p>
                 ) : state.detailsError !== null ? (
                   <p className="application-error" role="alert">
                     {state.detailsError}
                   </p>
                 ) : state.changeset === null ? (
-                  <p className="history-details-status">
-                    Commit details are unavailable.
-                  </p>
+                  <p className="history-details-status">Commit details are unavailable.</p>
                 ) : (
                   <>
                     <p className="history-change-summary">
                       <span className="history-change-count">
-                        {state.changeset.files.length} changed{' '}
-                        {state.changeset.files.length === 1 ? 'file' : 'files'}
+                        {state.changeset.files.length} changed{" "}
+                        {state.changeset.files.length === 1 ? "file" : "files"}
                       </span>
                     </p>
                     {state.changeset.files.length === 0 ? (
-                      <p className="history-details-status">
-                        No files in commit.
-                      </p>
+                      <p className="history-details-status">No files in commit.</p>
                     ) : (
-                      <ul
-                        className="history-files"
-                        aria-label="Commit files"
-                        data-keyboard-list
-                      >
+                      <ul className="history-files" aria-label="Commit files" data-keyboard-list>
                         {state.changeset.files.map((file, index) => (
                           <li key={file.id}>
                             <button
                               type="button"
                               aria-label={file.path}
                               data-keyboard-list-item
-                              aria-current={
-                                state.selectedFileID === file.id
-                                  ? 'true'
-                                  : undefined
-                              }
+                              aria-current={state.selectedFileID === file.id ? "true" : undefined}
                               tabIndex={
                                 state.selectedFileID === file.id ||
                                 (state.selectedFileID === null && index === 0)
@@ -240,18 +195,17 @@ export function HistoryWorkspace({
                                   : -1
                               }
                               onClick={() => void store.selectFile(file.id)}
-                              onKeyDown={event =>
+                              onKeyDown={(event) =>
                                 handleListNavigation(
                                   event,
                                   index,
                                   state.changeset?.files.length ?? 0,
-                                  targetIndex => {
-                                    const target =
-                                      state.changeset?.files[targetIndex]
+                                  (targetIndex) => {
+                                    const target = state.changeset?.files[targetIndex];
                                     if (target !== undefined) {
-                                      void store.selectFile(target.id)
+                                      void store.selectFile(target.id);
                                     }
-                                  }
+                                  },
                                 )
                               }
                             >
@@ -279,8 +233,8 @@ export function HistoryWorkspace({
               />
               <section className="history-diff" aria-label="Commit file diff">
                 <header className="history-diff-header">
-                  <Tooltip label={selectedFile?.path ?? 'File diff'}>
-                    <strong>{selectedFile?.path ?? 'File diff'}</strong>
+                  <Tooltip label={selectedFile?.path ?? "File diff"}>
+                    <strong>{selectedFile?.path ?? "File diff"}</strong>
                   </Tooltip>
                 </header>
                 <div className="history-diff-content">
@@ -303,22 +257,16 @@ export function HistoryWorkspace({
                       {state.diff.hunks.flatMap((hunk, hunkIndex) =>
                         hunk.lines.map((line, lineIndex) => (
                           <div
-                            className={`working-tree-diff-line ${diffLineClassName(
-                              line.type
-                            )}`}
+                            className={`working-tree-diff-line ${diffLineClassName(line.type)}`}
                             role="row"
                             key={`${hunkIndex}-${hunk.unifiedDiffStart + lineIndex}`}
                           >
                             <span aria-hidden="true" />
-                            <span className="diff-line-number">
-                              {line.oldLineNumber ?? ''}
-                            </span>
-                            <span className="diff-line-number">
-                              {line.newLineNumber ?? ''}
-                            </span>
+                            <span className="diff-line-number">{line.oldLineNumber ?? ""}</span>
+                            <span className="diff-line-number">{line.newLineNumber ?? ""}</span>
                             <code>{line.text}</code>
                           </div>
-                        ))
+                        )),
                       )}
                     </div>
                   ) : state.diff.kind === DiffType.LargeText ? (
@@ -339,5 +287,5 @@ export function HistoryWorkspace({
         )}
       </section>
     </section>
-  )
+  );
 }

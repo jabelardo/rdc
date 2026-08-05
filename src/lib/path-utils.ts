@@ -22,42 +22,42 @@
  * would silently truncate paths.
  */
 export function basename(path: string, suffix?: string): string {
-  const separators = __WIN32__ ? ['/', '\\'] : ['/']
+  const separators = __WIN32__ ? ["/", "\\"] : ["/"];
 
   // Node special-cases the suffix matching the *entire path* and returns an empty string, which is
   // why `basename('.git', '.git')` is `''` while `basename('/foo/.git', '.git')` is `'.git'`. The
   // asymmetry looks like a bug but is long-standing documented behaviour, and callers may depend on
   // it, so it's reproduced rather than "fixed".
   if (suffix !== undefined && suffix.length > 0 && suffix === path) {
-    return ''
+    return "";
   }
 
   // Drop trailing separators first, so a path ending in one yields its last real segment.
-  let end = path.length
+  let end = path.length;
   while (end > 0 && separators.includes(path[end - 1])) {
-    end--
+    end--;
   }
   if (end === 0) {
     // The path was nothing but separators (e.g. '/'), which has no basename.
-    return ''
+    return "";
   }
 
-  let start = 0
+  let start = 0;
   for (let i = end - 1; i >= 0; i--) {
     if (separators.includes(path[i])) {
-      start = i + 1
-      break
+      start = i + 1;
+      break;
     }
   }
 
-  let result = path.slice(start, end)
+  let result = path.slice(start, end);
 
   // Node only strips the suffix when it isn't the entire basename.
   if (suffix !== undefined && suffix.length > 0 && result !== suffix) {
     if (result.endsWith(suffix)) {
-      result = result.slice(0, result.length - suffix.length)
+      result = result.slice(0, result.length - suffix.length);
     }
   }
 
-  return result
+  return result;
 }

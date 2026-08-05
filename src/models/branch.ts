@@ -1,6 +1,6 @@
-import { Commit } from './commit'
-import { removeRemotePrefix } from '../lib/remove-remote-prefix'
-import { ForkedRemotePrefix } from './remote'
+import { Commit } from "./commit";
+import { removeRemotePrefix } from "../lib/remove-remote-prefix";
+import { ForkedRemotePrefix } from "./remote";
 
 // NOTE: The values here matter as they are used to sort
 // local and remote branches, Local should come before Remote
@@ -11,40 +11,40 @@ export enum BranchType {
 
 /** The number of commits a revision range is ahead/behind. */
 export interface IAheadBehind {
-  readonly ahead: number
-  readonly behind: number
+  readonly ahead: number;
+  readonly behind: number;
 }
 
 /** The result of comparing two refs in a repository. */
 export interface ICompareResult extends IAheadBehind {
-  readonly commits: ReadonlyArray<Commit>
+  readonly commits: ReadonlyArray<Commit>;
 }
 
 /** Basic data about a branch, and the branch it's tracking. */
 export interface ITrackingBranch {
-  readonly ref: string
-  readonly sha: string
-  readonly upstreamRef: string
-  readonly upstreamSha: string
+  readonly ref: string;
+  readonly sha: string;
+  readonly upstreamRef: string;
+  readonly upstreamSha: string;
 }
 
 export interface IAuthor {
-  readonly date: Date
+  readonly date: Date;
 }
 
 /** Basic data about the latest commit on the branch. */
 export interface IBranchTip {
-  readonly sha: string
-  readonly author: IAuthor
+  readonly sha: string;
+  readonly author: IAuthor;
 }
 
 /** Default rules for where to create a branch from */
 export enum StartPoint {
-  CurrentBranch = 'CurrentBranch',
-  DefaultBranch = 'DefaultBranch',
-  Head = 'Head',
+  CurrentBranch = "CurrentBranch",
+  DefaultBranch = "DefaultBranch",
+  Head = "Head",
   /** Only valid for forks */
-  UpstreamDefaultBranch = 'UpstreamDefaultBranch',
+  UpstreamDefaultBranch = "UpstreamDefaultBranch",
 }
 
 /** A branch as loaded from Git. */
@@ -64,47 +64,47 @@ export class Branch {
     public readonly tip: IBranchTip,
     public readonly type: BranchType,
     public readonly ref: string,
-    public readonly isGone: boolean
+    public readonly isGone: boolean,
   ) {}
 
   /** The name of the upstream's remote. */
   public get upstreamRemoteName(): string | null {
-    const upstream = this.upstream
+    const upstream = this.upstream;
     if (!upstream) {
-      return null
+      return null;
     }
 
-    const pieces = upstream.match(/(.*?)\/.*/)
+    const pieces = upstream.match(/(.*?)\/.*/);
     if (!pieces || pieces.length < 2) {
-      return null
+      return null;
     }
 
-    return pieces[1]
+    return pieces[1];
   }
 
   /** The name of remote for a remote branch. If local, will return null. */
   public get remoteName(): string | null {
     if (this.type === BranchType.Local) {
-      return null
+      return null;
     }
 
-    const pieces = this.ref.match(/^refs\/remotes\/(.*?)\/.*/)
+    const pieces = this.ref.match(/^refs\/remotes\/(.*?)\/.*/);
     if (!pieces || pieces.length !== 2) {
       // This shouldn't happen, the remote ref should always be prefixed
       // with refs/remotes
-      throw new Error(`Remote branch ref has unexpected format: ${this.ref}`)
+      throw new Error(`Remote branch ref has unexpected format: ${this.ref}`);
     }
-    return pieces[1]
+    return pieces[1];
   }
   /**
    * The name of the branch's upstream without the remote prefix.
    */
   public get upstreamWithoutRemote(): string | null {
     if (!this.upstream) {
-      return null
+      return null;
     }
 
-    return removeRemotePrefix(this.upstream)
+    return removeRemotePrefix(this.upstream);
   }
 
   /**
@@ -113,10 +113,10 @@ export class Branch {
    */
   public get nameWithoutRemote(): string {
     if (this.type === BranchType.Local) {
-      return this.name
+      return this.name;
     } else {
-      const withoutRemote = removeRemotePrefix(this.name)
-      return withoutRemote || this.name
+      const withoutRemote = removeRemotePrefix(this.name);
+      return withoutRemote || this.name;
     }
   }
 
@@ -131,9 +131,6 @@ export class Branch {
    * names
    **/
   public get isDesktopForkRemoteBranch() {
-    return (
-      this.type === BranchType.Remote &&
-      this.name.startsWith(ForkedRemotePrefix)
-    )
+    return this.type === BranchType.Remote && this.name.startsWith(ForkedRemotePrefix);
   }
 }

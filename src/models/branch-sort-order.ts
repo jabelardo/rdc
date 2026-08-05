@@ -1,6 +1,6 @@
 export enum BranchSortOrder {
-  Alphabetical = 'Alphabetical',
-  LastModified = 'LastModified',
+  Alphabetical = "Alphabetical",
+  LastModified = "LastModified",
 }
 
-export const DEFAULT_BRANCH_SORT_ORDER = BranchSortOrder.LastModified
+export const DEFAULT_BRANCH_SORT_ORDER = BranchSortOrder.LastModified;

@@ -1,377 +1,302 @@
-import { describe, it } from 'vitest'
-import assert from 'node:assert'
-import { lookupPreferredEmail, isAttributableEmailFor } from './email'
-import { IAPIEmail, getDotComAPIEndpoint, getEnterpriseAPIURL } from './api'
-import { Account } from '../models/account'
+import { describe, it } from "vitest";
+import assert from "node:assert";
+import { lookupPreferredEmail, isAttributableEmailFor } from "./email";
+import { IAPIEmail, getDotComAPIEndpoint, getEnterpriseAPIURL } from "./api";
+import { Account } from "../models/account";
 
-describe('emails', () => {
-  describe('lookupPreferredEmail', () => {
-    it('returns a stealth email address for empty list', () => {
+describe("emails", () => {
+  describe("lookupPreferredEmail", () => {
+    it("returns a stealth email address for empty list", () => {
       const account = new Account(
-        'shiftkey',
+        "shiftkey",
         getDotComAPIEndpoint(),
-        '',
-        '',
+        "",
+        "",
         0,
         [],
-        '',
+        "",
         1234,
-        'Caps Lock',
-        'free'
-      )
+        "Caps Lock",
+        "free",
+      );
 
-      assert.equal(
-        lookupPreferredEmail(account),
-        '1234+shiftkey@users.noreply.github.com'
-      )
-    })
+      assert.equal(lookupPreferredEmail(account), "1234+shiftkey@users.noreply.github.com");
+    });
 
-    it('returns a stealth email address for empty list from GHES', () => {
+    it("returns a stealth email address for empty list from GHES", () => {
       const account = new Account(
-        'shiftkey',
-        'https://github.example.com/api/v3',
-        '',
-        '',
+        "shiftkey",
+        "https://github.example.com/api/v3",
+        "",
+        "",
         0,
         [],
-        '',
+        "",
         1234,
-        'Caps Lock',
-        'free'
-      )
+        "Caps Lock",
+        "free",
+      );
 
-      assert.equal(
-        lookupPreferredEmail(account),
-        '1234+shiftkey@users.noreply.github.example.com'
-      )
-    })
+      assert.equal(lookupPreferredEmail(account), "1234+shiftkey@users.noreply.github.example.com");
+    });
 
-    it('returns the primary if it has public visibility', () => {
+    it("returns the primary if it has public visibility", () => {
       const emails: IAPIEmail[] = [
         {
-          email: 'shiftkey@example.com',
+          email: "shiftkey@example.com",
           primary: false,
           verified: true,
           visibility: null,
         },
         {
-          email: 'shiftkey@users.noreply.github.com',
+          email: "shiftkey@users.noreply.github.com",
           primary: false,
           verified: true,
           visibility: null,
         },
         {
-          email: 'my-primary-email@example.com',
+          email: "my-primary-email@example.com",
           primary: true,
           verified: true,
-          visibility: 'public',
+          visibility: "public",
         },
-      ]
+      ];
 
       const account = new Account(
-        'shiftkey',
+        "shiftkey",
         getDotComAPIEndpoint(),
-        '',
-        '',
+        "",
+        "",
         0,
         emails,
-        '',
+        "",
         -1,
-        'Caps Lock',
-        'free'
-      )
+        "Caps Lock",
+        "free",
+      );
 
-      assert.equal(
-        lookupPreferredEmail(account),
-        'my-primary-email@example.com'
-      )
-    })
+      assert.equal(lookupPreferredEmail(account), "my-primary-email@example.com");
+    });
 
-    it('returns the primary if it has null visibility', () => {
+    it("returns the primary if it has null visibility", () => {
       const emails: IAPIEmail[] = [
         {
-          email: 'shiftkey@example.com',
+          email: "shiftkey@example.com",
           primary: false,
           verified: true,
           visibility: null,
         },
         {
-          email: 'shiftkey@users.noreply.github.com',
+          email: "shiftkey@users.noreply.github.com",
           primary: false,
           verified: true,
           visibility: null,
         },
         {
-          email: 'my-primary-email@example.com',
+          email: "my-primary-email@example.com",
           primary: true,
           verified: true,
           visibility: null,
         },
-      ]
+      ];
 
       const account = new Account(
-        'shiftkey',
+        "shiftkey",
         getDotComAPIEndpoint(),
-        '',
-        '',
+        "",
+        "",
         0,
         emails,
-        '',
+        "",
         -1,
-        'Caps Lock',
-        'free'
-      )
+        "Caps Lock",
+        "free",
+      );
 
-      assert.equal(
-        lookupPreferredEmail(account),
-        'my-primary-email@example.com'
-      )
-    })
+      assert.equal(lookupPreferredEmail(account), "my-primary-email@example.com");
+    });
 
-    it('returns the noreply if there is no public address', () => {
+    it("returns the noreply if there is no public address", () => {
       const emails: IAPIEmail[] = [
         {
-          email: 'shiftkey@example.com',
+          email: "shiftkey@example.com",
           primary: false,
           verified: true,
           visibility: null,
         },
         {
-          email: 'shiftkey@users.noreply.github.com',
+          email: "shiftkey@users.noreply.github.com",
           primary: false,
           verified: true,
           visibility: null,
         },
         {
-          email: 'my-primary-email@example.com',
+          email: "my-primary-email@example.com",
           primary: true,
           verified: true,
-          visibility: 'private',
+          visibility: "private",
         },
-      ]
+      ];
 
       const account = new Account(
-        'shiftkey',
+        "shiftkey",
         getDotComAPIEndpoint(),
-        '',
-        '',
+        "",
+        "",
         0,
         emails,
-        '',
+        "",
         -1,
-        'Caps Lock',
-        'free'
-      )
+        "Caps Lock",
+        "free",
+      );
 
-      assert.equal(
-        lookupPreferredEmail(account),
-        'shiftkey@users.noreply.github.com'
-      )
-    })
+      assert.equal(lookupPreferredEmail(account), "shiftkey@users.noreply.github.com");
+    });
 
-    it('returns the noreply if there is no public address for GitHub Enterprise as well', () => {
+    it("returns the noreply if there is no public address for GitHub Enterprise as well", () => {
       const emails: IAPIEmail[] = [
         {
-          email: 'shiftkey@example.com',
+          email: "shiftkey@example.com",
           primary: false,
           verified: true,
           visibility: null,
         },
         {
-          email: 'shiftkey@users.noreply.github.example.com',
+          email: "shiftkey@users.noreply.github.example.com",
           primary: false,
           verified: true,
           visibility: null,
         },
         {
-          email: 'my-primary-email@example.com',
+          email: "my-primary-email@example.com",
           primary: true,
           verified: true,
-          visibility: 'private',
+          visibility: "private",
         },
-      ]
+      ];
 
       const account = new Account(
-        'shiftkey',
-        getEnterpriseAPIURL('https://github.example.com'),
-        '',
-        '',
+        "shiftkey",
+        getEnterpriseAPIURL("https://github.example.com"),
+        "",
+        "",
         0,
         emails,
-        '',
+        "",
         -1,
-        'Caps Lock',
-        'free'
-      )
+        "Caps Lock",
+        "free",
+      );
 
-      assert.equal(
-        lookupPreferredEmail(account),
-        'shiftkey@users.noreply.github.example.com'
-      )
-    })
+      assert.equal(lookupPreferredEmail(account), "shiftkey@users.noreply.github.example.com");
+    });
 
-    it('uses first email if nothing special found', () => {
+    it("uses first email if nothing special found", () => {
       const emails: IAPIEmail[] = [
         {
-          email: 'shiftkey@example.com',
+          email: "shiftkey@example.com",
           primary: false,
           verified: true,
           visibility: null,
         },
         {
-          email: 'github-primary@example.com',
+          email: "github-primary@example.com",
           primary: false,
           verified: true,
           visibility: null,
         },
-      ]
+      ];
 
       const account = new Account(
-        'shiftkey',
+        "shiftkey",
         getDotComAPIEndpoint(),
-        '',
-        '',
+        "",
+        "",
         0,
         emails,
-        '',
+        "",
         -1,
-        'Caps Lock',
-        'free'
-      )
+        "Caps Lock",
+        "free",
+      );
 
-      assert.equal(lookupPreferredEmail(account), 'shiftkey@example.com')
-    })
-  })
+      assert.equal(lookupPreferredEmail(account), "shiftkey@example.com");
+    });
+  });
 
-  describe('isAttributableEmailFor', () => {
-    it('considers all email addresses on the account as well as legacy and modern stealth emails', () => {
+  describe("isAttributableEmailFor", () => {
+    it("considers all email addresses on the account as well as legacy and modern stealth emails", () => {
       const emails: IAPIEmail[] = [
         {
-          email: 'personal@gmail.com',
+          email: "personal@gmail.com",
           primary: true,
           verified: true,
-          visibility: 'public',
+          visibility: "public",
         },
         {
-          email: 'company@github.com',
+          email: "company@github.com",
           primary: false,
           verified: true,
           visibility: null,
         },
         {
-          email: 'niik@users.noreply.github.com',
+          email: "niik@users.noreply.github.com",
           primary: false,
           verified: true,
           visibility: null,
         },
-      ]
+      ];
 
-      const endpoint = getDotComAPIEndpoint()
+      const endpoint = getDotComAPIEndpoint();
+      const account = new Account("niik", endpoint, "", "", 0, emails, "", 123, "", "free");
+
+      assert(isAttributableEmailFor(account, "personal@gmail.com"));
+      assert(isAttributableEmailFor(account, "company@github.com"));
+      assert.equal(isAttributableEmailFor(account, "niik@users.noreply.github.com"), true);
+      assert.equal(isAttributableEmailFor(account, "123+niik@users.noreply.github.com"), true);
+    });
+
+    it("considers stealth emails when account has no emails", () => {
+      const endpoint = getDotComAPIEndpoint();
+      const account = new Account("niik", endpoint, "", "", 0, [], "", 123, "", "free");
+
+      assert.equal(isAttributableEmailFor(account, "niik@users.noreply.github.com"), true);
+      assert.equal(isAttributableEmailFor(account, "123+niik@users.noreply.github.com"), true);
+    });
+
+    it("considers stealth emails for GitHub Enterprise", () => {
+      const endpoint = getDotComAPIEndpoint();
+      const account = new Account("niik", endpoint, "", "", 0, [], "", 123, "", "free");
+
+      assert.equal(isAttributableEmailFor(account, "niik@users.noreply.github.com"), true);
+      assert.equal(isAttributableEmailFor(account, "123+niik@users.noreply.github.com"), true);
+    });
+
+    it("considers email adresses in a case-insensitive manner", () => {
       const account = new Account(
-        'niik',
-        endpoint,
-        '',
-        '',
-        0,
-        emails,
-        '',
-        123,
-        '',
-        'free'
-      )
-
-      assert(isAttributableEmailFor(account, 'personal@gmail.com'))
-      assert(isAttributableEmailFor(account, 'company@github.com'))
-      assert.equal(
-        isAttributableEmailFor(account, 'niik@users.noreply.github.com'),
-        true
-      )
-      assert.equal(
-        isAttributableEmailFor(account, '123+niik@users.noreply.github.com'),
-        true
-      )
-    })
-
-    it('considers stealth emails when account has no emails', () => {
-      const endpoint = getDotComAPIEndpoint()
-      const account = new Account(
-        'niik',
-        endpoint,
-        '',
-        '',
-        0,
-        [],
-        '',
-        123,
-        '',
-        'free'
-      )
-
-      assert.equal(
-        isAttributableEmailFor(account, 'niik@users.noreply.github.com'),
-        true
-      )
-      assert.equal(
-        isAttributableEmailFor(account, '123+niik@users.noreply.github.com'),
-        true
-      )
-    })
-
-    it('considers stealth emails for GitHub Enterprise', () => {
-      const endpoint = getDotComAPIEndpoint()
-      const account = new Account(
-        'niik',
-        endpoint,
-        '',
-        '',
-        0,
-        [],
-        '',
-        123,
-        '',
-        'free'
-      )
-
-      assert.equal(
-        isAttributableEmailFor(account, 'niik@users.noreply.github.com'),
-        true
-      )
-      assert.equal(
-        isAttributableEmailFor(account, '123+niik@users.noreply.github.com'),
-        true
-      )
-    })
-
-    it('considers email adresses in a case-insensitive manner', () => {
-      const account = new Account(
-        'niik',
+        "niik",
         getDotComAPIEndpoint(),
-        '',
-        '',
+        "",
+        "",
         0,
         [
           {
-            email: 'niik@GITHUB.COM',
+            email: "niik@GITHUB.COM",
             verified: true,
             primary: true,
-            visibility: 'public',
+            visibility: "public",
           },
         ],
-        '',
+        "",
         123,
-        '',
-        'free'
-      )
+        "",
+        "free",
+      );
 
-      assert(isAttributableEmailFor(account, 'niik@github.com'))
-      assert.equal(
-        isAttributableEmailFor(account, 'niik@users.noreply.github.com'),
-        true
-      )
-      assert.equal(
-        isAttributableEmailFor(account, '123+niik@users.noreply.github.com'),
-        true
-      )
-    })
-  })
-})
+      assert(isAttributableEmailFor(account, "niik@github.com"));
+      assert.equal(isAttributableEmailFor(account, "niik@users.noreply.github.com"), true);
+      assert.equal(isAttributableEmailFor(account, "123+niik@users.noreply.github.com"), true);
+    });
+  });
+});

@@ -7,7 +7,7 @@ interface IProgress {
    * The overall progress of the operation, represented as a fraction between
    * 0 and 1.
    */
-  readonly value: number
+  readonly value: number;
 
   /**
    * An informative text for user consumption indicating the current operation
@@ -16,13 +16,13 @@ interface IProgress {
    * events. For more detailed information about the progress see
    * the description field
    */
-  readonly title?: string
+  readonly title?: string;
 
   /**
    * An informative text for user consumption. In the case of git progress this
    * will usually be the last raw line of output from git.
    */
-  readonly description?: string
+  readonly description?: string;
 }
 
 /**
@@ -33,85 +33,85 @@ interface IProgress {
  * after fetch, push and pull.
  */
 export interface IGenericProgress extends IProgress {
-  kind: 'generic'
+  kind: "generic";
 }
 
 /**
  * An object describing the progression of a branch checkout operation
  */
 export interface ICheckoutProgress extends IProgress {
-  kind: 'checkout'
+  kind: "checkout";
 
   /** The branch or commit that's currently being checked out */
-  readonly target: string
+  readonly target: string;
 
   /**
    * Infotext for the user.
    */
-  readonly description: string
+  readonly description: string;
 }
 
 /**
  * An object describing the progression of a fetch operation
  */
 export interface IFetchProgress extends IProgress {
-  kind: 'fetch'
+  kind: "fetch";
 
   /**
    * The remote that's being fetched
    */
-  readonly remote: string
+  readonly remote: string;
 }
 
 /**
  * An object describing the progression of a pull operation
  */
 export interface IPullProgress extends IProgress {
-  kind: 'pull'
+  kind: "pull";
 
   /**
    * The remote that's being pulled from
    */
-  readonly remote: string
+  readonly remote: string;
 }
 
 /**
  * An object describing the progression of a pull operation
  */
 export interface IPushProgress extends IProgress {
-  kind: 'push'
+  kind: "push";
 
   /**
    * The remote that's being pushed to
    */
-  readonly remote: string
+  readonly remote: string;
 
   /**
    * The branch that's being pushed
    */
-  readonly branch: string
+  readonly branch: string;
 }
 
 /**
  * An object describing the progression of a fetch operation
  */
 export interface ICloneProgress extends IProgress {
-  kind: 'clone'
+  kind: "clone";
 }
 
 /** An object describing the progression of a revert operation. */
 export interface IRevertProgress extends IProgress {
-  kind: 'revert'
+  kind: "revert";
 }
 
 export interface IMultiCommitOperationProgress extends IProgress {
-  readonly kind: 'multiCommitOperation'
+  readonly kind: "multiCommitOperation";
   /** The summary of the commit applied */
-  readonly currentCommitSummary: string
+  readonly currentCommitSummary: string;
   /** The number to signify which commit in a selection is being applied */
-  readonly position: number
+  readonly position: number;
   /** The total number of commits in the operation */
-  readonly totalCommitCount: number
+  readonly totalCommitCount: number;
 }
 
 export type Progress =
@@ -121,7 +121,7 @@ export type Progress =
   | IPullProgress
   | IPushProgress
   | IRevertProgress
-  | IMultiCommitOperationProgress
+  | IMultiCommitOperationProgress;
 
 /**
  * Clamps progress values between minimum and maximum.
@@ -130,11 +130,11 @@ export type Progress =
 export function clampProgress<T extends Progress>(
   minimum: number,
   maximum: number,
-  progressCallback: (progress: T) => void
+  progressCallback: (progress: T) => void,
 ): (progress: T) => void {
   return (progress: T) =>
     progressCallback({
       ...progress,
       value: minimum + progress.value * (maximum - minimum),
-    })
+    });
 }

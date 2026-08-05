@@ -10,16 +10,16 @@
  * remote rdc creates look user-added there. Product names in the UI and on the wire are rdc's to
  * choose; bytes inside someone's repository are not — see MIGRATION_PLAN.md principle 6.
  */
-export const ForkedRemotePrefix = 'github-desktop-'
+export const ForkedRemotePrefix = "github-desktop-";
 
 export function forkPullRequestRemoteName(remoteName: string) {
-  return `${ForkedRemotePrefix}${remoteName}`
+  return `${ForkedRemotePrefix}${remoteName}`;
 }
 
 /** A remote as defined in Git. */
 export interface IRemote {
-  readonly name: string
-  readonly url: string
+  readonly name: string;
+  readonly url: string;
 }
 
 /**
@@ -28,12 +28,12 @@ export interface IRemote {
  */
 export function remoteEquals(x: IRemote | null, y: IRemote | null) {
   if (x === y) {
-    return true
+    return true;
   }
 
   if (x === null || y === null) {
-    return false
+    return false;
   }
 
-  return x.name === y.name && x.url === y.url
+  return x.name === y.name && x.url === y.url;
 }

@@ -1,4 +1,4 @@
-import { parseEnumValue } from './enum'
+import { parseEnumValue } from "./enum";
 
 /**
  * Returns the value for the provided key from local storage interpreted as a
@@ -7,15 +7,12 @@ import { parseEnumValue } from './enum'
  * @param key local storage entry to find
  * @param defaultValue fallback value if key not found
  */
-export function getBoolean(key: string): boolean | undefined
-export function getBoolean(key: string, defaultValue: boolean): boolean
-export function getBoolean(
-  key: string,
-  defaultValue?: boolean
-): boolean | undefined {
-  const value = localStorage.getItem(key)
+export function getBoolean(key: string): boolean | undefined;
+export function getBoolean(key: string, defaultValue: boolean): boolean;
+export function getBoolean(key: string, defaultValue?: boolean): boolean | undefined {
+  const value = localStorage.getItem(key);
   if (value === null) {
-    return defaultValue
+    return defaultValue;
   }
 
   // NOTE:
@@ -25,15 +22,15 @@ export function getBoolean(
   // For now we can check these values for compatibility, but we could drop
   // these at some point in the future
 
-  if (value === '1' || value === 'true') {
-    return true
+  if (value === "1" || value === "true") {
+    return true;
   }
 
-  if (value === '0' || value === 'false') {
-    return false
+  if (value === "0" || value === "false") {
+    return false;
   }
 
-  return defaultValue
+  return defaultValue;
 }
 
 /**
@@ -46,7 +43,7 @@ export function getBoolean(
  * @param value the boolean to set
  */
 export function setBoolean(key: string, value: boolean) {
-  localStorage.setItem(key, value ? '1' : '0')
+  localStorage.setItem(key, value ? "1" : "0");
 }
 
 /**
@@ -57,24 +54,21 @@ export function setBoolean(key: string, value: boolean) {
  * @param key local storage entry to read
  * @param defaultValue fallback value if unable to find key or valid value
  */
-export function getNumber(key: string): number | undefined
-export function getNumber(key: string, defaultValue: number): number
-export function getNumber(
-  key: string,
-  defaultValue?: number
-): number | undefined {
-  const numberAsText = localStorage.getItem(key)
+export function getNumber(key: string): number | undefined;
+export function getNumber(key: string, defaultValue: number): number;
+export function getNumber(key: string, defaultValue?: number): number | undefined {
+  const numberAsText = localStorage.getItem(key);
 
   if (numberAsText === null || numberAsText.length === 0) {
-    return defaultValue
+    return defaultValue;
   }
 
-  const value = parseInt(numberAsText, 10)
+  const value = parseInt(numberAsText, 10);
   if (isNaN(value)) {
-    return defaultValue
+    return defaultValue;
   }
 
-  return value
+  return value;
 }
 
 /**
@@ -85,24 +79,21 @@ export function getNumber(
  * @param key local storage entry to read
  * @param defaultValue fallback value if unable to find key or valid value
  */
-export function getFloatNumber(key: string): number | undefined
-export function getFloatNumber(key: string, defaultValue: number): number
-export function getFloatNumber(
-  key: string,
-  defaultValue?: number
-): number | undefined {
-  const numberAsText = localStorage.getItem(key)
+export function getFloatNumber(key: string): number | undefined;
+export function getFloatNumber(key: string, defaultValue: number): number;
+export function getFloatNumber(key: string, defaultValue?: number): number | undefined {
+  const numberAsText = localStorage.getItem(key);
 
   if (numberAsText === null || numberAsText.length === 0) {
-    return defaultValue
+    return defaultValue;
   }
 
-  const value = parseFloat(numberAsText)
+  const value = parseFloat(numberAsText);
   if (isNaN(value)) {
-    return defaultValue
+    return defaultValue;
   }
 
-  return value
+  return value;
 }
 
 /**
@@ -115,7 +106,7 @@ export function getFloatNumber(
  * @param value the number to set
  */
 export function setNumber(key: string, value: number) {
-  localStorage.setItem(key, value.toString())
+  localStorage.setItem(key, value.toString());
 }
 
 /**
@@ -127,10 +118,10 @@ export function setNumber(key: string, value: number) {
  * @param key local storage entry to read
  */
 export function getNumberArray(key: string): ReadonlyArray<number> {
-  return (localStorage.getItem(key) || '')
+  return (localStorage.getItem(key) || "")
     .split(NumberArrayDelimiter)
     .map(parseFloat)
-    .filter(n => !isNaN(n))
+    .filter((n) => !isNaN(n));
 }
 
 /**
@@ -143,7 +134,7 @@ export function getNumberArray(key: string): ReadonlyArray<number> {
  * @param values the numbers to set
  */
 export function setNumberArray(key: string, values: ReadonlyArray<number>) {
-  localStorage.setItem(key, values.join(NumberArrayDelimiter))
+  localStorage.setItem(key, values.join(NumberArrayDelimiter));
 }
 
 /**
@@ -155,22 +146,22 @@ export function setNumberArray(key: string, values: ReadonlyArray<number>) {
  * @param key local storage entry to read
  */
 export function getStringArray(key: string): ReadonlyArray<string> {
-  const rawData = localStorage.getItem(key) || '[]'
+  const rawData = localStorage.getItem(key) || "[]";
 
   try {
-    const outputArray = JSON.parse(rawData)
+    const outputArray = JSON.parse(rawData);
 
     if (!(outputArray instanceof Array)) {
-      return []
+      return [];
     }
 
-    if (outputArray.some(element => typeof element !== 'string')) {
-      return []
+    if (outputArray.some((element) => typeof element !== "string")) {
+      return [];
     }
 
-    return outputArray
+    return outputArray;
   } catch (e) {
-    return []
+    return [];
   }
 }
 
@@ -182,13 +173,13 @@ export function getStringArray(key: string): ReadonlyArray<string> {
  * @param values the strings to set
  */
 export function setStringArray(key: string, values: ReadonlyArray<string>) {
-  const rawData = JSON.stringify(values)
+  const rawData = JSON.stringify(values);
 
-  localStorage.setItem(key, rawData)
+  localStorage.setItem(key, rawData);
 }
 
 /** Default delimiter for stringifying and parsing arrays of numbers */
-const NumberArrayDelimiter = ','
+const NumberArrayDelimiter = ",";
 
 /**
  * Load a (string) enum based on its stored value. See `parseEnumValue` for more
@@ -198,12 +189,9 @@ const NumberArrayDelimiter = ','
  * @param key     The localStorage key to read from
  * @param enumObj The Enum type definition
  */
-export function getEnum<T extends string>(
-  key: string,
-  enumObj: Record<string, T>
-): T | undefined {
-  const storedValue = localStorage.getItem(key)
-  return storedValue === null ? undefined : parseEnumValue(enumObj, storedValue)
+export function getEnum<T extends string>(key: string, enumObj: Record<string, T>): T | undefined {
+  const storedValue = localStorage.getItem(key);
+  return storedValue === null ? undefined : parseEnumValue(enumObj, storedValue);
 }
 
 /**
@@ -213,17 +201,17 @@ export function getEnum<T extends string>(
  * @param key local storage entry to read
  */
 export function getObject<T>(key: string): T | undefined {
-  const rawData = localStorage.getItem(key)
+  const rawData = localStorage.getItem(key);
 
   if (rawData === null) {
-    return
+    return;
   }
 
   try {
-    return JSON.parse(rawData)
+    return JSON.parse(rawData);
   } catch (e) {
     // If corrupted and can't be parsed, we return undefined.
-    return
+    return;
   }
 }
 
@@ -235,6 +223,6 @@ export function getObject<T>(key: string): T | undefined {
  * @param value the object to set
  */
 export function setObject(key: string, value: object) {
-  const rawData = JSON.stringify(value)
-  localStorage.setItem(key, rawData)
+  const rawData = JSON.stringify(value);
+  localStorage.setItem(key, rawData);
 }

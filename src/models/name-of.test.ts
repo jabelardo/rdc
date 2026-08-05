@@ -1,25 +1,25 @@
-import { describe, it } from 'vitest'
-import assert from 'node:assert'
-import { Repository, nameOf } from './repository'
-import { gitHubRepoFixture } from '../test-helpers/github-repo-builder'
+import { describe, it } from "vitest";
+import assert from "node:assert";
+import { Repository, nameOf } from "./repository";
+import { gitHubRepoFixture } from "../test-helpers/github-repo-builder";
 
-const repoPath = '/some/cool/path'
+const repoPath = "/some/cool/path";
 
-describe('nameOf', () => {
-  it('Returns the repo base path if there is no associated github metadata', () => {
-    const repo = new Repository(repoPath, -1, null, false)
+describe("nameOf", () => {
+  it("Returns the repo base path if there is no associated github metadata", () => {
+    const repo = new Repository(repoPath, -1, null, false);
 
-    const name = nameOf(repo)
+    const name = nameOf(repo);
 
-    assert.equal(name, 'path')
-  })
+    assert.equal(name, "path");
+  });
 
-  it('Returns the name of the repo', () => {
-    const ghRepo = gitHubRepoFixture({ owner: 'desktop', name: 'name' })
-    const repo = new Repository(repoPath, -1, ghRepo, false)
+  it("Returns the name of the repo", () => {
+    const ghRepo = gitHubRepoFixture({ owner: "desktop", name: "name" });
+    const repo = new Repository(repoPath, -1, ghRepo, false);
 
-    const name = nameOf(repo)
+    const name = nameOf(repo);
 
-    assert.equal(name, 'desktop/name')
-  })
-})
+    assert.equal(name, "desktop/name");
+  });
+});

@@ -14,6 +14,6 @@ export class SubmoduleEntry {
     public readonly sha: string,
     public readonly path: string,
     /** `git describe` output, or `null` for an uninitialized or conflicted submodule. */
-    public readonly describe: string | null
+    public readonly describe: string | null,
   ) {}
 }

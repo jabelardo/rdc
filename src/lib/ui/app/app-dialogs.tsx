@@ -1,96 +1,89 @@
-import { BranchType, type Branch } from '../../../models/branch'
-import type { IRemote } from '../../../models/remote'
-import type { Repository } from '../../../models/repository'
-import type { WorkingDirectoryFileChange } from '../../../models/status'
-import type { BranchState } from '../../stores/branch-store'
-import type { CloneState } from '../../stores/clone-store'
-import type {
-  PreferencesState,
-  PreferencesStore,
-} from '../../stores/preferences-store'
-import { setWindowZoomFactor } from '../../platform/window'
-import type {
-  HookFailureState,
-  WorkingTreeStore,
-} from '../../stores/working-tree-store'
-import { Modal } from '../modal'
+import { BranchType, type Branch } from "../../../models/branch";
+import type { IRemote } from "../../../models/remote";
+import type { Repository } from "../../../models/repository";
+import type { WorkingDirectoryFileChange } from "../../../models/status";
+import type { BranchState } from "../../stores/branch-store";
+import type { CloneState } from "../../stores/clone-store";
+import type { PreferencesState, PreferencesStore } from "../../stores/preferences-store";
+import { setWindowZoomFactor } from "../../platform/window";
+import type { HookFailureState, WorkingTreeStore } from "../../stores/working-tree-store";
+import { Modal } from "../modal";
 
 const confirmationDialogClassName =
-  'confirmation-dialog box-border w-[min(30rem,calc(100vw-2rem))] rounded-[var(--radius-medium)] border border-[var(--border)] bg-[var(--popover)] p-6 shadow-[var(--shadow-dialog)]'
-const dialogActionsClassName =
-  'confirmation-dialog-actions mt-6 flex justify-end gap-3'
+  "confirmation-dialog box-border w-[min(30rem,calc(100vw-2rem))] rounded-[var(--radius-medium)] border border-[var(--border)] bg-[var(--popover)] p-6 shadow-[var(--shadow-dialog)]";
+const dialogActionsClassName = "confirmation-dialog-actions mt-6 flex justify-end gap-3";
 
 type AppDialogsProps = {
-  readonly discardFile: WorkingDirectoryFileChange | null
-  readonly permanentlyDiscard: boolean
-  readonly discardSelection: boolean
+  readonly discardFile: WorkingDirectoryFileChange | null;
+  readonly permanentlyDiscard: boolean;
+  readonly discardSelection: boolean;
   readonly discardAll: {
-    readonly permanent: boolean
-    readonly fileCount: number
-  } | null
-  readonly discarding: boolean
-  readonly workingTreeError: string | null
-  readonly hookFailure: HookFailureState | null
-  readonly workingTreeStore: WorkingTreeStore
-  readonly repositoryToRemove: Repository | null
-  readonly showAboutDialog: boolean
-  readonly showPreferencesDialog: boolean
-  readonly preferencesState: PreferencesState
-  readonly preferencesStore: PreferencesStore
-  readonly showCloneDialog: boolean
-  readonly cloneState: CloneState
-  readonly cloneURL: string
-  readonly clonePath: string
-  readonly onCancelDiscard: () => void
-  readonly onConfirmDiscard: () => void
-  readonly onCancelDiscardAll: () => void
-  readonly onConfirmDiscardAll: () => void
-  readonly onCancelRemoveRepository: () => void
-  readonly onConfirmRemoveRepository: () => void
-  readonly branchToRename: Branch | null
-  readonly renameName: string
-  readonly onRenameNameChange: (value: string) => void
-  readonly onConfirmRename: () => void
-  readonly onCancelRename: () => void
-  readonly branchToDelete: Branch | null
-  readonly deleteRefusal: string | null
-  readonly deleteUnmerged: boolean
-  readonly deletePruneTrackingRef: boolean
-  readonly onDeletePruneChange: (value: boolean) => void
-  readonly onConfirmDelete: () => void
-  readonly onCancelDelete: () => void
-  readonly branchState: BranchState
-  readonly mergePickerOpen: boolean
-  readonly mergeTarget: string
-  readonly onMergeTargetChange: (value: string) => void
-  readonly mergeMessage: string | null
-  readonly mergeRunning: boolean
-  readonly onConfirmMerge: () => void
-  readonly onCancelMerge: () => void
-  readonly showManageRemotes: boolean
-  readonly remotes: ReadonlyArray<IRemote>
-  readonly remoteFilter: string
-  readonly onRemoteFilterChange: (value: string) => void
-  readonly showAddRemote: boolean
-  readonly addRemoteName: string
-  readonly onAddRemoteNameChange: (value: string) => void
-  readonly addRemoteURL: string
-  readonly onAddRemoteURLChange: (value: string) => void
-  readonly manageRemoteError: string | null
-  readonly manageRunning: boolean
-  readonly onNewRemote: () => void
-  readonly onConfirmAddRemote: () => void
-  readonly onConfirmRemoveRemote: (name: string) => void
-  readonly onCloseAddRemote: () => void
-  readonly onCloseManageRemotes: () => void
-  readonly onDismissAbout: () => void
-  readonly onDismissPreferences: () => void
-  readonly onDismissClone: () => void
-  readonly onChooseCloneDestination: () => void
-  readonly onSubmitClone: () => void
-  readonly onCloneURLChange: (value: string) => void
-  readonly onClonePathChange: (value: string) => void
-}
+    readonly permanent: boolean;
+    readonly fileCount: number;
+  } | null;
+  readonly discarding: boolean;
+  readonly workingTreeError: string | null;
+  readonly hookFailure: HookFailureState | null;
+  readonly workingTreeStore: WorkingTreeStore;
+  readonly repositoryToRemove: Repository | null;
+  readonly showAboutDialog: boolean;
+  readonly showPreferencesDialog: boolean;
+  readonly preferencesState: PreferencesState;
+  readonly preferencesStore: PreferencesStore;
+  readonly showCloneDialog: boolean;
+  readonly cloneState: CloneState;
+  readonly cloneURL: string;
+  readonly clonePath: string;
+  readonly onCancelDiscard: () => void;
+  readonly onConfirmDiscard: () => void;
+  readonly onCancelDiscardAll: () => void;
+  readonly onConfirmDiscardAll: () => void;
+  readonly onCancelRemoveRepository: () => void;
+  readonly onConfirmRemoveRepository: () => void;
+  readonly branchToRename: Branch | null;
+  readonly renameName: string;
+  readonly onRenameNameChange: (value: string) => void;
+  readonly onConfirmRename: () => void;
+  readonly onCancelRename: () => void;
+  readonly branchToDelete: Branch | null;
+  readonly deleteRefusal: string | null;
+  readonly deleteUnmerged: boolean;
+  readonly deletePruneTrackingRef: boolean;
+  readonly onDeletePruneChange: (value: boolean) => void;
+  readonly onConfirmDelete: () => void;
+  readonly onCancelDelete: () => void;
+  readonly branchState: BranchState;
+  readonly mergePickerOpen: boolean;
+  readonly mergeTarget: string;
+  readonly onMergeTargetChange: (value: string) => void;
+  readonly mergeMessage: string | null;
+  readonly mergeRunning: boolean;
+  readonly onConfirmMerge: () => void;
+  readonly onCancelMerge: () => void;
+  readonly showManageRemotes: boolean;
+  readonly remotes: ReadonlyArray<IRemote>;
+  readonly remoteFilter: string;
+  readonly onRemoteFilterChange: (value: string) => void;
+  readonly showAddRemote: boolean;
+  readonly addRemoteName: string;
+  readonly onAddRemoteNameChange: (value: string) => void;
+  readonly addRemoteURL: string;
+  readonly onAddRemoteURLChange: (value: string) => void;
+  readonly manageRemoteError: string | null;
+  readonly manageRunning: boolean;
+  readonly onNewRemote: () => void;
+  readonly onConfirmAddRemote: () => void;
+  readonly onConfirmRemoveRemote: (name: string) => void;
+  readonly onCloseAddRemote: () => void;
+  readonly onCloseManageRemotes: () => void;
+  readonly onDismissAbout: () => void;
+  readonly onDismissPreferences: () => void;
+  readonly onDismissClone: () => void;
+  readonly onChooseCloneDestination: () => void;
+  readonly onSubmitClone: () => void;
+  readonly onCloneURLChange: (value: string) => void;
+  readonly onClonePathChange: (value: string) => void;
+};
 
 /**
  * The application's modal layer.
@@ -178,21 +171,19 @@ export function AppDialogs({
           onDismiss={discarding ? undefined : onCancelDiscard}
         >
           <h2 id="discard-dialog-title">
-            {permanentlyDiscard
-              ? 'Permanently discard changes'
-              : 'Confirm discard changes'}
+            {permanentlyDiscard ? "Permanently discard changes" : "Confirm discard changes"}
           </h2>
           <p>
-            Are you sure you want to discard{' '}
-            {discardSelection ? 'the selected changes to ' : 'all changes to '}
+            Are you sure you want to discard{" "}
+            {discardSelection ? "the selected changes to " : "all changes to "}
             <strong>{discardFile.path}</strong>?
           </p>
           <p id="discard-dialog-message">
             {discardSelection
-              ? 'Selected changes cannot be restored from the operating system trash.'
+              ? "Selected changes cannot be restored from the operating system trash."
               : permanentlyDiscard
-                ? 'Changes cannot be restored after deletion.'
-                : 'Changes can be restored from the operating system trash.'}
+                ? "Changes cannot be restored after deletion."
+                : "Changes can be restored from the operating system trash."}
           </p>
           {workingTreeError !== null && (
             <p className="application-error" role="alert">
@@ -200,11 +191,7 @@ export function AppDialogs({
             </p>
           )}
           <div className={dialogActionsClassName}>
-            <button
-              type="button"
-              disabled={discarding}
-              onClick={onCancelDiscard}
-            >
+            <button type="button" disabled={discarding} onClick={onCancelDiscard}>
               Cancel
             </button>
             <button
@@ -214,10 +201,10 @@ export function AppDialogs({
               onClick={onConfirmDiscard}
             >
               {discarding
-                ? 'Discarding…'
+                ? "Discarding…"
                 : permanentlyDiscard
-                  ? 'Permanently discard changes'
-                  : 'Discard changes'}
+                  ? "Permanently discard changes"
+                  : "Discard changes"}
             </button>
           </div>
         </Modal>
@@ -232,23 +219,19 @@ export function AppDialogs({
           onDismiss={discarding ? undefined : onCancelDiscardAll}
         >
           <h2 id="discard-all-dialog-title">
-            {discardAll.permanent
-              ? 'Permanently discard all changes'
-              : 'Discard all changes'}
+            {discardAll.permanent ? "Permanently discard all changes" : "Discard all changes"}
           </h2>
           <p>
-            This will {discardAll.permanent ? 'permanently ' : ''}discard
-            changes to{' '}
+            This will {discardAll.permanent ? "permanently " : ""}discard changes to{" "}
             <strong>
-              {discardAll.fileCount}{' '}
-              {discardAll.fileCount === 1 ? 'file' : 'files'}
+              {discardAll.fileCount} {discardAll.fileCount === 1 ? "file" : "files"}
             </strong>
             .
           </p>
           <p id="discard-all-dialog-message">
             {discardAll.permanent
-              ? 'These changes cannot be recovered.'
-              : 'Untracked files can be recovered from the operating system trash, but changes to tracked files cannot be restored.'}
+              ? "These changes cannot be recovered."
+              : "Untracked files can be recovered from the operating system trash, but changes to tracked files cannot be restored."}
           </p>
           {workingTreeError !== null && (
             <p className="application-error" role="alert">
@@ -256,11 +239,7 @@ export function AppDialogs({
             </p>
           )}
           <div className={dialogActionsClassName}>
-            <button
-              type="button"
-              disabled={discarding}
-              onClick={onCancelDiscardAll}
-            >
+            <button type="button" disabled={discarding} onClick={onCancelDiscardAll}>
               Cancel
             </button>
             <button
@@ -270,10 +249,10 @@ export function AppDialogs({
               onClick={onConfirmDiscardAll}
             >
               {discarding
-                ? 'Discarding…'
+                ? "Discarding…"
                 : discardAll.permanent
-                  ? 'Permanently discard changes'
-                  : 'Discard changes'}
+                  ? "Permanently discard changes"
+                  : "Discard changes"}
             </button>
           </div>
         </Modal>
@@ -288,9 +267,9 @@ export function AppDialogs({
         >
           <h2 id="rename-branch-title">Rename branch</h2>
           <form
-            onSubmit={event => {
-              event.preventDefault()
-              onConfirmRename()
+            onSubmit={(event) => {
+              event.preventDefault();
+              onConfirmRename();
             }}
           >
             <label htmlFor="rename-branch-name">
@@ -300,13 +279,12 @@ export function AppDialogs({
               id="rename-branch-name"
               value={renameName}
               autoFocus
-              onChange={event => onRenameNameChange(event.currentTarget.value)}
+              onChange={(event) => onRenameNameChange(event.currentTarget.value)}
             />
             {branchToRename.upstream !== null && (
               <p>
-                This branch tracks <strong>{branchToRename.upstream}</strong>.
-                Only the local branch is renamed; the remote branch keeps its
-                current name.
+                This branch tracks <strong>{branchToRename.upstream}</strong>. Only the local branch
+                is renamed; the remote branch keeps its current name.
               </p>
             )}
             <div className={dialogActionsClassName}>
@@ -316,8 +294,7 @@ export function AppDialogs({
               <button
                 type="submit"
                 disabled={
-                  renameName.trim().length === 0 ||
-                  renameName.trim() === branchToRename.name
+                  renameName.trim().length === 0 || renameName.trim() === branchToRename.name
                 }
               >
                 Rename
@@ -355,8 +332,8 @@ export function AppDialogs({
                 </p>
                 {deleteUnmerged && (
                   <p className="application-error" role="alert">
-                    This branch has commits that are not in the current branch.
-                    Deleting it will permanently remove them.
+                    This branch has commits that are not in the current branch. Deleting it will
+                    permanently remove them.
                   </p>
                 )}
                 {branchToDelete.upstream !== null && (
@@ -364,23 +341,16 @@ export function AppDialogs({
                     <input
                       type="checkbox"
                       checked={deletePruneTrackingRef}
-                      onChange={event =>
-                        onDeletePruneChange(event.currentTarget.checked)
-                      }
+                      onChange={(event) => onDeletePruneChange(event.currentTarget.checked)}
                     />
-                    Also remove the local record of the remote branch (
-                    {branchToDelete.upstream})
+                    Also remove the local record of the remote branch ({branchToDelete.upstream})
                   </label>
                 )}
                 <div className={dialogActionsClassName}>
                   <button type="button" onClick={onCancelDelete}>
                     Cancel
                   </button>
-                  <button
-                    type="button"
-                    className="destructive-button"
-                    onClick={onConfirmDelete}
-                  >
+                  <button type="button" className="destructive-button" onClick={onConfirmDelete}>
                     Delete branch
                   </button>
                 </div>
@@ -398,14 +368,13 @@ export function AppDialogs({
           onDismiss={mergeRunning ? undefined : onCancelMerge}
         >
           <h2 id="merge-dialog-title">
-            Merge into current branch ({branchState.currentBranch ?? '—'})
+            Merge into current branch ({branchState.currentBranch ?? "—"})
           </h2>
           {(() => {
             const candidates = branchState.branches.filter(
-              branch =>
-                branch.type === BranchType.Local &&
-                branch.name !== branchState.currentBranch
-            )
+              (branch) =>
+                branch.type === BranchType.Local && branch.name !== branchState.currentBranch,
+            );
             if (candidates.length === 0) {
               return (
                 <>
@@ -416,7 +385,7 @@ export function AppDialogs({
                     </button>
                   </div>
                 </>
-              )
+              );
             }
             return (
               <>
@@ -425,11 +394,9 @@ export function AppDialogs({
                   id="merge-target-branch"
                   value={mergeTarget}
                   disabled={mergeRunning}
-                  onChange={event =>
-                    onMergeTargetChange(event.currentTarget.value)
-                  }
+                  onChange={(event) => onMergeTargetChange(event.currentTarget.value)}
                 >
-                  {candidates.map(branch => (
+                  {candidates.map((branch) => (
                     <option key={branch.name} value={branch.name}>
                       {branch.name}
                     </option>
@@ -443,21 +410,21 @@ export function AppDialogs({
                 <div className={dialogActionsClassName}>
                   <button
                     type="button"
-                    disabled={mergeRunning || mergeTarget === ''}
+                    disabled={mergeRunning || mergeTarget === ""}
                     onClick={onCancelMerge}
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
-                    disabled={mergeRunning || mergeTarget === ''}
+                    disabled={mergeRunning || mergeTarget === ""}
                     onClick={onConfirmMerge}
                   >
-                    {mergeRunning ? 'Merging…' : 'Merge'}
+                    {mergeRunning ? "Merging…" : "Merge"}
                   </button>
                 </div>
               </>
-            )
+            );
           })()}
         </Modal>
       )}
@@ -478,48 +445,34 @@ export function AppDialogs({
               placeholder="Filter remotes"
               value={remoteFilter}
               disabled={manageRunning}
-              onChange={event =>
-                onRemoteFilterChange(event.currentTarget.value)
-              }
+              onChange={(event) => onRemoteFilterChange(event.currentTarget.value)}
             />
-            <button
-              type="button"
-              disabled={manageRunning}
-              onClick={onNewRemote}
-            >
+            <button type="button" disabled={manageRunning} onClick={onNewRemote}>
               New remote
             </button>
           </div>
           {(() => {
-            const filter = remoteFilter.trim().toLowerCase()
+            const filter = remoteFilter.trim().toLowerCase();
             const filtered = remotes.filter(
-              remote =>
+              (remote) =>
                 remote.name.toLowerCase().includes(filter) ||
-                remote.url.toLowerCase().includes(filter)
-            )
+                remote.url.toLowerCase().includes(filter),
+            );
             if (remotes.length === 0) {
-              return (
-                <p className="manage-remotes-empty mt-4">
-                  This repository has no remotes.
-                </p>
-              )
+              return <p className="manage-remotes-empty mt-4">This repository has no remotes.</p>;
             }
             if (filtered.length === 0) {
-              return (
-                <p className="manage-remotes-empty mt-4">
-                  No remotes match your filter.
-                </p>
-              )
+              return <p className="manage-remotes-empty mt-4">No remotes match your filter.</p>;
             }
             return (
               <ul className="manage-remotes-list mt-4 grid list-none gap-[0.4rem] p-0">
-                {filtered.map(remote => (
+                {filtered.map((remote) => (
                   <li
                     key={remote.name}
                     className="grid items-center gap-3 [grid-template-columns:minmax(0,1fr)_auto]"
                   >
                     <span className="min-w-0">
-                      <strong>{remote.name}</strong>{' '}
+                      <strong>{remote.name}</strong>{" "}
                       <small className="break-all">{remote.url}</small>
                     </span>
                     <button
@@ -533,14 +486,10 @@ export function AppDialogs({
                   </li>
                 ))}
               </ul>
-            )
+            );
           })()}
           <div className={dialogActionsClassName}>
-            <button
-              type="button"
-              disabled={manageRunning}
-              onClick={onCloseManageRemotes}
-            >
+            <button type="button" disabled={manageRunning} onClick={onCloseManageRemotes}>
               Close
             </button>
           </div>
@@ -562,9 +511,9 @@ export function AppDialogs({
           )}
           <form
             className="manage-remotes-add mt-4 grid gap-2"
-            onSubmit={event => {
-              event.preventDefault()
-              onConfirmAddRemote()
+            onSubmit={(event) => {
+              event.preventDefault();
+              onConfirmAddRemote();
             }}
           >
             <label htmlFor="add-remote-name">Name</label>
@@ -574,9 +523,7 @@ export function AppDialogs({
               placeholder="upstream"
               value={addRemoteName}
               disabled={manageRunning}
-              onChange={event =>
-                onAddRemoteNameChange(event.currentTarget.value)
-              }
+              onChange={(event) => onAddRemoteNameChange(event.currentTarget.value)}
             />
             <label htmlFor="add-remote-url">URL</label>
             <input
@@ -584,29 +531,23 @@ export function AppDialogs({
               placeholder="https://github.com/user/repo.git"
               value={addRemoteURL}
               disabled={manageRunning}
-              onChange={event =>
-                onAddRemoteURLChange(event.currentTarget.value)
-              }
+              onChange={(event) => onAddRemoteURLChange(event.currentTarget.value)}
             />
             <div className={dialogActionsClassName}>
-              <button
-                type="button"
-                disabled={manageRunning}
-                onClick={onCloseAddRemote}
-              >
+              <button type="button" disabled={manageRunning} onClick={onCloseAddRemote}>
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={
                   manageRunning ||
-                  addRemoteName.trim() === '' ||
+                  addRemoteName.trim() === "" ||
                   /\s/.test(addRemoteName) ||
-                  addRemoteURL.trim() === '' ||
-                  remotes.some(remote => remote.name === addRemoteName.trim())
+                  addRemoteURL.trim() === "" ||
+                  remotes.some((remote) => remote.name === addRemoteName.trim())
                 }
               >
-                {manageRunning ? 'Adding…' : 'Add remote'}
+                {manageRunning ? "Adding…" : "Add remote"}
               </button>
             </div>
           </form>
@@ -622,23 +563,15 @@ export function AppDialogs({
         >
           <h2 id="hook-failure-title">Git hook failed</h2>
           <p id="hook-failure-message">
-            The <strong>{hookFailure.hook}</strong> hook failed. Abort the
-            commit, or ignore this failure and continue?
+            The <strong>{hookFailure.hook}</strong> hook failed. Abort the commit, or ignore this
+            failure and continue?
           </p>
-          <pre className="commit-terminal-output">
-            {hookFailure.terminalOutput}
-          </pre>
+          <pre className="commit-terminal-output">{hookFailure.terminalOutput}</pre>
           <div className={dialogActionsClassName}>
-            <button
-              type="button"
-              onClick={() => workingTreeStore.resolveHookFailure('abort')}
-            >
+            <button type="button" onClick={() => workingTreeStore.resolveHookFailure("abort")}>
               Abort commit
             </button>
-            <button
-              type="button"
-              onClick={() => workingTreeStore.resolveHookFailure('ignore')}
-            >
+            <button type="button" onClick={() => workingTreeStore.resolveHookFailure("ignore")}>
               Ignore hook failure
             </button>
           </div>
@@ -655,8 +588,8 @@ export function AppDialogs({
         >
           <h2 id="remove-repository-title">Remove repository</h2>
           <p id="remove-repository-message">
-            Remove <strong>{repositoryToRemove.name}</strong> from rdc? Files in
-            the repository will not be deleted.
+            Remove <strong>{repositoryToRemove.name}</strong> from rdc? Files in the repository will
+            not be deleted.
           </p>
           <div className={dialogActionsClassName}>
             <button type="button" onClick={onCancelRemoveRepository}>
@@ -702,9 +635,9 @@ export function AppDialogs({
             <select
               id="theme-preference"
               value={preferencesState.theme}
-              onChange={event =>
+              onChange={(event) =>
                 void preferencesStore.setTheme(
-                  event.currentTarget.value as PreferencesState['theme']
+                  event.currentTarget.value as PreferencesState["theme"],
                 )
               }
             >
@@ -718,24 +651,22 @@ export function AppDialogs({
               <button
                 type="button"
                 onClick={() => {
-                  const next = Math.max(0.5, preferencesState.zoomFactor - 0.05)
-                  preferencesStore.setZoomFactor(next)
-                  void setWindowZoomFactor(next)
+                  const next = Math.max(0.5, preferencesState.zoomFactor - 0.05);
+                  preferencesStore.setZoomFactor(next);
+                  void setWindowZoomFactor(next);
                 }}
                 disabled={preferencesState.zoomFactor <= 0.5}
                 aria-label="Decrease zoom"
               >
                 −
               </button>
-              <span aria-live="polite">
-                {Math.round(preferencesState.zoomFactor * 100)}%
-              </span>
+              <span aria-live="polite">{Math.round(preferencesState.zoomFactor * 100)}%</span>
               <button
                 type="button"
                 onClick={() => {
-                  const next = Math.min(2.0, preferencesState.zoomFactor + 0.05)
-                  preferencesStore.setZoomFactor(next)
-                  void setWindowZoomFactor(next)
+                  const next = Math.min(2.0, preferencesState.zoomFactor + 0.05);
+                  preferencesStore.setZoomFactor(next);
+                  void setWindowZoomFactor(next);
                 }}
                 disabled={preferencesState.zoomFactor >= 2.0}
                 aria-label="Increase zoom"
@@ -747,18 +678,16 @@ export function AppDialogs({
             <label htmlFor="editor-preference">External editor</label>
             <select
               id="editor-preference"
-              value={preferencesState.selectedExternalEditor ?? ''}
+              value={preferencesState.selectedExternalEditor ?? ""}
               disabled={preferencesState.loading}
-              onChange={event =>
-                preferencesStore.setSelectedExternalEditor(
-                  event.currentTarget.value || null
-                )
+              onChange={(event) =>
+                preferencesStore.setSelectedExternalEditor(event.currentTarget.value || null)
               }
             >
               {preferencesState.editors.length === 0 && (
                 <option value="">No supported editor found</option>
               )}
-              {preferencesState.editors.map(editor => (
+              {preferencesState.editors.map((editor) => (
                 <option key={editor.editor} value={editor.editor}>
                   {editor.editor}
                 </option>
@@ -768,19 +697,18 @@ export function AppDialogs({
             <label htmlFor="shell-preference">Shell</label>
             <select
               id="shell-preference"
-              value={preferencesState.selectedShell ?? ''}
+              value={preferencesState.selectedShell ?? ""}
               disabled={preferencesState.loading}
-              onChange={event =>
+              onChange={(event) =>
                 preferencesStore.setSelectedShell(
-                  (event.currentTarget.value ||
-                    null) as PreferencesState['selectedShell']
+                  (event.currentTarget.value || null) as PreferencesState["selectedShell"],
                 )
               }
             >
               {preferencesState.shells.length === 0 && (
                 <option value="">No supported shell found</option>
               )}
-              {preferencesState.shells.map(shell => (
+              {preferencesState.shells.map((shell) => (
                 <option key={shell.shell} value={shell.shell}>
                   {shell.shell}
                 </option>
@@ -793,10 +721,8 @@ export function AppDialogs({
                 <input
                   type="checkbox"
                   checked={preferencesState.confirmRepositoryRemoval}
-                  onChange={event =>
-                    preferencesStore.setConfirmRepositoryRemoval(
-                      event.currentTarget.checked
-                    )
+                  onChange={(event) =>
+                    preferencesStore.setConfirmRepositoryRemoval(event.currentTarget.checked)
                   }
                 />
                 Removing a repository from rdc
@@ -805,10 +731,8 @@ export function AppDialogs({
                 <input
                   type="checkbox"
                   checked={preferencesState.confirmDiscardChanges}
-                  onChange={event =>
-                    preferencesStore.setConfirmDiscardChanges(
-                      event.currentTarget.checked
-                    )
+                  onChange={(event) =>
+                    preferencesStore.setConfirmDiscardChanges(event.currentTarget.checked)
                   }
                 />
                 Discarding file changes
@@ -817,9 +741,9 @@ export function AppDialogs({
                 <input
                   type="checkbox"
                   checked={preferencesState.confirmDiscardChangesPermanently}
-                  onChange={event =>
+                  onChange={(event) =>
                     preferencesStore.setConfirmDiscardChangesPermanently(
-                      event.currentTarget.checked
+                      event.currentTarget.checked,
                     )
                   }
                 />
@@ -849,9 +773,9 @@ export function AppDialogs({
           <h2 id="clone-dialog-title">Clone a repository</h2>
           <form
             aria-busy={cloneState.operation !== null}
-            onSubmit={event => {
-              event.preventDefault()
-              onSubmitClone()
+            onSubmit={(event) => {
+              event.preventDefault();
+              onSubmitClone();
             }}
           >
             <label htmlFor="clone-url">Repository URL</label>
@@ -859,7 +783,7 @@ export function AppDialogs({
               id="clone-url"
               value={cloneURL}
               disabled={cloneState.operation !== null}
-              onChange={event => onCloneURLChange(event.currentTarget.value)}
+              onChange={(event) => onCloneURLChange(event.currentTarget.value)}
             />
             <label htmlFor="clone-path">Destination path</label>
             <div className="clone-path grid gap-2 [grid-template-columns:minmax(0,1fr)_auto]">
@@ -867,7 +791,7 @@ export function AppDialogs({
                 id="clone-path"
                 value={clonePath}
                 disabled={cloneState.operation !== null}
-                onChange={event => onClonePathChange(event.currentTarget.value)}
+                onChange={(event) => onClonePathChange(event.currentTarget.value)}
               />
               <button
                 type="button"
@@ -881,9 +805,7 @@ export function AppDialogs({
               <div className="clone-progress grid gap-[0.35rem]" role="status">
                 <progress value={cloneState.progress.value} max={1} />
                 <span>
-                  {cloneState.progress.description ??
-                    cloneState.progress.title ??
-                    'Cloning…'}
+                  {cloneState.progress.description ?? cloneState.progress.title ?? "Cloning…"}
                 </span>
               </div>
             )}
@@ -901,12 +823,12 @@ export function AppDialogs({
                 Cancel
               </button>
               <button type="submit" disabled={cloneState.operation !== null}>
-                {cloneState.operation === 'clone' ? 'Cloning…' : 'Clone'}
+                {cloneState.operation === "clone" ? "Cloning…" : "Clone"}
               </button>
             </div>
           </form>
         </Modal>
       )}
     </>
-  )
+  );
 }

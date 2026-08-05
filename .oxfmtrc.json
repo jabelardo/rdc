@@ -1,13 +1,8 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
 
-  "//": "Mirrors desktop-plus/.prettierrc.yml, because rdc's ported code was formatted with it. Matching it means adopting a formatter costs almost no diff: with these values 232 files changed, without them 331. `printWidth` is stated explicitly even though upstream omitted it — upstream inherited Prettier's default of 80, while oxfmt's default is wider, which would otherwise un-wrap thousands of already-wrapped lines. `endOfLine` is `lf` because oxfmt does not support Prettier's `auto`.",
+  "//": "Formerly mirrored desktop-plus/.prettierrc.yml (singleQuote/trailingComma es5/no semi/ arrowParens avoid/printWidth 80), to minimize diff noise when rdc's ported code first landed. That trade-off is retired: rdc is greenfield and not racing an MVP date, and the priority is a foundation an outside contributor can pick up with zero setup — which means oxfmt's own defaults, not a bespoke config someone has to learn first. `endOfLine: lf` is kept explicit only because it happens to match the default already and is worth pinning regardless of platform.",
 
-  "singleQuote": true,
-  "trailingComma": "es5",
-  "semi": false,
-  "arrowParens": "avoid",
-  "printWidth": 80,
   "endOfLine": "lf",
 
   "ignorePatterns": [

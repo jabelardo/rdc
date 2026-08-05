@@ -1,12 +1,9 @@
-import { Repository } from '../../models/repository'
-import {
-  RepositoriesDatabase,
-  type DatabaseRepository,
-} from '../databases/repositories-database'
+import { Repository } from "../../models/repository";
+import { RepositoriesDatabase, type DatabaseRepository } from "../databases/repositories-database";
 
 function toRepository(record: DatabaseRepository): Repository {
   if (record.id === undefined) {
-    throw new Error('A persisted repository must have an id')
+    throw new Error("A persisted repository must have an id");
   }
 
   return new Repository(
@@ -21,8 +18,8 @@ function toRepository(record: DatabaseRepository): Repository {
     null,
     false,
     null,
-    record.gitDir
-  )
+    record.gitDir,
+  );
 }
 
 /**
@@ -35,44 +32,32 @@ export class RepositoriesStore {
   public constructor(private readonly database: RepositoriesDatabase) {}
 
   public async getAll(): Promise<ReadonlyArray<Repository>> {
-    return (await this.database.repositories.orderBy('id').toArray()).map(
-      toRepository
-    )
+    return (await this.database.repositories.orderBy("id").toArray()).map(toRepository);
   }
 
-  public async addRepository(
-    path: string,
-    gitDir: string
-  ): Promise<Repository> {
-    const record = await this.database.transaction(
-      'rw',
-      this.database.repositories,
-      async () => {
-        const existing = await this.database.repositories
-          .where('path')
-          .equals(path)
-          .first()
-        if (existing !== undefined) {
-          return existing
-        }
-
-        const repository: DatabaseRepository = {
-          path,
-          gitDir,
-          missing: false,
-          alias: null,
-          groupName: null,
-          defaultBranch: null,
-        }
-        const id = await this.database.repositories.add(repository)
-        return { ...repository, id }
+  public async addRepository(path: string, gitDir: string): Promise<Repository> {
+    const record = await this.database.transaction("rw", this.database.repositories, async () => {
+      const existing = await this.database.repositories.where("path").equals(path).first();
+      if (existing !== undefined) {
+        return existing;
       }
-    )
 
-    return toRepository(record)
+      const repository: DatabaseRepository = {
+        path,
+        gitDir,
+        missing: false,
+        alias: null,
+        groupName: null,
+        defaultBranch: null,
+      };
+      const id = await this.database.repositories.add(repository);
+      return { ...repository, id };
+    });
+
+    return toRepository(record);
   }
 
   public async removeRepository(repository: Repository): Promise<void> {
-    await this.database.repositories.delete(repository.id)
+    await this.database.repositories.delete(repository.id);
   }
 }

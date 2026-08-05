@@ -4,30 +4,27 @@
  * Grouped as the Rust command module is; the `git-ops` side keeps one module per original file.
  */
 
-import { Channel, invoke } from '@tauri-apps/api/core'
-import type { IRevertProgress } from '../models/progress'
-import { CommitIdentity } from '../models/commit-identity'
-import type { MergeTreeResult } from '../models/merge'
-import type { RepositoryType } from '../models/repository-type'
-import type { ITrailer } from '../models/trailer'
-import type { IRebaseInternalState } from './git-ipc'
-import { hydrateCommitIdentity, type ICommitIdentityData } from './log-ipc'
+import { Channel, invoke } from "@tauri-apps/api/core";
+import type { IRevertProgress } from "../models/progress";
+import { CommitIdentity } from "../models/commit-identity";
+import type { MergeTreeResult } from "../models/merge";
+import type { RepositoryType } from "../models/repository-type";
+import type { ITrailer } from "../models/trailer";
+import type { IRebaseInternalState } from "./git-ipc";
+import { hydrateCommitIdentity, type ICommitIdentityData } from "./log-ipc";
 
 /** Creates an annotated tag on a commit. */
 export async function createTag(
   repositoryPath: string,
   name: string,
-  targetCommit: string
+  targetCommit: string,
 ): Promise<void> {
-  return invoke<void>('create_tag', { repositoryPath, name, targetCommit })
+  return invoke<void>("create_tag", { repositoryPath, name, targetCommit });
 }
 
 /** Deletes a local tag. */
-export async function deleteTag(
-  repositoryPath: string,
-  name: string
-): Promise<void> {
-  return invoke<void>('delete_tag', { repositoryPath, name })
+export async function deleteTag(repositoryPath: string, name: string): Promise<void> {
+  return invoke<void>("delete_tag", { repositoryPath, name });
 }
 
 /**
@@ -39,15 +36,12 @@ export async function deleteTag(
  * Arrives as pairs, because a tag name is an arbitrary string, and is turned into a `Map` here: a `Map`
  * accepts any string key where a plain object would collide with `Object.prototype` members.
  */
-export async function getAllTags(
-  repositoryPath: string
-): Promise<Map<string, string>> {
-  const pairs = await invoke<ReadonlyArray<readonly [string, string]>>(
-    'get_all_tags',
-    { repositoryPath }
-  )
+export async function getAllTags(repositoryPath: string): Promise<Map<string, string>> {
+  const pairs = await invoke<ReadonlyArray<readonly [string, string]>>("get_all_tags", {
+    repositoryPath,
+  });
 
-  return new Map(pairs)
+  return new Map(pairs);
 }
 
 /**
@@ -63,16 +57,16 @@ export async function revertCommit(
   repositoryPath: string,
   commit: string,
   parentCount: number,
-  progressCallback?: (progress: IRevertProgress) => void
+  progressCallback?: (progress: IRevertProgress) => void,
 ): Promise<void> {
-  const onProgress = new Channel<IRevertProgress>(progressCallback)
+  const onProgress = new Channel<IRevertProgress>(progressCallback);
 
-  return invoke<void>('revert_commit', {
+  return invoke<void>("revert_commit", {
     repositoryPath,
     commit,
     parentCount,
     onProgress,
-  })
+  });
 }
 
 /**
@@ -83,12 +77,12 @@ export async function revertCommit(
  */
 export async function getRecentBranches(
   repositoryPath: string,
-  limit: number
+  limit: number,
 ): Promise<ReadonlyArray<string>> {
-  return invoke<ReadonlyArray<string>>('get_recent_branches', {
+  return invoke<ReadonlyArray<string>>("get_recent_branches", {
     repositoryPath,
     limit,
-  })
+  });
 }
 
 /**
@@ -99,14 +93,14 @@ export async function getRecentBranches(
  */
 export async function getBranchCheckouts(
   repositoryPath: string,
-  after: Date
+  after: Date,
 ): Promise<Map<string, Date>> {
-  const pairs = await invoke<ReadonlyArray<readonly [string, number]>>(
-    'get_branch_checkouts',
-    { repositoryPath, after: Math.floor(after.getTime() / 1000) }
-  )
+  const pairs = await invoke<ReadonlyArray<readonly [string, number]>>("get_branch_checkouts", {
+    repositoryPath,
+    after: Math.floor(after.getTime() / 1000),
+  });
 
-  return new Map(pairs.map(([branch, when]) => [branch, new Date(when * 1000)]))
+  return new Map(pairs.map(([branch, when]) => [branch, new Date(when * 1000)]));
 }
 
 /**
@@ -115,15 +109,12 @@ export async function getBranchCheckouts(
  * The placeholder `git init` writes counts as none, since it isn't something the user chose.
  */
 export async function getDescription(repositoryPath: string): Promise<string> {
-  return invoke<string>('get_description', { repositoryPath })
+  return invoke<string>("get_description", { repositoryPath });
 }
 
 /** Writes the repository's description. */
-export async function writeDescription(
-  repositoryPath: string,
-  description: string
-): Promise<void> {
-  return invoke<void>('write_description', { repositoryPath, description })
+export async function writeDescription(repositoryPath: string, description: string): Promise<void> {
+  return invoke<void>("write_description", { repositoryPath, description });
 }
 
 /**
@@ -135,15 +126,12 @@ export async function writeDescription(
  * `null` means git declined to invent one, so a commit will fail the same way — prompt rather than
  * proceed.
  */
-export async function getAuthorIdentity(
-  repositoryPath: string
-): Promise<CommitIdentity | null> {
-  const identity = await invoke<ICommitIdentityData | null>(
-    'get_author_identity',
-    { repositoryPath }
-  )
+export async function getAuthorIdentity(repositoryPath: string): Promise<CommitIdentity | null> {
+  const identity = await invoke<ICommitIdentityData | null>("get_author_identity", {
+    repositoryPath,
+  });
 
-  return identity === null ? null : hydrateCommitIdentity(identity)
+  return identity === null ? null : hydrateCommitIdentity(identity);
 }
 
 /**
@@ -152,10 +140,8 @@ export async function getAuthorIdentity(
  * **Irreversible** — these files are not in git, so nothing can restore them. Ignored files are left
  * alone.
  */
-export async function cleanUntrackedFiles(
-  repositoryPath: string
-): Promise<void> {
-  return invoke<void>('clean_untracked_files', { repositoryPath })
+export async function cleanUntrackedFiles(repositoryPath: string): Promise<void> {
+  return invoke<void>("clean_untracked_files", { repositoryPath });
 }
 
 /**
@@ -169,7 +155,7 @@ export async function cleanUntrackedFiles(
  * Safe to call more than once: an identical entry is never added twice.
  */
 export async function addSafeDirectory(path: string): Promise<void> {
-  await invoke('add_safe_directory', { path })
+  await invoke("add_safe_directory", { path });
 }
 
 // --- configuration ---
@@ -185,27 +171,25 @@ export async function addSafeDirectory(path: string): Promise<void> {
 export async function getConfigValue(
   repositoryPath: string,
   name: string,
-  onlyLocal = false
+  onlyLocal = false,
 ): Promise<string | null> {
-  return invoke<string | null>('get_config_value', {
+  return invoke<string | null>("get_config_value", {
     repositoryPath,
     name,
     onlyLocal,
-  })
+  });
 }
 
 /** Returns the user's global git config path, creating the file if necessary. */
 export async function getGlobalConfigPath(): Promise<string> {
-  return invoke<string>('get_global_config_path')
+  return invoke<string>("get_global_config_path");
 }
 
 // --- .gitignore ---
 
 /** The repository's root `.gitignore`, or `null` if there isn't one. */
-export async function readGitignoreAtRoot(
-  repositoryPath: string
-): Promise<string | null> {
-  return invoke<string | null>('read_gitignore_at_root', { repositoryPath })
+export async function readGitignoreAtRoot(repositoryPath: string): Promise<string | null> {
+  return invoke<string | null>("read_gitignore_at_root", { repositoryPath });
 }
 
 /**
@@ -215,11 +199,8 @@ export async function readGitignoreAtRoot(
  * empty file shows up as a change the user didn't make. Line endings follow `core.autocrlf`/`core.safecrlf`, so
  * the file matches the rest of the repository.
  */
-export async function saveGitIgnore(
-  repositoryPath: string,
-  text: string
-): Promise<void> {
-  await invoke('save_gitignore', { repositoryPath, text })
+export async function saveGitIgnore(repositoryPath: string, text: string): Promise<void> {
+  await invoke("save_gitignore", { repositoryPath, text });
 }
 
 /**
@@ -230,9 +211,9 @@ export async function saveGitIgnore(
  */
 export async function appendIgnoreRules(
   repositoryPath: string,
-  patterns: ReadonlyArray<string>
+  patterns: ReadonlyArray<string>,
 ): Promise<void> {
-  await invoke('append_ignore_rules', { repositoryPath, patterns })
+  await invoke("append_ignore_rules", { repositoryPath, patterns });
 }
 
 /**
@@ -243,9 +224,9 @@ export async function appendIgnoreRules(
  */
 export async function appendIgnoreFiles(
   repositoryPath: string,
-  paths: ReadonlyArray<string>
+  paths: ReadonlyArray<string>,
 ): Promise<void> {
-  await invoke('append_ignore_files', { repositoryPath, paths })
+  await invoke("append_ignore_files", { repositoryPath, paths });
 }
 
 // --- Git LFS ---
@@ -257,20 +238,17 @@ export async function appendIgnoreFiles(
  * configured; without it git refuses rather than silently taking them over.
  */
 export async function installGlobalLFSFilters(force = false): Promise<void> {
-  await invoke('install_global_lfs_filters', { force })
+  await invoke("install_global_lfs_filters", { force });
 }
 
 /** Installs LFS's hooks in one repository. */
-export async function installLFSHooks(
-  repositoryPath: string,
-  force = false
-): Promise<void> {
-  await invoke('install_lfs_hooks', { repositoryPath, force })
+export async function installLFSHooks(repositoryPath: string, force = false): Promise<void> {
+  await invoke("install_lfs_hooks", { repositoryPath, force });
 }
 
 /** Whether the repository has any LFS-tracked patterns configured. */
 export async function isUsingLFS(repositoryPath: string): Promise<boolean> {
-  return invoke<boolean>('is_using_lfs', { repositoryPath })
+  return invoke<boolean>("is_using_lfs", { repositoryPath });
 }
 
 // --- mergeability and operation state ---
@@ -285,13 +263,13 @@ export async function isUsingLFS(repositoryPath: string): Promise<boolean> {
 export async function determineMergeability(
   repositoryPath: string,
   ours: string,
-  theirs: string
+  theirs: string,
 ): Promise<MergeTreeResult> {
-  return invoke<MergeTreeResult>('determine_mergeability', {
+  return invoke<MergeTreeResult>("determine_mergeability", {
     repositoryPath,
     ours,
     theirs,
-  })
+  });
 }
 
 /**
@@ -301,23 +279,21 @@ export async function determineMergeability(
  * `unsafe` means git refused it for dubious ownership, and {@linkcode addSafeDirectory} is the way out.
  */
 export async function getRepositoryType(path: string): Promise<RepositoryType> {
-  return invoke<RepositoryType>('get_repository_type', { path })
+  return invoke<RepositoryType>("get_repository_type", { path });
 }
 
 /** Whether a cherry-pick is in progress. */
-export async function isCherryPickHeadFound(
-  repositoryPath: string
-): Promise<boolean> {
-  return invoke<boolean>('is_cherry_pick_head_found', { repositoryPath })
+export async function isCherryPickHeadFound(repositoryPath: string): Promise<boolean> {
+  return invoke<boolean>("is_cherry_pick_head_found", { repositoryPath });
 }
 
 /** The branch and tips a rebase is replaying, or `null` when none is in progress. */
 export async function getRebaseInternalState(
-  repositoryPath: string
+  repositoryPath: string,
 ): Promise<IRebaseInternalState | null> {
-  return invoke<IRebaseInternalState | null>('get_rebase_internal_state', {
+  return invoke<IRebaseInternalState | null>("get_rebase_internal_state", {
     repositoryPath,
-  })
+  });
 }
 
 /**
@@ -327,9 +303,9 @@ export async function getRebaseInternalState(
  */
 export async function checkoutIndex(
   repositoryPath: string,
-  paths: ReadonlyArray<string>
+  paths: ReadonlyArray<string>,
 ): Promise<void> {
-  await invoke('checkout_index', { repositoryPath, paths })
+  await invoke("checkout_index", { repositoryPath, paths });
 }
 
 // --- commit message trailers ---
@@ -340,21 +316,19 @@ export async function checkoutIndex(
  * `trailer.separators`, defaulting to `:`. Needed before a message can be parsed, since the separator decides
  * what counts as a trailer at all.
  */
-export async function getTrailerSeparatorCharacters(
-  repositoryPath: string
-): Promise<string> {
-  return invoke<string>('get_trailer_separator_characters', { repositoryPath })
+export async function getTrailerSeparatorCharacters(repositoryPath: string): Promise<string> {
+  return invoke<string>("get_trailer_separator_characters", { repositoryPath });
 }
 
 /** The trailers in a commit message. */
 export async function parseTrailers(
   repositoryPath: string,
-  commitMessage: string
+  commitMessage: string,
 ): Promise<ReadonlyArray<ITrailer>> {
-  return invoke<ReadonlyArray<ITrailer>>('parse_trailers', {
+  return invoke<ReadonlyArray<ITrailer>>("parse_trailers", {
     repositoryPath,
     commitMessage,
-  })
+  });
 }
 
 /**
@@ -367,12 +341,12 @@ export async function mergeTrailers(
   repositoryPath: string,
   commitMessage: string,
   trailers: ReadonlyArray<ITrailer>,
-  unfold = false
+  unfold = false,
 ): Promise<string> {
-  return invoke<string>('merge_trailers', {
+  return invoke<string>("merge_trailers", {
     repositoryPath,
     commitMessage,
     trailers,
     unfold,
-  })
+  });
 }

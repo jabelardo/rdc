@@ -1,8 +1,8 @@
-import { IAPIOrganization } from '../lib/api'
+import { IAPIOrganization } from "../lib/api";
 
 export type RepositoryPublicationSettings =
   | IEnterprisePublicationSettings
-  | IDotcomPublicationSettings
+  | IDotcomPublicationSettings;
 
 export enum PublishSettingsType {
   enterprise,
@@ -10,39 +10,39 @@ export enum PublishSettingsType {
 }
 
 export interface IEnterprisePublicationSettings {
-  readonly kind: PublishSettingsType.enterprise
+  readonly kind: PublishSettingsType.enterprise;
 
   /** The name to use when publishing the repository. */
-  readonly name: string
+  readonly name: string;
 
   /** The repository's description. */
-  readonly description: string
+  readonly description: string;
 
   /** Should the repository be private? */
-  readonly private: boolean
+  readonly private: boolean;
 
   /**
    * The org to which this repository belongs. If null, the repository should be
    * published as a personal repository.
    */
-  readonly org: IAPIOrganization | null
+  readonly org: IAPIOrganization | null;
 }
 
 export interface IDotcomPublicationSettings {
-  readonly kind: PublishSettingsType.dotcom
+  readonly kind: PublishSettingsType.dotcom;
 
   /** The name to use when publishing the repository. */
-  readonly name: string
+  readonly name: string;
 
   /** The repository's description. */
-  readonly description: string
+  readonly description: string;
 
   /** Should the repository be private? */
-  readonly private: boolean
+  readonly private: boolean;
 
   /**
    * The org to which this repository belongs. If null, the repository should be
    * published as a personal repository.
    */
-  readonly org: IAPIOrganization | null
+  readonly org: IAPIOrganization | null;
 }

@@ -19,21 +19,19 @@
  * bounding character.
  * Example: 123 or 123.
  */
-export const IssueRefNumber = /(?<refNumber>\d+)\b/
+export const IssueRefNumber = /(?<refNumber>\d+)\b/;
 
 /**
  * A regular expression to match a group of an repo name or name with owner
  * Example: desktop/dugite or desktop
  */
-export const IssueOwnerOrOwnerRepo =
-  /(?<ownerOrOwnerRepo>\w+(?:-\w+)*(?:\/[.\w-]+)?)/
+export const IssueOwnerOrOwnerRepo = /(?<ownerOrOwnerRepo>\w+(?:-\w+)*(?:\/[.\w-]+)?)/;
 
 /**
  * A regular expression to match a group possible of preceding markers are
  * gh-, #, /issues/, /pull/, or /discussions/ followed by a digit
  */
-export const IssueMentionMarker =
-  /(?<marker>#|gh-|\/(?:issues|pull|discussions)\/)(?=\d)/i
+export const IssueMentionMarker = /(?<marker>#|gh-|\/(?:issues|pull|discussions)\/)(?=\d)/i;
 
 /**
  * A regular expression string of a lookbehind is used so that valid matches
@@ -41,7 +39,7 @@ export const IssueMentionMarker =
  * considered part of the match. An issue reference much have a whitespace,
  * beginning of line, or some other non-word character must precede it.
  */
-export const IssueMentionLeader = /(?<=^|\W)/
+export const IssueMentionLeader = /(?<=^|\W)/;
 
 /**
  * A regular expression matching an issue reference. Issue reference must:
@@ -52,9 +50,6 @@ export const IssueMentionLeader = /(?<=^|\W)/
  *    repo references of owner/repo or owner
  */
 export const IssueReference = new RegExp(
-  IssueOwnerOrOwnerRepo.source +
-    '?' +
-    IssueMentionMarker.source +
-    IssueRefNumber.source,
-  'i'
-)
+  IssueOwnerOrOwnerRepo.source + "?" + IssueMentionMarker.source + IssueRefNumber.source,
+  "i",
+);

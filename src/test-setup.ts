@@ -1,5 +1,5 @@
-import '@testing-library/jest-dom/vitest'
-import 'fake-indexeddb/auto'
+import "@testing-library/jest-dom/vitest";
+import "fake-indexeddb/auto";
 
 // The ambient `log` global is a runtime object (unlike the __FOO__ constants,
 // which Vite's `define` substitutes at build time). Tests get a no-op
@@ -12,4 +12,4 @@ Object.assign(globalThis, {
     info: () => {},
     debug: () => {},
   },
-})
+});

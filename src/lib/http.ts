@@ -1,7 +1,7 @@
-import { URL } from 'url'
+import { URL } from "url";
 
 /** The HTTP methods available. */
-export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'HEAD' | 'DELETE'
+export type HTTPMethod = "GET" | "POST" | "PUT" | "HEAD" | "DELETE";
 
 /**
  * The structure of error messages returned from the GitHub API.
@@ -9,9 +9,9 @@ export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'HEAD' | 'DELETE'
  * Details: https://developer.github.com/v3/#client-errors
  */
 export interface IError {
-  readonly message: string
-  readonly resource: string
-  readonly field: string
+  readonly message: string;
+  readonly resource: string;
+  readonly field: string;
 }
 
 /**
@@ -20,36 +20,36 @@ export interface IError {
  * Details: https://developer.github.com/v3/#client-errors
  */
 export interface IAPIError {
-  readonly errors?: IError[]
-  readonly message?: string
+  readonly errors?: IError[];
+  readonly message?: string;
 }
 
 /** An error from getting an unexpected response to an API call. */
 export class APIError extends Error {
   /** The error as sent from the API, if one could be parsed. */
-  public readonly apiError: IAPIError | null
+  public readonly apiError: IAPIError | null;
 
   /** The HTTP response code that the error was delivered with */
-  public readonly responseStatus: number
+  public readonly responseStatus: number;
 
   public constructor(response: Response, apiError: IAPIError | null) {
-    let message
+    let message;
     if (apiError && apiError.message) {
-      message = apiError.message
+      message = apiError.message;
 
-      const errors = apiError.errors
-      const additionalMessages = errors && errors.map(e => e.message).join(', ')
+      const errors = apiError.errors;
+      const additionalMessages = errors && errors.map((e) => e.message).join(", ");
       if (additionalMessages) {
-        message = `${message} (${additionalMessages})`
+        message = `${message} (${additionalMessages})`;
       }
     } else {
-      message = `API error ${response.url}: ${response.statusText} (${response.status})`
+      message = `API error ${response.url}: ${response.statusText} (${response.status})`;
     }
 
-    super(message)
+    super(message);
 
-    this.responseStatus = response.status
-    this.apiError = apiError
+    this.responseStatus = response.status;
+    this.apiError = apiError;
   }
 }
 
@@ -61,16 +61,16 @@ export class APIError extends Error {
  */
 async function deserialize<T>(response: Response): Promise<T> {
   try {
-    const json = await response.json()
-    return json as T
+    const json = await response.json();
+    return json as T;
   } catch (e) {
-    const contentLength = response.headers.get('Content-Length') || '(missing)'
-    const requestId = response.headers.get('X-GitHub-Request-Id') || '(missing)'
+    const contentLength = response.headers.get("Content-Length") || "(missing)";
+    const requestId = response.headers.get("X-GitHub-Request-Id") || "(missing)";
     log.warn(
       `deserialize: invalid JSON found at '${response.url}' - status: ${response.status}, length: '${contentLength}' id: '${requestId}'`,
-      e
-    )
-    throw e
+      e,
+    );
+    throw e;
   }
 }
 
@@ -83,9 +83,9 @@ async function deserialize<T>(response: Response): Promise<T> {
  * @param path The resource path (should be relative to the root of the server)
  */
 export function getAbsoluteUrl(endpoint: string, path: string): string {
-  let relativePath = path[0] === '/' ? path.substring(1) : path
-  if (relativePath.startsWith('api/v3/')) {
-    relativePath = relativePath.substring(7)
+  let relativePath = path[0] === "/" ? path.substring(1) : path;
+  if (relativePath.startsWith("api/v3/")) {
+    relativePath = relativePath.substring(7);
   }
 
   // Our API endpoints are a bit sloppy in that they don't typically
@@ -94,9 +94,9 @@ export function getAbsoluteUrl(endpoint: string, path: string): string {
   // both of those should really include the trailing slash since that's
   // the qualified base). We'll work around our past since here by ensuring
   // that the endpoint ends with a trailing slash.
-  const base = endpoint.endsWith('/') ? endpoint : `${endpoint}/`
+  const base = endpoint.endsWith("/") ? endpoint : `${endpoint}/`;
 
-  return new URL(relativePath, base).toString()
+  return new URL(relativePath, base).toString();
 }
 
 /**
@@ -119,36 +119,36 @@ export function request(
   path: string,
   jsonBody?: Object,
   customHeaders?: Object,
-  reloadCache: boolean = false
+  reloadCache: boolean = false,
 ): Promise<Response> {
-  const url = getAbsoluteUrl(endpoint, path)
+  const url = getAbsoluteUrl(endpoint, path);
 
   let headers: any = {
-    Accept: 'application/vnd.github.v3+json, application/json',
-    'Content-Type': 'application/json',
-    'User-Agent': getUserAgent(),
-  }
+    Accept: "application/vnd.github.v3+json, application/json",
+    "Content-Type": "application/json",
+    "User-Agent": getUserAgent(),
+  };
 
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+    headers["Authorization"] = `Bearer ${token}`;
   }
 
   headers = {
     ...headers,
     ...customHeaders,
-  }
+  };
 
   const options: RequestInit = {
     headers,
     method,
     body: JSON.stringify(jsonBody),
-  }
+  };
 
   if (reloadCache) {
-    options.cache = 'reload' as RequestCache
+    options.cache = "reload" as RequestCache;
   }
 
-  return fetch(url, options)
+  return fetch(url, options);
 }
 
 /**
@@ -164,8 +164,8 @@ export function request(
  * Linux, which is rdc's primary target.
  */
 export function getUserAgent() {
-  const platform = __DARWIN__ ? 'Macintosh' : __LINUX__ ? 'Linux' : 'Windows'
-  return `RDC/${__APP_VERSION__} (${platform})`
+  const platform = __DARWIN__ ? "Macintosh" : __LINUX__ ? "Linux" : "Windows";
+  return `RDC/${__APP_VERSION__} (${platform})`;
 }
 
 /**
@@ -174,18 +174,18 @@ export function getUserAgent() {
  */
 export async function parsedResponse<T>(response: Response): Promise<T> {
   if (response.ok) {
-    return deserialize<T>(response)
+    return deserialize<T>(response);
   } else {
-    let apiError: IAPIError | null
+    let apiError: IAPIError | null;
     // Deserializing the API error could throw. If it does, we'll throw a more
     // general API error.
     try {
-      apiError = await deserialize<IAPIError>(response)
+      apiError = await deserialize<IAPIError>(response);
     } catch (e) {
-      throw new APIError(response, null)
+      throw new APIError(response, null);
     }
 
-    throw new APIError(response, apiError)
+    throw new APIError(response, apiError);
   }
 }
 
@@ -196,26 +196,26 @@ export async function parsedResponse<T>(response: Response): Promise<T> {
  */
 export function urlWithQueryString(
   url: string,
-  params: { [key: string]: string | string[] }
+  params: { [key: string]: string | string[] },
 ): string {
   const qs = Object.keys(params)
-    .flatMap(key => {
-      const value = params[key]
+    .flatMap((key) => {
+      const value = params[key];
       if (Array.isArray(value)) {
-        return value.map(v => `${key}=${encodeURIComponent(v)}`)
+        return value.map((v) => `${key}=${encodeURIComponent(v)}`);
       } else {
-        return `${key}=${encodeURIComponent(value)}`
+        return `${key}=${encodeURIComponent(value)}`;
       }
     })
-    .join('&')
+    .join("&");
 
   if (!qs.length) {
-    return url
+    return url;
   }
 
-  if (url.indexOf('?') === -1) {
-    return `${url}?${qs}`
+  if (url.indexOf("?") === -1) {
+    return `${url}?${qs}`;
   } else {
-    return `${url}&${qs}`
+    return `${url}&${qs}`;
   }
 }

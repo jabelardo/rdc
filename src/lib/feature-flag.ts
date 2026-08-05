@@ -1,6 +1,6 @@
-import { Account } from '../models/account'
+import { Account } from "../models/account";
 
-const Disable = false
+const Disable = false;
 
 /**
  * Enables the application to opt-in for preview features based on runtime
@@ -9,28 +9,28 @@ const Disable = false
  */
 function enableDevelopmentFeatures(): boolean {
   if (Disable) {
-    return false
+    return false;
   }
 
   if (__DEV__) {
-    return true
+    return true;
   }
 
-  if (process.env.GITHUB_DESKTOP_PREVIEW_FEATURES === '1') {
-    return true
+  if (process.env.GITHUB_DESKTOP_PREVIEW_FEATURES === "1") {
+    return true;
   }
 
-  return false
+  return false;
 }
 
 /** Should the app enable beta features? */
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 //@ts-ignore: this will be used again in the future
 function enableBetaFeatures(): boolean {
-  if (process.env.TEST_ENV === '1') {
-    return enableDevelopmentFeatures() || __RELEASE_CHANNEL__ === 'beta'
+  if (process.env.TEST_ENV === "1") {
+    return enableDevelopmentFeatures() || __RELEASE_CHANNEL__ === "beta";
   }
-  return true
+  return true;
 }
 
 /**
@@ -42,22 +42,22 @@ function enableBetaFeatures(): boolean {
  * they should not need access to the test menu items.
  */
 export const enableTestMenuItems = () =>
-  enableDevelopmentFeatures() || __RELEASE_CHANNEL__ === 'test'
+  enableDevelopmentFeatures() || __RELEASE_CHANNEL__ === "test";
 
 export function enableReadmeOverwriteWarning(): boolean {
-  return enableBetaFeatures()
+  return enableBetaFeatures();
 }
 
 /** Should the app detect Windows Subsystem for Linux as a valid shell? */
 export function enableWSLDetection(): boolean {
-  return enableBetaFeatures()
+  return enableBetaFeatures();
 }
 
 /**
  * Should we allow reporting unhandled rejections as if they were crashes?
  */
 export function enableUnhandledRejectionReporting(): boolean {
-  return enableBetaFeatures()
+  return enableBetaFeatures();
 }
 
 /**
@@ -66,72 +66,68 @@ export function enableUnhandledRejectionReporting(): boolean {
  */
 export function enableUpdateFromEmulatedX64ToARM64(): boolean {
   if (__DARWIN__) {
-    return true
+    return true;
   }
 
-  return enableBetaFeatures()
+  return enableBetaFeatures();
 }
 
 /** Should we show previous tags as suggestions? */
 export function enablePreviousTagSuggestions(): boolean {
-  return enableBetaFeatures()
+  return enableBetaFeatures();
 }
 
 /** Should we show a pull-requests quick view? */
 export function enablePullRequestQuickView(): boolean {
-  return enableBetaFeatures()
+  return enableBetaFeatures();
 }
 
 /** Should we support image previews for dds files? */
 export function enableImagePreviewsForDDSFiles(): boolean {
-  return enableBetaFeatures()
+  return enableBetaFeatures();
 }
 
-export const enableCustomIntegration = () => true
+export const enableCustomIntegration = () => true;
 
-export const enableResizingToolbarButtons = () => true
+export const enableResizingToolbarButtons = () => true;
 
 export const enableCommitMessageGeneration = (account: Account) => {
   return (
-    (account.features ?? []).includes(
-      'desktop_copilot_generate_commit_message'
-    ) &&
+    (account.features ?? []).includes("desktop_copilot_generate_commit_message") &&
     // IMPORTANT: Do not remove this feature flag without replacing its usages
     // with a check for the `isCopilotDesktopEnabled` property on the account.
     account.isCopilotDesktopEnabled
-  )
-}
+  );
+};
 
 export const enableCopilotSdkCommitMessageGeneration = (account: Account) => {
   // Enabled for all users in beta and development channels, and for users with
   // the feature flag enabled in production.
   return (
     enableBetaFeatures() ||
-    (account.features ?? []).includes(
-      'desktop_enable_copilot_sdk_commit_message_generation'
-    )
-  )
-}
+    (account.features ?? []).includes("desktop_enable_copilot_sdk_commit_message_generation")
+  );
+};
 
 /** Should we enable Copilot-powered merge conflict resolution? */
-export const enableCopilotConflictResolution = () => true
+export const enableCopilotConflictResolution = () => true;
 
 export function enableAccessibleListToolTips(): boolean {
   // In test environments the hover-based tooltips must remain active so that
   // tooltip content tests can trigger and verify them. The accessible list
   // tooltips (keyboard/focus-based) are a beta feature that replaces hover
   // tooltips, but tests rely on the hover behavior.
-  if (process.env.TEST_ENV === '1') {
-    return false
+  if (process.env.TEST_ENV === "1") {
+    return false;
   }
-  return enableBetaFeatures()
+  return enableBetaFeatures();
 }
 
-export const enableHooksEnvironment = () => true
+export const enableHooksEnvironment = () => true;
 
-export const enableHooksByDefault = enableBetaFeatures
+export const enableHooksByDefault = enableBetaFeatures;
 
-export const enableFormattingPreferences = () => true
+export const enableFormattingPreferences = () => true;
 
 /** Should the app enable worktree support? */
-export const enableWorktreeSupport = () => true
+export const enableWorktreeSupport = () => true;

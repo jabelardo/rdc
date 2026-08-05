@@ -1,10 +1,10 @@
-import type { UnlistenFn } from '@tauri-apps/api/event'
-import { getAllWindows, getCurrentWindow } from '@tauri-apps/api/window'
-import { exit, relaunch } from '@tauri-apps/plugin-process'
-import { getMainProcessConfig } from './config'
-import { applicationUpdateController } from './updater'
+import type { UnlistenFn } from "@tauri-apps/api/event";
+import { getAllWindows, getCurrentWindow } from "@tauri-apps/api/window";
+import { exit, relaunch } from "@tauri-apps/plugin-process";
+import { getMainProcessConfig } from "./config";
+import { applicationUpdateController } from "./updater";
 
-export type CloseRequestDecision = 'quit' | 'hide' | 'close' | 'cancel'
+export type CloseRequestDecision = "quit" | "hide" | "close" | "cancel";
 
 /**
  * Exit only after the frontend has resolved any application-state policy.
@@ -13,12 +13,12 @@ export type CloseRequestDecision = 'quit' | 'hide' | 'close' | 'cancel'
  * therefore decide whether quitting is allowed before invoking this function.
  */
 export function quitApp(): Promise<void> {
-  return exit(0)
+  return exit(0);
 }
 
 /** Atomically replace the current process with a new application instance. */
 export function restartApp(): Promise<void> {
-  return relaunch()
+  return relaunch();
 }
 
 /**
@@ -30,80 +30,72 @@ export function restartApp(): Promise<void> {
  * opening duplicate confirmation UI.
  */
 export function installCloseRequestHandler(
-  decide: () => CloseRequestDecision | Promise<CloseRequestDecision>
+  decide: () => CloseRequestDecision | Promise<CloseRequestDecision>,
 ): Promise<UnlistenFn> {
-  const window = getCurrentWindow()
-  let decisionPending = false
+  const window = getCurrentWindow();
+  let decisionPending = false;
 
-  return window.onCloseRequested(event => {
-    event.preventDefault()
+  return window.onCloseRequested((event) => {
+    event.preventDefault();
     if (decisionPending) {
-      return
+      return;
     }
-    decisionPending = true
+    decisionPending = true;
 
     void Promise.resolve()
       .then(decide)
-      .then(async decision => {
+      .then(async (decision) => {
         switch (decision) {
-          case 'quit':
-            await quitApp()
-            break
-          case 'hide':
-            await window.hide()
-            break
-          case 'close':
+          case "quit":
+            await quitApp();
+            break;
+          case "hide":
+            await window.hide();
+            break;
+          case "close":
             // `close()` would emit another preventable request. `destroy()`
             // performs the already-approved close without re-entering here.
-            await window.destroy()
-            break
-          case 'cancel':
-            break
+            await window.destroy();
+            break;
+          case "cancel":
+            break;
         }
       })
-      .catch(error => {
+      .catch((error) => {
         const cause =
           error instanceof Error
             ? error
-            : new Error(
-                error === undefined
-                  ? 'Unknown native close error'
-                  : String(error)
-              )
-        log.error('Failed to resolve native close request', cause)
+            : new Error(error === undefined ? "Unknown native close error" : String(error));
+        log.error("Failed to resolve native close request", cause);
       })
       .finally(() => {
-        decisionPending = false
-      })
-  })
+        decisionPending = false;
+      });
+  });
 }
 
 /**
  * Preserve upstream's platform close behavior: macOS always hides the last
  * window, while Linux/Windows follow the persisted preference.
  */
-export function installDefaultCloseRequestHandler(
-  isMacOS = __DARWIN__
-): Promise<UnlistenFn> {
+export function installDefaultCloseRequestHandler(isMacOS = __DARWIN__): Promise<UnlistenFn> {
   return installCloseRequestHandler(async () => {
-    let decision: CloseRequestDecision
+    let decision: CloseRequestDecision;
     if ((await getAllWindows()).length > 1) {
-      decision = 'close'
+      decision = "close";
     } else if (isMacOS) {
-      decision = 'hide'
+      decision = "hide";
     } else {
-      decision = (await getMainProcessConfig()).hideWindowOnQuit
-        ? 'hide'
-        : 'quit'
+      decision = (await getMainProcessConfig()).hideWindowOnQuit ? "hide" : "quit";
     }
 
     // Hiding preserves the renderer and its native Update resource. An actual
     // close/quit would destroy the owner while transfer or installation is in
     // progress, so preserve upstream's installing-update warning instead.
-    if (decision !== 'hide' && applicationUpdateController.isCloseBlocked) {
-      applicationUpdateController.notifyCloseBlocked()
-      return 'cancel'
+    if (decision !== "hide" && applicationUpdateController.isCloseBlocked) {
+      applicationUpdateController.notifyCloseBlocked();
+      return "cancel";
     }
-    return decision
-  })
+    return decision;
+  });
 }

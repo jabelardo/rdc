@@ -1,13 +1,9 @@
-import * as URL from 'url'
-import { getHTMLURL, API } from './api'
-import { parseRemote, parseRepositoryIdentifier } from './remote-parsing'
-import { Account, isDotComAccount } from '../models/account'
+import * as URL from "url";
+import { getHTMLURL, API } from "./api";
+import { parseRemote, parseRepositoryIdentifier } from "./remote-parsing";
+import { Account, isDotComAccount } from "../models/account";
 
-type RepositoryLookupFunc = (
-  account: Account,
-  owner: string,
-  name: string
-) => Promise<boolean>
+type RepositoryLookupFunc = (account: Account, owner: string, name: string) => Promise<boolean>;
 
 /**
  * Check if the repository designated by the owner and name exists and can be
@@ -16,14 +12,14 @@ type RepositoryLookupFunc = (
 async function canAccessRepositoryUsingAPI(
   account: Account,
   owner: string,
-  name: string
+  name: string,
 ): Promise<boolean> {
-  const api = API.fromAccount(account)
-  const repository = await api.fetchRepository(owner, name)
+  const api = API.fromAccount(account);
+  const repository = await api.fetchRepository(owner, name);
   if (repository) {
-    return true
+    return true;
   } else {
-    return false
+    return false;
   }
 }
 
@@ -39,9 +35,9 @@ export async function findAccountForRemoteURL(
   urlOrRepositoryAlias: string,
   accounts: ReadonlyArray<Account>,
   login: string | null,
-  canAccessRepository: RepositoryLookupFunc = canAccessRepositoryUsingAPI
+  canAccessRepository: RepositoryLookupFunc = canAccessRepositoryUsingAPI,
 ): Promise<Account | null> {
-  const allAccounts = [...accounts, Account.anonymous()]
+  const allAccounts = [...accounts, Account.anonymous()];
 
   // We have a couple of strategies to try to figure out what account we
   // should use to authenticate the URL:
@@ -53,28 +49,25 @@ export async function findAccountForRemoteURL(
   //    1. If that works, find the first account that can access it.
   //  3. And if all that fails then throw our hands in the air because we
   //     truly don't care.
-  const parsedURL = parseRemote(urlOrRepositoryAlias)
+  const parsedURL = parseRemote(urlOrRepositoryAlias);
   if (parsedURL) {
     const account =
-      allAccounts.find(a => {
-        const htmlURL = getHTMLURL(a.endpoint)
-        const parsedEndpoint = URL.parse(htmlURL)
-        return (
-          parsedURL.hostname === parsedEndpoint.hostname &&
-          (!login || a.login === login)
-        )
-      }) || null
+      allAccounts.find((a) => {
+        const htmlURL = getHTMLURL(a.endpoint);
+        const parsedEndpoint = URL.parse(htmlURL);
+        return parsedURL.hostname === parsedEndpoint.hostname && (!login || a.login === login);
+      }) || null;
 
     // If we find an account whose hostname matches the URL to be cloned, it's
     // always gonna be our best bet for success. We're not gonna do better.
     if (account) {
-      return account
+      return account;
     }
   }
 
-  const repositoryIdentifier = parseRepositoryIdentifier(urlOrRepositoryAlias)
+  const repositoryIdentifier = parseRepositoryIdentifier(urlOrRepositoryAlias);
   if (repositoryIdentifier) {
-    const { owner, name, hostname } = repositoryIdentifier
+    const { owner, name, hostname } = repositoryIdentifier;
 
     // This chunk of code is designed to sort the user's accounts in this order:
     //  - authenticated GitHub account
@@ -86,26 +79,26 @@ export async function findAccountForRemoteURL(
     // without a token to be unauthenticated.
     const sortedAccounts = allAccounts.toSorted((a1, a2) => {
       if (isDotComAccount(a1)) {
-        return a1.token.length ? -1 : 1
+        return a1.token.length ? -1 : 1;
       } else if (isDotComAccount(a2)) {
-        return a2.token.length ? 1 : -1
+        return a2.token.length ? 1 : -1;
       } else {
-        return 0
+        return 0;
       }
-    })
+    });
 
     for (const account of sortedAccounts) {
       if (hostname != null) {
-        const htmlURL = URL.parse(getHTMLURL(account.endpoint))
-        const accountHost = htmlURL.hostname
+        const htmlURL = URL.parse(getHTMLURL(account.endpoint));
+        const accountHost = htmlURL.hostname;
         if (accountHost !== hostname) {
-          continue
+          continue;
         }
       }
 
-      const canAccess = await canAccessRepository(account, owner, name)
+      const canAccess = await canAccessRepository(account, owner, name);
       if (canAccess) {
-        return account
+        return account;
       }
     }
   }
@@ -113,16 +106,16 @@ export async function findAccountForRemoteURL(
   // One last try before returning null: search for matching hostname but not login
   if (parsedURL) {
     const account =
-      allAccounts.find(a => {
-        const htmlURL = getHTMLURL(a.endpoint)
-        const parsedEndpoint = URL.parse(htmlURL)
-        return parsedURL.hostname === parsedEndpoint.hostname
-      }) || null
+      allAccounts.find((a) => {
+        const htmlURL = getHTMLURL(a.endpoint);
+        const parsedEndpoint = URL.parse(htmlURL);
+        return parsedURL.hostname === parsedEndpoint.hostname;
+      }) || null;
 
     if (account) {
-      return account
+      return account;
     }
   }
 
-  return null
+  return null;
 }

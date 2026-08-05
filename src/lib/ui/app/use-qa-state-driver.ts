@@ -1,46 +1,46 @@
-import { useEffect, useRef } from 'react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
-import type { UnlistenFn } from '@tauri-apps/api/event'
+import { useEffect, useRef } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import type { UnlistenFn } from "@tauri-apps/api/event";
 
 /**
  * The QA driver event name, emitted by the debug-only Rust module
  * (`src-tauri/src/qa_driver.rs`). Keep in sync with `QA_DRIVE_EVENT` there.
  */
-const QaDriveEvent = 'qa-drive'
+const QaDriveEvent = "qa-drive";
 
 type QaDrivePayload = {
-  readonly theme: 'light' | 'dark' | 'system' | null
-  readonly view: 'changes' | 'history' | null
-  readonly sidebarCollapsed: boolean | null
-  readonly repository: string | null
-}
+  readonly theme: "light" | "dark" | "system" | null;
+  readonly view: "changes" | "history" | null;
+  readonly sidebarCollapsed: boolean | null;
+  readonly repository: string | null;
+};
 
 type DriveHandlers = {
-  applyTheme: (theme: 'light' | 'dark' | 'system') => Promise<void>
-  setRepositoryView: (view: 'changes' | 'history') => void
-  setSidebarCollapsed: (collapsed: boolean) => void
-  selectRepositoryByPath: (path: string) => Promise<boolean>
-}
+  applyTheme: (theme: "light" | "dark" | "system") => Promise<void>;
+  setRepositoryView: (view: "changes" | "history") => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  selectRepositoryByPath: (path: string) => Promise<boolean>;
+};
 
 /**
  * Returns the payload field handlers that the QA driver needs.
  */
 export async function applyQaState(
   payload: QaDrivePayload,
-  handlers: DriveHandlers
+  handlers: DriveHandlers,
 ): Promise<void> {
-  const { theme, view, sidebarCollapsed, repository } = payload
+  const { theme, view, sidebarCollapsed, repository } = payload;
   if (theme !== null) {
-    await handlers.applyTheme(theme)
+    await handlers.applyTheme(theme);
   }
   if (view !== null) {
-    handlers.setRepositoryView(view)
+    handlers.setRepositoryView(view);
   }
   if (sidebarCollapsed !== null) {
-    handlers.setSidebarCollapsed(sidebarCollapsed)
+    handlers.setSidebarCollapsed(sidebarCollapsed);
   }
   if (repository !== null) {
-    await handlers.selectRepositoryByPath(repository)
+    await handlers.selectRepositoryByPath(repository);
   }
 }
 
@@ -48,10 +48,10 @@ export async function applyQaState(
 function isRunningInTauri(): boolean {
   const internals = (
     window as unknown as {
-      __TAURI_INTERNALS__?: unknown
+      __TAURI_INTERNALS__?: unknown;
     }
-  ).__TAURI_INTERNALS__
-  return internals !== undefined
+  ).__TAURI_INTERNALS__;
+  return internals !== undefined;
 }
 
 /**
@@ -64,37 +64,37 @@ function isRunningInTauri(): boolean {
  * is false, so this is dead code there.
  */
 export function useQaStateDriver(handlers: DriveHandlers): void {
-  const handlersRef = useRef(handlers)
-  handlersRef.current = handlers
+  const handlersRef = useRef(handlers);
+  handlersRef.current = handlers;
 
   useEffect(() => {
     if (!__DEV__ || !isRunningInTauri()) {
-      return
+      return;
     }
 
-    let disposed = false
-    let unlisten: UnlistenFn | null = null
+    let disposed = false;
+    let unlisten: UnlistenFn | null = null;
 
     void getCurrentWindow()
       .listen<QaDrivePayload>(QaDriveEvent, ({ payload }) => {
-        void applyQaState(payload, handlersRef.current).catch(error => {
-          log.error('QA driver failed to apply state', error)
-        })
+        void applyQaState(payload, handlersRef.current).catch((error) => {
+          log.error("QA driver failed to apply state", error);
+        });
       })
-      .then(fn => {
+      .then((fn) => {
         if (disposed) {
-          fn()
+          fn();
         } else {
-          unlisten = fn
+          unlisten = fn;
         }
       })
-      .catch(error => {
-        log.error('QA driver failed to subscribe', error)
-      })
+      .catch((error) => {
+        log.error("QA driver failed to subscribe", error);
+      });
 
     return () => {
-      disposed = true
-      unlisten?.()
-    }
-  }, [])
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
 }

@@ -1,5 +1,5 @@
-import assert from 'node:assert/strict'
-import { describe, it } from 'vitest'
+import assert from "node:assert/strict";
+import { describe, it } from "vitest";
 import {
   PHASE_4B_PROXY_EXPORTS,
   PHASE_4B_SUBSCRIPTIONS,
@@ -7,19 +7,19 @@ import {
   isSubscriptionImplemented,
   routedChannelPhases,
   subscribedChannels,
-} from './measure-platform-surface.mjs'
+} from "./measure-platform-surface.mjs";
 
-describe('measure-platform-surface', () => {
-  it('pins the independent Phase 4b surface', () => {
-    assert.equal(PHASE_4B_PROXY_EXPORTS.size, 19)
-    assert.equal(PHASE_4B_SUBSCRIPTIONS.size, 7)
-    assert.equal(PHASE_4B_PROXY_EXPORTS.has('openRepositoryInNewWindow'), false)
-    assert.equal(PHASE_4B_SUBSCRIPTIONS.has('app-menu'), false)
-  })
+describe("measure-platform-surface", () => {
+  it("pins the independent Phase 4b surface", () => {
+    assert.equal(PHASE_4B_PROXY_EXPORTS.size, 19);
+    assert.equal(PHASE_4B_SUBSCRIPTIONS.size, 7);
+    assert.equal(PHASE_4B_PROXY_EXPORTS.has("openRepositoryInNewWindow"), false);
+    assert.equal(PHASE_4B_SUBSCRIPTIONS.has("app-menu"), false);
+  });
 
-  it('reads exported runtime values without counting types', () => {
+  it("reads exported runtime values without counting types", () => {
     const names = exportedValues(
-      'module.ts',
+      "module.ts",
       `
         export type Shape = { value: string }
         export interface Contract { value: string }
@@ -28,16 +28,16 @@ describe('measure-platform-surface', () => {
         export class Service {}
         export enum Mode { One }
         const local = 3
-      `
-    )
+      `,
+    );
 
-    assert.deepEqual(names, ['first', 'second', 'run', 'Service', 'Mode'])
-  })
+    assert.deepEqual(names, ["first", "second", "run", "Service", "Mode"]);
+  });
 
-  it('finds literal subscriptions through aliased namespace imports only', () => {
+  it("finds literal subscriptions through aliased namespace imports only", () => {
     const channels = subscribedChannels([
       {
-        file: 'one.ts',
+        file: "one.ts",
         source: `
           import * as renderer from './ipc-renderer'
           renderer.on('focus', () => {})
@@ -46,18 +46,18 @@ describe('measure-platform-surface', () => {
         `,
       },
       {
-        file: 'two.ts',
+        file: "two.ts",
         source: `
           import * as ipcRenderer from '../lib/ipc-renderer'
           ipcRenderer.on('focus', () => {})
         `,
       },
-    ])
+    ]);
 
-    assert.deepEqual([...channels].sort(), ['blur', 'focus'])
-  })
+    assert.deepEqual([...channels].sort(), ["blur", "focus"]);
+  });
 
-  it('reads the phase from routed channel rows and rejects duplicates', () => {
+  it("reads the phase from routed channel rows and rejects duplicates", () => {
     const map = `
 ### 7.1 Upstream channels, routed
 | Channel | Direction | Tauri mechanism | Phase |
@@ -65,55 +65,43 @@ describe('measure-platform-surface', () => {
 | \`focus\` | main→renderer | frontend listener | 4 |
 | \`certificate-error\` | main→renderer | design work | 5 |
 ### 7.2 Git commands
-`
+`;
     assert.deepEqual(
       [...routedChannelPhases(map)],
       [
-        ['focus', 4],
-        ['certificate-error', 5],
-      ]
-    )
+        ["focus", 4],
+        ["certificate-error", 5],
+      ],
+    );
 
     assert.throws(
       () =>
         routedChannelPhases(
           map.replace(
-            '### 7.2 Git commands',
-            '| `focus` | main→renderer | duplicate | 4 |\n### 7.2 Git commands'
-          )
+            "### 7.2 Git commands",
+            "| `focus` | main→renderer | duplicate | 4 |\n### 7.2 Git commands",
+          ),
         ),
-      /routed more than once/
-    )
-  })
+      /routed more than once/,
+    );
+  });
 
-  it('maps raw Electron subscription channels to typed platform adapters', () => {
+  it("maps raw Electron subscription channels to typed platform adapters", () => {
     const exports = new Set([
-      'ApplicationMenuController',
-      'onNativeMenuAction',
-      'onWindowFocusChanged',
-      'onWindowStateChanged',
-      'onWindowZoomFactorChanged',
-    ])
-    const commands = new Set()
+      "ApplicationMenuController",
+      "onNativeMenuAction",
+      "onWindowFocusChanged",
+      "onWindowStateChanged",
+      "onWindowZoomFactorChanged",
+    ]);
+    const commands = new Set();
 
-    assert.equal(isSubscriptionImplemented('focus', exports, commands), true)
-    assert.equal(isSubscriptionImplemented('blur', exports, commands), true)
-    assert.equal(
-      isSubscriptionImplemented('menu-event', exports, commands),
-      true
-    )
-    assert.equal(isSubscriptionImplemented('app-menu', exports, commands), true)
-    assert.equal(
-      isSubscriptionImplemented('window-state-changed', exports, commands),
-      true
-    )
-    assert.equal(
-      isSubscriptionImplemented('zoom-factor-changed', exports, commands),
-      true
-    )
-    assert.equal(
-      isSubscriptionImplemented('url-action', exports, commands),
-      false
-    )
-  })
-})
+    assert.equal(isSubscriptionImplemented("focus", exports, commands), true);
+    assert.equal(isSubscriptionImplemented("blur", exports, commands), true);
+    assert.equal(isSubscriptionImplemented("menu-event", exports, commands), true);
+    assert.equal(isSubscriptionImplemented("app-menu", exports, commands), true);
+    assert.equal(isSubscriptionImplemented("window-state-changed", exports, commands), true);
+    assert.equal(isSubscriptionImplemented("zoom-factor-changed", exports, commands), true);
+    assert.equal(isSubscriptionImplemented("url-action", exports, commands), false);
+  });
+});

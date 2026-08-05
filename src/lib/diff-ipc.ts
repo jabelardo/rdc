@@ -23,15 +23,11 @@
  * *numeric* TypeScript enum, so it arrives as `0`–`3`. Both are pinned by the wire snapshot.
  */
 
-import { invoke } from '@tauri-apps/api/core'
-import {
-  hydrateChangesetData,
-  type IChangesetData,
-  type IChangesetDataWire,
-} from './log-ipc'
-import type { NoRenameIndexStatus } from '../models/index-status'
-import type { AppFileStatus, SubmoduleStatus } from '../models/status'
-import { assertNever } from './fatal-error'
+import { invoke } from "@tauri-apps/api/core";
+import { hydrateChangesetData, type IChangesetData, type IChangesetDataWire } from "./log-ipc";
+import type { NoRenameIndexStatus } from "../models/index-status";
+import type { AppFileStatus, SubmoduleStatus } from "../models/status";
+import { assertNever } from "./fatal-error";
 import {
   DiffHunk,
   DiffHunkExpansionType,
@@ -44,43 +40,43 @@ import {
   type IDiff,
   type ITextDiff,
   type LineEndingsChange,
-} from '../models/diff'
+} from "../models/diff";
 
 /** A {@linkcode DiffLine} as it arrives over IPC. */
 export interface IDiffLineData {
-  readonly text: string
-  readonly type: DiffLineType
-  readonly originalLineNumber: number | null
-  readonly oldLineNumber: number | null
-  readonly newLineNumber: number | null
-  readonly noTrailingNewLine: boolean
+  readonly text: string;
+  readonly type: DiffLineType;
+  readonly originalLineNumber: number | null;
+  readonly oldLineNumber: number | null;
+  readonly newLineNumber: number | null;
+  readonly noTrailingNewLine: boolean;
 }
 
 /** A {@linkcode DiffHunkHeader} as it arrives over IPC. */
 export interface IDiffHunkHeaderData {
-  readonly oldStartLine: number
-  readonly oldLineCount: number
-  readonly newStartLine: number
-  readonly newLineCount: number
+  readonly oldStartLine: number;
+  readonly oldLineCount: number;
+  readonly newStartLine: number;
+  readonly newLineCount: number;
 }
 
 /** A {@linkcode DiffHunk} as it arrives over IPC. */
 export interface IDiffHunkData {
-  readonly header: IDiffHunkHeaderData
-  readonly lines: ReadonlyArray<IDiffLineData>
-  readonly unifiedDiffStart: number
-  readonly unifiedDiffEnd: number
-  readonly expansionType: DiffHunkExpansionType
+  readonly header: IDiffHunkHeaderData;
+  readonly lines: ReadonlyArray<IDiffLineData>;
+  readonly unifiedDiffStart: number;
+  readonly unifiedDiffEnd: number;
+  readonly expansionType: DiffHunkExpansionType;
 }
 
 /** An {@linkcode IRawDiff} as it arrives over IPC, before hydration. */
 export interface IRawDiffData {
-  readonly header: string
-  readonly contents: string
-  readonly hunks: ReadonlyArray<IDiffHunkData>
-  readonly isBinary: boolean
-  readonly maxLineNumber: number
-  readonly hasHiddenBidiChars: boolean
+  readonly header: string;
+  readonly contents: string;
+  readonly hunks: ReadonlyArray<IDiffHunkData>;
+  readonly isBinary: boolean;
+  readonly maxLineNumber: number;
+  readonly hasHiddenBidiChars: boolean;
 }
 
 function hydrateLine(data: IDiffLineData): DiffLine {
@@ -90,8 +86,8 @@ function hydrateLine(data: IDiffLineData): DiffLine {
     data.originalLineNumber,
     data.oldLineNumber,
     data.newLineNumber,
-    data.noTrailingNewLine
-  )
+    data.noTrailingNewLine,
+  );
 }
 
 function hydrateHeader(data: IDiffHunkHeaderData): DiffHunkHeader {
@@ -99,8 +95,8 @@ function hydrateHeader(data: IDiffHunkHeaderData): DiffHunkHeader {
     data.oldStartLine,
     data.oldLineCount,
     data.newStartLine,
-    data.newLineCount
-  )
+    data.newLineCount,
+  );
 }
 
 function hydrateHunk(data: IDiffHunkData): DiffHunk {
@@ -109,8 +105,8 @@ function hydrateHunk(data: IDiffHunkData): DiffHunk {
     data.lines.map(hydrateLine),
     data.unifiedDiffStart,
     data.unifiedDiffEnd,
-    data.expansionType
-  )
+    data.expansionType,
+  );
 }
 
 /**
@@ -127,7 +123,7 @@ export function hydrateRawDiff(data: IRawDiffData): IRawDiff {
     isBinary: data.isBinary,
     maxLineNumber: data.maxLineNumber,
     hasHiddenBidiChars: data.hasHiddenBidiChars,
-  }
+  };
 }
 
 /**
@@ -141,21 +137,20 @@ export function hydrateRawDiff(data: IRawDiffData): IRawDiff {
  * against git's empty tree, so everything staged reads as an addition.
  */
 export async function getIndexChanges(
-  repositoryPath: string
+  repositoryPath: string,
 ): Promise<ReadonlyArray<readonly [string, NoRenameIndexStatus]>> {
-  return invoke<ReadonlyArray<readonly [string, NoRenameIndexStatus]>>(
-    'get_index_changes',
-    { repositoryPath }
-  )
+  return invoke<ReadonlyArray<readonly [string, NoRenameIndexStatus]>>("get_index_changes", {
+    repositoryPath,
+  });
 }
 
 /** A {@linkcode ITextDiffData} payload as it arrives over IPC. */
 export interface ITextDiffDataWire {
-  readonly text: string
-  readonly hunks: ReadonlyArray<IDiffHunkData>
-  readonly lineEndingsChange?: LineEndingsChange
-  readonly maxLineNumber: number
-  readonly hasHiddenBidiChars: boolean
+  readonly text: string;
+  readonly hunks: ReadonlyArray<IDiffHunkData>;
+  readonly lineEndingsChange?: LineEndingsChange;
+  readonly maxLineNumber: number;
+  readonly hasHiddenBidiChars: boolean;
 }
 
 /**
@@ -166,9 +161,9 @@ export interface ITextDiffDataWire {
  */
 /** An {@linkcode Image} as it arrives over IPC — the constructor's arguments. */
 export interface IImageDataWire {
-  readonly url: string
-  readonly mediaType: string
-  readonly bytes: number
+  readonly url: string;
+  readonly mediaType: string;
+  readonly bytes: number;
 }
 
 /**
@@ -181,9 +176,9 @@ export interface IImageDataWire {
  * `textDiff` is present for an SVG, which is text that can also be rendered, so the viewer can offer both.
  */
 export interface IImageDiffWire {
-  readonly previous?: IImageDataWire
-  readonly current?: IImageDataWire
-  readonly textDiff?: ITextDiffDataWire
+  readonly previous?: IImageDataWire;
+  readonly current?: IImageDataWire;
+  readonly textDiff?: ITextDiffDataWire;
 }
 
 export type IDiffWire =
@@ -193,14 +188,14 @@ export type IDiffWire =
   | { readonly kind: DiffType.Binary }
   | { readonly kind: DiffType.Unrenderable }
   | {
-      readonly kind: DiffType.Submodule
-      readonly fullPath: string
-      readonly path: string
-      readonly url: string | null
-      readonly status: SubmoduleStatus
-      readonly oldSHA: string | null
-      readonly newSHA: string | null
-    }
+      readonly kind: DiffType.Submodule;
+      readonly fullPath: string;
+      readonly path: string;
+      readonly url: string | null;
+      readonly status: SubmoduleStatus;
+      readonly oldSHA: string | null;
+      readonly newSHA: string | null;
+    };
 
 /**
  * Builds an {@linkcode Image}, or leaves the side absent.
@@ -209,7 +204,7 @@ export type IDiffWire =
  * empty `Image` would make the viewer render a broken one.
  */
 function hydrateImage(data: IImageDataWire | undefined): Image | undefined {
-  return data && new Image(data.url, data.mediaType, data.bytes)
+  return data && new Image(data.url, data.mediaType, data.bytes);
 }
 
 function hydrateTextDiffData(data: ITextDiffDataWire) {
@@ -219,7 +214,7 @@ function hydrateTextDiffData(data: ITextDiffDataWire) {
     lineEndingsChange: data.lineEndingsChange,
     maxLineNumber: data.maxLineNumber,
     hasHiddenBidiChars: data.hasHiddenBidiChars,
-  }
+  };
 }
 
 /**
@@ -232,20 +227,20 @@ function hydrateTextDiffData(data: ITextDiffDataWire) {
 export function hydrateDiff(data: IDiffWire): IDiff {
   switch (data.kind) {
     case DiffType.Text:
-      return { kind: DiffType.Text, ...hydrateTextDiffData(data) }
+      return { kind: DiffType.Text, ...hydrateTextDiffData(data) };
     case DiffType.LargeText:
-      return { kind: DiffType.LargeText, ...hydrateTextDiffData(data) }
+      return { kind: DiffType.LargeText, ...hydrateTextDiffData(data) };
     case DiffType.Image:
       return {
         kind: DiffType.Image,
         previous: hydrateImage(data.previous),
         current: hydrateImage(data.current),
         textDiff: data.textDiff && hydrateTextDiffData(data.textDiff),
-      }
+      };
     case DiffType.Binary:
-      return { kind: DiffType.Binary }
+      return { kind: DiffType.Binary };
     case DiffType.Unrenderable:
-      return { kind: DiffType.Unrenderable }
+      return { kind: DiffType.Unrenderable };
     case DiffType.Submodule:
       return {
         kind: DiffType.Submodule,
@@ -255,9 +250,9 @@ export function hydrateDiff(data: IDiffWire): IDiff {
         status: data.status,
         oldSHA: data.oldSHA,
         newSHA: data.newSHA,
-      }
+      };
     default:
-      return assertNever(data, `Unknown diff kind: ${data}`)
+      return assertNever(data, `Unknown diff kind: ${data}`);
   }
 }
 
@@ -275,16 +270,16 @@ export async function getWorkingDirectoryDiff(
   repositoryPath: string,
   path: string,
   status: AppFileStatus,
-  hideWhitespace = false
+  hideWhitespace = false,
 ): Promise<IDiff> {
-  const diff = await invoke<IDiffWire>('get_working_directory_diff', {
+  const diff = await invoke<IDiffWire>("get_working_directory_diff", {
     repositoryPath,
     path,
     status,
     hideWhitespace,
-  })
+  });
 
-  return hydrateDiff(diff)
+  return hydrateDiff(diff);
 }
 
 /** Diffs a file in a commit against that commit's first parent. */
@@ -293,17 +288,17 @@ export async function getCommitDiff(
   path: string,
   status: AppFileStatus,
   commitish: string,
-  hideWhitespace = false
+  hideWhitespace = false,
 ): Promise<IDiff> {
-  const diff = await invoke<IDiffWire>('get_commit_diff', {
+  const diff = await invoke<IDiffWire>("get_commit_diff", {
     repositoryPath,
     path,
     status,
     commitish,
     hideWhitespace,
-  })
+  });
 
-  return hydrateDiff(diff)
+  return hydrateDiff(diff);
 }
 
 /**
@@ -317,17 +312,17 @@ export async function getCommitRangeDiff(
   path: string,
   status: AppFileStatus,
   commits: ReadonlyArray<string>,
-  hideWhitespace = false
+  hideWhitespace = false,
 ): Promise<IDiff> {
-  const diff = await invoke<IDiffWire>('get_commit_range_diff', {
+  const diff = await invoke<IDiffWire>("get_commit_range_diff", {
     repositoryPath,
     path,
     status,
     commits,
     hideWhitespace,
-  })
+  });
 
-  return hydrateDiff(diff)
+  return hydrateDiff(diff);
 }
 
 /**
@@ -345,14 +340,14 @@ export async function getCommitRangeDiff(
 export function dehydrateTextDiff(diff: ITextDiff): ITextDiffDataWire {
   return {
     text: diff.text,
-    hunks: diff.hunks.map(hunk => ({
+    hunks: diff.hunks.map((hunk) => ({
       header: {
         oldStartLine: hunk.header.oldStartLine,
         oldLineCount: hunk.header.oldLineCount,
         newStartLine: hunk.header.newStartLine,
         newLineCount: hunk.header.newLineCount,
       },
-      lines: hunk.lines.map(line => ({
+      lines: hunk.lines.map((line) => ({
         text: line.text,
         type: line.type,
         originalLineNumber: line.originalLineNumber,
@@ -367,7 +362,7 @@ export function dehydrateTextDiff(diff: ITextDiff): ITextDiffDataWire {
     lineEndingsChange: diff.lineEndingsChange,
     maxLineNumber: diff.maxLineNumber,
     hasHiddenBidiChars: diff.hasHiddenBidiChars,
-  }
+  };
 }
 
 /**
@@ -386,14 +381,14 @@ export async function discardChangesFromSelection(
   repositoryPath: string,
   filePath: string,
   diff: ITextDiff,
-  selectedLines: ReadonlyArray<number>
+  selectedLines: ReadonlyArray<number>,
 ): Promise<void> {
-  await invoke('discard_changes_from_selection', {
+  await invoke("discard_changes_from_selection", {
     repositoryPath,
     filePath,
     diff: dehydrateTextDiff(diff),
     selectedLines,
-  })
+  });
 }
 
 /**
@@ -412,9 +407,9 @@ export async function getBranchMergeBaseDiff(
   baseBranch: string,
   comparisonBranch: string,
   latestCommit: string,
-  hideWhitespace = false
+  hideWhitespace = false,
 ): Promise<IDiff> {
-  const diff = await invoke<IDiffWire>('get_branch_merge_base_diff', {
+  const diff = await invoke<IDiffWire>("get_branch_merge_base_diff", {
     repositoryPath,
     path,
     status,
@@ -422,9 +417,9 @@ export async function getBranchMergeBaseDiff(
     comparisonBranch,
     latestCommit,
     hideWhitespace,
-  })
+  });
 
-  return hydrateDiff(diff)
+  return hydrateDiff(diff);
 }
 
 /**
@@ -437,14 +432,16 @@ export async function getBranchMergeBaseChangedFiles(
   repositoryPath: string,
   baseBranch: string,
   comparisonBranch: string,
-  latestComparisonCommit: string
+  latestComparisonCommit: string,
 ): Promise<IChangesetData | null> {
-  const changeset = await invoke<IChangesetDataWire | null>(
-    'get_branch_merge_base_changed_files',
-    { repositoryPath, baseBranch, comparisonBranch, latestComparisonCommit }
-  )
+  const changeset = await invoke<IChangesetDataWire | null>("get_branch_merge_base_changed_files", {
+    repositoryPath,
+    baseBranch,
+    comparisonBranch,
+    latestComparisonCommit,
+  });
 
-  return changeset === null ? null : hydrateChangesetData(changeset)
+  return changeset === null ? null : hydrateChangesetData(changeset);
 }
 
 /**
@@ -456,12 +453,12 @@ export async function getBranchMergeBaseChangedFiles(
  */
 export async function getCommitRangeChangedFiles(
   repositoryPath: string,
-  shas: ReadonlyArray<string>
+  shas: ReadonlyArray<string>,
 ): Promise<IChangesetData> {
-  const changeset = await invoke<IChangesetDataWire>(
-    'get_commit_range_changed_files',
-    { repositoryPath, shas }
-  )
+  const changeset = await invoke<IChangesetDataWire>("get_commit_range_changed_files", {
+    repositoryPath,
+    shas,
+  });
 
-  return hydrateChangesetData(changeset)
+  return hydrateChangesetData(changeset);
 }

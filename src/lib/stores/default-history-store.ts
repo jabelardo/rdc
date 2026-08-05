@@ -1,8 +1,8 @@
-import { HistoryStore } from './history-store'
+import { HistoryStore } from "./history-store";
 
-let defaultHistoryStore: HistoryStore | undefined
+let defaultHistoryStore: HistoryStore | undefined;
 
 export function getDefaultHistoryStore(): HistoryStore {
-  defaultHistoryStore ??= new HistoryStore()
-  return defaultHistoryStore
+  defaultHistoryStore ??= new HistoryStore();
+  return defaultHistoryStore;
 }

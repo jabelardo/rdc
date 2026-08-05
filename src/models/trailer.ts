@@ -22,8 +22,8 @@
  * See git-interpret-trailers for more information.
  */
 export interface ITrailer {
-  readonly token: string
-  readonly value: string
+  readonly token: string;
+  readonly value: string;
 }
 
 /**
@@ -31,7 +31,7 @@ export interface ITrailer {
  * Co-Authored-By. Does not validate the token value.
  */
 export function isCoAuthoredByTrailer(trailer: ITrailer) {
-  return trailer.token.toLowerCase() === 'co-authored-by'
+  return trailer.token.toLowerCase() === "co-authored-by";
 }
 
 /**
@@ -47,12 +47,9 @@ export function isCoAuthoredByTrailer(trailer: ITrailer) {
  * The `> 0` bound is from the original and is load bearing: a separator at index 0 would mean an empty
  * token, so such a line isn't a trailer.
  */
-export function parseSingleUnfoldedTrailer(
-  line: string,
-  separators: string
-): ITrailer | null {
+export function parseSingleUnfoldedTrailer(line: string, separators: string): ITrailer | null {
   for (const separator of separators) {
-    const index = line.indexOf(separator)
+    const index = line.indexOf(separator);
 
     if (index > 0) {
       return {
@@ -62,9 +59,9 @@ export function parseSingleUnfoldedTrailer(
         // surrogate pair in half — leaving a lone surrogate at the front of the value. Fixed the same
         // way in `git_ops::interpret_trailers`, which uses `len_utf8`.
         value: line.substring(index + separator.length).trim(),
-      }
+      };
     }
   }
 
-  return null
+  return null;
 }

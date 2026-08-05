@@ -1,4 +1,4 @@
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faArrowsDownToLine,
   faCloudArrowDown,
@@ -11,29 +11,29 @@ import {
   faListCheck,
   faPlus,
   faTerminal,
-} from '@fortawesome/free-solid-svg-icons'
-import type { RemoteState } from '../../stores/remote-store'
-import { Tooltip } from '../tooltip'
+} from "@fortawesome/free-solid-svg-icons";
+import type { RemoteState } from "../../stores/remote-store";
+import { Tooltip } from "../tooltip";
 
 type RepositoryToolbarProps = {
-  readonly remoteState: RemoteState
-  readonly canFetch: boolean
-  readonly canPush: boolean
-  readonly canPull: boolean
-  readonly hasEditor: boolean
-  readonly hasShell: boolean
-  readonly repositoryView: 'changes' | 'history'
-  readonly onCreateRepository: () => void
-  readonly onAddExistingRepository: () => void
-  readonly onCloneRepository: () => void
-  readonly onShowFiles: () => void
-  readonly onOpenEditor: () => void
-  readonly onOpenShell: () => void
-  readonly onFetch: () => void
-  readonly onPull: () => void
-  readonly onPush: () => void
-  readonly onSelectView: (view: 'changes' | 'history') => void
-}
+  readonly remoteState: RemoteState;
+  readonly canFetch: boolean;
+  readonly canPush: boolean;
+  readonly canPull: boolean;
+  readonly hasEditor: boolean;
+  readonly hasShell: boolean;
+  readonly repositoryView: "changes" | "history";
+  readonly onCreateRepository: () => void;
+  readonly onAddExistingRepository: () => void;
+  readonly onCloneRepository: () => void;
+  readonly onShowFiles: () => void;
+  readonly onOpenEditor: () => void;
+  readonly onOpenShell: () => void;
+  readonly onFetch: () => void;
+  readonly onPull: () => void;
+  readonly onPush: () => void;
+  readonly onSelectView: (view: "changes" | "history") => void;
+};
 
 /** Current-repository identity, local shortcuts, and remote synchronization actions. */
 export function RepositoryToolbar({
@@ -58,22 +58,19 @@ export function RepositoryToolbar({
   const progress =
     remoteState.progress === null
       ? null
-      : `${remoteState.progress.title ?? 'Fetching'}${
-          remoteState.progress.description
-            ? ` — ${remoteState.progress.description}`
-            : ''
-        } (${Math.round(remoteState.progress.value * 100)}%)`
-  const status = remoteState.operationError ?? remoteState.error ?? progress
-  const statusIsError =
-    remoteState.operationError !== null || remoteState.error !== null
+      : `${remoteState.progress.title ?? "Fetching"}${
+          remoteState.progress.description ? ` — ${remoteState.progress.description}` : ""
+        } (${Math.round(remoteState.progress.value * 100)}%)`;
+  const status = remoteState.operationError ?? remoteState.error ?? progress;
+  const statusIsError = remoteState.operationError !== null || remoteState.error !== null;
   const statusElement = (
     <p
-      className={`repository-toolbar-status${statusIsError ? ' is-error' : ''}`}
-      role={statusIsError ? 'alert' : 'status'}
+      className={`repository-toolbar-status${statusIsError ? " is-error" : ""}`}
+      role={statusIsError ? "alert" : "status"}
     >
       {status}
     </p>
-  )
+  );
 
   return (
     <header
@@ -89,11 +86,7 @@ export function RepositoryToolbar({
           aria-label="Repository creation"
         >
           <Tooltip label="New repository">
-            <button
-              type="button"
-              aria-label="New repository"
-              onClick={onCreateRepository}
-            >
+            <button type="button" aria-label="New repository" onClick={onCreateRepository}>
               <FontAwesomeIcon icon={faPlus} aria-hidden="true" />
               <span className="sr-only">New repository</span>
             </button>
@@ -109,11 +102,7 @@ export function RepositoryToolbar({
             </button>
           </Tooltip>
           <Tooltip label="Clone repository">
-            <button
-              type="button"
-              aria-label="Clone repository"
-              onClick={onCloneRepository}
-            >
+            <button type="button" aria-label="Clone repository" onClick={onCloneRepository}>
               <FontAwesomeIcon icon={faClone} aria-hidden="true" />
               <span className="sr-only">Clone repository</span>
             </button>
@@ -161,53 +150,38 @@ export function RepositoryToolbar({
       >
         <div className="remote-actions flex items-center gap-1.5">
           <Tooltip label="Fetch from remote">
-            <button
-              type="button"
-              aria-label="Fetch"
-              disabled={!canFetch}
-              onClick={onFetch}
-            >
+            <button type="button" aria-label="Fetch" disabled={!canFetch} onClick={onFetch}>
               <FontAwesomeIcon
                 icon={faArrowsDownToLine}
-                spin={remoteState.operation === 'fetch'}
+                spin={remoteState.operation === "fetch"}
                 aria-hidden="true"
               />
               <span className="sr-only">
-                {remoteState.operation === 'fetch' ? 'Fetching…' : 'Fetch'}
+                {remoteState.operation === "fetch" ? "Fetching…" : "Fetch"}
               </span>
             </button>
           </Tooltip>
           <Tooltip label="Pull from remote">
-            <button
-              type="button"
-              aria-label="Pull"
-              disabled={!canPull}
-              onClick={onPull}
-            >
+            <button type="button" aria-label="Pull" disabled={!canPull} onClick={onPull}>
               <FontAwesomeIcon
                 icon={faCloudArrowDown}
-                bounce={remoteState.operation === 'pull'}
+                bounce={remoteState.operation === "pull"}
                 aria-hidden="true"
               />
               <span className="sr-only">
-                {remoteState.operation === 'pull' ? 'Pulling…' : 'Pull'}
+                {remoteState.operation === "pull" ? "Pulling…" : "Pull"}
               </span>
             </button>
           </Tooltip>
           <Tooltip label="Push to remote">
-            <button
-              type="button"
-              aria-label="Push"
-              disabled={!canPush}
-              onClick={onPush}
-            >
+            <button type="button" aria-label="Push" disabled={!canPush} onClick={onPush}>
               <FontAwesomeIcon
                 icon={faCloudArrowUp}
-                bounce={remoteState.operation === 'push'}
+                bounce={remoteState.operation === "push"}
                 aria-hidden="true"
               />
               <span className="sr-only">
-                {remoteState.operation === 'push' ? 'Pushing…' : 'Push'}
+                {remoteState.operation === "push" ? "Pushing…" : "Push"}
               </span>
             </button>
           </Tooltip>
@@ -220,9 +194,9 @@ export function RepositoryToolbar({
         <Tooltip label="Show changes">
           <button
             type="button"
-            aria-current={repositoryView === 'changes' ? 'page' : undefined}
+            aria-current={repositoryView === "changes" ? "page" : undefined}
             aria-label="Changes"
-            onClick={() => onSelectView('changes')}
+            onClick={() => onSelectView("changes")}
           >
             <FontAwesomeIcon icon={faListCheck} aria-hidden="true" />
             <span className="repository-view-label">Changes</span>
@@ -231,20 +205,16 @@ export function RepositoryToolbar({
         <Tooltip label="Show history">
           <button
             type="button"
-            aria-current={repositoryView === 'history' ? 'page' : undefined}
+            aria-current={repositoryView === "history" ? "page" : undefined}
             aria-label="History"
-            onClick={() => onSelectView('history')}
+            onClick={() => onSelectView("history")}
           >
             <FontAwesomeIcon icon={faClockRotateLeft} aria-hidden="true" />
             <span className="repository-view-label">History</span>
           </button>
         </Tooltip>
       </nav>
-      {status === null ? (
-        statusElement
-      ) : (
-        <Tooltip label={status}>{statusElement}</Tooltip>
-      )}
+      {status === null ? statusElement : <Tooltip label={status}>{statusElement}</Tooltip>}
     </header>
-  )
+  );
 }

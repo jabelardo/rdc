@@ -8,17 +8,17 @@
  * `git-ops` serializes, pinned by the wire snapshot.
  */
 export type RepositoryType =
-  | { readonly kind: 'bare' }
+  | { readonly kind: "bare" }
   | {
-      readonly kind: 'regular'
-      readonly topLevelWorkingDirectory: string
-      readonly gitDir: string
+      readonly kind: "regular";
+      readonly topLevelWorkingDirectory: string;
+      readonly gitDir: string;
     }
   /** Nothing usable: the path doesn't exist, isn't a directory, or isn't a repository. */
-  | { readonly kind: 'missing' }
+  | { readonly kind: "missing" }
   /**
    * A repository git refuses because it's owned by a different user.
    *
    * `addSafeDirectory` is the only way out — see `src/lib/misc-ipc.ts`.
    */
-  | { readonly kind: 'unsafe'; readonly path: string }
+  | { readonly kind: "unsafe"; readonly path: string };

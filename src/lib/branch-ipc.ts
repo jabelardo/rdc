@@ -14,32 +14,27 @@
  * beyond the wire: `models/branch.ts` notes they sort local branches ahead of remote ones.
  */
 
-import { invoke } from '@tauri-apps/api/core'
-import {
-  Branch,
-  BranchType,
-  type IBranchTip,
-  type ITrackingBranch,
-} from '../models/branch'
+import { invoke } from "@tauri-apps/api/core";
+import { Branch, BranchType, type IBranchTip, type ITrackingBranch } from "../models/branch";
 
 /** An {@linkcode IBranchTip} as it arrives over IPC. */
 export interface IBranchTipData {
-  readonly sha: string
+  readonly sha: string;
   readonly author: {
     /** Seconds since the Unix epoch; the `Date` is built here. */
-    readonly date: number
-  }
+    readonly date: number;
+  };
 }
 
 /** A {@linkcode Branch} as it arrives over IPC: the constructor's arguments. */
 export interface IBranchData {
-  readonly name: string
+  readonly name: string;
   /** `null` rather than absent when the branch tracks nothing. */
-  readonly upstream: string | null
-  readonly tip: IBranchTipData
-  readonly type: BranchType
-  readonly ref: string
-  readonly isGone: boolean
+  readonly upstream: string | null;
+  readonly tip: IBranchTipData;
+  readonly type: BranchType;
+  readonly ref: string;
+  readonly isGone: boolean;
 }
 
 function hydrateBranchTip(data: IBranchTipData): IBranchTip {
@@ -47,7 +42,7 @@ function hydrateBranchTip(data: IBranchTipData): IBranchTip {
     sha: data.sha,
     // The wire carries seconds; `Date` takes milliseconds.
     author: { date: new Date(data.author.date * 1000) },
-  }
+  };
 }
 
 /** Builds a {@linkcode Branch}, whose getters derive the remote and short names. */
@@ -58,8 +53,8 @@ export function hydrateBranch(data: IBranchData): Branch {
     hydrateBranchTip(data.tip),
     data.type,
     data.ref,
-    data.isGone
-  )
+    data.isGone,
+  );
 }
 
 /**
@@ -75,14 +70,14 @@ export function hydrateBranch(data: IBranchData): Branch {
  */
 export async function getBranches(
   repositoryPath: string,
-  prefixes: ReadonlyArray<string> = []
+  prefixes: ReadonlyArray<string> = [],
 ): Promise<ReadonlyArray<Branch>> {
-  const branches = await invoke<ReadonlyArray<IBranchData>>('get_branches', {
+  const branches = await invoke<ReadonlyArray<IBranchData>>("get_branches", {
     repositoryPath,
     prefixes,
-  })
+  });
 
-  return branches.map(hydrateBranch)
+  return branches.map(hydrateBranch);
 }
 
 /**
@@ -95,12 +90,11 @@ export async function getBranches(
  * be moved by a ref update alone.
  */
 export async function getBranchesDifferingFromUpstream(
-  repositoryPath: string
+  repositoryPath: string,
 ): Promise<ReadonlyArray<ITrackingBranch>> {
-  return await invoke<ReadonlyArray<ITrackingBranch>>(
-    'get_branches_differing_from_upstream',
-    { repositoryPath }
-  )
+  return await invoke<ReadonlyArray<ITrackingBranch>>("get_branches_differing_from_upstream", {
+    repositoryPath,
+  });
 }
 
 /**
@@ -114,9 +108,9 @@ export async function createBranch(
   repositoryPath: string,
   name: string,
   startPoint?: string,
-  noTrack = false
+  noTrack = false,
 ): Promise<void> {
-  await invoke('create_branch', { repositoryPath, name, startPoint, noTrack })
+  await invoke("create_branch", { repositoryPath, name, startPoint, noTrack });
 }
 
 /**
@@ -130,14 +124,14 @@ export async function renameBranch(
   repositoryPath: string,
   currentName: string,
   newName: string,
-  force?: boolean
+  force?: boolean,
 ): Promise<void> {
-  await invoke('rename_branch', {
+  await invoke("rename_branch", {
     repositoryPath,
     currentName,
     newName,
     force,
-  })
+  });
 }
 
 /**
@@ -146,11 +140,8 @@ export async function renameBranch(
  * Uses `-D`: the app asks the user before calling this, so git's own refusal would arrive as a failure the UI
  * has already ruled out.
  */
-export async function deleteLocalBranch(
-  repositoryPath: string,
-  branchName: string
-): Promise<void> {
-  await invoke('delete_local_branch', { repositoryPath, branchName })
+export async function deleteLocalBranch(repositoryPath: string, branchName: string): Promise<void> {
+  await invoke("delete_local_branch", { repositoryPath, branchName });
 }
 
 /**
@@ -161,12 +152,12 @@ export async function deleteLocalBranch(
  */
 export async function getBranchesPointedAt(
   repositoryPath: string,
-  committish: string
+  committish: string,
 ): Promise<ReadonlyArray<string> | null> {
-  return invoke<ReadonlyArray<string> | null>('get_branches_pointed_at', {
+  return invoke<ReadonlyArray<string> | null>("get_branches_pointed_at", {
     repositoryPath,
     committish,
-  })
+  });
 }
 
 /**
@@ -178,14 +169,14 @@ export async function getBranchesPointedAt(
  */
 export async function getMergedBranches(
   repositoryPath: string,
-  branchName: string
+  branchName: string,
 ): Promise<Map<string, string>> {
-  const pairs = await invoke<ReadonlyArray<[string, string]>>(
-    'get_merged_branches',
-    { repositoryPath, branchName }
-  )
+  const pairs = await invoke<ReadonlyArray<[string, string]>>("get_merged_branches", {
+    repositoryPath,
+    branchName,
+  });
 
-  return new Map(pairs)
+  return new Map(pairs);
 }
 
 /**
@@ -198,15 +189,15 @@ export async function getMergedBranches(
 export async function deleteRef(
   repositoryPath: string,
   refName: string,
-  reason?: string
+  reason?: string,
 ): Promise<void> {
-  await invoke('delete_ref', { repositoryPath, refName, reason })
+  await invoke("delete_ref", { repositoryPath, refName, reason });
 }
 
 /** What a symbolic ref points at, or `null` if it isn't one. */
 export async function getSymbolicRef(
   repositoryPath: string,
-  refName: string
+  refName: string,
 ): Promise<string | null> {
-  return invoke<string | null>('get_symbolic_ref', { repositoryPath, refName })
+  return invoke<string | null>("get_symbolic_ref", { repositoryPath, refName });
 }
