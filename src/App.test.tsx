@@ -1706,8 +1706,9 @@ describe("App", () => {
 
     // Scoped to the dialog: the same paths are listed in the working-tree pane behind it.
     const listed = within(screen.getByRole("alertdialog", { name: "Discard all changes" }));
+    // The count appears whether or not the paths are listed — it is what conveys the scale.
     expect(
-      listed.getByText("Are you sure you want to discard all changes to:"),
+      listed.getByText("Are you sure you want to discard all changes to these 2 files:"),
     ).toBeInTheDocument();
     expect(listed.getByText("src/file-1.ts")).toBeInTheDocument();
     expect(listed.getByText("src/file-2.ts")).toBeInTheDocument();
@@ -1725,7 +1726,7 @@ describe("App", () => {
 
     const counted = within(screen.getByRole("alertdialog", { name: "Discard all changes" }));
     expect(
-      counted.getByText("Are you sure you want to discard all 11 changed files?"),
+      counted.getByText("Are you sure you want to discard all changes to 11 changed files?"),
     ).toBeInTheDocument();
     expect(counted.queryByText("src/file-1.ts")).not.toBeInTheDocument();
   });

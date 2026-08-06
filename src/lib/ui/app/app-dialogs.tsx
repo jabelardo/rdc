@@ -47,6 +47,7 @@ type AppDialogsProps = {
   readonly discardSelection: boolean;
   readonly discardAll: {
     readonly permanent: boolean;
+    readonly fileCount: number;
     readonly paths: ReadonlyArray<string>;
   } | null;
   readonly discardOptOut: boolean;
@@ -232,7 +233,7 @@ export function AppDialogs({
       {discardAll !== null && (
         <ConfirmDialog
           title={discardAll.permanent ? "Permanently discard all changes" : "Discard all changes"}
-          description={discardAllQuestion(discardAll.paths)}
+          description={discardAllQuestion(discardAll.fileCount)}
           confirmLabel={discardAll.permanent ? "Permanently discard changes" : "Discard changes"}
           busyLabel="Discarding…"
           busy={discarding}
@@ -240,7 +241,7 @@ export function AppDialogs({
           onConfirm={onConfirmDiscardAll}
           onCancel={onCancelDiscardAll}
         >
-          <DiscardFileList paths={discardAll.paths} />
+          <DiscardFileList paths={discardAll.paths} fileCount={discardAll.fileCount} />
           <p>
             {discardAll.permanent
               ? "These changes cannot be recovered."
