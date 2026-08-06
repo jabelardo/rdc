@@ -259,60 +259,58 @@ export function AppDialogs({
             }
           }}
         >
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
-              <DialogTitle>Rename branch</DialogTitle>
-            </DialogHeader>
+          <DialogContent className="sm:max-w-sm">
+            <DialogTitle>Rename branch</DialogTitle>
             <form
+              className="mt-4 grid gap-2"
               onSubmit={(event) => {
                 event.preventDefault();
                 onConfirmRename();
               }}
             >
-              <label className="text-sm font-medium" htmlFor="rename-branch-name">
+              <label htmlFor="rename-branch-name">
                 New name for <strong>{branchToRename.name}</strong>
               </label>
               <input
                 id="rename-branch-name"
-                className="mt-1.5 flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 value={renameName}
                 autoFocus
                 onChange={(event) => onRenameNameChange(event.currentTarget.value)}
               />
               {branchToRename.upstream !== null && (
-                <p className="mt-2 text-sm text-muted-foreground">
+                <p>
                   This branch tracks <strong>{branchToRename.upstream}</strong>. Only the local
                   branch is renamed; the remote branch keeps its current name.
                 </p>
               )}
-              <DialogFooter className="mt-4">
+              <DialogFooter>
                 {__DARWIN__ ? (
                   <>
-                    <Button type="button" variant="outline" onClick={onCancelRename}>
+                    <button type="button" onClick={onCancelRename}>
                       Cancel
-                    </Button>
-                    <Button
+                    </button>
+                    <button
                       type="submit"
                       disabled={
                         renameName.trim().length === 0 || renameName.trim() === branchToRename.name
                       }
                     >
                       Rename
-                    </Button>
+                    </button>
                   </>
                 ) : (
                   <>
-                    <Button
+                    <button
                       type="submit"
                       disabled={
                         renameName.trim().length === 0 || renameName.trim() === branchToRename.name
                       }
                     >
                       Rename
-                    </Button>
-                    <Button type="button" variant="outline" onClick={onCancelRename}>
+                    </button>
+                    <button type="button" onClick={onCancelRename}>
                       Cancel
-                    </Button>
+                    </button>
                   </>
                 )}
               </DialogFooter>
@@ -372,12 +370,10 @@ export function AppDialogs({
             }
           }}
         >
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
-              <DialogTitle>
-                Merge into current branch ({branchState.currentBranch ?? "—"})
-              </DialogTitle>
-            </DialogHeader>
+          <DialogContent className="sm:max-w-md">
+            <DialogTitle>
+              Merge into current branch ({branchState.currentBranch ?? "—"})
+            </DialogTitle>
             {(() => {
               const candidates = branchState.branches.filter(
                 (branch) =>
@@ -386,23 +382,26 @@ export function AppDialogs({
               if (candidates.length === 0) {
                 return (
                   <>
-                    <p className="text-sm text-muted-foreground">
-                      There are no other branches to merge.
-                    </p>
+                    <p>There are no other branches to merge.</p>
                     <DialogFooter>
-                      <Button onClick={onCancelMerge}>Close</Button>
+                      <button type="button" onClick={onCancelMerge}>
+                        Close
+                      </button>
                     </DialogFooter>
                   </>
                 );
               }
               return (
-                <>
-                  <label className="text-sm font-medium" htmlFor="merge-target-branch">
-                    Branch to merge
-                  </label>
+                <form
+                  className="mt-4 grid gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    onConfirmMerge();
+                  }}
+                >
+                  <label htmlFor="merge-target-branch">Branch to merge</label>
                   <select
                     id="merge-target-branch"
-                    className="mt-1.5 flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     value={mergeTarget}
                     disabled={mergeRunning}
                     onChange={(event) => onMergeTargetChange(event.currentTarget.value)}
@@ -414,49 +413,40 @@ export function AppDialogs({
                     ))}
                   </select>
                   {mergeMessage !== null && (
-                    <p
-                      className="rounded-[var(--radius-small)] border border-[var(--error-border)] bg-[var(--error-surface)] px-2.5 py-2 text-[var(--error-text)]"
-                      role="alert"
-                    >
+                    <p className="application-error" role="alert">
                       {mergeMessage}
                     </p>
                   )}
                   <DialogFooter>
                     {__DARWIN__ ? (
                       <>
-                        <Button
-                          variant="outline"
+                        <button
+                          type="button"
                           disabled={mergeRunning || mergeTarget === ""}
                           onClick={onCancelMerge}
                         >
                           Cancel
-                        </Button>
-                        <Button
-                          disabled={mergeRunning || mergeTarget === ""}
-                          onClick={onConfirmMerge}
-                        >
+                        </button>
+                        <button type="submit" disabled={mergeRunning || mergeTarget === ""}>
                           {mergeRunning ? "Merging…" : "Merge"}
-                        </Button>
+                        </button>
                       </>
                     ) : (
                       <>
-                        <Button
-                          disabled={mergeRunning || mergeTarget === ""}
-                          onClick={onConfirmMerge}
-                        >
+                        <button type="submit" disabled={mergeRunning || mergeTarget === ""}>
                           {mergeRunning ? "Merging…" : "Merge"}
-                        </Button>
-                        <Button
-                          variant="outline"
+                        </button>
+                        <button
+                          type="button"
                           disabled={mergeRunning || mergeTarget === ""}
                           onClick={onCancelMerge}
                         >
                           Cancel
-                        </Button>
+                        </button>
                       </>
                     )}
                   </DialogFooter>
-                </>
+                </form>
               );
             })()}
           </DialogContent>
