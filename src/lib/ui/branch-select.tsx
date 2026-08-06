@@ -109,7 +109,8 @@ export function BranchSelect({
                 <button
                   key={branch.name}
                   type="button"
-                  className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground ${isSelected ? "bg-accent text-accent-foreground" : ""}`}
+                   className="branch-list-selection"
+                  //className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground ${isSelected ? "bg-accent text-accent-foreground" : ""}`}
                   onClick={() => onSelect(branch)}
                 >
                   <Icon className="size-4 shrink-0" aria-hidden="true" />

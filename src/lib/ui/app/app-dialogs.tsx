@@ -393,9 +393,9 @@ export function AppDialogs({
                   <>
                     <p>There are no other branches to merge.</p>
                     <DialogFooter>
-                      <button type="button" onClick={onCancelMerge}>
+                      <Button type="button" onClick={onCancelMerge}>
                         Close
-                      </button>
+                      </Button>
                     </DialogFooter>
                   </>
                 );
@@ -414,30 +414,29 @@ export function AppDialogs({
                     selectedBranch={selected}
                     onSelect={(branch) => onMergeTargetChange(branch.name)}
                   />
-                  {mergeStatus !== null && mergeTarget !== "" && (
+                  {/*mergeStatus !== null && mergeTarget !== "" && (
                     <MergePreview
                       status={mergeStatus}
                       commitCount={mergeCommitCount}
                       targetBranch={mergeTarget}
                       currentBranch={branchState.currentBranch ?? "—"}
                     />
-                  )}
-                  {mergeMessage !== null && (
+                  )*/}
+                  {/* mergeMessage !== null && (
                     <p className="application-error" role="alert">
                       {mergeMessage}
                     </p>
-                  )}
+                  )*/}
                   <DialogFooter>
                     {__DARWIN__ ? (
                       <>
-                        <button
-                          type="button"
-                          disabled={mergeRunning || mergeTarget === ""}
+                        <Button
+                          type="button" variant="outline"
                           onClick={onCancelMerge}
                         >
                           Cancel
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
                           disabled={
                             mergeRunning ||
@@ -449,11 +448,11 @@ export function AppDialogs({
                           onClick={onConfirmMerge}
                         >
                           {mergeRunning ? "Merging…" : "Merge"}
-                        </button>
+                        </Button>
                       </>
                     ) : (
                       <>
-                        <button
+                        <Button
                           type="button"
                           disabled={
                             mergeRunning ||
@@ -465,14 +464,13 @@ export function AppDialogs({
                           onClick={onConfirmMerge}
                         >
                           {mergeRunning ? "Merging…" : "Merge"}
-                        </button>
-                        <button
-                          type="button"
-                          disabled={mergeRunning || mergeTarget === ""}
+                        </Button>
+                        <Button
+                          type="button" variant="outline"
                           onClick={onCancelMerge}
                         >
                           Cancel
-                        </button>
+                        </Button>
                       </>
                     )}
                   </DialogFooter>
