@@ -373,3 +373,33 @@ the review table shrank to zero genuine decisions, exactly as the process intend
 
 No conventions created or modified. This dialog exercises Conventions 2, 3, 5, 6 and 7 but
 introduces no new behaviour.
+
+---
+
+## Component 5 — Merge picker (`Dialog`)
+
+A form dialog with two modes: an informational "no branches" state and a branch-select state.
+Conditionally dismissible (blocked while `mergeRunning` is true).
+
+| Dimension | rdc today | desktop-plus | shadcn/Radix default | Verdict |
+|---|---|---|---|---|
+| Element semantics | hand-rolled `Modal` | modal dialog | `Dialog` | **SETTLED** (Convention 6) |
+| Escape / backdrop | blocked while running | blocked while running | dismisses | **SETTLED** → Convention 8 pattern (`onOpenChange` guard) |
+| Button order | macOS `[Cancel, Merge]`, else `[Merge, Cancel]` | same rule | — | **SETTLED** (Convention 2) |
+| Default action | Merge (not destructive — merges are reversible via reset) | same | — | **SETTLED** (Convention 7 — Cancel is outline, Merge is default) |
+| Footer / separator | — | — | — | **SETTLED** (Convention 5) |
+| Scale and type | — | — | — | **SETTLED** (Convention 3) |
+| Close button | none | footer only | X by default | **SETTLED** (Convention 6 — footer has Close/Cancel) |
+| Error display | `.application-error` class | — | — | **FIX** → `--error-*` tokens (interim rule) |
+| "No branches" state | plain text + Close button | — | — | **AGREED** → single Close button, `variant="default"` (Convention 7) |
+| Busy label | "Merging…" | same | — | **AGREED** |
+
+### Resolved
+
+- **Error tokens switched from `.application-error`** to `--error-*` tokens during migration,
+  per the interim rule in COMPONENT_MIGRATION_PROCESS.md's open decisions. This is the fifth
+  consumer of the error styling pattern.
+- **"No branches" Close is `variant="default"`** (Convention 7) — with no competing action,
+  solid reads as the obvious target.
+
+No new conventions created.

@@ -43,8 +43,8 @@ These three were the first migrated. Validate them in **Help → Show Dialog**. 
 | Rename branch… | Dialog | Dark | | | Cancel / Rename | | | Migrated | |
 | Delete branch… | AlertDialog | Light | | | Close / Delete | | Stub state injected by debug menu | |
 | Delete branch… | AlertDialog | Dark | | | Close / Delete | | | | |
-| Merge… | Dialog | Light | | | Cancel / Merge | | Stub state injected by debug menu | |
-| Merge… | Dialog | Dark | | | Cancel / Merge | | | | |
+| Merge… | Dialog | Light | | | Cancel / Merge | | Stub state injected by debug menu | Migrated |
+| Merge… | Dialog | Dark | | | Cancel / Merge | | | Migrated | |
 | Remove repository… | AlertDialog | Light | | | Cancel / Remove | | Stub state injected by debug menu | |
 | Remove repository… | AlertDialog | Dark | | | Cancel / Remove | | | | |
 

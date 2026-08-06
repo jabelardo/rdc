@@ -364,72 +364,103 @@ export function AppDialogs({
       )}
 
       {mergePickerOpen && (
-        <Modal
-          className={confirmationDialogClassName}
-          role="dialog"
-          aria-labelledby="merge-dialog-title"
-          onDismiss={mergeRunning ? undefined : onCancelMerge}
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open && !mergeRunning) {
+              onCancelMerge();
+            }
+          }}
         >
-          <h2 id="merge-dialog-title">
-            Merge into current branch ({branchState.currentBranch ?? "—"})
-          </h2>
-          {(() => {
-            const candidates = branchState.branches.filter(
-              (branch) =>
-                branch.type === BranchType.Local && branch.name !== branchState.currentBranch,
-            );
-            if (candidates.length === 0) {
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>
+                Merge into current branch ({branchState.currentBranch ?? "—"})
+              </DialogTitle>
+            </DialogHeader>
+            {(() => {
+              const candidates = branchState.branches.filter(
+                (branch) =>
+                  branch.type === BranchType.Local && branch.name !== branchState.currentBranch,
+              );
+              if (candidates.length === 0) {
+                return (
+                  <>
+                    <p className="text-sm text-muted-foreground">
+                      There are no other branches to merge.
+                    </p>
+                    <DialogFooter>
+                      <Button onClick={onCancelMerge}>Close</Button>
+                    </DialogFooter>
+                  </>
+                );
+              }
               return (
                 <>
-                  <p>There are no other branches to merge.</p>
-                  <div className={dialogActionsClassName}>
-                    <button type="button" onClick={onCancelMerge}>
-                      Close
-                    </button>
-                  </div>
+                  <label className="text-sm font-medium" htmlFor="merge-target-branch">
+                    Branch to merge
+                  </label>
+                  <select
+                    id="merge-target-branch"
+                    className="mt-1.5 flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    value={mergeTarget}
+                    disabled={mergeRunning}
+                    onChange={(event) => onMergeTargetChange(event.currentTarget.value)}
+                  >
+                    {candidates.map((branch) => (
+                      <option key={branch.name} value={branch.name}>
+                        {branch.name}
+                      </option>
+                    ))}
+                  </select>
+                  {mergeMessage !== null && (
+                    <p
+                      className="rounded-[var(--radius-small)] border border-[var(--error-border)] bg-[var(--error-surface)] px-2.5 py-2 text-[var(--error-text)]"
+                      role="alert"
+                    >
+                      {mergeMessage}
+                    </p>
+                  )}
+                  <DialogFooter>
+                    {__DARWIN__ ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          disabled={mergeRunning || mergeTarget === ""}
+                          onClick={onCancelMerge}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          disabled={mergeRunning || mergeTarget === ""}
+                          onClick={onConfirmMerge}
+                        >
+                          {mergeRunning ? "Merging…" : "Merge"}
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Button
+                          disabled={mergeRunning || mergeTarget === ""}
+                          onClick={onConfirmMerge}
+                        >
+                          {mergeRunning ? "Merging…" : "Merge"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          disabled={mergeRunning || mergeTarget === ""}
+                          onClick={onCancelMerge}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    )}
+                  </DialogFooter>
                 </>
               );
-            }
-            return (
-              <>
-                <label htmlFor="merge-target-branch">Branch to merge</label>
-                <select
-                  id="merge-target-branch"
-                  value={mergeTarget}
-                  disabled={mergeRunning}
-                  onChange={(event) => onMergeTargetChange(event.currentTarget.value)}
-                >
-                  {candidates.map((branch) => (
-                    <option key={branch.name} value={branch.name}>
-                      {branch.name}
-                    </option>
-                  ))}
-                </select>
-                {mergeMessage !== null && (
-                  <p className="application-error" role="alert">
-                    {mergeMessage}
-                  </p>
-                )}
-                <div className={dialogActionsClassName}>
-                  <button
-                    type="button"
-                    disabled={mergeRunning || mergeTarget === ""}
-                    onClick={onCancelMerge}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    disabled={mergeRunning || mergeTarget === ""}
-                    onClick={onConfirmMerge}
-                  >
-                    {mergeRunning ? "Merging…" : "Merge"}
-                  </button>
-                </div>
-              </>
-            );
-          })()}
-        </Modal>
+            })()}
+          </DialogContent>
+        </Dialog>
       )}
 
       {showManageRemotes && (
