@@ -115,16 +115,37 @@ export function injectDebugState(options: DebugStateOptions = {}): Repository {
   appStore.emitUpdate();
 
   // ── BranchStore ──
+  const threeDaysAgo = new Date(Date.now() - 86_400_000 * 3);
+  const weekAgo = new Date(Date.now() - 86_400_000 * 7);
+
+  function stubBranchWithDate(name: string, type: BranchType = BranchType.Local, date: Date = new Date()): Branch {
+    return new Branch(
+      name,
+      null,
+      { sha: stubSha, author: { date } },
+      type,
+      type === BranchType.Local ? `refs/heads/${name}` : `refs/remotes/origin/${name}`,
+      false,
+    );
+  }
+
   setStoreState(getDefaultBranchStore(), {
     repositoryPath: repo.path,
     currentBranch: "main",
     defaultBranch: "main",
     branches: [
-      stubBranch("main"),
-      stubBranch("feature/fix"),
-      stubBranch("origin/main", BranchType.Remote),
+      stubBranchWithDate("main", BranchType.Local, weekAgo),
+      stubBranchWithDate("develop"),
+      stubBranchWithDate("feature/add-user-authentication-flow"),
+      stubBranchWithDate("feature/update-dashboard-layout"),
+      stubBranchWithDate("hotfix/critical-security-patch"),
+      stubBranchWithDate("bugfix/resolve-navigation-issue"),
+      stubBranchWithDate("release/v2.0.0"),
+      stubBranchWithDate("origin/main", BranchType.Remote, weekAgo),
+      stubBranchWithDate("origin/develop", BranchType.Remote, threeDaysAgo),
+      stubBranchWithDate("origin/feature/add-user-authentication-flow", BranchType.Remote),
     ],
-    recentBranches: [],
+    recentBranches: ["feature/update-dashboard-layout", "hotfix/critical-security-patch"],
     loading: false,
     error: null,
     operation: null,
