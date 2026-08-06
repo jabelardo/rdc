@@ -259,58 +259,60 @@ export function AppDialogs({
             }
           }}
         >
-          <DialogContent className="sm:max-w-sm">
-            <DialogTitle>Rename branch</DialogTitle>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Rename branch</DialogTitle>
+            </DialogHeader>
             <form
-              className="mt-4 grid gap-2"
               onSubmit={(event) => {
                 event.preventDefault();
                 onConfirmRename();
               }}
             >
-              <label htmlFor="rename-branch-name">
+              <label className="text-sm font-medium" htmlFor="rename-branch-name">
                 New name for <strong>{branchToRename.name}</strong>
               </label>
               <input
                 id="rename-branch-name"
+                className="mt-1.5 flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 value={renameName}
                 autoFocus
                 onChange={(event) => onRenameNameChange(event.currentTarget.value)}
               />
               {branchToRename.upstream !== null && (
-                <p>
+                <p className="mt-2 text-sm text-muted-foreground">
                   This branch tracks <strong>{branchToRename.upstream}</strong>. Only the local
                   branch is renamed; the remote branch keeps its current name.
                 </p>
               )}
-              <DialogFooter>
+              <DialogFooter className="mt-4">
                 {__DARWIN__ ? (
                   <>
-                    <button type="button" onClick={onCancelRename}>
+                    <Button type="button" variant="outline" onClick={onCancelRename}>
                       Cancel
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="submit"
                       disabled={
                         renameName.trim().length === 0 || renameName.trim() === branchToRename.name
                       }
                     >
                       Rename
-                    </button>
+                    </Button>
                   </>
                 ) : (
                   <>
-                    <button
+                    <Button
                       type="submit"
                       disabled={
                         renameName.trim().length === 0 || renameName.trim() === branchToRename.name
                       }
                     >
                       Rename
-                    </button>
-                    <button type="button" onClick={onCancelRename}>
+                    </Button>
+                    <Button type="button" variant="outline" onClick={onCancelRename}>
                       Cancel
-                    </button>
+                    </Button>
                   </>
                 )}
               </DialogFooter>
