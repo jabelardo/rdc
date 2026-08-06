@@ -81,9 +81,9 @@ describe("keyboard-only journey", () => {
 
     await driver.switchTo().activeElement().sendKeys(Key.ESCAPE);
     assert.equal(await hookDialog.isDisplayed(), true);
-    assert.equal(await driver.switchTo().activeElement().getText(), "Abort commit");
+    assert.equal(await driver.switchTo().activeElement().getText(), "Abort");
     await driver.switchTo().activeElement().sendKeys(Key.TAB);
-    assert.equal(await driver.switchTo().activeElement().getText(), "Ignore hook failure");
+    assert.equal(await driver.switchTo().activeElement().getText(), "Ignore and Continue");
     await driver.switchTo().activeElement().sendKeys(Key.ENTER);
 
     await driver.wait(

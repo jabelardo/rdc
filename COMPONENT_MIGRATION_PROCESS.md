@@ -73,6 +73,11 @@ button. All three sources agree, which makes this a convention rather than a jud
 one. Do not use plain `<button>` elements inside an `AlertDialogFooter` — that is precisely what
 drops the behaviour, because Radix then has no cancel to focus and falls back to first-tabbable.
 
+### Convention 2 — platform button order
+
+macOS renders `[Cancel, Ok]`; every other platform renders `[Ok, Cancel]`. Ported faithfully from
+desktop-plus's `OkCancelButtonGroup` and already correct in rdc's migrated dialogs — keep it.
+
 ### Convention 3 — Tailwind owns the scale; new work adds no hand-written CSS
 
 The port brought desktop-plus's CSS wholesale into a Tailwind project, so Tailwind ended up a
@@ -98,10 +103,24 @@ and a 13px root silently rendering every rem-based utility at 81% of its designe
 - **shadcn's own files (`src/components/ui/**`) keep `rem`** — they are authored against a 16px
   root and are now finally correct. Only rdc-authored values were converted to px.
 
-### Convention 2 — platform button order
+### Convention 4 — destructive buttons are tinted *and* bordered
 
-macOS renders `[Cancel, Ok]`; every other platform renders `[Ok, Cancel]`. Ported faithfully from
-desktop-plus's `OkCancelButtonGroup` and already correct in rdc's migrated dialogs — keep it.
+Solid (rdc's and desktop-plus's choice) reads too heavy against shadcn's smaller button geometry;
+shadcn's stock 10% tint alone does not read as a distinct control beside `outline`. The border
+carries the destructive hue rather than `outline`'s neutral grey. See Component 1 for how this was
+judged.
+
+### Convention 5 — dialog footers carry no separator or band, and hovers must be real
+
+Applied to the shared `Dialog`/`AlertDialog` primitives, so every dialog inherits it:
+
+- No `border-t` and no tinted band. Removing the band also removes the reason for the
+  `-mx-5 -mb-5 … p-5` full-bleed trick, which existed only to paint it edge to edge.
+- No margin above the footer: `*DialogContent` is a `grid gap-4`, so a `mt-*` is a second spacing
+  mechanism stacked on the first.
+- **Check a hover against resolved token values, not class names.** `outline` was `bg-secondary`
+  with `hover:bg-muted`, and `--secondary` and `--muted` hold the same value in both themes — so it
+  had no hover at all in light mode.
 
 ---
 
@@ -114,22 +133,26 @@ desktop-plus's `OkCancelButtonGroup` and already correct in rdc's migrated dialo
 | Escape / backdrop | no-op — decision required | modal, no dismissal | `AlertDialog` blocks both | **AGREED** |
 | Element semantics | `AlertDialog` | modal dialog | — | **AGREED** |
 | Focus on open | **first tabbable** → the destructive *Ignore* on Linux | safe action (`destructive={true}`) | `AlertDialogCancel`, if used | **FIX** (Convention 1) |
-| Destructive visual | solid red fill, light text (`.destructive-button`) | solid red fill (`--button-destructive-background: $red-100`) | soft 10%-tinted red (`Button variant="destructive"`) | **DECIDE** |
+| Destructive visual | solid red fill, light text (`.destructive-button`) | solid red fill (`--button-destructive-background: $red-100`) | soft 10%-tinted red (`Button variant="destructive"`) | **DECIDED** → Convention 4 |
 
-### The one open decision
+### Resolved → Convention 4
 
-Adopting `AlertDialogCancel`/`AlertDialogAction` is what restores the focus behaviour, but those
-wrappers style themselves through shadcn's `Button` variants — `outline` for cancel, and a soft
-`bg-destructive/10` tint for destructive. rdc and desktop-plus both use a **solid** red fill. So the
-focus fix and the button's appearance are coupled, and the choice is:
+Judged live in both treatments once the layering and scale bugs were out of the way (before that,
+*neither* rendered — see Convention 3). Solid read too heavy against shadcn's smaller button
+geometry; the stock 10% tint alone did not read as a distinct control beside `outline`. **Tinted and
+bordered** was the outcome, with the border in the destructive hue rather than `outline`'s neutral
+grey. Applies to Discard file, Discard all, Delete branch and Remove repository when they migrate.
 
-- **(a) Keep the solid fill.** Match rdc and desktop-plus; override the variant styling on the
-  Radix primitives so the appearance is unchanged and only focus behaviour moves.
-- **(b) Adopt shadcn's soft tint.** Fewer overrides and closer to stock shadcn, but a visible change
-  to every destructive dialog and a departure from two of three sources.
+Two further decisions came out of the same pass, both applied to the shared `Dialog`/`AlertDialog`
+primitives rather than this one dialog:
 
-Whichever is chosen becomes **Convention 3**, applying to Discard file, Discard all, Delete branch
-and Remove repository — all of which have the same solid/soft question waiting.
+- **Footers carry no separator line and no tinted band.** Removing the band also removed the reason
+  for the `-mx-5 -mb-5 … p-5` full-bleed trick, which existed only to paint it edge to edge. And the
+  footer's `mt-4` went with it: `*DialogContent` is a `grid gap-4`, so the margin was a second
+  spacing mechanism stacked on the first, totalling 32px above the buttons.
+- **A hover must be a real colour step.** `outline` was `bg-secondary` with `hover:bg-muted`, and
+  `--secondary` and `--muted` hold the *same value* in both themes — so it had no hover at all in
+  light mode. Check a hover against the resolved token values, not the class names.
 
 ### Blocked on this
 

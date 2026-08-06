@@ -825,6 +825,34 @@ shape of everything it carries is pinned by a wire-contract test on the Rust sid
 
 ## 8. Deliberate deviations from a verbatim port
 
+### xterm.js is not ported for the MVP — a styled `<pre>` renders terminal output
+
+desktop-plus wraps `@xterm/xterm` in one 78-line component (`app/src/ui/terminal.tsx`) used by four
+dialogs: hook-failed, commit-progress, app-error and delete-worktree-failed. rdc has equivalents for
+the first two; `app-error` is served by `FatalErrorBoundary` instead, and worktrees are Phase 7f. So
+at most two MVP surfaces would consume it. (The two other "xterm" matches in desktop-plus's
+`lib/shells/linux.ts` are `/usr/bin/xterm` and `lxterminal` — the terminal *emulators*, unrelated.)
+
+**The reason not to port it is that its one job has nothing to do here.** xterm.js exists to render
+ANSI escape sequences, and rdc's captured hook output contains none: `hooks/runner.rs:232-235`
+spawns hooks with stderr as a **pipe**, sets no `TERM`, and nothing sets `FORCE_COLOR` or
+`CLICOLOR_FORCE`. npm, eslint, prettier and git all check `isatty` and emit plain text when piped.
+Capture itself is complete despite `stdout` being `Stdio::null()` — `git hook run` redirects a hook's
+stdout onto stderr and keeps stdout for its own use, which is what that line is for.
+
+Cost against no benefit: 283 KB minified, on a bundle already at 653 KB and past Vite's 500 KB
+warning. A first attempt was also reverted (`5f17f2f`) for
+`Cannot read properties of undefined (reading metadata)` — consistent with xterm initialising into a
+zero-size container, since Radix animates the dialog in (`zoom-in-95`) and the element has no
+dimensions at mount. Fixable, but WebKitGTK is the least-tested renderer target and desktop-plus only
+ever had to satisfy Chromium.
+
+**Deferred, not rejected — revisit after the MVP release.** If coloured hook output is wanted, the
+precondition is a one-line change to `hook_environment` (`FORCE_COLOR=1`), and the proportionate
+renderer is then a small SGR-to-`<span>` pass, not a terminal emulator. xterm.js earns its weight
+only where cursor addressing, reflow, interactivity or large scrollback are needed, none of which
+applies to read-only output in a modal.
+
 ### The MVP webview has no general network authority
 
 Electron's `OrderedWebRequest` existed because several independent consumers needed to rewrite the one

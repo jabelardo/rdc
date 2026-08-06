@@ -133,7 +133,7 @@ describe("working tree", () => {
       await driver.executeScript((element) => element.textContent, hookResult),
       /pre-commit.*hook says no/s,
     );
-    await driver.findElement(By.xpath("//button[normalize-space()='Ignore hook failure']")).click();
+    await driver.findElement(By.xpath("//button[normalize-space()='Ignore and Continue']")).click();
     await driver.wait(() => {
       try {
         return git(fixture.canonical, "log", "-1", "--pretty=%s") === "Commit from the real shell";
