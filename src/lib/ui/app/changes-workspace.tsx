@@ -1,5 +1,4 @@
-import { faGear, faMagnifyingGlass, faRotate, faTrashCan } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { RefreshCw, Search, Settings, Trash2 } from "lucide-react";
 import { useRef, useState, type CSSProperties } from "react";
 import { DiffLineType, DiffType } from "../../../models/diff";
 import type { ConflictStore } from "../../stores/conflict-store";
@@ -121,7 +120,7 @@ export function ChangesWorkspace({
         <header className="working-tree-header">
           <div className="working-tree-tools">
             <label className="working-tree-filter">
-              <FontAwesomeIcon icon={faMagnifyingGlass} aria-hidden="true" />
+              <Search aria-hidden="true" />
               <span className="sr-only">Filter changed files</span>
               <input
                 type="search"
@@ -143,7 +142,7 @@ export function ChangesWorkspace({
                   ]);
                 }}
               >
-                <FontAwesomeIcon icon={faRotate} aria-hidden="true" />
+                <RefreshCw aria-hidden="true" />
                 <span className="sr-only">Refresh changes</span>
               </button>
             </Tooltip>
@@ -222,7 +221,7 @@ export function ChangesWorkspace({
                   }
                 }}
               >
-                <FontAwesomeIcon icon={faTrashCan} aria-hidden="true" />
+                <Trash2 aria-hidden="true" />
                 <span className="sr-only">Discard selected lines</span>
               </button>
             </Tooltip>
@@ -330,7 +329,7 @@ export function ChangesWorkspace({
               <details>
                 <Tooltip label="Commit options">
                   <summary aria-label="Commit options">
-                    <FontAwesomeIcon icon={faGear} aria-hidden="true" />
+                    <Settings aria-hidden="true" />
                     <span className="sr-only">Commit options</span>
                   </summary>
                 </Tooltip>

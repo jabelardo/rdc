@@ -1,6 +1,5 @@
+import { CircleAlert } from "lucide-react";
 import type { ReactNode } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,11 +42,7 @@ export function NoticeDialog({
       <AlertDialogContent>
         <AlertDialogHeader className="place-items-start text-left">
           <AlertDialogTitle className="flex items-center gap-2">
-            <FontAwesomeIcon
-              icon={faCircleExclamation}
-              className="text-[var(--warning-text)]"
-              aria-hidden
-            />
+            <CircleAlert className="text-[var(--warning-text)]" aria-hidden />
             {title}
           </AlertDialogTitle>
           <AlertDialogDescription>{children}</AlertDialogDescription>

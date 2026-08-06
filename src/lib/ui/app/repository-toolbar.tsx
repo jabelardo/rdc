@@ -1,17 +1,16 @@
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faArrowsDownToLine,
-  faCloudArrowDown,
-  faCloudArrowUp,
-  faClone,
-  faCode,
-  faClockRotateLeft,
-  faFolderPlus,
-  faFolderOpen,
-  faListCheck,
-  faPlus,
-  faTerminal,
-} from "@fortawesome/free-solid-svg-icons";
+  ArrowDownToLine,
+  CloudDownload,
+  CloudUpload,
+  Code,
+  Copy,
+  FolderOpen,
+  FolderPlus,
+  History,
+  ListChecks,
+  Plus,
+  Terminal,
+} from "lucide-react";
 import type { RemoteState } from "../../stores/remote-store";
 import { Tooltip } from "../tooltip";
 
@@ -87,7 +86,7 @@ export function RepositoryToolbar({
         >
           <Tooltip label="New repository">
             <button type="button" aria-label="New repository" onClick={onCreateRepository}>
-              <FontAwesomeIcon icon={faPlus} aria-hidden="true" />
+              <Plus aria-hidden="true" />
               <span className="sr-only">New repository</span>
             </button>
           </Tooltip>
@@ -97,13 +96,13 @@ export function RepositoryToolbar({
               aria-label="Add local repository"
               onClick={onAddExistingRepository}
             >
-              <FontAwesomeIcon icon={faFolderPlus} aria-hidden="true" />
+              <FolderPlus aria-hidden="true" />
               <span className="sr-only">Add local repository</span>
             </button>
           </Tooltip>
           <Tooltip label="Clone repository">
             <button type="button" aria-label="Clone repository" onClick={onCloneRepository}>
-              <FontAwesomeIcon icon={faClone} aria-hidden="true" />
+              <Copy aria-hidden="true" />
               <span className="sr-only">Clone repository</span>
             </button>
           </Tooltip>
@@ -115,7 +114,7 @@ export function RepositoryToolbar({
         >
           <Tooltip label="Show in file manager">
             <button type="button" aria-label="Show files" onClick={onShowFiles}>
-              <FontAwesomeIcon icon={faFolderOpen} aria-hidden="true" />
+              <FolderOpen aria-hidden="true" />
               <span className="sr-only">Show files</span>
             </button>
           </Tooltip>
@@ -126,7 +125,7 @@ export function RepositoryToolbar({
               disabled={!hasEditor}
               onClick={onOpenEditor}
             >
-              <FontAwesomeIcon icon={faCode} aria-hidden="true" />
+              <Code aria-hidden="true" />
               <span className="sr-only">Open in editor</span>
             </button>
           </Tooltip>
@@ -137,7 +136,7 @@ export function RepositoryToolbar({
               disabled={!hasShell}
               onClick={onOpenShell}
             >
-              <FontAwesomeIcon icon={faTerminal} aria-hidden="true" />
+              <Terminal aria-hidden="true" />
               <span className="sr-only">Open in terminal</span>
             </button>
           </Tooltip>
@@ -151,9 +150,8 @@ export function RepositoryToolbar({
         <div className="remote-actions flex items-center gap-1.5">
           <Tooltip label="Fetch from remote">
             <button type="button" aria-label="Fetch" disabled={!canFetch} onClick={onFetch}>
-              <FontAwesomeIcon
-                icon={faArrowsDownToLine}
-                spin={remoteState.operation === "fetch"}
+              <ArrowDownToLine
+                className={remoteState.operation === "fetch" ? "animate-spin" : undefined}
                 aria-hidden="true"
               />
               <span className="sr-only">
@@ -163,9 +161,8 @@ export function RepositoryToolbar({
           </Tooltip>
           <Tooltip label="Pull from remote">
             <button type="button" aria-label="Pull" disabled={!canPull} onClick={onPull}>
-              <FontAwesomeIcon
-                icon={faCloudArrowDown}
-                bounce={remoteState.operation === "pull"}
+              <CloudDownload
+                className={remoteState.operation === "pull" ? "animate-bounce" : undefined}
                 aria-hidden="true"
               />
               <span className="sr-only">
@@ -175,9 +172,8 @@ export function RepositoryToolbar({
           </Tooltip>
           <Tooltip label="Push to remote">
             <button type="button" aria-label="Push" disabled={!canPush} onClick={onPush}>
-              <FontAwesomeIcon
-                icon={faCloudArrowUp}
-                bounce={remoteState.operation === "push"}
+              <CloudUpload
+                className={remoteState.operation === "push" ? "animate-bounce" : undefined}
                 aria-hidden="true"
               />
               <span className="sr-only">
@@ -198,7 +194,7 @@ export function RepositoryToolbar({
             aria-label="Changes"
             onClick={() => onSelectView("changes")}
           >
-            <FontAwesomeIcon icon={faListCheck} aria-hidden="true" />
+            <ListChecks aria-hidden="true" />
             <span className="repository-view-label">Changes</span>
           </button>
         </Tooltip>
@@ -209,7 +205,7 @@ export function RepositoryToolbar({
             aria-label="History"
             onClick={() => onSelectView("history")}
           >
-            <FontAwesomeIcon icon={faClockRotateLeft} aria-hidden="true" />
+            <History aria-hidden="true" />
             <span className="repository-view-label">History</span>
           </button>
         </Tooltip>

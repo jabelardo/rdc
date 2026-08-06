@@ -1,16 +1,15 @@
 import { useMemo, useState } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faArrowsSplitUpAndLeft,
-  faChevronLeft,
-  faChevronRight,
-  faCodeBranch,
-  faFolderTree,
-  faMagnifyingGlass,
-  faPlus,
-  faXmark,
-  type IconDefinition,
-} from "@fortawesome/free-solid-svg-icons";
+  ChevronLeft,
+  ChevronRight,
+  FolderTree,
+  GitBranch,
+  type LucideIcon,
+  Plus,
+  Search,
+  Split,
+  X,
+} from "lucide-react";
 import { BranchType, type Branch } from "../../../models/branch";
 import type { Repository } from "../../../models/repository";
 import type { AppStoreState } from "../../stores/app-store";
@@ -36,9 +35,9 @@ const branchGroupLabels: Readonly<Record<BranchGroup, string>> = {
   recent: "Recent Branches",
   other: "Other Branches",
 };
-const sidebarIcons: Readonly<Record<SidebarSectionID, IconDefinition | null>> = {
-  repositories: faFolderTree,
-  branches: faCodeBranch,
+const sidebarIcons: Readonly<Record<SidebarSectionID, LucideIcon | null>> = {
+  repositories: FolderTree,
+  branches: GitBranch,
   tags: null,
   stashes: null,
   submodules: null,
@@ -151,14 +150,14 @@ export function RepositorySidebar({
             aria-expanded={!collapsed}
             onClick={onToggleCollapsed}
           >
-            <FontAwesomeIcon icon={collapsed ? faChevronRight : faChevronLeft} aria-hidden="true" />
+            {collapsed ? <ChevronRight aria-hidden="true" /> : <ChevronLeft aria-hidden="true" />}
           </button>
         </Tooltip>
       </div>
       {collapsed ? (
         <nav className="sidebar-icon-rail" aria-label="Navigation sections">
           {mvpSidebarSections.map((section) => {
-            const icon = sidebarIcons[section.id];
+            const Icon = sidebarIcons[section.id];
             const value =
               section.id === "repositories"
                 ? (appState.selectedRepository?.name ?? "No repository selected")
@@ -171,7 +170,7 @@ export function RepositorySidebar({
                   aria-label={description}
                   onClick={() => activateSection(section.id)}
                 >
-                  {icon !== null && <FontAwesomeIcon icon={icon} aria-hidden="true" />}
+                  {Icon !== null && <Icon aria-hidden="true" />}
                 </button>
               </Tooltip>
             );
@@ -181,7 +180,7 @@ export function RepositorySidebar({
         <div className="sidebar-panels flex flex-col">
           {mvpSidebarSections.map((section) => {
             const expanded = expandedSections.has(section.id);
-            const icon = sidebarIcons[section.id];
+            const Icon = sidebarIcons[section.id];
             return (
               <section
                 className={`sidebar-panel sidebar-panel-${section.id} min-w-0${
@@ -198,7 +197,7 @@ export function RepositorySidebar({
                     onClick={() => onToggleSection(section.id)}
                   >
                     <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
-                    {icon !== null && <FontAwesomeIcon icon={icon} aria-hidden="true" />}
+                    {Icon !== null && <Icon aria-hidden="true" />}
                     {section.label}
                   </button>
                 </h2>
@@ -216,7 +215,7 @@ export function RepositorySidebar({
                         <div className="repositories-panel-content">
                           <label className="repository-filter">
                             <span className="sr-only">Filter repositories</span>
-                            <FontAwesomeIcon icon={faMagnifyingGlass} aria-hidden="true" />
+                            <Search aria-hidden="true" />
                             <input
                               type="search"
                               aria-label="Filter repositories"
@@ -267,7 +266,7 @@ export function RepositorySidebar({
                               <div className="branch-filter-actions">
                                 <label className="branch-filter">
                                   <span className="sr-only">Filter branches</span>
-                                  <FontAwesomeIcon icon={faMagnifyingGlass} aria-hidden="true" />
+                                  <Search aria-hidden="true" />
                                   <input
                                     type="search"
                                     aria-label="Filter branches"
@@ -291,10 +290,7 @@ export function RepositorySidebar({
                                       );
                                     }}
                                   >
-                                    <FontAwesomeIcon
-                                      icon={faArrowsSplitUpAndLeft}
-                                      aria-hidden="true"
-                                    />
+                                    <Split aria-hidden="true" />
                                   </button>
                                 </Tooltip>
                               </div>
@@ -336,7 +332,7 @@ export function RepositorySidebar({
                                       aria-label="Create branch"
                                       disabled={branchActionsDisabled}
                                     >
-                                      <FontAwesomeIcon icon={faPlus} aria-hidden="true" />
+                                      <Plus aria-hidden="true" />
                                     </button>
                                   </Tooltip>
                                   <Tooltip label="Cancel creating branch">
@@ -345,7 +341,7 @@ export function RepositorySidebar({
                                       aria-label="Cancel creating branch"
                                       onClick={() => onShowBranchCreation(false)}
                                     >
-                                      <FontAwesomeIcon icon={faXmark} aria-hidden="true" />
+                                      <X aria-hidden="true" />
                                     </button>
                                   </Tooltip>
                                 </form>

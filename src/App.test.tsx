@@ -670,15 +670,15 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Create repository" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Create repository" }).querySelector("svg"),
-    ).toHaveAttribute("data-icon", "plus");
+    ).toHaveClass("lucide-plus");
     expect(screen.getByRole("button", { name: "Add existing repository" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Add existing repository" }).querySelector("svg"),
-    ).toHaveAttribute("data-icon", "folder-plus");
+    ).toHaveClass("lucide-folder-plus");
     expect(screen.getByRole("button", { name: "Clone repository" })).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Clone repository" }).querySelector("svg"),
-    ).toHaveAttribute("data-icon", "clone");
+    ).toHaveClass("lucide-copy");
     expect(screen.queryByText(/native integration harness/i)).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/path\/to\/a\/git\/repository/i)).not.toBeInTheDocument();
   });
@@ -740,9 +740,9 @@ describe("App", () => {
       "data-tooltip",
       "Repositories: No repository selected",
     );
-    expect(repositoriesRailButton.querySelector("svg")).toHaveAttribute("data-icon", "folder-tree");
+    expect(repositoriesRailButton.querySelector("svg")).toHaveClass("lucide-folder-tree");
     expect(branchesRailButton).toHaveAttribute("data-tooltip", "Branches: No branch selected");
-    expect(branchesRailButton.querySelector("svg")).toHaveAttribute("data-icon", "code-branch");
+    expect(branchesRailButton.querySelector("svg")).toHaveClass("lucide-git-branch");
     expect(screen.queryByRole("button", { name: "Branches" })).not.toBeInTheDocument();
 
     await user.click(
@@ -794,9 +794,7 @@ describe("App", () => {
     expect(panel).toContainElement(screen.getByRole("button", { name: "main — current branch" }));
     const newBranchButton = screen.getByRole("button", { name: "New branch" });
     expect(newBranchButton).toHaveAttribute("aria-expanded", "false");
-    expect(
-      newBranchButton.querySelector('[data-icon="arrows-split-up-and-left"]'),
-    ).toBeInTheDocument();
+    expect(newBranchButton.querySelector(".lucide-split")).toBeInTheDocument();
     expect(setWindowTitle).toHaveBeenLastCalledWith("RDC — rdc — main");
     const toolbar = screen.getByRole("toolbar", {
       name: "Repository actions",
@@ -979,18 +977,17 @@ describe("App", () => {
       "Open in terminal",
     ]);
     expect(screen.queryByRole("button", { name: "Open in new window" })).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "New repository" }).querySelector("svg"),
-    ).toHaveAttribute("data-icon", "plus");
+    expect(screen.getByRole("button", { name: "New repository" }).querySelector("svg")).toHaveClass(
+      "lucide-plus",
+    );
     expect(
       screen.getByRole("button", { name: "Add local repository" }).querySelector("svg"),
-    ).toHaveAttribute("data-icon", "folder-plus");
+    ).toHaveClass("lucide-folder-plus");
     expect(
       screen.getByRole("button", { name: "Clone repository" }).querySelector("svg"),
-    ).toHaveAttribute("data-icon", "clone");
-    expect(screen.getByRole("button", { name: "Fetch" }).querySelector("svg")).toHaveAttribute(
-      "data-icon",
-      "arrows-down-to-line",
+    ).toHaveClass("lucide-copy");
+    expect(screen.getByRole("button", { name: "Fetch" }).querySelector("svg")).toHaveClass(
+      "lucide-arrow-down-to-line",
     );
     expect(document.querySelectorAll("[title]")).toHaveLength(0);
     const tooltipLabels = Array.from(
@@ -1552,7 +1549,7 @@ describe("App", () => {
     const discardSelectedLines = screen.getByRole("button", {
       name: "Discard selected lines",
     });
-    expect(discardSelectedLines.querySelector("svg")).toHaveAttribute("data-icon", "trash-can");
+    expect(discardSelectedLines.querySelector("svg")).toHaveClass("lucide-trash-2");
     await user.click(discardSelectedLines);
     expect(screen.getByRole("alertdialog")).toHaveTextContent(
       "Selected changes cannot be restored from the operating system trash.",

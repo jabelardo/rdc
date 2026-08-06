@@ -1,6 +1,5 @@
+import { Copy, FolderPlus, Plus } from "lucide-react";
 import { useRef, type CSSProperties } from "react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faClone, faFolderPlus, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { showFolderContents } from "../../platform/files";
 import { HorizontalResizer } from "../horizontal-resizer";
 import { AppDialogs } from "./app-dialogs";
@@ -215,15 +214,15 @@ export function AppShell({ controller }: AppShellProps) {
           <div className="repository-empty-state mx-auto max-w-[520px] p-8 text-center">
             <div className="repository-empty-actions flex flex-wrap justify-center gap-2">
               <button type="button" onClick={() => void createRepository()}>
-                <FontAwesomeIcon icon={faPlus} aria-hidden="true" />
+                <Plus aria-hidden="true" />
                 Create repository
               </button>
               <button type="button" onClick={() => void addExistingRepository()}>
-                <FontAwesomeIcon icon={faFolderPlus} aria-hidden="true" />
+                <FolderPlus aria-hidden="true" />
                 Add existing repository
               </button>
               <button type="button" onClick={openCloneDialog}>
-                <FontAwesomeIcon icon={faClone} aria-hidden="true" />
+                <Copy aria-hidden="true" />
                 Clone repository
               </button>
             </div>

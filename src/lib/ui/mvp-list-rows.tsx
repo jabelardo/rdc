@@ -1,16 +1,16 @@
 import {
-  faArrowRight,
-  faCheck,
-  faCodeBranch,
-  faEllipsisVertical,
-  faExclamation,
-  faFolder,
-  faTrashCan,
-  faSquareCaretUp,
-  faSquareMinus,
-  faSquarePlus,
-} from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+  ArrowRight,
+  Check,
+  EllipsisVertical,
+  Folder,
+  GitBranch,
+  type LucideIcon,
+  SquareChevronUp,
+  SquareMinus,
+  SquarePlus,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import type { Branch } from "../../models/branch";
 import type { Repository } from "../../models/repository";
 import {
@@ -83,7 +83,7 @@ export function RepositoryListRow({
             event.currentTarget.blur();
           }}
         >
-          <FontAwesomeIcon className="repository-list-icon" icon={faFolder} aria-hidden="true" />
+          <Folder className="repository-list-icon" aria-hidden="true" />
           <strong>{repository.name}</strong>
         </button>
       </Tooltip>
@@ -97,7 +97,7 @@ export function RepositoryListRow({
             e.currentTarget.blur();
           }}
         >
-          <FontAwesomeIcon icon={faEllipsisVertical} aria-hidden="true" />
+          <EllipsisVertical aria-hidden="true" />
         </button>
       </Tooltip>
     </li>
@@ -133,6 +133,8 @@ export function BranchListRow({
   const tooltipDescription = `${
     current ? "Current branch" : "Check out branch"
   }\nLast modified: ${formatBranchModifiedDate(branch.tip.author.date)}`;
+  // Bound to a capitalised name so JSX renders it as a component rather than an element name.
+  const BranchIcon = current ? Check : GitBranch;
 
   return (
     <li
@@ -182,11 +184,7 @@ export function BranchListRow({
                 }
           }
         >
-          <FontAwesomeIcon
-            className="branch-list-icon"
-            icon={current ? faCheck : faCodeBranch}
-            aria-hidden="true"
-          />
+          <BranchIcon className="branch-list-icon" aria-hidden="true" />
           <span>{branch.name}</span>
         </button>
       </Tooltip>
@@ -205,20 +203,20 @@ type WorkingTreeFileRowProps = {
   readonly onSetIncluded: (fileID: string, included: boolean) => void;
 };
 
-function fileStatusIcon(kind: AppFileStatusKind): typeof faSquarePlus {
+function fileStatusIcon(kind: AppFileStatusKind): LucideIcon {
   switch (kind) {
     case AppFileStatusKind.New:
     case AppFileStatusKind.Untracked:
     case AppFileStatusKind.Copied:
-      return faSquarePlus;
+      return SquarePlus;
     case AppFileStatusKind.Deleted:
-      return faSquareMinus;
+      return SquareMinus;
     case AppFileStatusKind.Renamed:
-      return faArrowRight;
+      return ArrowRight;
     case AppFileStatusKind.Conflicted:
-      return faExclamation;
+      return TriangleAlert;
     case AppFileStatusKind.Modified:
-      return faSquareCaretUp;
+      return SquareChevronUp;
   }
 }
 
@@ -231,6 +229,7 @@ export function FileStatusIcon({
   readonly className?: string;
 }) {
   const label = mapStatus(status);
+  const StatusIcon = fileStatusIcon(status.kind);
   return (
     <Tooltip label={label}>
       <small
@@ -238,7 +237,7 @@ export function FileStatusIcon({
         role="img"
         aria-label={label}
       >
-        <FontAwesomeIcon icon={fileStatusIcon(status.kind)} aria-hidden="true" />
+        <StatusIcon aria-hidden="true" />
       </small>
     </Tooltip>
   );
@@ -297,7 +296,7 @@ export function WorkingTreeFileRow({
             aria-label={`Discard ${file.path}`}
             onClick={() => onDiscard(file.id)}
           >
-            <FontAwesomeIcon icon={faTrashCan} aria-hidden="true" />
+            <Trash2 aria-hidden="true" />
             <span className="sr-only">Discard {file.path}</span>
           </button>
         </Tooltip>

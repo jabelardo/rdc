@@ -1,3 +1,4 @@
+import { CircleAlert } from "lucide-react";
 import { BranchType, type Branch } from "../../../models/branch";
 import type { IRemote } from "../../../models/remote";
 import type { Repository } from "../../../models/repository";
@@ -9,8 +10,6 @@ import { setWindowZoomFactor } from "../../platform/window";
 import type { Architecture } from "../../platform/paths";
 import type { HookFailureState, WorkingTreeStore } from "../../stores/working-tree-store";
 import { Modal } from "../modal";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -548,11 +547,7 @@ export function AppDialogs({
           <AlertDialogContent className="sm:max-w-[600px]">
             <AlertDialogHeader className="place-items-start text-left">
               <AlertDialogTitle className="flex items-center gap-2">
-                <FontAwesomeIcon
-                  icon={faCircleExclamation}
-                  className="text-[var(--warning-text)]"
-                  aria-hidden
-                />
+                <CircleAlert className="text-[var(--warning-text)]" aria-hidden />
                 The {hookFailure.hook} hook failed
               </AlertDialogTitle>
               <AlertDialogDescription>What would you like to do?</AlertDialogDescription>

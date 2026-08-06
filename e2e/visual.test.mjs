@@ -241,7 +241,9 @@ describe("visual layout", () => {
         toolbarButton: styles('.repository-toolbar [aria-label="New repository"]').backgroundColor,
         collapseButton: styles(".sidebar-collapse").backgroundColor,
         newBranchButton: styles(".new-branch-button").backgroundColor,
-        newBranchIcon: document.querySelector(".new-branch-button svg")?.getAttribute("data-icon"),
+        newBranchIcon: [
+          ...(document.querySelector(".new-branch-button svg")?.classList ?? []),
+        ].find((name) => name.startsWith("lucide-")),
         currentBranch: styles('.branch-list-selection[aria-current="true"]').backgroundColor,
         statusKind: [...status.classList].find((name) => name.startsWith("status-")),
         statusColor: statusStyles.color,
@@ -254,7 +256,7 @@ describe("visual layout", () => {
     assert.equal(snapshot.toolbarButton, snapshot.transparent);
     assert.equal(snapshot.collapseButton, snapshot.transparent);
     assert.equal(snapshot.newBranchButton, snapshot.transparent);
-    assert.equal(snapshot.newBranchIcon, "arrows-split-up-and-left");
+    assert.equal(snapshot.newBranchIcon, "lucide-split");
     assert.notEqual(snapshot.currentBranch, snapshot.transparent);
     assert.match(snapshot.statusKind, /^status-(new|untracked|copied)$/);
     assert.equal(snapshot.statusColor, snapshot.semanticSuccess);
