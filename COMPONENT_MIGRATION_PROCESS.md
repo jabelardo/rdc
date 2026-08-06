@@ -351,3 +351,25 @@ A caution for the next icon change: **tests must not identify an icon by a libra
 attribute.** Eleven assertions keyed off FA's `data-icon` and one E2E assertion did too; all had to
 move to lucide's `class="lucide lucide-<name>"`. Prefer asserting on the accessible name of the
 control instead, which survives a library swap.
+
+---
+
+## Component 4 — Rename branch (`Dialog`)
+
+The simplest non-destructive form dialog. Every row was already settled by existing conventions —
+the review table shrank to zero genuine decisions, exactly as the process intended.
+
+| Dimension | rdc today | desktop-plus | shadcn/Radix default | Verdict |
+|---|---|---|---|---|
+| Element semantics | hand-rolled `Modal` | modal dialog | `Dialog` (not `AlertDialog` — nothing to confirm) | **SETTLED** (Convention 6) |
+| Escape / backdrop | dismisses | dismisses | dismisses | **AGREED** |
+| Button order | N/A (Cancel + submit) | N/A | — | **SETTLED** (Convention 2) |
+| Default action | Rename (submit) | Rename (submit) | — | **SETTLED** (Convention 7 — Cancel is outline, Rename is default) |
+| Footer / separator | — | — | — | **SETTLED** (Convention 5) |
+| Scale and type | — | — | — | **SETTLED** (Convention 3) |
+| Close button | none | footer only | X by default | **SETTLED** (Convention 6 — footer has Cancel, no X) |
+| Icon | none | none | — | **SETTLED** (Convention 11 — n/a) |
+| Disabled state | Rename disabled when name empty or unchanged | same | — | **AGREED** |
+
+No conventions created or modified. This dialog exercises Conventions 2, 3, 5, 6 and 7 but
+introduces no new behaviour.

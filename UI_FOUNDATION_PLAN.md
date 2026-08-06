@@ -1,7 +1,7 @@
 # UI foundation — shadcn/Radix adoption
 
 **Status**: Phases 0–1 landed (tooling + full token migration; the sonner-backed toast; the
-`useTheme()` provider). **Stage 2 = Phases 2–3 (Dialog, Tooltip) — the next work.** See "Stages"
+`useTheme()` provider). **Stage 2 = Phases 2–3 (Dialog, Tooltip) — in progress (9/12 dialogs migrated).** See "Stages"
 below for where this sits in the engineering round.
 **Why now, not later**: rdc is greenfield and not racing to an MVP date — the priority is a strong
 architectural foundation a future open-source collaborator (post-MVP, once the project is
@@ -19,7 +19,7 @@ Mapping them to the work that has actually landed keeps the sequencing honest:
 |---|---|---|
 | 0 | `UI_FOUNDATION_PLAN.md` Phase 0 (tooling + token migration) | landed (`c6f8765`) |
 | 1 | `UI_FOUNDATION_PLAN.md` Phase 1 + `MESSAGE_SYSTEM_PLAN.md` Slice 0 + the `useTheme()` sidebar | landed (`1897ddf`, `dd903a7`) — `reportError` has zero production callers, by design |
-| **2** | **`UI_FOUNDATION_PLAN.md` Phase 2 (Dialog) + Phase 3 (Tooltip)** — this stage | **next** |
+| **2** | **`UI_FOUNDATION_PLAN.md` Phase 2 (Dialog) + Phase 3 (Tooltip)** — this stage | **in progress** (9/12 dialogs migrated) |
 | 3 | `MESSAGE_SYSTEM_PLAN.md` Slices 1–7 (wire `reportError` into every store, remove `.application-error`) | after the Dialog primitive they consume exists |
 | 4 | `BRANCH_OPERATIONS_PLAN.md` Slice 4 (abort merge) | independent; any time |
 
@@ -56,10 +56,9 @@ Verified by reading the code, not assumed from convention:
   provides: focus trap, Tab-cycle between first/last focusable element, Escape-to-dismiss,
   backdrop, `role="dialog"|"alertdialog"`, `aria-modal`. No bespoke business logic beyond that — a
   clean, low-risk swap.
-- **Dialogs** (`src/lib/ui/app/app-dialogs.tsx`, 912 lines) use `<Modal>` **12 times** — one call
-  site per dialog (clone, preferences, discard, discard-all, rename-branch, delete-branch, merge
-  picker, manage-remotes, add-remote, commit-hook-output, and two more). Mechanical once the first
-  is migrated and the pattern is proven.
+- **Dialogs** (`src/lib/ui/app/app-dialogs.tsx`) use `<Modal>` **3 times** (merge, preferences,
+  clone); the other 9 call sites have migrated to shadcn's `Dialog`, `AlertDialog`, or the shared
+  `ConfirmDialog`/`NoticeDialog` abstractions. Mechanical once the remaining three are done.
 - **Tooltip** (`src/lib/ui/tooltip.tsx`, 234 lines) is **not** a clean swap. Real custom behavior
   Radix doesn't provide identically:
   - Boundary clearance (`data-tooltip-boundary`) — a tooltip clears an entire ancestor element
@@ -265,22 +264,22 @@ backdrop/z-index contract other code depends on) that still needs rdc's own test
 
 ### Phase 2 — execution breakdown
 
-The 12 call sites, read from `app-dialogs.tsx` (line numbers current as of stage 1):
+The 12 call sites, read from `app-dialogs.tsx` (line numbers current as of stage 2):
 
-| # | Line | Dialog | Role | `onDismiss` |
-|---|---|---|---|---|
-| 1 | `:166` | discard-file | alertdialog | `discarding ? undefined : onCancelDiscard` |
-| 2 | `:214` | discard-all | alertdialog | `discarding ? undefined : onCancelDiscardAll` |
-| 3 | `:262` | rename-branch | dialog | `onCancelRename` (form `onSubmit`) |
-| 4 | `:308` | delete-branch | alertdialog | `onCancelDelete` (two-mode: refusal vs. confirm) |
-| 5 | `:364` | merge-picker | dialog | `mergeRunning ? undefined : onCancelMerge` |
-| 6 | `:433` | manage-remotes | dialog | `manageRunning ? undefined : onCloseManageRemotes` |
-| 7 | `:500` | add-remote | dialog | `manageRunning ? undefined : onCloseAddRemote` |
-| 8 | `:558` | hook-failure | alertdialog | *(none — decision required)* |
-| 9 | `:582` | remove-repository | alertdialog | `onCancelRemoveRepository` |
-| 10 | `:610` | about | dialog | `onDismissAbout` |
-| 11 | `:627` | preferences | dialog | `onDismissPreferences` (largest flat form) |
-| 12 | `:768` | clone | dialog | `cloneState.operation === null ? onDismissClone : undefined` |
+| # | Line | Dialog | Role | `onDismiss` | Status |
+|---|---|---|---|---|---|
+| 1 | `:166` | discard-file | alertdialog | `discarding ? undefined : onCancelDiscard` | **done** (ConfirmDialog) |
+| 2 | `:214` | discard-all | alertdialog | `discarding ? undefined : onCancelDiscardAll` | **done** (ConfirmDialog) |
+| 3 | `:253` | rename-branch | dialog | `onCancelRename` (form `onSubmit`) | **done** (Dialog) |
+| 4 | `:308` | delete-branch | alertdialog | `onCancelDelete` (two-mode: refusal vs. confirm) | **done** (ConfirmDialog/NoticeDialog) |
+| 5 | `:367` | merge-picker | dialog | `mergeRunning ? undefined : onCancelMerge` | pending |
+| 6 | `:411` | manage-remotes | dialog | `manageRunning ? undefined : onCloseManageRemotes` | **done** (Dialog) |
+| 7 | `:482` | add-remote | dialog | `manageRunning ? undefined : onCloseAddRemote` | **done** (Dialog) |
+| 8 | `:544` | hook-failure | alertdialog | *(none — decision required)* | **done** (AlertDialog) |
+| 9 | `:582` | remove-repository | alertdialog | `onCancelRemoveRepository` | **done** (ConfirmDialog) |
+| 10 | `:601` | about | dialog | `onDismissAbout` | **done** (Dialog) |
+| 11 | `:632` | preferences | dialog | `onDismissPreferences` (largest flat form) | pending |
+| 12 | `:773` | clone | dialog | `cloneState.operation === null ? onDismissClone : undefined` | pending |
 
 **Primitive decision.** Radix ships two: `Dialog` (dismissible) and `AlertDialog` (no
 backdrop/Escape dismissal — the accessible contract for "a decision is required"). `Modal` encodes
@@ -316,9 +315,9 @@ sites. Gate: full seven-gate set plus a manual Light/Dark/System visual pass on 
 
 **Sub-slice 2.1 — migrate the remaining 9 call sites mechanically.** Once 2.0 proves the shape,
 this is markup swap + prop remap, one dialog per commit:
-- `Dialog`: rename `:262`, merge `:364`, about `:610`, preferences `:627`, clone `:768`.
-- `AlertDialog`: discard-file `:166`, discard-all `:214`, delete-branch `:308` (two-mode: refusal
-  view vs. confirm-with-checkbox), remove-repository `:582`.
+- `Dialog`: ~~rename `:262`~~ **done**, merge `:367`, about **done**, preferences `:632`, clone `:773`.
+- `AlertDialog`: discard-file **done**, discard-all **done**, delete-branch **done** (two-mode: refusal
+  view vs. confirm-with-checkbox), remove-repository **done**.
 
 **Sub-slice 2.2 — retire `modal.tsx` and `modal.test.tsx`.** Delete `src/lib/ui/modal.tsx`; grep
 for `<Modal` and the `Modal` import must return zero hits. For `modal.test.tsx`: the focus-trap,
