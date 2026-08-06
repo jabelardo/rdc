@@ -95,8 +95,11 @@ export function useAppController() {
   );
   const [discardAll, setDiscardAll] = useState<{
     readonly permanent: boolean;
-    readonly fileCount: number;
+    readonly paths: ReadonlyArray<string>;
   } | null>(null);
+  // Reset whenever a discard dialog opens, and written to preferences only on confirm — ticking the
+  // box and then cancelling must not remove the guard (see ConfirmOptOut).
+  const [discardOptOut, setDiscardOptOut] = useState(false);
   const [branchToRename, setBranchToRename] = useState<Branch | null>(null);
   const [renameName, setRenameName] = useState("");
   const [branchToDelete, setBranchToDelete] = useState<Branch | null>(null);
@@ -726,6 +729,7 @@ export function useAppController() {
       if (selection && selectedLines === null) {
         return;
       }
+      setDiscardOptOut(false);
       setDiscardFileID(fileID);
       setDiscardSelection(selection);
       setSelectedLinesDiscard(selectedLines);
@@ -754,10 +758,28 @@ export function useAppController() {
     }
   }
 
+  /**
+   * Write the "do not show this message again" choice, if the user made one.
+   *
+   * Called from the confirm paths only. The permanent variant has its own preference because it is
+   * the more dangerous of the two and worth switching off separately.
+   */
+  function applyDiscardOptOut(permanent: boolean): void {
+    if (!discardOptOut) {
+      return;
+    }
+    if (permanent) {
+      preferencesStore.setConfirmDiscardChangesPermanently(false);
+    } else {
+      preferencesStore.setConfirmDiscardChanges(false);
+    }
+  }
+
   async function confirmDiscard() {
     if (discardFile === null) {
       return;
     }
+    applyDiscardOptOut(permanentlyDiscard);
     if (discardSelection) {
       setDiscarding(true);
       const discarded = await workingTreeStore.discardSelectedLines(selectedLinesDiscard);
@@ -795,13 +817,20 @@ export function useAppController() {
       ? preferencesStore.state.confirmDiscardChangesPermanently
       : preferencesStore.state.confirmDiscardChanges;
     if (shouldConfirm) {
-      setDiscardAll({ permanent, fileCount: files.length });
+      setDiscardOptOut(false);
+      setDiscardAll({ permanent, paths: files.map((file) => file.path) });
       return;
     }
-    void discardAllWorkingChanges(permanent, files.length);
+    void discardAllWorkingChanges(
+      permanent,
+      files.map((file) => file.path),
+    );
   }
 
-  async function discardAllWorkingChanges(permanent: boolean, fileCount: number): Promise<void> {
+  async function discardAllWorkingChanges(
+    permanent: boolean,
+    paths: ReadonlyArray<string>,
+  ): Promise<void> {
     setDiscarding(true);
     let result = await workingTreeStore.discardAllChanges(permanent);
     if (result === "trash-failed" && !preferencesStore.state.confirmDiscardChangesPermanently) {
@@ -811,7 +840,7 @@ export function useAppController() {
     if (result === "discarded") {
       setDiscardAll(null);
     } else if (result === "trash-failed") {
-      setDiscardAll({ permanent: true, fileCount });
+      setDiscardAll({ permanent: true, paths });
     }
   }
 
@@ -819,7 +848,8 @@ export function useAppController() {
     if (discardAll === null) {
       return;
     }
-    await discardAllWorkingChanges(discardAll.permanent, discardAll.fileCount);
+    applyDiscardOptOut(discardAll.permanent);
+    await discardAllWorkingChanges(discardAll.permanent, discardAll.paths);
   }
 
   function cancelDiscardAll(): void {
@@ -1256,6 +1286,8 @@ export function useAppController() {
     confirmDiscard,
     cancelDiscard,
     discardAll,
+    discardOptOut,
+    setDiscardOptOut,
     requestDiscardAll,
     confirmDiscardAll,
     cancelDiscardAll,

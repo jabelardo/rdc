@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
@@ -1640,6 +1640,133 @@ describe("App", () => {
 
     expect(workingTreeStore.discardFile).toHaveBeenCalledWith("Modified+Alpha.ts", false);
     await vi.waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
+  });
+
+  it("writes the discard opt-out only when the discard is confirmed", async () => {
+    // Ported from desktop-plus, where the preference is written in discard(), not when the box is
+    // ticked. Ticking it and then cancelling must leave the guard on an irreversible action intact.
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    };
+    workingTreeStore.state = {
+      ...workingTreeStore.state,
+      repositoryPath: repository.path,
+      workingDirectory: {
+        files: [
+          {
+            id: "Modified+Alpha.ts",
+            path: "Alpha.ts",
+            status: { kind: "Modified" },
+            isIncludedInCommit: () => true,
+          },
+        ],
+      },
+      selectedFileID: "Modified+Alpha.ts",
+    };
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Discard Alpha.ts" }));
+    await user.click(screen.getByRole("checkbox", { name: "Do not show this message again" }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(preferencesStore.setConfirmDiscardChanges).not.toHaveBeenCalled();
+
+    // Reopening resets the box, so the earlier tick does not leak into the next confirmation.
+    await user.click(screen.getByRole("button", { name: "Discard Alpha.ts" }));
+    expect(
+      screen.getByRole("checkbox", { name: "Do not show this message again" }),
+    ).not.toBeChecked();
+
+    await user.click(screen.getByRole("checkbox", { name: "Do not show this message again" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    expect(preferencesStore.setConfirmDiscardChanges).toHaveBeenCalledWith(false);
+  });
+
+  it("lists the paths a discard-all will affect, and falls back to a count past the cap", async () => {
+    const fileAt = (index: number) => ({
+      id: `Modified+file-${index}.ts`,
+      path: `src/file-${index}.ts`,
+      status: { kind: "Modified" },
+      isIncludedInCommit: () => true,
+    });
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    };
+    workingTreeStore.state = {
+      ...workingTreeStore.state,
+      repositoryPath: repository.path,
+      workingDirectory: { files: [fileAt(1), fileAt(2)] },
+    };
+    const user = userEvent.setup();
+    render(<App />);
+    const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0];
+
+    await act(() => executeMenuEvent("discard-all-changes"));
+
+    // Scoped to the dialog: the same paths are listed in the working-tree pane behind it.
+    const listed = within(screen.getByRole("alertdialog", { name: "Discard all changes" }));
+    expect(
+      listed.getByText("Are you sure you want to discard all changes to:"),
+    ).toBeInTheDocument();
+    expect(listed.getByText("src/file-1.ts")).toBeInTheDocument();
+    expect(listed.getByText("src/file-2.ts")).toBeInTheDocument();
+
+    await user.click(listed.getByRole("button", { name: "Cancel" }));
+
+    // Past the cap the list is replaced by a count — see MaxFilesToList in discard-file-list.tsx.
+    workingTreeStore.state = {
+      ...workingTreeStore.state,
+      workingDirectory: {
+        files: Array.from({ length: 11 }, (_unused, index) => fileAt(index)),
+      },
+    };
+    await act(() => executeMenuEvent("discard-all-changes"));
+
+    const counted = within(screen.getByRole("alertdialog", { name: "Discard all changes" }));
+    expect(
+      counted.getByText("Are you sure you want to discard all 11 changed files?"),
+    ).toBeInTheDocument();
+    expect(counted.queryByText("src/file-1.ts")).not.toBeInTheDocument();
+  });
+
+  it("refuses every dismissal while a discard is in flight", async () => {
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    };
+    workingTreeStore.state = {
+      ...workingTreeStore.state,
+      repositoryPath: repository.path,
+      workingDirectory: {
+        files: [
+          {
+            id: "Modified+Alpha.ts",
+            path: "Alpha.ts",
+            status: { kind: "Modified" },
+            isIncludedInCommit: () => true,
+          },
+        ],
+      },
+      selectedFileID: "Modified+Alpha.ts",
+    };
+    // Never settles, so the dialog stays in its in-flight state for the assertions.
+    workingTreeStore.discardFile.mockReturnValue(new Promise(() => {}));
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Discard Alpha.ts" }));
+    await user.click(screen.getByRole("button", { name: "Discard changes" }));
+
+    // Losing the dialog mid-operation would leave no indication of whether it completed.
+    expect(screen.getByRole("button", { name: "Discarding…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
   });
 
   it("discards immediately when file confirmation is disabled", async () => {

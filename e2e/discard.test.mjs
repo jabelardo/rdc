@@ -137,6 +137,43 @@ describe("discard", () => {
     const discardFile = await driver.findElement(By.css('[aria-label="Discard discard-me.txt"]'));
     await driver.executeScript((element) => element.click(), discardFile);
     await driver.wait(until.elementLocated(By.css('[role="alertdialog"]')), 5_000);
+
+    // Geometry that only a real browser can confirm, and that both regressed once:
+    // the dialog stretched to the full window width because AlertDialogContent had `w-full` with
+    // no max-width, and the checkbox rendered as a rectangle because rdc's base `button` padding
+    // reached into the Radix primitive. Neither is visible to tsc or a jsdom test.
+    const geometry = await driver.executeScript(() => {
+      const dialog = document.querySelector('[role="alertdialog"]');
+      const checkbox = dialog?.querySelector('[data-slot="checkbox"]');
+      return {
+        dialogWidth: dialog?.getBoundingClientRect().width ?? 0,
+        windowWidth: window.innerWidth,
+        checkbox:
+          checkbox === null || checkbox === undefined
+            ? null
+            : {
+                width: Math.round(checkbox.getBoundingClientRect().width),
+                height: Math.round(checkbox.getBoundingClientRect().height),
+              },
+      };
+    });
+    // Lower bounds matter as much as upper ones: a zero-width dialog would satisfy "narrower than
+    // the window", and a 0x0 checkbox would satisfy "square".
+    assert.ok(
+      geometry.dialogWidth > 200 && geometry.dialogWidth < geometry.windowWidth * 0.9,
+      `confirmation dialog width ${geometry.dialogWidth} of window ${geometry.windowWidth}`,
+    );
+    assert.notEqual(geometry.checkbox, null, "the discard opt-out checkbox is missing");
+    assert.ok(
+      geometry.checkbox.width >= 12,
+      `opt-out checkbox is too small to be real: ${geometry.checkbox.width}px`,
+    );
+    assert.equal(
+      geometry.checkbox.width,
+      geometry.checkbox.height,
+      `opt-out checkbox is not square: ${geometry.checkbox.width}x${geometry.checkbox.height}`,
+    );
+
     await driver.findElement(By.xpath("//button[normalize-space()='Discard changes']")).click();
     await driver.wait(() => !existsSync(discardedPath), 10_000, "discarded file remained on disk");
     await driver.navigate().refresh();

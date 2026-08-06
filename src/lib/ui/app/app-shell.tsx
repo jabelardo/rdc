@@ -88,6 +88,8 @@ export function AppShell({ controller }: AppShellProps) {
     confirmDiscard,
     cancelDiscard,
     discardAll,
+    discardOptOut,
+    setDiscardOptOut,
     confirmDiscardAll,
     cancelDiscardAll,
     branchToRename,
@@ -297,6 +299,8 @@ export function AppShell({ controller }: AppShellProps) {
         permanentlyDiscard={permanentlyDiscard}
         discardSelection={discardSelection}
         discardAll={discardAll}
+        discardOptOut={discardOptOut}
+        onDiscardOptOutChange={setDiscardOptOut}
         discarding={discarding}
         workingTreeError={workingTreeState.error}
         hookFailure={workingTreeState.hookFailure}

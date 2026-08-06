@@ -165,7 +165,18 @@
     font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
   }
 
+  /* Every button should look clickable, vendored or not. Tailwind's preflight does not set this,
+   * and shadcn's components carry no cursor utility because they assume it comes from here. */
   button {
+    cursor: pointer;
+  }
+
+  /* rdc's own visual defaults, scoped away from shadcn primitives — which all carry a data-slot.
+   * Without the exclusion these reach inside them: a size-4 Checkbox is a Radix button, so 19.5px
+   * of horizontal padding forced its used width past its 16px height and it rendered as a
+   * rectangle. rdc's element defaults are for rdc's bare buttons; a vendored component styles
+   * itself, and its own hover belongs to its variant rather than to this rule. */
+  button:not([data-slot]) {
     border: 1px solid var(--input);
     border-radius: var(--radius-small);
     padding: 6.5px 9.75px;
@@ -174,10 +185,9 @@
     box-shadow: var(--shadow-small);
     font: inherit;
     font-weight: 600;
-    cursor: pointer;
   }
 
-  button:hover {
+  button:not([data-slot]):hover {
     border-color: var(--primary);
     background: var(--secondary);
   }
@@ -1766,16 +1776,6 @@
   margin-top: 3.9px;
 }
 
-.destructive-button {
-  border-color: var(--destructive);
-  color: var(--destructive-foreground);
-  background: var(--destructive);
-}
-
-.destructive-button:hover {
-  filter: brightness(1.08);
-}
-
 .application-error {
   max-width: 520px;
   padding: 9.75px 13px;
@@ -1865,8 +1865,7 @@
   }
 
   .confirmation-dialog,
-  .application-error,
-  .destructive-button {
+  .application-error {
     border: 1px solid CanvasText;
     color: CanvasText;
     background: Canvas;

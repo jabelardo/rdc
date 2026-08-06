@@ -31,6 +31,11 @@ import {
 } from "../../../components/ui/dialog";
 import { Button } from "../../../components/ui/button";
 import { ExternalLink } from "../external-link";
+import { Checkbox } from "../../../components/ui/checkbox";
+import { ConfirmDialog } from "../dialogs/confirm-dialog";
+import { ConfirmOptOut } from "../dialogs/confirm-opt-out";
+import { DiscardFileList, discardAllQuestion } from "../dialogs/discard-file-list";
+import { NoticeDialog } from "../dialogs/notice-dialog";
 import { TerminalOutput } from "../terminal-output";
 
 const confirmationDialogClassName =
@@ -43,8 +48,10 @@ type AppDialogsProps = {
   readonly discardSelection: boolean;
   readonly discardAll: {
     readonly permanent: boolean;
-    readonly fileCount: number;
+    readonly paths: ReadonlyArray<string>;
   } | null;
+  readonly discardOptOut: boolean;
+  readonly onDiscardOptOutChange: (value: boolean) => void;
   readonly discarding: boolean;
   readonly workingTreeError: string | null;
   readonly hookFailure: HookFailureState | null;
@@ -122,6 +129,8 @@ export function AppDialogs({
   permanentlyDiscard,
   discardSelection,
   discardAll,
+  discardOptOut,
+  onDiscardOptOutChange,
   discarding,
   workingTreeError,
   hookFailure,
@@ -189,99 +198,57 @@ export function AppDialogs({
   return (
     <>
       {discardFile !== null && (
-        <Modal
-          className={confirmationDialogClassName}
-          role="alertdialog"
-          aria-labelledby="discard-dialog-title"
-          aria-describedby="discard-dialog-message"
-          onDismiss={discarding ? undefined : onCancelDiscard}
+        <ConfirmDialog
+          title={permanentlyDiscard ? "Permanently discard changes" : "Confirm discard changes"}
+          description={
+            <>
+              Are you sure you want to discard{" "}
+              {discardSelection ? "the selected changes to " : "all changes to "}
+              <strong className="font-mono [overflow-wrap:anywhere]">{discardFile.path}</strong>?
+            </>
+          }
+          confirmLabel={permanentlyDiscard ? "Permanently discard changes" : "Discard changes"}
+          busyLabel="Discarding…"
+          busy={discarding}
+          error={workingTreeError}
+          onConfirm={onConfirmDiscard}
+          onCancel={onCancelDiscard}
         >
-          <h2 id="discard-dialog-title">
-            {permanentlyDiscard ? "Permanently discard changes" : "Confirm discard changes"}
-          </h2>
           <p>
-            Are you sure you want to discard{" "}
-            {discardSelection ? "the selected changes to " : "all changes to "}
-            <strong>{discardFile.path}</strong>?
-          </p>
-          <p id="discard-dialog-message">
             {discardSelection
               ? "Selected changes cannot be restored from the operating system trash."
               : permanentlyDiscard
                 ? "Changes cannot be restored after deletion."
                 : "Changes can be restored from the operating system trash."}
           </p>
-          {workingTreeError !== null && (
-            <p className="application-error" role="alert">
-              {workingTreeError}
-            </p>
+          {/* Offered only for a whole-file discard: a line-level discard confirms regardless of the
+           * preference, so an opt-out here would promise to silence a dialog that would keep
+           * appearing. */}
+          {!discardSelection && (
+            <ConfirmOptOut checked={discardOptOut} onChange={onDiscardOptOutChange} />
           )}
-          <div className={dialogActionsClassName}>
-            <button type="button" disabled={discarding} onClick={onCancelDiscard}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="destructive-button"
-              disabled={discarding}
-              onClick={onConfirmDiscard}
-            >
-              {discarding
-                ? "Discarding…"
-                : permanentlyDiscard
-                  ? "Permanently discard changes"
-                  : "Discard changes"}
-            </button>
-          </div>
-        </Modal>
+        </ConfirmDialog>
       )}
 
       {discardAll !== null && (
-        <Modal
-          className={confirmationDialogClassName}
-          role="alertdialog"
-          aria-labelledby="discard-all-dialog-title"
-          aria-describedby="discard-all-dialog-message"
-          onDismiss={discarding ? undefined : onCancelDiscardAll}
+        <ConfirmDialog
+          title={discardAll.permanent ? "Permanently discard all changes" : "Discard all changes"}
+          description={discardAllQuestion(discardAll.paths)}
+          confirmLabel={discardAll.permanent ? "Permanently discard changes" : "Discard changes"}
+          busyLabel="Discarding…"
+          busy={discarding}
+          error={workingTreeError}
+          onConfirm={onConfirmDiscardAll}
+          onCancel={onCancelDiscardAll}
         >
-          <h2 id="discard-all-dialog-title">
-            {discardAll.permanent ? "Permanently discard all changes" : "Discard all changes"}
-          </h2>
+          <DiscardFileList paths={discardAll.paths} />
           <p>
-            This will {discardAll.permanent ? "permanently " : ""}discard changes to{" "}
-            <strong>
-              {discardAll.fileCount} {discardAll.fileCount === 1 ? "file" : "files"}
-            </strong>
-            .
-          </p>
-          <p id="discard-all-dialog-message">
             {discardAll.permanent
               ? "These changes cannot be recovered."
               : "Untracked files can be recovered from the operating system trash, but changes to tracked files cannot be restored."}
           </p>
-          {workingTreeError !== null && (
-            <p className="application-error" role="alert">
-              {workingTreeError}
-            </p>
-          )}
-          <div className={dialogActionsClassName}>
-            <button type="button" disabled={discarding} onClick={onCancelDiscardAll}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="destructive-button"
-              disabled={discarding}
-              onClick={onConfirmDiscardAll}
-            >
-              {discarding
-                ? "Discarding…"
-                : discardAll.permanent
-                  ? "Permanently discard changes"
-                  : "Discard changes"}
-            </button>
-          </div>
-        </Modal>
+          <ConfirmOptOut checked={discardOptOut} onChange={onDiscardOptOutChange} />
+        </ConfirmDialog>
       )}
 
       {branchToRename !== null && (
@@ -330,60 +297,46 @@ export function AppDialogs({
         </Modal>
       )}
 
-      {(branchToDelete !== null || deleteRefusal !== null) && (
-        <Modal
-          className={confirmationDialogClassName}
-          role="alertdialog"
-          aria-labelledby="delete-branch-title"
-          onDismiss={onCancelDelete}
-        >
-          {deleteRefusal !== null ? (
-            <>
-              <h2 id="delete-branch-title">Cannot delete branch</h2>
-              <p>{deleteRefusal}</p>
-              <div className={dialogActionsClassName}>
-                <button type="button" onClick={onCancelDelete}>
-                  Close
-                </button>
-              </div>
-            </>
-          ) : (
-            branchToDelete !== null && (
+      {deleteRefusal !== null ? (
+        <NoticeDialog title="Cannot delete branch" onDismiss={onCancelDelete}>
+          {deleteRefusal}
+        </NoticeDialog>
+      ) : (
+        branchToDelete !== null && (
+          <ConfirmDialog
+            title="Delete branch"
+            description={
               <>
-                <h2 id="delete-branch-title">Delete branch</h2>
-                <p>
-                  Delete <strong>{branchToDelete.name}</strong>?
-                  {branchToDelete.upstream !== null &&
-                    ` This branch tracks ${branchToDelete.upstream}.`}
-                </p>
-                {deleteUnmerged && (
-                  <p className="application-error" role="alert">
-                    This branch has commits that are not in the current branch. Deleting it will
-                    permanently remove them.
-                  </p>
-                )}
-                {branchToDelete.upstream !== null && (
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={deletePruneTrackingRef}
-                      onChange={(event) => onDeletePruneChange(event.currentTarget.checked)}
-                    />
-                    Also remove the local record of the remote branch ({branchToDelete.upstream})
-                  </label>
-                )}
-                <div className={dialogActionsClassName}>
-                  <button type="button" onClick={onCancelDelete}>
-                    Cancel
-                  </button>
-                  <button type="button" className="destructive-button" onClick={onConfirmDelete}>
-                    Delete branch
-                  </button>
-                </div>
+                Delete <strong>{branchToDelete.name}</strong>?
+                {branchToDelete.upstream !== null &&
+                  ` This branch tracks ${branchToDelete.upstream}.`}
               </>
-            )
-          )}
-        </Modal>
+            }
+            confirmLabel="Delete branch"
+            onConfirm={onConfirmDelete}
+            onCancel={onCancelDelete}
+          >
+            {/* A warning about what confirming costs, not a failure, so it takes the warning tokens
+             * rather than the error ones. No role="alert" either: it is present when the dialog
+             * opens, and the dialog is already announced, so announcing it again as an
+             * interruption is wrong. */}
+            {deleteUnmerged && (
+              <p className="rounded-[var(--radius-small)] border border-[var(--warning-border)] bg-[var(--warning-surface)] px-2.5 py-2 text-[var(--warning-text)]">
+                This branch has commits that are not in the current branch. Deleting it will
+                permanently remove them.
+              </p>
+            )}
+            {branchToDelete.upstream !== null && (
+              <label className="flex w-fit items-center gap-2">
+                <Checkbox
+                  checked={deletePruneTrackingRef}
+                  onCheckedChange={(value) => onDeletePruneChange(value === true)}
+                />
+                Also remove the local record of the remote branch ({branchToDelete.upstream})
+              </label>
+            )}
+          </ConfirmDialog>
+        )
       )}
 
       {mergePickerOpen && (
@@ -590,10 +543,16 @@ export function AppDialogs({
 
       {hookFailure !== null && (
         <AlertDialog open>
-          <AlertDialogContent className="max-w-[600px]">
+          {/* Wider than the shared ceiling for the terminal output, and at the same breakpoint so it
+           * wins rather than tying with sm:max-w-lg. */}
+          <AlertDialogContent className="sm:max-w-[600px]">
             <AlertDialogHeader className="place-items-start text-left">
               <AlertDialogTitle className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faCircleExclamation} className="text-yellow-500" />
+                <FontAwesomeIcon
+                  icon={faCircleExclamation}
+                  className="text-[var(--warning-text)]"
+                  aria-hidden
+                />
                 The {hookFailure.hook} hook failed
               </AlertDialogTitle>
               <AlertDialogDescription>What would you like to do?</AlertDialogDescription>
@@ -634,31 +593,19 @@ export function AppDialogs({
       )}
 
       {repositoryToRemove !== null && (
-        <Modal
-          className={confirmationDialogClassName}
-          role="alertdialog"
-          aria-labelledby="remove-repository-title"
-          aria-describedby="remove-repository-message"
-          onDismiss={onCancelRemoveRepository}
+        <ConfirmDialog
+          title="Remove repository"
+          description={
+            <>
+              Remove <strong>{repositoryToRemove.name}</strong> from rdc?
+            </>
+          }
+          confirmLabel="Remove repository"
+          onConfirm={onConfirmRemoveRepository}
+          onCancel={onCancelRemoveRepository}
         >
-          <h2 id="remove-repository-title">Remove repository</h2>
-          <p id="remove-repository-message">
-            Remove <strong>{repositoryToRemove.name}</strong> from rdc? Files in the repository will
-            not be deleted.
-          </p>
-          <div className={dialogActionsClassName}>
-            <button type="button" onClick={onCancelRemoveRepository}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="destructive-button"
-              onClick={onConfirmRemoveRepository}
-            >
-              Remove repository
-            </button>
-          </div>
-        </Modal>
+          <p>Files in the repository will not be deleted.</p>
+        </ConfirmDialog>
       )}
 
       {showAboutDialog && (

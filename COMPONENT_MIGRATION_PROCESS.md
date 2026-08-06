@@ -226,3 +226,97 @@ The user asked for "licence / terms links". The **MIT licence link is real** and
 adjacent links were *not* added because they would be dead: rdc has no Terms and Conditions (it is
 not a hosted service — MIT covers use) and no third-party/open-source notices file yet. Generating
 a notices file belongs to Phase 9 (release engineering), where the dependency set is frozen.
+
+---
+
+## Component 3 — Destructive confirmation family
+
+Migrated as one family, because they share a single shape: **Discard file**, **Discard all**,
+**Delete branch**, **Remove repository**, plus the "Cannot delete branch" refusal that was crammed
+into the delete-branch `Modal` and is really an informational dialog.
+
+Seven of the ten rows arrived already settled, so review concentrated on three.
+
+| Dimension | rdc today | desktop-plus | shadcn/Radix | Verdict |
+|---|---|---|---|---|
+| Element semantics · Escape · order · safe default · destructive tint · footer · scale | — | — | — | **SETTLED** (C1–C5) |
+| Escape while the operation is in flight | blocked (`onDismiss={undefined}`) | blocked (`dismissDisabled`) | **closes** | **FIX** → Convention 8 |
+| Checkbox primitive | raw `<input type="checkbox">` | custom `Checkbox` | shadcn `Checkbox` | **AGREED** → shadcn |
+| Long path rendering | raw, can overflow | `PathText` middle-elision | — | **DECIDED** → wrap |
+| Warning icon | hook-failure only | amber gutter icon on all | none | **DECIDED** → inline in title |
+| Inline "don't show again" | none (Preferences only) | checkbox in the dialog | — | **DECIDED** → yes |
+| Discard-all file identification | count only | up to 10 paths, then a count | — | **DECIDED** → port the rule |
+
+### Resolved
+
+- **Warning icon inline in the title**, in `var(--warning-text)`. Extends what the hook-failure
+  dialog already shipped rather than adopting desktop-plus's gutter, which would cost horizontal
+  space and new layout CSS in the shared primitive.
+- **Inline opt-out**, ported *including* its subtlety: the preference is written when the user
+  **confirms**, not when the box is ticked. Ticking and then cancelling leaves the guard intact, so a
+  change of mind never removes a confirmation on an irreversible action. Offered only for a
+  whole-file discard — a line-level discard confirms regardless of the preference, so an opt-out
+  there would promise to silence a dialog that would keep appearing.
+- **Paths listed up to `MaxFilesToList` (10), then a bare count** — desktop-plus's rule as-is.
+- **Long paths wrap, they do not truncate.** desktop-plus middle-elides because it forces one line;
+  a dialog with room to wrap loses nothing. rdc's own `truncateWithEllipsis` would be the wrong tool
+  either way — it cuts the *end*, destroying the filename, which is the part you need to recognise.
+
+### Reading order
+
+Putting the question in `description` and the consequence in `children` is deliberate. The first
+attempt had the header's description carry the consequence, which reads backwards — "Changes can be
+restored from the trash" before "Are you sure you want to discard Alpha.ts?". The description is
+also what Radix announces, so the question belongs there.
+
+### The abstraction
+
+`ConfirmDialog` (`src/lib/ui/dialogs/confirm-dialog.tsx`) encodes Conventions 1, 2, 4, 5 and 8 once
+instead of restating them in four places — the same role desktop-plus's `OkCancelButtonGroup`
+played. `NoticeDialog` covers the refusal case under Conventions 6 and 7. Four dialogs' worth of
+hand-written markup left `app-dialogs.tsx`, and `.destructive-button` left `App.css` with zero
+consumers, per Convention 3.
+
+### Resolved → Conventions 8, 9 and 10
+
+- **Convention 8 — dismissal is one guarded path, and it is refused mid-operation.** Route Escape,
+  the Cancel button and any future dismissal through a single `onOpenChange` handler, and refuse all
+  of them while the confirmed operation is in flight: losing the dialog then leaves the user with no
+  indication of whether it completed. Radix's `AlertDialogAction` is a `Dialog.Close`, so an async
+  action must `event.preventDefault()` in its `onClick` — the close runs through
+  `composeEventHandlers`, which skips it when the event is already default-prevented. Verified
+  against the installed source, not assumed.
+- **Convention 9 — rdc's element defaults stop at shadcn's door.** Bare-element rules in
+  `@layer base` must exclude vendored primitives with `:not([data-slot])`. `button`'s
+  `padding: 6.5px 9.75px` reached inside the Radix Checkbox, and since padding cannot shrink below
+  its own size, a `size-4` (16px) checkbox rendered ~21.5px wide against a 16px height — a
+  rectangle. What is genuinely universal stays unscoped: `cursor: pointer` applies to every button,
+  because Tailwind's preflight does not set it and shadcn's components assume it comes from here.
+- **Convention 10 — a warning is not an error.** Text describing what confirming will *cost* takes
+  the `--warning-*` tokens, not `--error-*`, and carries no `role="alert"`: it is present when the
+  dialog opens, the dialog is already announced, and announcing it again as an interruption is
+  wrong. `role="alert"` is for something that arrives *after* the dialog is up — a failure.
+
+### Two bugs that only a browser could see
+
+Both were reported from the running app after the automated gate was fully green, which is worth
+recording as evidence for how much the human pass still carries:
+
+- **Every confirmation stretched to the window width.** `AlertDialogContent` had `w-full` with no
+  `max-w`, while `DialogContent` had `max-w-[calc(100%-2rem)] sm:max-w-lg` — which is exactly why
+  About looked right and these did not. The two primitives now size identically. The hook-failure
+  override moved to `sm:max-w-[600px]` so `twMerge` drops the shared ceiling instead of the
+  breakpoints tying; confirmed by running `twMerge` rather than reasoning about class order.
+- **The checkbox was a rectangle** — Convention 9 above.
+
+`e2e/discard.test.mjs` now asserts both in a real browser: dialog width against the window, and the
+checkbox's width against its height. Both assertions carry **lower** bounds too, because a 0-width
+dialog would satisfy "narrower than the window" and a 0x0 checkbox would satisfy "square" — the same
+dead-assertion trap this repo has hit before.
+
+### Icon libraries
+
+`lucide-react` is used *only* inside `src/components/ui/**`, where shadcn's own files expect it;
+rdc's components use FontAwesome. That split already existed by accident and is now the rule —
+keeping vendored files unmodified is what makes a future `shadcn add` diffable. Consolidating onto
+one library is a post-MVP question, not a migration decision.
