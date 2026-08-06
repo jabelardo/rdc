@@ -251,49 +251,74 @@ export function AppDialogs({
       )}
 
       {branchToRename !== null && (
-        <Modal
-          className={confirmationDialogClassName}
-          role="dialog"
-          aria-labelledby="rename-branch-title"
-          onDismiss={onCancelRename}
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              onCancelRename();
+            }
+          }}
         >
-          <h2 id="rename-branch-title">Rename branch</h2>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              onConfirmRename();
-            }}
-          >
-            <label htmlFor="rename-branch-name">
-              New name for <strong>{branchToRename.name}</strong>
-            </label>
-            <input
-              id="rename-branch-name"
-              value={renameName}
-              autoFocus
-              onChange={(event) => onRenameNameChange(event.currentTarget.value)}
-            />
-            {branchToRename.upstream !== null && (
-              <p>
-                This branch tracks <strong>{branchToRename.upstream}</strong>. Only the local branch
-                is renamed; the remote branch keeps its current name.
-              </p>
-            )}
-            <div className={dialogActionsClassName}>
-              <button type="button" onClick={onCancelRename}>
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={
-                  renameName.trim().length === 0 || renameName.trim() === branchToRename.name
-                }
-              >
-                Rename
-              </button>
-            </div>
-          </form>
-        </Modal>
+          <DialogContent className="sm:max-w-[400px]">
+            <DialogHeader>
+              <DialogTitle>Rename branch</DialogTitle>
+            </DialogHeader>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                onConfirmRename();
+              }}
+            >
+              <label className="text-sm font-medium" htmlFor="rename-branch-name">
+                New name for <strong>{branchToRename.name}</strong>
+              </label>
+              <input
+                id="rename-branch-name"
+                className="mt-1.5 flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                value={renameName}
+                autoFocus
+                onChange={(event) => onRenameNameChange(event.currentTarget.value)}
+              />
+              {branchToRename.upstream !== null && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  This branch tracks <strong>{branchToRename.upstream}</strong>. Only the local
+                  branch is renamed; the remote branch keeps its current name.
+                </p>
+              )}
+              <DialogFooter className="mt-4">
+                {__DARWIN__ ? (
+                  <>
+                    <Button type="button" variant="outline" onClick={onCancelRename}>
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={
+                        renameName.trim().length === 0 || renameName.trim() === branchToRename.name
+                      }
+                    >
+                      Rename
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      type="submit"
+                      disabled={
+                        renameName.trim().length === 0 || renameName.trim() === branchToRename.name
+                      }
+                    >
+                      Rename
+                    </Button>
+                    <Button type="button" variant="outline" onClick={onCancelRename}>
+                      Cancel
+                    </Button>
+                  </>
+                )}
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
       )}
 
       {deleteRefusal !== null ? (
@@ -542,8 +567,6 @@ export function AppDialogs({
 
       {hookFailure !== null && (
         <AlertDialog open>
-          {/* Wider than the shared ceiling for the terminal output, and at the same breakpoint so it
-           * wins rather than tying with sm:max-w-lg. */}
           <AlertDialogContent className="sm:max-w-[600px]">
             <AlertDialogHeader className="place-items-start text-left">
               <AlertDialogTitle className="flex items-center gap-2">
@@ -554,9 +577,6 @@ export function AppDialogs({
             </AlertDialogHeader>
             <TerminalOutput output={hookFailure.terminalOutput} />
             <AlertDialogFooter>
-              {/* AlertDialogCancel/Action rather than plain buttons: Radix focuses its cancelRef
-               * on open, which is what makes the safe action the default for a destructive
-               * dialog (COMPONENT_MIGRATION_PROCESS.md Convention 1). Order is Convention 2. */}
               {__DARWIN__ ? (
                 <>
                   <AlertDialogCancel onClick={() => workingTreeStore.resolveHookFailure("abort")}>
@@ -612,15 +632,11 @@ export function AppDialogs({
             }
           }}
         >
-          {/* No corner X: the footer already carries an explicit Close, and two controls doing the
-           * same thing is what the dialog checklist flagged as duplicate-close UX. */}
-          <DialogContent showCloseButton={false}>
+          <DialogContent className="sm:max-w-[400px]">
             <DialogHeader>
               <DialogTitle>About RDC</DialogTitle>
               <DialogDescription>A native Git client built with Tauri and Rust.</DialogDescription>
             </DialogHeader>
-            {/* Selectable so it can be pasted into a bug report — desktop-plus marks its own
-             * version string `selectable-text` for exactly that reason. */}
             <p className="select-text">
               Version {__APP_VERSION__}
               {appArchitecture === null ? "" : ` (${appArchitecture})`}

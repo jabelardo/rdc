@@ -39,8 +39,8 @@ These three were the first migrated. Validate them in **Help → Show Dialog**. 
 | Discard file… | AlertDialog | Dark | | | Discard / Permanently discard | | | | |
 | Discard all… | AlertDialog | Light | | | Discard all / Permanently discard all | | Stub state injected by debug menu | |
 | Discard all… | AlertDialog | Dark | | | Discard all / Permanently discard all | | | | |
-| Rename branch… | Dialog | Light | | | Cancel / Rename | | Stub state injected by debug menu | |
-| Rename branch… | Dialog | Dark | | | Cancel / Rename | | | | |
+| Rename branch… | Dialog | Light | | | Cancel / Rename | | Stub state injected by debug menu | Migrated |
+| Rename branch… | Dialog | Dark | | | Cancel / Rename | | | Migrated | |
 | Delete branch… | AlertDialog | Light | | | Close / Delete | | Stub state injected by debug menu | |
 | Delete branch… | AlertDialog | Dark | | | Close / Delete | | | | |
 | Merge… | Dialog | Light | | | Cancel / Merge | | Stub state injected by debug menu | |
