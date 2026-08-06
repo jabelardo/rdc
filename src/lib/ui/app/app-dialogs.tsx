@@ -12,6 +12,8 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCircleExclamation } from "@fortawesome/free-solid-svg-icons";
 import {
   AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -22,7 +24,7 @@ import { Dialog, DialogContent, DialogFooter, DialogTitle } from "../../../compo
 import { TerminalOutput } from "../terminal-output";
 
 const confirmationDialogClassName =
-  "confirmation-dialog box-border w-[min(30rem,calc(100vw-2rem))] rounded-[var(--radius-medium)] border border-[var(--border)] bg-[var(--popover)] p-6 shadow-[var(--shadow-dialog)]";
+  "confirmation-dialog box-border w-[min(390px,calc(100vw-26px))] rounded-[var(--radius-medium)] border border-[var(--border)] bg-[var(--popover)] p-6 shadow-[var(--shadow-dialog)]";
 const dialogActionsClassName = "confirmation-dialog-actions mt-6 flex justify-end gap-3";
 
 type AppDialogsProps = {
@@ -480,7 +482,7 @@ export function AppDialogs({
                 return <p className="manage-remotes-empty mt-4">No remotes match your filter.</p>;
               }
               return (
-                <ul className="manage-remotes-list mt-4 grid list-none gap-[0.4rem] p-0">
+                <ul className="manage-remotes-list mt-4 grid list-none gap-[5.2px] p-0">
                   {filtered.map((remote) => (
                     <li
                       key={remote.name}
@@ -588,37 +590,32 @@ export function AppDialogs({
             </AlertDialogHeader>
             <TerminalOutput output={hookFailure.terminalOutput} />
             <AlertDialogFooter>
+              {/* AlertDialogCancel/Action rather than plain buttons: Radix focuses its cancelRef
+               * on open, which is what makes the safe action the default for a destructive
+               * dialog (COMPONENT_MIGRATION_PROCESS.md Convention 1). Order is Convention 2. */}
               {__DARWIN__ ? (
                 <>
-                  <button
-                    type="button"
-                    onClick={() => workingTreeStore.resolveHookFailure("abort")}
-                  >
+                  <AlertDialogCancel onClick={() => workingTreeStore.resolveHookFailure("abort")}>
                     Abort
-                  </button>
-                  <button
-                    type="button"
-                    className="destructive-button"
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    variant="destructive"
                     onClick={() => workingTreeStore.resolveHookFailure("ignore")}
                   >
                     Ignore and Continue
-                  </button>
+                  </AlertDialogAction>
                 </>
               ) : (
                 <>
-                  <button
-                    type="button"
-                    className="destructive-button"
+                  <AlertDialogAction
+                    variant="destructive"
                     onClick={() => workingTreeStore.resolveHookFailure("ignore")}
                   >
                     Ignore and Continue
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => workingTreeStore.resolveHookFailure("abort")}
-                  >
+                  </AlertDialogAction>
+                  <AlertDialogCancel onClick={() => workingTreeStore.resolveHookFailure("abort")}>
                     Abort
-                  </button>
+                  </AlertDialogCancel>
                 </>
               )}
             </AlertDialogFooter>
@@ -850,7 +847,7 @@ export function AppDialogs({
               </button>
             </div>
             {cloneState.progress !== null && (
-              <div className="clone-progress grid gap-[0.35rem]" role="status">
+              <div className="clone-progress grid gap-[4.55px]" role="status">
                 <progress value={cloneState.progress.value} max={1} />
                 <span>
                   {cloneState.progress.description ?? cloneState.progress.title ?? "Cloning…"}

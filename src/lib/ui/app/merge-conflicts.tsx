@@ -45,7 +45,7 @@ export function MergeConflicts({
       ) : state.files.length === 0 ? (
         <p>All conflict resolutions are staged.</p>
       ) : (
-        <ul className="mt-4 grid list-none gap-[0.4rem] p-0">
+        <ul className="mt-4 grid list-none gap-[5.2px] p-0">
           {state.files.map((file) => (
             <li
               className="grid items-center gap-3 [grid-template-columns:minmax(0,1fr)_auto_auto]"

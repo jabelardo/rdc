@@ -73,22 +73,16 @@
 
   /* --- non-colour design tokens (theme-invariant) ----------------------- */
   --shadow-small: 0 1px 2px rgb(23 32 51 / 8%);
-  --shadow-dialog: 0 1rem 3rem rgb(0 0 0 / 30%);
-  --shadow-tooltip: 0 0.35rem 0.85rem rgb(0 0 0 / 28%);
-  --shadow-banner: 0 0.5rem 1.5rem rgb(23 32 51 / 15%);
+  --shadow-dialog: 0 13px 39px rgb(0 0 0 / 30%);
+  --shadow-tooltip: 0 4.55px 11.05px rgb(0 0 0 / 28%);
+  --shadow-banner: 0 6.5px 19.5px rgb(23 32 51 / 15%);
   --scrim: rgb(0 0 0 / 42%);
   --radius-small: 5px;
   --radius-medium: 8px;
-  --command-bar-height: 3.25rem;
+  --command-bar-height: 42.25px;
   --tooltip-delay: 250ms;
   --font-family-monospace: ui-monospace, SFMono-Regular, Consolas, monospace;
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.5rem;
 
-  font-size: 13px;
   line-height: 1.5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -160,6 +154,10 @@
   body {
     margin: 0;
     overflow: hidden;
+    /* rdc's density lives here, not on :root — the root stays at the browser default so `rem`
+     * means 16px, which is what Tailwind's spacing and type scales are built against. Before
+     * this, a 13px root silently rendered every rem-based utility at 81% of its designed size. */
+    font-size: 13px;
   }
 
   code,
@@ -170,7 +168,7 @@
   button {
     border: 1px solid var(--input);
     border-radius: var(--radius-small);
-    padding: 0.5rem 0.75rem;
+    padding: 6.5px 9.75px;
     color: inherit;
     background: var(--secondary);
     box-shadow: var(--shadow-small);
@@ -205,11 +203,11 @@
 }
 
 .application-shell.sidebar-collapsed {
-  grid-template-columns: 3.25rem minmax(0, 1fr);
+  grid-template-columns: 42.25px minmax(0, 1fr);
 }
 
 .application-shell.webview-titlebar {
-  grid-template-rows: 2.4rem minmax(0, 1fr);
+  grid-template-rows: 31.2px minmax(0, 1fr);
 }
 
 .window-drag-region {
@@ -260,11 +258,11 @@
 }
 
 .application-shell.webview-titlebar .sidebar-resizer {
-  top: 2.4rem;
+  top: 31.2px;
 }
 
 .application-shell.sidebar-collapsed .sidebar-resizer {
-  left: 3.25rem;
+  left: 42.25px;
 }
 
 .repository-sidebar {
@@ -277,14 +275,14 @@
 
 .sidebar-command-bar {
   min-width: 0;
-  padding-inline: 0.5rem;
+  padding-inline: 6.5px;
 }
 
 .sidebar-collapse {
   display: grid;
-  width: 2.25rem;
-  min-width: 2.25rem;
-  height: 2.25rem;
+  width: 29.25px;
+  min-width: 29.25px;
+  height: 29.25px;
   place-items: center;
   margin: 0 0 0 auto;
   padding: 0;
@@ -292,7 +290,7 @@
   border-radius: var(--radius-small);
   background: transparent;
   box-shadow: none;
-  font-size: 1.15rem;
+  font-size: 14.95px;
   line-height: 1;
 }
 
@@ -309,18 +307,18 @@
 .sidebar-icon-rail {
   display: grid;
   align-content: start;
-  gap: 0.5rem;
+  gap: 6.5px;
   justify-items: center;
   overflow-y: auto;
   border-right: 1px solid var(--border);
-  padding: 0.75rem 0.5rem;
+  padding: 9.75px 6.5px;
 }
 
 .sidebar-icon-rail button {
   display: grid;
-  width: 2.25rem;
-  min-width: 2.25rem;
-  height: 2.25rem;
+  width: 29.25px;
+  min-width: 29.25px;
+  height: 29.25px;
   place-items: center;
   padding: 0;
 }
@@ -345,7 +343,7 @@
   min-height: 0;
   overflow: hidden;
   border-right: 1px solid var(--border);
-  padding: 0.6rem 0.75rem 1rem;
+  padding: 7.8px 9.75px 13px;
 }
 
 .sidebar-panel {
@@ -368,13 +366,13 @@
   display: flex;
   width: 100%;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.55rem 0.4rem;
+  gap: 5.85px;
+  padding: 7.15px 5.2px;
   border: 0;
   border-radius: var(--radius-small);
   background: transparent;
   box-shadow: none;
-  font-size: 0.75rem;
+  font-size: 9.75px;
   letter-spacing: 0.04em;
   text-align: left;
   text-transform: uppercase;
@@ -387,14 +385,14 @@
 }
 
 .sidebar-panel-empty {
-  margin: 0.25rem 0 0.75rem;
+  margin: 3.25px 0 9.75px;
   color: var(--muted-foreground);
-  font-size: 0.85rem;
+  font-size: 11.05px;
 }
 
 .repository-list {
   display: grid;
-  gap: 0.25rem;
+  gap: 3.25px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -405,7 +403,7 @@
   height: 100%;
   min-height: 0;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 0.5rem;
+  gap: 6.5px;
 }
 
 .repository-filter {
@@ -416,7 +414,7 @@
 .repository-filter svg {
   position: absolute;
   top: 50%;
-  left: 0.65rem;
+  left: 8.45px;
   color: var(--muted-foreground);
   pointer-events: none;
   transform: translateY(-50%);
@@ -426,7 +424,7 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  padding: 0.45rem 0.65rem 0.45rem 2rem;
+  padding: 5.85px 8.45px 5.85px 26px;
   border: 1px solid var(--input);
   border-radius: var(--radius-small);
   color: inherit;
@@ -453,12 +451,12 @@
   display: grid;
   box-sizing: border-box;
   width: 100%;
-  min-height: 2.25rem;
+  min-height: 29.25px;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 0.5rem;
+  gap: 6.5px;
   overflow: hidden;
-  padding: 0.35rem 2.65rem 0.35rem 0.65rem;
+  padding: 4.55px 34.45px 4.55px 8.45px;
   border-color: transparent;
   border-radius: var(--radius-small);
   background: transparent;
@@ -480,17 +478,17 @@
 .repository-list-actions {
   position: absolute;
   top: 50%;
-  right: 0.2rem;
+  right: 2.6px;
   display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 29.25px;
+  height: 29.25px;
   place-items: center;
   padding: 0;
   border-color: transparent;
   border-radius: var(--radius-small);
   background: transparent;
   box-shadow: none;
-  font-size: 1rem;
+  font-size: 13px;
   line-height: 1;
   opacity: 0;
   transform: translateY(-50%);
@@ -516,11 +514,11 @@
 
 .repository-list-empty {
   color: var(--muted-foreground);
-  font-size: 0.85rem;
+  font-size: 11.05px;
 }
 
 .repository-list-icon {
-  width: 1rem;
+  width: 13px;
   color: var(--muted-foreground);
 }
 
@@ -530,20 +528,20 @@
 
 .repository-empty-state h2,
 .selected-repository h2 {
-  margin: 0 0 0.5rem;
+  margin: 0 0 6.5px;
 }
 
 .repository-empty-actions button {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 6.5px;
 }
 
 .repository-toolbar {
   position: relative;
   height: var(--command-bar-height);
   box-sizing: border-box;
-  gap: 0.75rem;
+  gap: 9.75px;
 }
 
 .disabled-tooltip-anchor {
@@ -555,14 +553,14 @@
   position: fixed;
   z-index: 10000;
   width: max-content;
-  max-width: calc(100vw - 1rem);
-  padding: 0.35rem 0.55rem;
+  max-width: calc(100vw - 13px);
+  padding: 4.55px 7.15px;
   border: 1px solid var(--tooltip-border);
-  border-radius: 0.35rem;
+  border-radius: 4.55px;
   color: var(--tooltip-foreground);
   background-color: var(--tooltip);
   box-shadow: var(--shadow-tooltip);
-  font-size: 0.8rem;
+  font-size: 10.4px;
   font-weight: 500;
   line-height: 1.25;
   pointer-events: none;
@@ -576,7 +574,7 @@
 @keyframes tooltip-appear {
   from {
     opacity: 0;
-    transform: translateY(-0.15rem);
+    transform: translateY(-1.95px);
   }
 
   to {
@@ -590,7 +588,7 @@
   top: 50%;
   left: 0;
   width: 1px;
-  height: 2.25rem;
+  height: 29.25px;
   background: var(--border);
   content: "";
   transform: translateY(-50%);
@@ -600,9 +598,9 @@
   :is(.repository-creation-actions, .repository-toolbar-actions, .remote-actions)
   button {
   display: grid;
-  width: 2.25rem;
-  min-width: 2.25rem;
-  height: 2.25rem;
+  width: 29.25px;
+  min-width: 29.25px;
+  height: 29.25px;
   place-items: center;
   padding: 0;
   border-color: transparent;
@@ -619,29 +617,29 @@
 }
 
 .repository-toolbar-actions {
-  margin-left: 0.75rem;
-  padding-left: 0.75rem;
+  margin-left: 9.75px;
+  padding-left: 9.75px;
   border-left: 1px solid var(--border);
 }
 
 .remote-controls {
-  padding-left: 0.75rem;
+  padding-left: 9.75px;
   border-left: 1px solid var(--border);
 }
 
 .repository-view-navigation {
-  padding-left: 0.75rem;
+  padding-left: 9.75px;
   border-left: 1px solid var(--border);
 }
 
 .repository-view-navigation button {
   display: flex;
-  min-width: 2.25rem;
-  height: 2.25rem;
+  min-width: 29.25px;
+  height: 29.25px;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  padding: 0 0.65rem;
+  gap: 5.2px;
+  padding: 0 8.45px;
   border-color: transparent;
   border-radius: var(--radius-small);
   background: transparent;
@@ -666,7 +664,7 @@
   margin: 0 0 0 auto;
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: 0.85rem;
+  font-size: 11.05px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -684,14 +682,14 @@
   height: 100%;
   min-height: 0;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 6.5px;
   text-align: left;
 }
 
 .branch-filter-actions {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.25rem;
+  gap: 3.25px;
 }
 
 .branch-filter {
@@ -703,7 +701,7 @@
 .branch-filter svg {
   position: absolute;
   top: 50%;
-  left: 0.65rem;
+  left: 8.45px;
   color: var(--muted-foreground);
   pointer-events: none;
   transform: translateY(-50%);
@@ -711,19 +709,19 @@
 
 .branch-filter input {
   width: 100%;
-  height: 2.25rem;
-  padding-left: 2rem;
+  height: 29.25px;
+  padding-left: 26px;
 }
 
 .new-branch-form input {
-  height: 2.25rem;
+  height: 29.25px;
 }
 
 .new-branch-button {
   display: grid;
-  width: 2.25rem;
-  min-width: 2.25rem;
-  height: 2.25rem;
+  width: 29.25px;
+  min-width: 29.25px;
+  height: 29.25px;
   place-items: center;
   padding: 0;
   border-color: transparent;
@@ -740,7 +738,7 @@
 .new-branch-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
-  gap: 0.25rem;
+  gap: 3.25px;
 }
 
 .new-branch-form label {
@@ -757,7 +755,7 @@
 .new-branch-form input {
   box-sizing: border-box;
   min-width: 0;
-  padding: 0.5rem 0.65rem;
+  padding: 6.5px 8.45px;
   border: 1px solid var(--input);
   border-radius: var(--radius-small);
   color: inherit;
@@ -766,13 +764,13 @@
 }
 
 .branch-filter input {
-  padding-left: 2rem;
+  padding-left: 26px;
 }
 
 .new-branch-form button {
   display: grid;
-  width: 2.25rem;
-  min-width: 2.25rem;
+  width: 29.25px;
+  min-width: 29.25px;
   height: 100%;
   place-items: center;
   padding: 0;
@@ -811,8 +809,8 @@
 
 .branch-list-group-heading {
   margin: 0;
-  padding: 0.45rem 0.65rem 0.3rem;
-  font-size: 0.8rem;
+  padding: 5.85px 8.45px 3.9px;
+  font-size: 10.4px;
   font-weight: 650;
 }
 
@@ -820,12 +818,12 @@
   display: grid;
   box-sizing: border-box;
   width: 100%;
-  min-height: 2.25rem;
-  grid-template-columns: 1rem minmax(0, 1fr) auto;
+  min-height: 29.25px;
+  grid-template-columns: 13px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.5rem;
+  gap: 6.5px;
   overflow: hidden;
-  padding: 0.35rem 0.65rem;
+  padding: 4.55px 8.45px;
   border-color: transparent;
   border-radius: var(--radius-small);
   background: transparent;
@@ -854,18 +852,18 @@
 }
 
 .branch-list-icon {
-  width: 1rem;
+  width: 13px;
   color: var(--muted-foreground);
 }
 
 .branch-list-empty {
   color: var(--muted-foreground);
-  font-size: 0.85rem;
+  font-size: 11.05px;
 }
 
 .clone-dialog form {
   display: grid;
-  gap: 0.65rem;
+  gap: 8.45px;
 }
 
 .clone-dialog form > label {
@@ -876,7 +874,7 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  padding: 0.5rem 0.65rem;
+  padding: 6.5px 8.45px;
   border: 1px solid var(--input);
   border-radius: var(--radius-small);
   color: inherit;
@@ -894,9 +892,9 @@
 }
 
 .merge-conflicts header p {
-  margin-top: 0.25rem;
+  margin-top: 3.25px;
   color: var(--muted-foreground);
-  font-size: 0.85rem;
+  font-size: 11.05px;
 }
 
 .merge-conflicts li span {
@@ -939,10 +937,10 @@
 
 .working-tree-diff-header {
   min-width: 0;
-  min-height: 2.5rem;
+  min-height: 32.5px;
   box-sizing: border-box;
   flex: 0 0 auto;
-  padding: 0.4rem 0.65rem;
+  padding: 5.2px 8.45px;
   border-bottom: 1px solid var(--border);
   background: var(--secondary);
 }
@@ -956,8 +954,8 @@
 .working-tree-tools {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.35rem;
-  padding: 0.4rem 0.5rem;
+  gap: 4.55px;
+  padding: 5.2px 6.5px;
 }
 
 .working-tree-filter {
@@ -969,7 +967,7 @@
 .working-tree-filter svg {
   position: absolute;
   top: 50%;
-  left: 0.6rem;
+  left: 7.8px;
   color: var(--muted-foreground);
   pointer-events: none;
   transform: translateY(-50%);
@@ -978,9 +976,9 @@
 .working-tree-filter input {
   box-sizing: border-box;
   width: 100%;
-  height: 2.25rem;
+  height: 29.25px;
   min-width: 0;
-  padding: 0.45rem 0.6rem 0.45rem 2rem;
+  padding: 5.85px 7.8px 5.85px 26px;
   border: 1px solid var(--input);
   border-radius: var(--radius-small);
   color: inherit;
@@ -990,23 +988,23 @@
 
 .working-tree-summary {
   display: flex;
-  min-height: 2rem;
+  min-height: 26px;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.2rem 0.65rem;
+  gap: 5.85px;
+  padding: 2.6px 8.45px;
   border-top: 1px solid var(--border);
-  font-size: 0.85rem;
+  font-size: 11.05px;
 }
 
 .working-tree-summary input {
-  width: 1rem;
-  height: 1rem;
+  width: 13px;
+  height: 13px;
   margin: 0;
 }
 
 .working-tree-filter-empty {
   margin: 0;
-  padding: 0.75rem;
+  padding: 9.75px;
   color: var(--muted-foreground);
 }
 
@@ -1034,15 +1032,15 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  min-height: 2.25rem;
-  gap: 0.35rem;
-  padding: 0 0.4rem;
+  min-height: 29.25px;
+  gap: 4.55px;
+  padding: 0 5.2px;
   border-bottom: 1px solid var(--border);
 }
 
 .working-tree-files input {
-  width: 1rem;
-  height: 1rem;
+  width: 13px;
+  height: 13px;
   margin: 0;
 }
 
@@ -1051,7 +1049,7 @@
   min-width: 0;
   width: 100%;
   justify-content: flex-start;
-  padding: 0.35rem 0.25rem;
+  padding: 4.55px 3.25px;
   border-color: transparent;
   background: transparent;
   box-shadow: none;
@@ -1071,8 +1069,8 @@
 .working-tree-file-actions {
   position: relative;
   display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 29.25px;
+  height: 29.25px;
   place-items: center;
 }
 
@@ -1084,8 +1082,8 @@
 
 .working-tree-file-status {
   display: grid;
-  width: 1rem;
-  height: 1rem;
+  width: 13px;
+  height: 13px;
   place-self: center;
   place-items: center;
   box-sizing: border-box;
@@ -1096,8 +1094,8 @@
 
 .working-tree-file-status svg {
   display: block;
-  width: 0.6rem;
-  height: 0.6rem;
+  width: 7.8px;
+  height: 7.8px;
 }
 
 .working-tree-file-status:is(
@@ -1119,8 +1117,8 @@
     .status-deleted
   )
   svg {
-  width: 1rem;
-  height: 1rem;
+  width: 13px;
+  height: 13px;
 }
 
 .working-tree-file-status:is(.status-new, .status-untracked, .status-copied) {
@@ -1146,7 +1144,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 9.75px;
   background: var(--background);
 }
 
@@ -1159,9 +1157,9 @@
 .working-tree-refresh,
 .discard-selected-lines {
   display: grid;
-  width: 2.25rem;
-  min-width: 2.25rem;
-  height: 2.25rem;
+  width: 29.25px;
+  min-width: 29.25px;
+  height: 29.25px;
   place-items: center;
   padding: 0;
   border-color: transparent;
@@ -1186,7 +1184,7 @@
 }
 
 .working-tree-diff-empty {
-  max-width: 24rem;
+  max-width: 312px;
   margin: 18vh auto 0;
   color: var(--muted-foreground);
   text-align: center;
@@ -1195,11 +1193,11 @@
 .working-tree-diff pre {
   margin: 0;
   overflow: auto;
-  padding: 0.75rem;
+  padding: 9.75px;
   border: 0;
   background: var(--card);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.8rem;
+  font-size: 10.4px;
   white-space: pre-wrap;
 }
 
@@ -1208,14 +1206,14 @@
   border: 0;
   background: var(--card);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.8rem;
+  font-size: 10.4px;
   text-align: left;
 }
 
 .working-tree-diff-line {
   display: grid;
-  grid-template-columns: 1.5rem 3rem 3rem minmax(0, 1fr);
-  min-height: 1.5rem;
+  grid-template-columns: 19.5px 39px 39px minmax(0, 1fr);
+  min-height: 19.5px;
   align-items: start;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
 }
@@ -1249,13 +1247,13 @@
 
 .working-tree-diff-line code {
   overflow-wrap: anywhere;
-  padding: 0.15rem 0.4rem;
+  padding: 1.95px 5.2px;
   white-space: pre-wrap;
 }
 
 .diff-line-number {
   min-height: 100%;
-  padding: 0.15rem 0.35rem;
+  padding: 1.95px 4.55px;
   border-right: 1px solid var(--border);
   color: var(--muted-foreground);
   background: var(--secondary);
@@ -1265,11 +1263,11 @@
 
 .commit-form {
   grid-area: commit;
-  gap: 0.55rem;
-  max-height: min(20rem, 50vh);
+  gap: 7.15px;
+  max-height: min(260px, 50vh);
   margin: 0;
   overflow: auto;
-  padding: 0.5rem;
+  padding: 6.5px;
 }
 
 .commit-form label {
@@ -1279,7 +1277,7 @@
 .commit-form .commit-option {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 6.5px;
   font-weight: 400;
 }
 
@@ -1292,7 +1290,7 @@
 .commit-form textarea {
   box-sizing: border-box;
   width: 100%;
-  padding: 0.55rem 0.7rem;
+  padding: 7.15px 9.1px;
   border: 1px solid var(--input);
   border-radius: var(--radius-small);
   color: inherit;
@@ -1301,19 +1299,19 @@
 }
 
 .commit-form textarea {
-  min-height: 5rem;
+  min-height: 65px;
   resize: none;
 }
 
 .commit-form-options {
-  min-height: 2.25rem;
+  min-height: 29.25px;
 }
 
 .commit-form-footer {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 0.5rem;
+  gap: 6.5px;
 }
 
 .commit-form-footer .commit-form-options {
@@ -1332,8 +1330,8 @@
 
 .commit-form-options summary {
   display: grid;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 29.25px;
+  height: 29.25px;
   place-items: center;
   border-radius: var(--radius-small);
   cursor: pointer;
@@ -1350,12 +1348,12 @@
 
 .commit-options-panel {
   position: absolute;
-  bottom: calc(100% + 0.35rem);
+  bottom: calc(100% + 4.55px);
   left: 0;
   z-index: 3;
   width: max-content;
-  max-width: 16rem;
-  padding: 0.65rem 0.75rem;
+  max-width: 208px;
+  padding: 8.45px 9.75px;
   border: 1px solid var(--input);
   border-radius: var(--radius-small);
   background: var(--popover);
@@ -1379,22 +1377,22 @@
 .commit-terminal-output {
   box-sizing: border-box;
   max-width: 100%;
-  max-height: 16rem;
+  max-height: 208px;
   overflow: auto;
-  padding: 0.75rem;
+  padding: 9.75px;
   border: 1px solid var(--border);
   border-radius: var(--radius-small);
   background: var(--card);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.8rem;
+  font-size: 10.4px;
   white-space: pre-wrap;
 }
 
 .working-tree-file-discard {
   display: grid;
-  width: 2.25rem;
-  min-width: 2.25rem;
-  height: 2.25rem;
+  width: 29.25px;
+  min-width: 29.25px;
+  height: 29.25px;
   place-items: center;
   padding: 0;
   border-color: transparent;
@@ -1449,10 +1447,10 @@
 .history-commits button {
   display: grid;
   width: 100%;
-  min-height: 3.5rem;
+  min-height: 45.5px;
   grid-template-columns: minmax(0, 1fr);
-  gap: 0.2rem;
-  padding: 0.5rem 0.75rem;
+  gap: 2.6px;
+  padding: 6.5px 9.75px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -1474,7 +1472,7 @@
 
 .history-commits small {
   color: var(--muted-foreground);
-  font-size: 0.8rem;
+  font-size: 10.4px;
 }
 
 .history-commits small {
@@ -1491,7 +1489,7 @@
 
 .history-details-header {
   flex: 0 0 auto;
-  padding: 0.65rem 0.75rem 0.25rem;
+  padding: 8.45px 9.75px 3.25px;
   background: var(--secondary);
 }
 
@@ -1504,18 +1502,18 @@
 
 .history-commit-meta {
   display: flex;
-  min-height: 1.75rem;
+  min-height: 22.75px;
   box-sizing: border-box;
   flex: 0 0 auto;
-  gap: 0.6rem;
+  gap: 7.8px;
   align-items: center;
   margin: 0;
   overflow: hidden;
-  padding: 0.25rem 0.75rem 0.5rem;
+  padding: 3.25px 9.75px 6.5px;
   border-bottom: 1px solid var(--border);
   color: var(--muted-foreground);
   background: var(--secondary);
-  font-size: 0.8rem;
+  font-size: 10.4px;
   white-space: nowrap;
 }
 
@@ -1556,7 +1554,7 @@
 }
 
 .history-details-empty {
-  max-width: 24rem;
+  max-width: 312px;
   margin: 18vh auto 0;
   color: var(--muted-foreground);
   text-align: center;
@@ -1564,20 +1562,20 @@
 
 .history-details-status {
   margin: 0;
-  padding: 0.75rem 1rem;
+  padding: 9.75px 13px;
   color: var(--muted-foreground);
 }
 
 .history-commit-body {
-  max-height: 7rem;
+  max-height: 91px;
   flex: 0 1 auto;
   margin: 0;
   overflow: auto;
   overflow-wrap: anywhere;
-  padding: 0.25rem 0.75rem 0.5rem;
+  padding: 3.25px 9.75px 6.5px;
   background: var(--secondary);
   font: inherit;
-  font-size: 0.8rem;
+  font-size: 10.4px;
   white-space: pre-wrap;
 }
 
@@ -1608,13 +1606,13 @@
 
 .history-change-summary {
   display: flex;
-  min-height: 2.5rem;
+  min-height: 32.5px;
   box-sizing: border-box;
   flex: 0 0 auto;
-  gap: 0.6rem;
+  gap: 7.8px;
   align-items: baseline;
   margin: 0;
-  padding: 0.4rem 0.75rem;
+  padding: 5.2px 9.75px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -1635,11 +1633,11 @@
 .history-files button {
   display: grid;
   width: 100%;
-  min-height: 2.5rem;
-  grid-template-columns: minmax(0, 1fr) 1rem;
+  min-height: 32.5px;
+  grid-template-columns: minmax(0, 1fr) 13px;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.4rem 0.75rem;
+  gap: 6.5px;
+  padding: 5.2px 9.75px;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -1661,9 +1659,9 @@
 .history-file-status {
   position: static;
   inset: auto;
-  width: 1rem;
-  min-width: 1rem;
-  height: 1rem;
+  width: 13px;
+  min-width: 13px;
+  height: 13px;
   flex: 0 0 auto;
 }
 
@@ -1676,11 +1674,11 @@
 
 .history-diff-header {
   display: flex;
-  min-height: 2.5rem;
+  min-height: 32.5px;
   box-sizing: border-box;
   flex: 0 0 auto;
   align-items: center;
-  padding: 0.4rem 0.75rem;
+  padding: 5.2px 9.75px;
   border-bottom: 1px solid var(--border);
   background: var(--background);
 }
@@ -1698,7 +1696,7 @@
 }
 
 .history-diff .working-tree-diff-line {
-  grid-template-columns: 3rem 3rem minmax(0, 1fr);
+  grid-template-columns: 39px 39px minmax(0, 1fr);
 }
 
 .history-diff .working-tree-diff-line > span:first-child {
@@ -1708,11 +1706,11 @@
 .history-diff pre {
   margin: 0;
   overflow: auto;
-  padding: 1rem;
+  padding: 13px;
   border: 0;
   background: var(--card);
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.8rem;
+  font-size: 10.4px;
   white-space: pre-wrap;
 }
 
@@ -1721,11 +1719,11 @@
 }
 
 .preferences-dialog {
-  width: min(34rem, calc(100vw - 2rem));
+  width: min(442px, calc(100vw - 26px));
 }
 
 .preferences-fields {
-  grid-template-columns: minmax(8rem, auto) minmax(0, 1fr);
+  grid-template-columns: minmax(104px, auto) minmax(0, 1fr);
 }
 
 .preferences-fields > label {
@@ -1735,7 +1733,7 @@
 .preferences-fields select {
   box-sizing: border-box;
   min-width: 0;
-  padding: 0.5rem 2rem 0.5rem 0.65rem;
+  padding: 6.5px 26px 6.5px 8.45px;
   border: 1px solid var(--input);
   border-radius: var(--radius-small);
   color: var(--foreground);
@@ -1745,15 +1743,15 @@
   -webkit-appearance: none;
   background-image: var(--select-caret-image);
   background-repeat: no-repeat;
-  background-position: right 0.55rem center;
+  background-position: right 7.15px center;
 }
 
 .preferences-fields fieldset {
   display: grid;
   grid-column: 1 / -1;
-  gap: 0.5rem;
-  margin: 0.5rem 0 0;
-  padding: 0.75rem 1rem;
+  gap: 6.5px;
+  margin: 6.5px 0 0;
+  padding: 9.75px 13px;
   border: 1px solid var(--border);
   border-radius: var(--radius-small);
 }
@@ -1761,11 +1759,11 @@
 .preferences-fields fieldset label {
   display: flex;
   align-items: start;
-  gap: 0.5rem;
+  gap: 6.5px;
 }
 
 .preferences-fields fieldset input {
-  margin-top: 0.3rem;
+  margin-top: 3.9px;
 }
 
 .destructive-button {
@@ -1779,8 +1777,8 @@
 }
 
 .application-error {
-  max-width: 40rem;
-  padding: 0.75rem 1rem;
+  max-width: 520px;
+  padding: 9.75px 13px;
   border: 1px solid var(--error-border);
   border-radius: var(--radius-small);
   color: var(--error-text);
@@ -1789,14 +1787,14 @@
 
 .fatal-error {
   box-sizing: border-box;
-  max-width: 48rem;
+  max-width: 624px;
   margin: 10vh auto 0;
-  padding: 2rem;
+  padding: 26px;
 }
 
 .fatal-error pre {
   overflow: auto;
-  padding: 1rem;
+  padding: 13px;
   border-radius: 8px;
   background: var(--muted);
   white-space: pre-wrap;
@@ -1804,12 +1802,12 @@
 
 .fatal-error-actions {
   display: flex;
-  gap: 0.75rem;
+  gap: 9.75px;
 }
 
 @media (max-width: 58rem) {
   .repository-view-navigation button {
-    width: 2.25rem;
+    width: 29.25px;
     padding: 0;
   }
 
@@ -1828,21 +1826,21 @@
   }
 
   .commit-form {
-    max-height: 13.5rem;
+    max-height: 175.5px;
   }
 
   .working-tree-diff-empty {
-    margin-top: 4rem;
+    margin-top: 52px;
   }
 
   .history-change-summary {
-    padding-inline: 0.4rem;
-    font-size: 0.8rem;
+    padding-inline: 5.2px;
+    font-size: 10.4px;
   }
 
   .merge-conflicts {
     position: static;
-    margin: 0.75rem;
+    margin: 9.75px;
   }
 }
 

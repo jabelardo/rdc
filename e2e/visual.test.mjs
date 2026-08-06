@@ -36,6 +36,7 @@ describe("visual layout", () => {
   it("keeps the repository command bar aligned and usable at compact width", async () => {
     const normal = await driver.executeScript(() => {
       const root = getComputedStyle(document.documentElement);
+      const bodyStyle = getComputedStyle(document.body);
       const toolbarElement = document.querySelector(".repository-toolbar");
       const sidebar = document.querySelector(".repository-sidebar");
       const sidebarCommandBar = document.querySelector(".sidebar-command-bar");
@@ -47,7 +48,8 @@ describe("visual layout", () => {
       const toolbar = getComputedStyle(toolbarElement);
       const seam = getComputedStyle(toolbarElement, "::before");
       return {
-        fontSize: root.fontSize,
+        rootFontSize: root.fontSize,
+        fontSize: bodyStyle.fontSize,
         fontFamily: root.fontFamily,
         toolbar: toolbar.backgroundColor,
         tooltipDelayMs: (() => {
@@ -68,7 +70,12 @@ describe("visual layout", () => {
           getComputedStyle(selectedView).backgroundColor !== "rgba(0, 0, 0, 0)",
       };
     });
+    // rdc's 13px density lives on <body>; the root stays at the browser default so that `rem` —
+    // and therefore every Tailwind spacing/type utility — resolves against 16px as designed.
+    // Both are asserted: a regression that moves 13px back onto :root would silently shrink every
+    // utility in every shadcn component by 19%, which is invisible to every other gate.
     assert.equal(normal.fontSize, "13px");
+    assert.equal(normal.rootFontSize, "16px");
     assert.match(normal.fontFamily, /system-ui/);
     assert.equal(normal.tooltipDelayMs, 250);
     // The command bar deliberately shares --secondary with the sidebar; what separates it from

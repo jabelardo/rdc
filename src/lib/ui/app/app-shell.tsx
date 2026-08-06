@@ -209,7 +209,7 @@ export function AppShell({ controller }: AppShellProps) {
         aria-label="Selected repository"
       >
         {appState.selectedRepository === null ? (
-          <div className="repository-empty-state mx-auto max-w-[40rem] p-8 text-center">
+          <div className="repository-empty-state mx-auto max-w-[520px] p-8 text-center">
             <div className="repository-empty-actions flex flex-wrap justify-center gap-2">
               <button type="button" onClick={() => void createRepository()}>
                 <FontAwesomeIcon icon={faPlus} aria-hidden="true" />
