@@ -64,10 +64,7 @@ export function BranchSelect({
 
     const defaultEntries = entries.filter((e) => e.group === "default");
     if (defaultEntries.length > 0) {
-      groups.push({
-        label: defaultBranch ?? "Default branch",
-        entries: defaultEntries,
-      });
+      groups.push({ label: "Default branch", entries: defaultEntries });
     }
 
     const recentEntries = entries.filter((e) => e.group === "recent");
@@ -81,63 +78,57 @@ export function BranchSelect({
     }
 
     return groups;
-  }, [entries, defaultBranch]);
+  }, [entries]);
 
   return (
     <div className="grid gap-2">
-      <div className="relative">
-        <Search
-          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden="true"
-        />
+      <label className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-1.5 text-sm">
+        <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <input
           type="search"
-          className="flex h-8 w-full rounded-md border border-input bg-background pl-8 pr-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="w-full bg-transparent outline-none placeholder:text-muted-foreground"
           placeholder="Filter"
           aria-label="Filter branches"
           value={filter}
           onChange={(event) => setFilter(event.currentTarget.value)}
         />
-      </div>
-      <div
-        className="overflow-y-auto rounded-md border border-[var(--border)]"
-        style={{ maxHeight: 300 }}
-      >
-        {grouped.length === 0 ? (
-          <p className="px-3 py-2 text-sm text-muted-foreground">No matching branches</p>
-        ) : (
-          <div className="grid gap-px p-1">
-            {grouped.map((group) => (
-              <div key={group.label}>
-                <h3 className="px-2 pt-2 pb-1 text-xs font-semibold text-muted-foreground">
-                  {group.label}
-                </h3>
-                {group.entries.map(({ branch }) => {
-                  const isCurrent = branch.name === currentBranch;
-                  const isSelected = selectedBranch?.name === branch.name;
-                  const isRemote = branch.type === BranchType.Remote;
-                  const Icon = isCurrent ? Check : GitBranch;
-                  return (
-                    <button
-                      key={branch.name}
-                      type="button"
-                      className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground ${isSelected ? "bg-accent text-accent-foreground" : ""}`}
-                      onClick={() => onSelect(branch)}
-                    >
-                      <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                      <span className="min-w-0 truncate">
-                        {isRemote ? branch.nameWithoutRemote : branch.name}
-                      </span>
-                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                        {formatRelative(branch.tip.author.date.getTime() - Date.now())}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
+      </label>
+      <div className="grid max-h-[300px] gap-0.5 overflow-y-auto rounded-md border border-[var(--border)] bg-[var(--popover)] p-1">
+        {grouped.length === 0 && (
+          <p className="px-2 py-1.5 text-sm text-muted-foreground">No matching branches</p>
         )}
+        {grouped.map((group) => (
+          <div key={group.label}>
+            <h3 className="px-2 py-1 text-xs font-medium text-muted-foreground">{group.label}</h3>
+            {group.entries.map(({ branch }) => {
+              const isCurrent = branch.name === currentBranch;
+              const isSelected = selectedBranch?.name === branch.name;
+              const isRemote = branch.type === BranchType.Remote;
+              const Icon = isCurrent ? Check : GitBranch;
+              return (
+                <button
+                  key={branch.name}
+                  type="button"
+                  className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground ${isSelected ? "bg-accent text-accent-foreground" : ""}`}
+                  onClick={() => onSelect(branch)}
+                >
+                  <Icon className="size-4 shrink-0" aria-hidden="true" />
+                  <span className="min-w-0 truncate">
+                    {isRemote ? branch.nameWithoutRemote : branch.name}
+                  </span>
+                  {isRemote && (
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {branch.upstreamRemoteName ?? "remote"}
+                    </span>
+                  )}
+                  <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                    {formatRelative(branch.tip.author.date.getTime() - Date.now())}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );
