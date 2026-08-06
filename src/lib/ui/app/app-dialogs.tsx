@@ -582,10 +582,10 @@ export function AppDialogs({
             <AlertDialogHeader className="place-items-start text-left">
               <AlertDialogTitle className="flex items-center gap-2">
                 <FontAwesomeIcon icon={faCircleExclamation} className="text-yellow-500" />
-                {hookFailure.hook} failed
+                The {hookFailure.hook} hook failed
               </AlertDialogTitle>
               <AlertDialogDescription>
-                The {hookFailure.hook} hook failed. What would you like to do?
+                What would you like to do?
               </AlertDialogDescription>
             </AlertDialogHeader>
             <TerminalOutput output={hookFailure.terminalOutput} />
