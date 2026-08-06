@@ -36,6 +36,8 @@ test("creates independent deterministic scenarios for every mutable QA journey",
       "lineDiscard",
       "wholeFileDiscard",
       "discardAll",
+      "discardMany99",
+      "discardMany1000",
       "commitHook",
       "mergeConflict",
       "remoteFetchPull",
@@ -103,6 +105,25 @@ test("creates independent deterministic scenarios for every mutable QA journey",
     const discardAllStatus = git(scenarios.discardAll.repository, "status", "--short");
     assert.match(discardAllStatus, new RegExp(scenarios.discardAll.trackedFile));
     assert.match(discardAllStatus, new RegExp(scenarios.discardAll.untrackedFile));
+
+    // The counts are the whole point of these two scenarios: the dialog states a number, and a
+    // fixture that produced 98 or 1001 would quietly invalidate the check it exists for. 99 stays
+    // under VirtualList's threshold of 100 and 1000 crosses it, so they exercise different paths.
+    for (const scenario of [scenarios.discardMany99, scenarios.discardMany1000]) {
+      const changed = git(scenario.repository, "status", "--porcelain", "--untracked-files=all")
+        .split("\n")
+        .filter((line) => line.trim() !== "");
+      assert.equal(
+        changed.length,
+        scenario.fileCount,
+        `${scenario.repository} reported ${changed.length} changed files, expected ${scenario.fileCount}`,
+      );
+      assert.equal(scenario.trackedCount + scenario.untrackedCount, scenario.fileCount);
+      assert.match(changed.join("\n"), new RegExp(scenario.sampleTrackedFile));
+      assert.match(changed.join("\n"), new RegExp(scenario.sampleUntrackedFile));
+    }
+    assert.equal(scenarios.discardMany99.virtualized, false);
+    assert.equal(scenarios.discardMany1000.virtualized, true);
 
     git(scenarios.commitHook.repository, "add", scenarios.commitHook.file);
     assert.throws(

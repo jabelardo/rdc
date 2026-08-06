@@ -126,3 +126,49 @@ The real menu events are completely untouched — clicking "Rename branch" from 
 ## Gate Rule
 
 **No sub-slice closes until every dialog in that slice has a PASS in Light and Dark.** The automated gate set is necessary but not sufficient — visual correctness is a human judgement.
+
+---
+
+## Discard all at scale — 99 and 1000 files
+
+**Why two counts.** They are not the same check twice. `VirtualList` virtualizes past **100** rows, so
+99 renders every row in the DOM and 1000 renders a window of them. The bug being guarded against is a
+list that looks right at 99 and is empty, clipped, or unscrollable at 1000 — or a dialog that grows
+past the window at either count.
+
+**Fixtures.** `pnpm fixture:phase8b -- <target>` creates `discardMany99` and `discardMany1000`; take
+their `repository` paths from `fixture-manifest.json`. Their file counts are asserted by the
+fixture's own test, so a manifest count is trustworthy. Both mix tracked modifications with untracked
+files under deliberately long nested paths.
+
+**How to open.** Add the fixture repository, then **Repository → Discard all changes**. Not the debug
+Show Dialog menu — that injects three stub files and cannot reach these counts.
+
+> Discard-all is reachable only from the native menu, and the QA driver has no menu-event hook, so
+> **none of this is covered by E2E**. That gap is itself a QA cycle 2 item; until it closes this table
+> is the only verification these paths get.
+
+| Check | 99 · Light | 99 · Dark | 1000 · Light | 1000 · Dark |
+|---|---|---|---|---|
+| Question states the exact count ("…to these 99 files:" / "…these 1000 files:") | | | | |
+| Every path is listed — the list is present, not replaced by a count | | | | |
+| List scrolls, and scrolling reaches the last path | | | | |
+| Dialog height stays within the window; footer buttons remain visible and clickable | | | | |
+| Dialog width unchanged from a small discard (the list must not widen it) | | | | |
+| Long nested paths wrap rather than overflow horizontally | | | | |
+| Cancel leaves all files changed (`git status --porcelain` count unchanged) | | | | |
+| Confirm: tracked files return to baseline, untracked files are gone from disk | | | | |
+| Confirm: the working-tree pane ends up empty and `git status --porcelain` is empty | | | | |
+
+### Record alongside the table
+
+- **Perceived duration of the confirmed discard at 1000 files**, and whether the app looked hung.
+  There is deliberately **no progress indicator and no cancel** — the dialog shows "Discarding…" with
+  every dismissal refused (Convention 8). This measurement is the input to deciding whether progress
+  reporting is needed before MVP, so record the number even if it feels fine.
+- **Whether the OS trash actually received ~500 files** at the 1000 case. The removal is one batched
+  IPC call now; a trash implementation that silently drops items would still leave the working tree
+  looking correct.
+- **Any per-path failure message.** A partial failure should report a count ("Failed to remove N
+  files, starting with …"), leave the successfully-removed files properly discarded, and re-prompt
+  with a count that reflects what actually remains.

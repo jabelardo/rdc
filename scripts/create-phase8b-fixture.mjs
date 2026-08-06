@@ -163,6 +163,61 @@ function createDiscardAllScenario(target) {
   };
 }
 
+/**
+ * A discard-all scenario at a scale where the confirmation dialog's list must earn its keep.
+ *
+ * Two counts, because they exercise different code paths rather than the same one twice:
+ * 99 stays under `VirtualList`'s virtualization threshold of 100, so every row is really in the DOM;
+ * 1000 crosses it, so the list is windowed and the scroll region has to stay bounded. A mix of
+ * tracked modifications and untracked files keeps the recoverable/unrecoverable asymmetry in view at
+ * scale, and nested directories make the wrapping of long paths observable.
+ */
+function createDiscardManyScenario(target, name, fileCount) {
+  const repository = path.join(target, name);
+  const trackedCount = Math.floor(fileCount / 2);
+  const untrackedCount = fileCount - trackedCount;
+  const trackedFiles = [];
+  const untrackedFiles = [];
+
+  initializeRepository(repository);
+
+  // Committed in a second commit rather than through initializeRepository, which writes its files
+  // without creating parent directories. The nesting is deliberate: long paths are what make the
+  // dialog's wrapping and its bounded scroll region worth looking at.
+  for (let index = 0; index < trackedCount; index += 1) {
+    const file = `src/module-${String(index).padStart(4, "0")}/tracked-file-with-a-long-name.txt`;
+    const absolute = path.join(repository, file);
+    mkdirSync(path.dirname(absolute), { recursive: true });
+    writeFileSync(absolute, `tracked baseline ${index}\n`);
+    trackedFiles.push(file);
+  }
+  git(["add", "."], repository);
+  git(["commit", "--quiet", "-m", `Baseline for ${fileCount} changed files`], repository);
+
+  for (const [index, file] of trackedFiles.entries()) {
+    writeFileSync(path.join(repository, file), `tracked modification ${index}\n`);
+  }
+  for (let index = 0; index < untrackedCount; index += 1) {
+    const file = `generated/deeply/nested/output-${String(index).padStart(4, "0")}.log`;
+    const absolute = path.join(repository, file);
+    mkdirSync(path.dirname(absolute), { recursive: true });
+    writeFileSync(absolute, `untracked ${index}\n`);
+    untrackedFiles.push(file);
+  }
+
+  return {
+    repository,
+    fileCount,
+    trackedCount,
+    untrackedCount,
+    // The count the dialog must state; this is what the human check asserts against.
+    expectedDialogFileCount: fileCount,
+    virtualized: fileCount > 100,
+    sampleTrackedFile: trackedFiles[0],
+    sampleUntrackedFile: untrackedFiles[0],
+  };
+}
+
 function createCommitHookScenario(target) {
   const repository = path.join(target, "commit-hook");
   initializeRepository(repository);
@@ -305,6 +360,8 @@ export function createPhase8bFixture(requestedTarget) {
       lineDiscard: createLineDiscardScenario(target),
       wholeFileDiscard: createWholeFileDiscardScenario(target),
       discardAll: createDiscardAllScenario(target),
+      discardMany99: createDiscardManyScenario(target, "discard-many-99", 99),
+      discardMany1000: createDiscardManyScenario(target, "discard-many-1000", 1000),
       commitHook: createCommitHookScenario(target),
       mergeConflict: createMergeConflictScenario(target),
       remoteFetchPull: createFetchPullScenario(target),

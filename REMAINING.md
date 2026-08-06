@@ -126,13 +126,22 @@ a decision, not an oversight.
    in-window DOM menu bar onto Tauri's native menu on every platform, so Linux lost its
    WebDriver-testable surface the same way macOS never had one. Run `qa/phase-8b/macos-checklist.md`
    §7 and `qa/phase-8b/linux-wayland-checklist.md`'s equivalent section to close it.
-5. **Produced-package inspection is not automated yet.** `pnpm qualify:phase8a` deliberately audits
+5. **Discard-all at scale, on Fedora.** New `discardMany99` and `discardMany1000` fixture scenarios
+   plus a table in `qa/phase-8b/dialog-migration-checklist.md`. Two counts because `VirtualList`
+   virtualizes past 100 rows: 99 keeps every row in the DOM, 1000 windows them, and the failure being
+   guarded against is a list that looks right at 99 and is empty or unscrollable at 1000. It is
+   *only* verifiable by hand — discard-all is reachable solely from the native menu, which item 4
+   above is about. The pass must also record the perceived duration of a confirmed 1000-file discard:
+   removals are now one batched IPC call, but there is deliberately no progress indicator and no
+   cancel (Convention 8 refuses every dismissal mid-operation), and that measurement is the input to
+   deciding whether progress reporting is needed before MVP.
+6. **Produced-package inspection is not automated yet.** `pnpm qualify:phase8a` deliberately audits
    inputs and reports `finalPackagesProduced: false`; no current command opens the macOS/Linux bundle
    outputs and checks identity, resources, sidecar permissions and legacy destinations. Phase 8b's
    plan explicitly requires automated metadata/resource/package smoke. Add that reproducible check
    after final icon/identifier and concrete bundle targets are chosen, before treating the manual
    `final-package-smoke.md` pass as sufficient.
-6. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
+7. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
    seams themselves are done (`AGENTS.md` rule 11): `rdc-printenvz`'s two arms now share a
    signature, `cli_installer`'s symlink is behind a per-OS `link` module with both arms real, and
    `custom_integration`'s unix code is in a gated inner module. What is left is a genuine Phase 10
