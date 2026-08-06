@@ -82,24 +82,29 @@ export function BranchSelect({
 
   return (
     <div className="grid gap-2">
-      <label className="flex items-center gap-2 rounded-md border border-input bg-background px-3 py-1.5 text-sm">
-        <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <div className="relative">
+        <Search
+          className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+          aria-hidden="true"
+        />
         <input
           type="search"
-          className="w-full bg-transparent outline-none placeholder:text-muted-foreground"
+          className="flex h-8 w-full rounded-md border border-input bg-background pl-8 pr-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           placeholder="Filter"
           aria-label="Filter branches"
           value={filter}
           onChange={(event) => setFilter(event.currentTarget.value)}
         />
-      </label>
-      <div className="grid max-h-[300px] gap-0.5 overflow-y-auto rounded-md border border-[var(--border)] bg-[var(--popover)] p-1">
+      </div>
+      <div className="grid max-h-[300px] gap-0.5 overflow-y-auto rounded-md border border-[var(--border)] p-1">
         {grouped.length === 0 && (
           <p className="px-2 py-1.5 text-sm text-muted-foreground">No matching branches</p>
         )}
         {grouped.map((group) => (
           <div key={group.label}>
-            <h3 className="px-2 py-1 text-xs font-medium text-muted-foreground">{group.label}</h3>
+            <h3 className="px-2 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground">
+              {group.label}
+            </h3>
             {group.entries.map(({ branch }) => {
               const isCurrent = branch.name === currentBranch;
               const isSelected = selectedBranch?.name === branch.name;
@@ -112,15 +117,10 @@ export function BranchSelect({
                   className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground ${isSelected ? "bg-accent text-accent-foreground" : ""}`}
                   onClick={() => onSelect(branch)}
                 >
-                  <Icon className="size-4 shrink-0" aria-hidden="true" />
+                  <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                   <span className="min-w-0 truncate">
                     {isRemote ? branch.nameWithoutRemote : branch.name}
                   </span>
-                  {isRemote && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {branch.upstreamRemoteName ?? "remote"}
-                    </span>
-                  )}
                   <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                     {formatRelative(branch.tip.author.date.getTime() - Date.now())}
                   </span>
