@@ -20,7 +20,7 @@ export function MergeConflicts({
 
   return (
     <section
-      className="merge-conflicts absolute top-32 right-4 left-4 z-[2] rounded-[var(--radius-medium)] border border-[var(--color-warning-border)] bg-[var(--color-warning-surface)] p-4 text-left shadow-[0_0.5rem_1.5rem_rgb(23_32_51/15%)]"
+      className="merge-conflicts absolute top-32 right-4 left-4 z-[2] rounded-[var(--radius-medium)] border border-[var(--warning-border)] bg-[var(--warning-surface)] p-4 text-left shadow-[var(--shadow-banner)]"
       aria-label={state.mergeInProgress ? "Merge conflicts" : "Repository conflicts"}
     >
       <header className="flex items-start justify-between gap-4">

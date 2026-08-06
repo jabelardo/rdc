@@ -5,7 +5,7 @@ import { handleWindowTitleBarDoubleClick } from "../../platform/window-drag-regi
 export function WindowDragStrip() {
   return (
     <div
-      className="window-drag-region sticky top-0 z-[9] min-w-0 select-none [grid-column:1/-1] bg-[var(--color-surface-subtle)]"
+      className="window-drag-region sticky top-0 z-[9] min-w-0 select-none [grid-column:1/-1] bg-[var(--secondary)]"
       aria-hidden="true"
       onMouseDown={(event) => {
         if (event.button === 0 && event.detail === 1) {

@@ -6,9 +6,25 @@
  */
 @custom-variant dark (&:is([data-theme='dark'] *));
 
-
+/* ==========================================================================
+ * THEME — light
+ *
+ * A theme is only the two variable blocks in this file (this one and its
+ * [data-theme="dark"] counterpart below). Nothing outside them is
+ * theme-aware: no rule further down carries a [data-theme] selector, and no
+ * rule further down contains a literal colour. Re-theming the app means
+ * replacing these values and nothing else, which is what makes a shadcn or
+ * tweakcn theme block droppable here.
+ *
+ * The first group is shadcn's standard slot set, so a pasted theme lands on
+ * names it already knows. The second is rdc's own — git-domain semantics
+ * (a diff's green, a conflict's amber) that no generic theme has an opinion
+ * about, so they keep rdc's values when one is pasted over the first group.
+ * ========================================================================== */
 :root {
   color-scheme: light;
+
+  /* --- shadcn standard slots ------------------------------------------- */
   --background: #eef2f7;
   --foreground: #172033;
   --card: #ffffff;
@@ -21,52 +37,117 @@
   --secondary-foreground: #172033;
   --muted: #eef2f7;
   --muted-foreground: #657087;
-  --accent: #f5f7fa;
-  --accent-foreground: #172033;
+  /* shadcn's "accent" is the subtle selected/hover surface, which is exactly
+   * what rdc used --color-accent-soft for; --accent-foreground carries the
+   * brand blue that pairs with it. */
+  --accent: rgb(49 95 189 / 12%);
+  --accent-foreground: #315fbd;
   --destructive: #a82231;
+  --destructive-foreground: #ffffff;
   --border: #d8dee9;
   --input: #b8c2d1;
   --ring: #315fbd;
   --radius: 0.5rem;
 
-  --color-surface-subtle: #eef2f7;
-  --color-button: var(--background);
-  --color-border-strong: #b8c2d1;
-  --color-text-muted: #657087;
-  --color-accent: #315fbd;
-  --color-accent-soft: rgb(49 95 189 / 12%);
-  --color-success: #177245;
-  --color-toolbar: #202b3c;
-  --color-toolbar-border: #152033;
-  --color-toolbar-text: #ffffff;
-  --color-toolbar-muted: #b9c4d4;
-  --color-diff-add: #e7f6ec;
-  --color-diff-delete: #ffebe9;
-  --color-diff-hunk: #eef2f7;
-  --color-warning-surface: #fff8e8;
-  --color-warning-border: #d59b27;
-  --color-error-surface: #fff1f2;
-  --color-error-border: #d73a49;
-  --color-error-text: #9d1c2b;
-  --color-tooltip-bg: var(--popover);
-  --color-tooltip-text: var(--foreground);
-  --color-tooltip-border: var(--color-border-strong);
+  /* --- rdc extensions: no shadcn slot exists for these ------------------ */
+  --success: #177245;
+  --warning-surface: #fff8e8;
+  --warning-border: #d59b27;
+  --warning-text: #b07800;
+  --diff-add: #e7f6ec;
+  --diff-delete: #ffebe9;
+  --diff-hunk: #eef2f7;
+  /* A tooltip is deliberately a distinct, higher-contrast surface rather than
+   * a popover — in dark it is darker than --popover, not equal to it. */
+  --tooltip: #ffffff;
+  --tooltip-foreground: #172033;
+  --tooltip-border: #b8c2d1;
+  /* Transitional: .application-error is removed outright by
+   * MESSAGE_SYSTEM_PLAN.md Slices 1–7, and these three go with it. */
+  --error-surface: #fff1f2;
+  --error-border: #d73a49;
+  --error-text: #9d1c2b;
+  /* The caret is baked into a data URI, which var() cannot reach into, so the
+   * whole url() is the token. */
+  --select-caret-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%23556070' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  /* --- non-colour design tokens (theme-invariant) ----------------------- */
   --shadow-small: 0 1px 2px rgb(23 32 51 / 8%);
   --shadow-dialog: 0 1rem 3rem rgb(0 0 0 / 30%);
+  --shadow-tooltip: 0 0.35rem 0.85rem rgb(0 0 0 / 28%);
+  --shadow-banner: 0 0.5rem 1.5rem rgb(23 32 51 / 15%);
+  --scrim: rgb(0 0 0 / 42%);
   --radius-small: 5px;
   --radius-medium: 8px;
   --command-bar-height: 3.25rem;
+  --tooltip-delay: 250ms;
+  --font-family-monospace: ui-monospace, SFMono-Regular, Consolas, monospace;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
   --space-4: 1rem;
   --space-5: 1.5rem;
+
   font-size: 13px;
   line-height: 1.5;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ==========================================================================
+ * THEME — dark
+ *
+ * Values only. If you find yourself wanting to add a component selector here,
+ * the base rule below needs a token instead.
+ *
+ * Note the shadcn dark convention, which inverts the light one: --primary and
+ * --destructive become the *lighter* variant with a *dark* foreground, so the
+ * same token reads correctly both as text on the page and as a solid fill
+ * behind its own foreground colour.
+ * ========================================================================== */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* --- shadcn standard slots ------------------------------------------- */
+  --background: #1d2129;
+  --foreground: #f2f4f8;
+  --card: #282d37;
+  --card-foreground: #f2f4f8;
+  --popover: #303642;
+  --popover-foreground: #f2f4f8;
+  --primary: #7aa2f7;
+  --primary-foreground: #1d2129;
+  --secondary: #232832;
+  --secondary-foreground: #f2f4f8;
+  --muted: #232832;
+  --muted-foreground: #aeb6c6;
+  --accent: rgb(83 133 230 / 24%);
+  --accent-foreground: #7aa2f7;
+  --destructive: #ff8b98;
+  --destructive-foreground: #1d2129;
+  --border: #414858;
+  --input: #414858;
+  --ring: #7aa2f7;
+
+  /* --- rdc extensions --------------------------------------------------- */
+  --success: #6fd3a2;
+  --warning-surface: #332d20;
+  --warning-border: #8c6b2c;
+  --warning-text: #e0a83c;
+  --diff-add: #173b2b;
+  --diff-delete: #49262c;
+  --diff-hunk: #202630;
+  --tooltip: #181d28;
+  --tooltip-foreground: #f1f5f9;
+  --tooltip-border: #3b4252;
+  --error-surface: #40242a;
+  --error-border: #8c3d49;
+  --error-text: #ffb4bd;
+  --select-caret-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%23aeb6c6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+
+  --shadow-small: 0 1px 2px rgb(0 0 0 / 24%);
 }
 
 body {
@@ -80,11 +161,11 @@ pre {
 }
 
 button {
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--input);
   border-radius: var(--radius-small);
   padding: 0.5rem 0.75rem;
   color: inherit;
-  background: var(--color-button);
+  background: var(--secondary);
   box-shadow: var(--shadow-small);
   font: inherit;
   font-weight: 600;
@@ -92,8 +173,8 @@ button {
 }
 
 button:hover {
-  border-color: var(--color-accent);
-  background: var(--color-surface-subtle);
+  border-color: var(--primary);
+  background: var(--secondary);
 }
 
 button:disabled {
@@ -102,7 +183,7 @@ button:disabled {
 }
 
 :is(button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
@@ -153,7 +234,7 @@ button:disabled {
 .horizontal-resizer:focus-visible::after,
 .horizontal-resizer.is-resisting::after {
   width: 2px;
-  background: var(--color-accent);
+  background: var(--primary);
 }
 
 .horizontal-resizer.is-resisting::after {
@@ -208,8 +289,8 @@ button:disabled {
 }
 
 .sidebar-collapse:hover {
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+  color: var(--primary);
+  background: var(--accent);
   border-color: transparent;
 }
 
@@ -243,8 +324,8 @@ button:disabled {
 }
 
 .repository-sidebar-collapsed .sidebar-icon-rail button:hover {
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+  color: var(--primary);
+  background: var(--accent);
   border-color: transparent;
 }
 
@@ -292,14 +373,14 @@ button:disabled {
 }
 
 .sidebar-panel h2 > button:hover {
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+  color: var(--primary);
+  background: var(--accent);
   border-color: transparent;
 }
 
 .sidebar-panel-empty {
   margin: 0.25rem 0 0.75rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   font-size: 0.85rem;
 }
 
@@ -328,7 +409,7 @@ button:disabled {
   position: absolute;
   top: 50%;
   left: 0.65rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   pointer-events: none;
   transform: translateY(-50%);
 }
@@ -338,7 +419,7 @@ button:disabled {
   width: 100%;
   min-width: 0;
   padding: 0.45rem 0.65rem 0.45rem 2rem;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--input);
   border-radius: var(--radius-small);
   color: inherit;
   background: var(--card);
@@ -352,7 +433,7 @@ button:disabled {
 
 .sidebar-panel-content input:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 2px var(--color-accent);
+  box-shadow: inset 0 0 0 2px var(--primary);
 }
 
 .repository-list-item {
@@ -378,14 +459,14 @@ button:disabled {
 }
 
 .repository-list-selection:hover:not([aria-current="true"]) {
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+  color: var(--primary);
+  background: var(--accent);
   border-color: transparent;
 }
 
 .repository-list-selection[aria-current="true"] {
-  background: var(--color-accent-soft);
-  box-shadow: inset 3px 0 0 var(--color-accent);
+  background: var(--accent);
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .repository-list-actions {
@@ -409,8 +490,8 @@ button:disabled {
 }
 
 .repository-list-actions:hover {
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+  color: var(--primary);
+  background: var(--accent);
   border-color: transparent;
 }
 
@@ -426,13 +507,13 @@ button:disabled {
 }
 
 .repository-list-empty {
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   font-size: 0.85rem;
 }
 
 .repository-list-icon {
   width: 1rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
 }
 
 .selected-repository {
@@ -448,10 +529,6 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-}
-
-:root {
-  --tooltip-delay: 250ms;
 }
 
 .repository-toolbar {
@@ -472,11 +549,11 @@ button:disabled {
   width: max-content;
   max-width: calc(100vw - 1rem);
   padding: 0.35rem 0.55rem;
-  border: 1px solid var(--color-tooltip-border);
+  border: 1px solid var(--tooltip-border);
   border-radius: 0.35rem;
-  color: var(--color-tooltip-text);
-  background-color: var(--color-tooltip-bg);
-  box-shadow: 0 0.35rem 0.85rem rgb(0 0 0 / 28%);
+  color: var(--tooltip-foreground);
+  background-color: var(--tooltip);
+  box-shadow: var(--shadow-tooltip);
   font-size: 0.8rem;
   font-weight: 500;
   line-height: 1.25;
@@ -528,8 +605,8 @@ button:disabled {
 .repository-toolbar
   :is(.repository-creation-actions, .repository-toolbar-actions, .remote-actions)
   button:hover {
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+  color: var(--primary);
+  background: var(--accent);
   border-color: transparent;
 }
 
@@ -563,31 +640,31 @@ button:disabled {
   box-shadow: none;
 }
 
-:root .repository-view-navigation button:hover:not([aria-current="page"]) {
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+.repository-view-navigation button:hover:not([aria-current="page"]) {
+  color: var(--primary);
+  background: var(--accent);
   border-color: transparent;
 }
 
 .repository-view-navigation button[aria-current="page"] {
-  border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
-  box-shadow: inset 0 -2px 0 var(--color-accent);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  color: var(--primary);
+  background: var(--accent);
+  box-shadow: inset 0 -2px 0 var(--primary);
 }
 
 .repository-toolbar-status {
   min-width: 0;
   margin: 0 0 0 auto;
   overflow: hidden;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   font-size: 0.85rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .repository-toolbar-status.is-error {
-  color: var(--color-error-text);
+  color: var(--error-text);
 }
 
 .repository-toolbar-status:empty {
@@ -619,7 +696,7 @@ button:disabled {
   position: absolute;
   top: 50%;
   left: 0.65rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   pointer-events: none;
   transform: translateY(-50%);
 }
@@ -647,8 +724,8 @@ button:disabled {
 }
 
 .new-branch-button:hover {
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+  color: var(--primary);
+  background: var(--accent);
   border-color: transparent;
 }
 
@@ -673,7 +750,7 @@ button:disabled {
   box-sizing: border-box;
   min-width: 0;
   padding: 0.5rem 0.65rem;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--input);
   border-radius: var(--radius-small);
   color: inherit;
   background: var(--card);
@@ -697,8 +774,8 @@ button:disabled {
 }
 
 .new-branch-form button:hover:not(:disabled) {
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+  color: var(--primary);
+  background: var(--accent);
   border-color: transparent;
 }
 
@@ -749,17 +826,17 @@ button:disabled {
 }
 
 .branch-list-selection:hover:not([aria-current="true"]) {
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
+  color: var(--primary);
+  background: var(--accent);
   border-color: transparent;
 }
 
 .branch-list-selection[aria-current="true"] {
-  background: var(--color-accent-soft);
+  background: var(--accent);
 }
 
 .branch-list-selection[aria-disabled="true"]:not([aria-current="true"]) {
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
 }
 
 .branch-list-selection span {
@@ -770,11 +847,11 @@ button:disabled {
 
 .branch-list-icon {
   width: 1rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
 }
 
 .branch-list-empty {
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   font-size: 0.85rem;
 }
 
@@ -792,7 +869,7 @@ button:disabled {
   width: 100%;
   min-width: 0;
   padding: 0.5rem 0.65rem;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--input);
   border-radius: var(--radius-small);
   color: inherit;
   background: var(--card);
@@ -810,7 +887,7 @@ button:disabled {
 
 .merge-conflicts header p {
   margin-top: 0.25rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   font-size: 0.85rem;
 }
 
@@ -821,7 +898,7 @@ button:disabled {
 }
 
 .merge-conflicts li small {
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
 }
 
 .changes-workspace {
@@ -859,13 +936,13 @@ button:disabled {
   flex: 0 0 auto;
   padding: 0.4rem 0.65rem;
   border-bottom: 1px solid var(--border);
-  background: var(--color-surface-subtle);
+  background: var(--secondary);
 }
 
 .working-tree-header {
   flex: 0 0 auto;
   border-bottom: 1px solid var(--border);
-  background: var(--color-surface-subtle);
+  background: var(--secondary);
 }
 
 .working-tree-tools {
@@ -885,7 +962,7 @@ button:disabled {
   position: absolute;
   top: 50%;
   left: 0.6rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   pointer-events: none;
   transform: translateY(-50%);
 }
@@ -896,7 +973,7 @@ button:disabled {
   height: 2.25rem;
   min-width: 0;
   padding: 0.45rem 0.6rem 0.45rem 2rem;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--input);
   border-radius: var(--radius-small);
   color: inherit;
   background: var(--card);
@@ -922,7 +999,7 @@ button:disabled {
 .working-tree-filter-empty {
   margin: 0;
   padding: 0.75rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
 }
 
 .working-tree .virtual-list-viewport {
@@ -974,7 +1051,7 @@ button:disabled {
 }
 
 .working-tree-file-selection[aria-current="true"] {
-  background: var(--color-surface-subtle);
+  background: var(--secondary);
 }
 
 .working-tree-file-selection span {
@@ -1006,7 +1083,7 @@ button:disabled {
   box-sizing: border-box;
   border: 1px solid currentColor;
   border-radius: 2px;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
 }
 
 .working-tree-file-status svg {
@@ -1039,7 +1116,7 @@ button:disabled {
 }
 
 .working-tree-file-status:is(.status-new, .status-untracked, .status-copied) {
-  color: var(--color-success);
+  color: var(--success);
 }
 
 .working-tree-file-status:is(.status-deleted, .status-conflicted) {
@@ -1047,7 +1124,7 @@ button:disabled {
 }
 
 .working-tree-file-status.status-modified {
-  color: #b07800;
+  color: var(--warning-text);
 }
 
 .working-tree-diff {
@@ -1089,7 +1166,7 @@ button:disabled {
 }
 
 .discard-selected-lines:hover {
-  background: var(--color-accent-soft);
+  background: var(--accent);
   border-color: transparent;
 }
 
@@ -1103,7 +1180,7 @@ button:disabled {
 .working-tree-diff-empty {
   max-width: 24rem;
   margin: 18vh auto 0;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   text-align: center;
 }
 
@@ -1140,16 +1217,16 @@ button:disabled {
 }
 
 .working-tree-diff-line.diff-line-add {
-  background: var(--color-diff-add);
+  background: var(--diff-add);
 }
 
 .working-tree-diff-line.diff-line-delete {
-  background: var(--color-diff-delete);
+  background: var(--diff-delete);
 }
 
 .working-tree-diff-line.diff-line-hunk {
-  color: var(--color-text-muted);
-  background: var(--color-diff-hunk);
+  color: var(--muted-foreground);
+  background: var(--diff-hunk);
 }
 
 .working-tree-diff-line.diff-line-hunk code {
@@ -1172,8 +1249,8 @@ button:disabled {
   min-height: 100%;
   padding: 0.15rem 0.35rem;
   border-right: 1px solid var(--border);
-  color: var(--color-text-muted);
-  background: var(--color-surface-subtle);
+  color: var(--muted-foreground);
+  background: var(--secondary);
   text-align: right;
   user-select: none;
 }
@@ -1208,7 +1285,7 @@ button:disabled {
   box-sizing: border-box;
   width: 100%;
   padding: 0.55rem 0.7rem;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--input);
   border-radius: var(--radius-small);
   color: inherit;
   background: var(--card);
@@ -1271,7 +1348,7 @@ button:disabled {
   width: max-content;
   max-width: 16rem;
   padding: 0.65rem 0.75rem;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--input);
   border-radius: var(--radius-small);
   background: var(--popover);
   box-shadow: var(--shadow-dialog);
@@ -1283,7 +1360,7 @@ button:disabled {
 
 .commit-form button[type="submit"] {
   border-color: var(--primary);
-  color: #fff;
+  color: var(--primary-foreground);
   background: var(--primary);
 }
 
@@ -1327,7 +1404,7 @@ button:disabled {
 .working-tree-files li:hover .working-tree-file-discard,
 .working-tree-files li .working-tree-file-discard:focus-visible {
   opacity: 1;
-  background: var(--color-accent-soft);
+  background: var(--accent);
   border-color: transparent;
 }
 
@@ -1376,8 +1453,8 @@ button:disabled {
 }
 
 .history-commits button[aria-current="true"] {
-  background: var(--color-accent-soft);
-  box-shadow: inset 3px 0 0 var(--color-accent);
+  background: var(--accent);
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .history-commits strong {
@@ -1388,7 +1465,7 @@ button:disabled {
 }
 
 .history-commits small {
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   font-size: 0.8rem;
 }
 
@@ -1407,7 +1484,7 @@ button:disabled {
 .history-details-header {
   flex: 0 0 auto;
   padding: 0.65rem 0.75rem 0.25rem;
-  background: var(--color-surface-subtle);
+  background: var(--secondary);
 }
 
 .history-details-header h4 {
@@ -1428,8 +1505,8 @@ button:disabled {
   overflow: hidden;
   padding: 0.25rem 0.75rem 0.5rem;
   border-bottom: 1px solid var(--border);
-  color: var(--color-text-muted);
-  background: var(--color-surface-subtle);
+  color: var(--muted-foreground);
+  background: var(--secondary);
   font-size: 0.8rem;
   white-space: nowrap;
 }
@@ -1450,7 +1527,7 @@ button:disabled {
 }
 
 .history-commit-sha:hover {
-  color: var(--color-accent);
+  color: var(--primary);
   background: transparent;
   text-decoration: underline;
 }
@@ -1463,7 +1540,7 @@ button:disabled {
 
 .history-lines-added {
   margin-left: auto;
-  color: var(--color-success);
+  color: var(--success);
 }
 
 .history-lines-deleted {
@@ -1473,14 +1550,14 @@ button:disabled {
 .history-details-empty {
   max-width: 24rem;
   margin: 18vh auto 0;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
   text-align: center;
 }
 
 .history-details-status {
   margin: 0;
   padding: 0.75rem 1rem;
-  color: var(--color-text-muted);
+  color: var(--muted-foreground);
 }
 
 .history-commit-body {
@@ -1490,7 +1567,7 @@ button:disabled {
   overflow: auto;
   overflow-wrap: anywhere;
   padding: 0.25rem 0.75rem 0.5rem;
-  background: var(--color-surface-subtle);
+  background: var(--secondary);
   font: inherit;
   font-size: 0.8rem;
   white-space: pre-wrap;
@@ -1563,8 +1640,8 @@ button:disabled {
 }
 
 .history-files button[aria-current="true"] {
-  background: var(--color-accent-soft);
-  box-shadow: inset 3px 0 0 var(--color-accent);
+  background: var(--accent);
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 .history-files span {
@@ -1651,14 +1728,14 @@ button:disabled {
   box-sizing: border-box;
   min-width: 0;
   padding: 0.5rem 2rem 0.5rem 0.65rem;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--input);
   border-radius: var(--radius-small);
   color: var(--foreground);
   background-color: var(--card);
   font: inherit;
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%23556070' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: var(--select-caret-image);
   background-repeat: no-repeat;
   background-position: right 0.55rem center;
 }
@@ -1685,22 +1762,21 @@ button:disabled {
 
 .destructive-button {
   border-color: var(--destructive);
-  color: #fff;
+  color: var(--destructive-foreground);
   background: var(--destructive);
 }
+
 .destructive-button:hover {
-  border-color: var(--destructive);
-  color: #fff;
-  background: var(--color-error-text);
+  filter: brightness(1.08);
 }
 
 .application-error {
   max-width: 40rem;
   padding: 0.75rem 1rem;
-  border: 1px solid var(--color-error-border);
+  border: 1px solid var(--error-border);
   border-radius: var(--radius-small);
-  color: var(--color-error-text);
-  background: var(--color-error-surface);
+  color: var(--error-text);
+  background: var(--error-surface);
 }
 
 .fatal-error {
@@ -1714,7 +1790,7 @@ button:disabled {
   overflow: auto;
   padding: 1rem;
   border-radius: 8px;
-  background: rgb(0 0 0 / 8%);
+  background: var(--muted);
   white-space: pre-wrap;
 }
 
@@ -1792,182 +1868,42 @@ button:disabled {
   }
 }
 
-:root[data-theme="dark"] {
-  color-scheme: dark;
-  --background: #1d2129;
-  --foreground: #f2f4f8;
-  --card: #282d37;
-  --card-foreground: #f2f4f8;
-  --popover: #303642;
-  --popover-foreground: #f2f4f8;
-  --primary: #436fc8;
-  --primary-foreground: #ffffff;
-  --secondary: #232832;
-  --secondary-foreground: #f2f4f8;
-  --muted: #232832;
-  --muted-foreground: #aeb6c6;
-  --accent: #232832;
-  --accent-foreground: #f2f4f8;
-  --destructive: #ff8b98;
-  --border: #414858;
-  --input: #596174;
-  --ring: #7aa2f7;
-
-  --color-surface-subtle: #232832;
-  --color-button: var(--popover);
-  --color-border-strong: #596174;
-  --color-text-muted: #aeb6c6;
-  --color-accent: #7aa2f7;
-  --color-accent-soft: rgb(83 133 230 / 24%);
-  --color-success: #6fd3a2;
-  --color-toolbar: #171b22;
-  --color-toolbar-border: #0f1218;
-  --color-toolbar-text: #f5f7fa;
-  --color-toolbar-muted: #aeb6c6;
-  --color-diff-add: #173b2b;
-  --color-diff-delete: #49262c;
-  --color-diff-hunk: #202630;
-  --color-warning-surface: #332d20;
-  --color-warning-border: #8c6b2c;
-  --color-error-surface: #40242a;
-  --color-error-border: #8c3d49;
-  --color-error-text: #ffb4bd;
-  --color-tooltip-bg: #181d28;
-  --color-tooltip-text: #f1f5f9;
-  --color-tooltip-border: #3b4252;
-}
-
-:root[data-theme="dark"] .repository-sidebar {
-  border-color: var(--border);
-  background: var(--color-surface-subtle);
-}
-
-:root[data-theme="dark"] .sidebar-panel,
-:root[data-theme="dark"] .repository-view-navigation {
-  border-color: #414858;
-}
-
-:root[data-theme="dark"] .repository-toolbar {
-  border-color: var(--border);
-  background: var(--color-surface-subtle);
-}
-
-:root[data-theme="dark"] .window-drag-region {
-  background: var(--color-surface-subtle);
-}
-
-:root[data-theme="dark"] .history-commit-sha {
-  border-color: transparent;
-  color: inherit;
-  background: transparent;
-}
-
-:root[data-theme="dark"] .repository-view-navigation button {
-  border-color: transparent;
-  background: transparent;
-}
-
-:root[data-theme="dark"] .repository-view-navigation button[aria-current="page"] {
-  border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
-  color: var(--color-accent);
-  background: var(--color-accent-soft);
-}
-
-:root[data-theme="dark"] .repository-view-navigation button:hover:not([aria-current="page"]) {
-  background: var(--color-accent-soft);
-}
-
-:root[data-theme="dark"] .commit-form button[type="submit"] {
-  border-color: var(--primary);
-  color: #fff;
-  background: var(--primary);
-}
-
-:root[data-theme="dark"] .destructive-button {
-  border-color: var(--destructive);
-  color: #fff;
-  background: #a82231;
-}
-
-:root[data-theme="dark"] .repository-list-selection[aria-current="true"] {
-  background: var(--color-accent-soft);
-}
-
-:root[data-theme="dark"] .repository-list-selection span,
-:root[data-theme="dark"] .repository-list-empty,
-:root[data-theme="dark"] .history-commits small,
-:root[data-theme="dark"] .history-commits time,
-:root[data-theme="dark"] .history-details header code,
-:root[data-theme="dark"] .history-details header p,
-:root[data-theme="dark"] .merge-conflicts header p,
-:root[data-theme="dark"] .merge-conflicts li small {
-  color: #aeb6c6;
-}
-
-:root[data-theme="dark"] .working-tree-diff pre,
-:root[data-theme="dark"] .working-tree-diff-lines,
-:root[data-theme="dark"] .history-diff pre,
-:root[data-theme="dark"] .commit-terminal-output,
-:root[data-theme="dark"] .commit-form input,
-:root[data-theme="dark"] .commit-form textarea,
-:root[data-theme="dark"] .working-tree-filter input,
-:root[data-theme="dark"] .repository-filter input,
-:root[data-theme="dark"] .branch-filter input,
-:root[data-theme="dark"] .new-branch-form input {
-  border-color: var(--border);
-  color: var(--foreground);
-  background: var(--card);
-}
-
-:root[data-theme="dark"] .history-details {
-  border-color: var(--border);
-}
-
-:root[data-theme="dark"] .merge-conflicts {
-  border-color: var(--color-warning-border);
-  background: var(--color-warning-surface);
-}
-
-:root[data-theme="dark"] .diff-line-number {
-  border-color: var(--border);
-  color: var(--color-text-muted);
-}
-
-:root[data-theme="dark"] .confirmation-dialog {
-  border-color: var(--border);
-  background: var(--popover);
-}
-
-:root[data-theme="dark"] .preferences-fields select {
-  border-color: var(--border);
-  color: var(--foreground);
-  background-color: var(--card);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' fill='none' stroke='%23aeb6c6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-}
-
-:root[data-theme="dark"] .preferences-fields fieldset {
-  border-color: var(--border);
-}
-
-:root[data-theme="dark"] .working-tree-file-discard {
-  color: var(--destructive);
-  background: transparent;
-}
-
-:root[data-theme="dark"] .application-error {
-  border-color: var(--color-error-border);
-  color: var(--color-error-text);
-  background: var(--color-error-surface);
-}
 /*
  ---break---
  */
+/* Maps the theme variables above into Tailwind's utility namespace, so
+ * `bg-card`, `text-muted-foreground`, `bg-diff-add` and friends all resolve to
+ * whatever the active theme set. `inline` keeps the utility referencing the
+ * source variable rather than snapshotting its value, which is what lets the
+ * dark block re-point them.
+ *
+ * Hand-written CSS below should use the source names (`var(--muted-foreground)`),
+ * not these `--color-*` aliases — one name per value, no ambiguity. */
 @theme inline {
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-family-monospace);
+
+  /* rdc extensions */
+  --color-success: var(--success);
+  --color-warning-surface: var(--warning-surface);
+  --color-warning-border: var(--warning-border);
+  --color-warning-text: var(--warning-text);
+  --color-diff-add: var(--diff-add);
+  --color-diff-delete: var(--diff-delete);
+  --color-diff-hunk: var(--diff-hunk);
+  --color-tooltip: var(--tooltip);
+  --color-tooltip-foreground: var(--tooltip-foreground);
+  --color-tooltip-border: var(--tooltip-border);
+  --color-error-surface: var(--error-surface);
+  --color-error-border: var(--error-border);
+  --color-error-text: var(--error-text);
+
+  /* shadcn standard slots */
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);

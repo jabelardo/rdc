@@ -134,7 +134,7 @@ export function RepositorySidebar({
 
   return (
     <aside
-      className={`repository-sidebar box-border grid min-w-0 bg-[var(--color-surface-subtle)]${
+      className={`repository-sidebar box-border grid min-w-0 bg-[var(--secondary)]${
         collapsed ? " repository-sidebar-collapsed" : ""
       }`}
       aria-label="Navigation"

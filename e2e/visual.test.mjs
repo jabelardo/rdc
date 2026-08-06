@@ -49,7 +49,6 @@ describe("visual layout", () => {
       return {
         fontSize: root.fontSize,
         fontFamily: root.fontFamily,
-        canvas: root.getPropertyValue("--color-canvas").trim(),
         toolbar: toolbar.backgroundColor,
         tooltipDelayMs: (() => {
           const value = toolbar.getPropertyValue("--tooltip-delay").trim();
@@ -71,8 +70,11 @@ describe("visual layout", () => {
     });
     assert.equal(normal.fontSize, "13px");
     assert.match(normal.fontFamily, /system-ui/);
-    assert.notEqual(normal.toolbar, normal.canvas);
     assert.equal(normal.tooltipDelayMs, 250);
+    // The command bar deliberately shares --secondary with the sidebar; what separates it from
+    // the page is the ::before seam asserted below, not a different fill. (This replaces a
+    // toolbar-vs-canvas check that read a token renamed away in the shadcn migration, so it had
+    // been comparing a real colour against "" and could never fail.)
     assert.equal(normal.toolbar, normal.sidebar);
     assert.equal(normal.toolbarHeight, normal.sidebarCommandBarHeight);
     assert.equal(normal.seamHeight, normal.collapseButtonHeight);
@@ -236,7 +238,7 @@ describe("visual layout", () => {
         currentBranch: styles('.branch-list-selection[aria-current="true"]').backgroundColor,
         statusKind: [...status.classList].find((name) => name.startsWith("status-")),
         statusColor: statusStyles.color,
-        semanticSuccess: resolveColor("var(--color-success)"),
+        semanticSuccess: resolveColor("var(--success)"),
         semanticDanger: resolveColor("var(--destructive)"),
         discardBackground: styles(".discard-selected-lines").backgroundColor,
         discardColor: styles(".discard-selected-lines").color,
@@ -264,7 +266,7 @@ describe("visual layout", () => {
     const historyStatus = await driver.executeScript(() => {
       const status = document.querySelector(".history-file-status");
       const probe = document.createElement("span");
-      probe.style.color = "var(--color-success)";
+      probe.style.color = "var(--success)";
       document.body.append(probe);
       const snapshot = {
         kind: [...status.classList].find((name) => name.startsWith("status-")),

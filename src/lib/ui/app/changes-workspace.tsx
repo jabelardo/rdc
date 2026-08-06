@@ -291,7 +291,7 @@ export function ChangesWorkspace({
 
       {visible && state.workingDirectory !== null && state.workingDirectory.files.length > 0 && (
         <form
-          className="commit-form grid min-h-0 min-w-0 border-t border-r border-[var(--border)] bg-[var(--color-surface-subtle)] text-left"
+          className="commit-form grid min-h-0 min-w-0 border-t border-r border-[var(--border)] bg-[var(--secondary)] text-left"
           aria-label="Commit changes"
           onSubmit={(event) => {
             event.preventDefault();
