@@ -43,6 +43,11 @@ import type { PreferencesState } from "../../stores/preferences-store";
 import type { RemoteState } from "../../stores/remote-store";
 import type { SelectedLinesDiscard, WorkingTreeState } from "../../stores/working-tree-store";
 import type { SidebarSectionID } from "../sidebar-sections";
+import { determineMergeability } from "../../misc-ipc";
+import { getAheadBehind } from "../../rev-list-ipc";
+import { revSymmetricDifference } from "../../rev-range";
+import { ComputedAction } from "../../../models/computed-action";
+import type { MergeTreeResult } from "../../../models/merge";
 
 const rendererStartTime = performance.now();
 const rendererPlatform = currentMenuPlatform();
@@ -112,6 +117,8 @@ export function useAppController() {
   const [mergeTarget, setMergeTarget] = useState("");
   const [mergeMessage, setMergeMessage] = useState<string | null>(null);
   const [mergeRunning, setMergeRunning] = useState(false);
+  const [mergeStatus, setMergeStatus] = useState<MergeTreeResult | null>(null);
+  const [mergeCommitCount, setMergeCommitCount] = useState(0);
   const [showManageRemotes, setShowManageRemotes] = useState(false);
   const [remoteFilter, setRemoteFilter] = useState("");
   const [showAddRemote, setShowAddRemote] = useState(false);
@@ -983,9 +990,56 @@ export function useAppController() {
     );
   }
 
+  // Reactive merge preview: when mergeTarget changes, check mergeability and commit count
+  useEffect(() => {
+    if (!mergePickerOpen || mergeTarget === "") {
+      setMergeStatus(null);
+      setMergeCommitCount(0);
+      return;
+    }
+
+    const repository = appState.selectedRepository;
+    if (repository === null) {
+      return;
+    }
+
+    const currentBranch = branchState.currentBranch;
+    if (currentBranch === null) {
+      return;
+    }
+
+    let disposed = false;
+    setMergeStatus({ kind: ComputedAction.Loading });
+
+    void determineMergeability(repository.path, currentBranch, mergeTarget)
+      .then(async (status) => {
+        if (disposed) return;
+        if (status.kind === ComputedAction.Invalid) {
+          setMergeStatus(status);
+          return;
+        }
+        const range = revSymmetricDifference("", mergeTarget);
+        const aheadBehind = await getAheadBehind(repository.path, range);
+        if (disposed) return;
+        setMergeCommitCount(aheadBehind ? aheadBehind.behind : 0);
+        setMergeStatus(status);
+      })
+      .catch(() => {
+        if (!disposed) {
+          setMergeStatus({ kind: ComputedAction.Clean });
+        }
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [mergePickerOpen, mergeTarget, appState.selectedRepository, branchState.currentBranch]);
+
   function requestMerge(): void {
     setMergeTarget("");
     setMergeMessage(null);
+    setMergeStatus(null);
+    setMergeCommitCount(0);
     setMergePickerOpen(true);
   }
 
@@ -1037,6 +1091,8 @@ export function useAppController() {
     setMergePickerOpen(false);
     setMergeMessage(null);
     setMergeTarget("");
+    setMergeStatus(null);
+    setMergeCommitCount(0);
   }
 
   function requestManageRemotes(): void {
@@ -1312,6 +1368,8 @@ export function useAppController() {
     setMergeTarget,
     mergeMessage,
     mergeRunning,
+    mergeStatus,
+    mergeCommitCount,
     confirmMerge,
     cancelMerge,
     requestMerge,

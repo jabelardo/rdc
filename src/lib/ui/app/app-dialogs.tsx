@@ -1,5 +1,5 @@
 import { CircleAlert } from "lucide-react";
-import { BranchType, type Branch } from "../../../models/branch";
+import type { Branch } from "../../../models/branch";
 import type { IRemote } from "../../../models/remote";
 import type { Repository } from "../../../models/repository";
 import type { WorkingDirectoryFileChange } from "../../../models/status";
@@ -36,6 +36,10 @@ import { ConfirmOptOut } from "../dialogs/confirm-opt-out";
 import { DiscardFileList, discardAllQuestion } from "../dialogs/discard-file-list";
 import { NoticeDialog } from "../dialogs/notice-dialog";
 import { TerminalOutput } from "../terminal-output";
+import { BranchSelect } from "../branch-select";
+import { ComputedAction } from "../../../models/computed-action";
+import type { MergeTreeResult } from "../../../models/merge";
+import { formatNumber } from "../../format-number";
 
 const confirmationDialogClassName =
   "confirmation-dialog box-border w-[min(390px,calc(100vw-26px))] rounded-[var(--radius-medium)] border border-[var(--border)] bg-[var(--popover)] p-6 shadow-[var(--shadow-dialog)]";
@@ -89,6 +93,8 @@ type AppDialogsProps = {
   readonly onMergeTargetChange: (value: string) => void;
   readonly mergeMessage: string | null;
   readonly mergeRunning: boolean;
+  readonly mergeStatus: MergeTreeResult | null;
+  readonly mergeCommitCount: number;
   readonly onConfirmMerge: () => void;
   readonly onCancelMerge: () => void;
   readonly showManageRemotes: boolean;
@@ -168,6 +174,8 @@ export function AppDialogs({
   onMergeTargetChange,
   mergeMessage,
   mergeRunning,
+  mergeStatus,
+  mergeCommitCount,
   onConfirmMerge,
   onCancelMerge,
   showManageRemotes,
@@ -374,12 +382,11 @@ export function AppDialogs({
         >
           <DialogContent className="sm:max-w-md">
             <DialogTitle>
-              Merge into current branch ({branchState.currentBranch ?? "—"})
+              Merge into <strong>{branchState.currentBranch ?? "—"}</strong>
             </DialogTitle>
             {(() => {
               const candidates = branchState.branches.filter(
-                (branch) =>
-                  branch.type === BranchType.Local && branch.name !== branchState.currentBranch,
+                (branch) => branch.name !== branchState.currentBranch,
               );
               if (candidates.length === 0) {
                 return (
@@ -393,27 +400,28 @@ export function AppDialogs({
                   </>
                 );
               }
+              const selected =
+                mergeTarget !== ""
+                  ? (candidates.find((b) => b.name === mergeTarget) ?? null)
+                  : null;
               return (
-                <form
-                  className="mt-4 grid gap-2"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    onConfirmMerge();
-                  }}
-                >
-                  <label htmlFor="merge-target-branch">Branch to merge</label>
-                  <select
-                    id="merge-target-branch"
-                    value={mergeTarget}
-                    disabled={mergeRunning}
-                    onChange={(event) => onMergeTargetChange(event.currentTarget.value)}
-                  >
-                    {candidates.map((branch) => (
-                      <option key={branch.name} value={branch.name}>
-                        {branch.name}
-                      </option>
-                    ))}
-                  </select>
+                <>
+                  <BranchSelect
+                    branches={candidates}
+                    currentBranch={branchState.currentBranch}
+                    defaultBranch={branchState.defaultBranch}
+                    recentBranches={branchState.recentBranches}
+                    selectedBranch={selected}
+                    onSelect={(branch) => onMergeTargetChange(branch.name)}
+                  />
+                  {mergeStatus !== null && mergeTarget !== "" && (
+                    <MergePreview
+                      status={mergeStatus}
+                      commitCount={mergeCommitCount}
+                      targetBranch={mergeTarget}
+                      currentBranch={branchState.currentBranch ?? "—"}
+                    />
+                  )}
                   {mergeMessage !== null && (
                     <p className="application-error" role="alert">
                       {mergeMessage}
@@ -429,13 +437,33 @@ export function AppDialogs({
                         >
                           Cancel
                         </button>
-                        <button type="submit" disabled={mergeRunning || mergeTarget === ""}>
+                        <button
+                          type="button"
+                          disabled={
+                            mergeRunning ||
+                            mergeTarget === "" ||
+                            (mergeStatus?.kind === ComputedAction.Clean &&
+                              mergeCommitCount === 0) ||
+                            mergeStatus?.kind === ComputedAction.Invalid
+                          }
+                          onClick={onConfirmMerge}
+                        >
                           {mergeRunning ? "Merging…" : "Merge"}
                         </button>
                       </>
                     ) : (
                       <>
-                        <button type="submit" disabled={mergeRunning || mergeTarget === ""}>
+                        <button
+                          type="button"
+                          disabled={
+                            mergeRunning ||
+                            mergeTarget === "" ||
+                            (mergeStatus?.kind === ComputedAction.Clean &&
+                              mergeCommitCount === 0) ||
+                            mergeStatus?.kind === ComputedAction.Invalid
+                          }
+                          onClick={onConfirmMerge}
+                        >
                           {mergeRunning ? "Merging…" : "Merge"}
                         </button>
                         <button
@@ -448,7 +476,7 @@ export function AppDialogs({
                       </>
                     )}
                   </DialogFooter>
-                </form>
+                </>
               );
             })()}
           </DialogContent>
@@ -884,5 +912,61 @@ export function AppDialogs({
         </Modal>
       )}
     </>
+  );
+}
+
+type MergePreviewProps = {
+  readonly status: MergeTreeResult;
+  readonly commitCount: number;
+  readonly targetBranch: string;
+  readonly currentBranch: string;
+};
+
+function MergePreview({ status, commitCount, targetBranch, currentBranch }: MergePreviewProps) {
+  if (status.kind === ComputedAction.Loading) {
+    return (
+      <p className="text-sm text-muted-foreground">Checking for ability to merge automatically…</p>
+    );
+  }
+
+  if (status.kind === ComputedAction.Invalid) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Unable to merge unrelated histories in this repository.
+      </p>
+    );
+  }
+
+  if (status.kind === ComputedAction.Clean) {
+    if (commitCount === 0) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          <strong>{currentBranch}</strong> is already up to date with{" "}
+          <strong>{targetBranch}</strong>.
+        </p>
+      );
+    }
+    const pluralized = commitCount === 1 ? "commit" : "commits";
+    return (
+      <p className="text-sm text-muted-foreground">
+        This will merge{" "}
+        <strong>
+          {formatNumber(commitCount)} {pluralized}
+        </strong>{" "}
+        from <strong>{targetBranch}</strong> into <strong>{currentBranch}</strong>.
+      </p>
+    );
+  }
+
+  // Conflicts
+  const pluralized = status.conflictedFiles === 1 ? "file" : "files";
+  return (
+    <p className="text-sm text-[var(--warning-text)]">
+      There will be{" "}
+      <strong>
+        {formatNumber(status.conflictedFiles)} conflicted {pluralized}
+      </strong>{" "}
+      when merging <strong>{targetBranch}</strong> into <strong>{currentBranch}</strong>.
+    </p>
   );
 }
