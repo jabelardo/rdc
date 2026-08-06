@@ -74,12 +74,7 @@ function stubFileChange(path: string): WorkingDirectoryFileChange {
 function setStoreState(store: unknown, state: unknown): void {
   const s = store as Record<string, unknown>;
   s["currentState"] = state;
-  const after = s["currentState"];
   const listeners = s["listeners"] as Set<(state: unknown) => void> | undefined;
-  const count = listeners?.size ?? 0;
-  console.log(
-    `[debug] setStoreState: wrote=${JSON.stringify(state, null, 2)?.slice(0, 200)}… readBack=${JSON.stringify(after, null, 2)?.slice(0, 200)}… listeners=${count} keys=${Object.keys(s).join(",")}`,
-  );
   if (listeners) {
     for (const listener of listeners) {
       listener(state);
@@ -87,13 +82,23 @@ function setStoreState(store: unknown, state: unknown): void {
   }
 }
 
+type DebugStateOptions = {
+  /**
+   * Whether to leave a pending hook failure in the working-tree state.
+   *
+   * Opt-in, and off by default: the hook-failure dialog renders from working-tree state alone, so
+   * injecting it unconditionally put it in front of every *other* dialog the debug menu tried to
+   * preview — the whole Show Dialog submenu showed the pre-commit failure instead.
+   */
+  readonly hookFailure?: boolean;
+};
+
 /**
  * Inject minimal stub state into every store the dialogs read from.
  * Sets COMPLETE state (no spread) to avoid stale fields from previous loads.
  * Returns the stub repository for use by controller-level state setters.
  */
-export function injectDebugState(): Repository {
-  console.log("[debug] injectDebugState called");
+export function injectDebugState(options: DebugStateOptions = {}): Repository {
   const repo = stubRepo();
 
   // ── AppStore ──
@@ -157,11 +162,14 @@ export function injectDebugState(): Repository {
     diffError: null,
     commitLoading: false,
     commitError: null,
-    hookFailure: {
-      hook: "pre-commit",
-      terminalOutput:
-        "$ npm run lint\n\n> rdc@0.0.0 lint\n> oxlint src/\n\nsrc/utils.ts:42:5 error: unexpected unused variable `x`\n\n1 problem (1 error, 0 warnings)\n\nnpm ERR! code ELIFECYCLE\nnpm ERR! errno 1\n",
-    },
+    hookFailure:
+      options.hookFailure === true
+        ? {
+            hook: "pre-commit",
+            terminalOutput:
+              "$ npm run lint\n\n> rdc@0.0.0 lint\n> oxlint src/\n\nsrc/utils.ts:42:5 error: unexpected unused variable `x`\n\n1 problem (1 error, 0 warnings)\n\nnpm ERR! code ELIFECYCLE\nnpm ERR! errno 1\n",
+          }
+        : null,
     loading: false,
     error: null,
     mergeHeadFound: false,

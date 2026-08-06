@@ -568,6 +568,45 @@ describe("App", () => {
     expect(opener).toHaveFocus();
   });
 
+  it("discards all changes from the native menu after the working tree loads", async () => {
+    // The menu controller is installed once, so its callbacks must read live store state rather
+    // than the state captured at first render. Mounting with an empty working tree and only then
+    // delivering the files is the real sequence: the app starts with nothing selected, the user
+    // picks a repository, and the files arrive afterwards.
+    let notifyWorkingTree: ((state: unknown) => void) | undefined;
+    workingTreeStore.onDidUpdate.mockImplementation((listener: (state: unknown) => void) => {
+      notifyWorkingTree = listener;
+      return vi.fn();
+    });
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    };
+
+    render(<App />);
+    const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0];
+
+    workingTreeStore.state = {
+      ...workingTreeStore.state,
+      repositoryPath: repository.path,
+      workingDirectory: {
+        files: [
+          {
+            id: "Modified+Alpha.ts",
+            path: "Alpha.ts",
+            status: { kind: "Modified" },
+            isIncludedInCommit: () => true,
+          },
+        ],
+      },
+    };
+    act(() => notifyWorkingTree?.(workingTreeStore.state));
+
+    await act(() => executeMenuEvent("discard-all-changes"));
+
+    expect(screen.getByRole("alertdialog", { name: /discard all changes/i })).toBeInTheDocument();
+  });
+
   it("opens an rdc About surface from the native menu", async () => {
     const user = userEvent.setup();
     render(<App />);

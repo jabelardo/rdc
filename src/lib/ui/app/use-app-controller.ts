@@ -221,7 +221,7 @@ export function useAppController() {
       manageRemotes: requestManageRemotes,
       showDiscardFileDialog: () => {
         injectDebugState();
-        const firstFile = workingTreeState.workingDirectory?.files[0];
+        const firstFile = workingTreeStore.state.workingDirectory?.files[0];
         if (firstFile !== undefined) {
           setDiscardFileID(firstFile.id);
           setDiscardSelection(false);
@@ -258,13 +258,11 @@ export function useAppController() {
         requestMerge();
       },
       debugShowManageRemotesDialog: () => {
-        console.log("[debug] handler called, remoteState:", remoteState.remotes);
         injectDebugState();
-        console.log("[debug] after inject, remoteState:", remoteState.remotes);
         requestManageRemotes();
       },
       debugShowHookFailureDialog: () => {
-        injectDebugState();
+        injectDebugState({ hookFailure: true });
       },
     });
     const replaceMenu = () => {
@@ -786,7 +784,10 @@ export function useAppController() {
   }
 
   function requestDiscardAll(permanent: boolean): void {
-    const files = workingTreeState.workingDirectory?.files ?? [];
+    // The native menu controller is installed once, so a render-time read here would be the
+    // working tree as it looked at first mount — empty, before any repository was selected — and
+    // the menu item would silently do nothing.
+    const files = workingTreeStore.state.workingDirectory?.files ?? [];
     if (files.length === 0) {
       return;
     }
