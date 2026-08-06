@@ -21,8 +21,10 @@ The three annotated 2026-07-31 review rounds established:
   full-width panel above the workspace.
 - Treat the collapsed state as a compact navigation rail, not an empty gutter. Show only enabled MVP
   sections: Repositories and Branches.
-- Use the agreed Font Awesome Free Solid glyphs: `faFolderTree`, `faCodeBranch`, `faChevronLeft` and
-  `faChevronRight`. Import individual SVG icons rather than the full icon font or Unicode lookalikes.
+- Use the agreed lucide glyphs: `FolderTree`, `GitBranch`, `ChevronLeft` and `ChevronRight`. Import
+  individual icons rather than an icon font or Unicode lookalikes. (These were the FontAwesome
+  `faFolderTree`/`faCodeBranch`/`faChevronLeft`/`faChevronRight` until FA was removed — see
+  `COMPONENT_MIGRATION_PROCESS.md` Convention 11.)
 - Give each collapsed section a live tooltip/accessibility description containing its current value.
   Activating it expands both the sidebar and corresponding panel and moves focus to that section.
 - Remove Clone/Add from the sidebar. Keep the empty-state actions together in the workspace as

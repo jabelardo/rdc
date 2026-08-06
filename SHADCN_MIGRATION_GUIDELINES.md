@@ -40,12 +40,17 @@ Override `DialogOverlay`'s `bg-black/10 backdrop-blur-xs` to `bg-black/40` (ligh
 ### 4. Warning/error icon
 
 For dialogs with `role="alertdialog"` or warning semantics:
-- **Icon**: Font Awesome `fa-circle-exclamation` (not shadcn's X close button)
-- **Color**: `text-yellow-500` (semantic warning color)
-- **Size**: 24×24px
-- **Position**: Top-left of the content area, before the title text
+- **Icon**: lucide `CircleAlert`. FontAwesome was removed from the project entirely — see
+  `COMPONENT_MIGRATION_PROCESS.md` Convention 11.
+- **Colour**: `text-[var(--warning-text)]`. **Not** `text-yellow-500`: a raw Tailwind palette colour
+  bypasses the token system, so it does not respond to the theme — it was the single such violation
+  in the whole `tsx` tree and is fixed.
+- **Size**: inherited. `LucideProvider` sets `size-[1em]` app-wide, so an icon scales with the font
+  size of wherever it sits. Do not hardcode 24px.
+- **Position**: inline in the title, before the title text — not desktop-plus's separate gutter
+  column, which costs horizontal space and needs layout CSS in the shared primitive.
 
-desktop-plus used a CSS mask for the alert-triangle icon. rdc should use Font Awesome (already a dependency via `lucide-react` or can use FA directly).
+desktop-plus used a CSS mask for its alert-triangle icon; rdc uses a real lucide component.
 
 ### 5. Terminal output
 

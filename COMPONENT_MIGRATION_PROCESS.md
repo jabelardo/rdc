@@ -314,9 +314,34 @@ checkbox's width against its height. Both assertions carry **lower** bounds too,
 dialog would satisfy "narrower than the window" and a 0x0 checkbox would satisfy "square" — the same
 dead-assertion trap this repo has hit before.
 
-### Icon libraries
+### Icon libraries → Convention 11
 
-`lucide-react` is used *only* inside `src/components/ui/**`, where shadcn's own files expect it;
-rdc's components use FontAwesome. That split already existed by accident and is now the rule —
-keeping vendored files unmodified is what makes a future `shadcn add` diffable. Consolidating onto
-one library is a post-MVP question, not a migration decision.
+This section originally recorded a *split* — lucide inside `src/components/ui/**`, FontAwesome in
+rdc's own components — as the rule. That was superseded within the day, so the reasoning is worth
+keeping: the split was described as "already existing by accident", which was the tell that it was a
+habit rather than a decision.
+
+**Convention 11 — lucide is rdc's only icon library.** FontAwesome was removed entirely. The case
+was measured, not argued: FA cost **28.7 KB gzipped against 1.6 KB** for the same 30 icons, because
+FA ships a runtime core while lucide's `createLucideIcon` was already in the bundle for shadcn.
+Removing it took the real bundle from 213,795 to 188,511 gzipped, **-11.8%**.
+
+Two structural gains beyond size:
+
+- `@fortawesome/fontawesome-svg-core` was a peer of `react-fontawesome` that pnpm auto-installed and
+  `package.json` never listed. It worked, but nothing pinned it — a stricter installer would have
+  broken the build.
+- FA sized icons through a **runtime-injected stylesheet**; its emitted SVG carried no `width` or
+  `height` at all. That is the same fragility class as the sonner stylesheet that broke the toolbar
+  at 715px (Component 1). lucide emits plain attributes.
+
+**Geometry was held constant so the visual review judged one variable.** FA rendered at `1em`;
+`LucideProvider` applies `size-[1em]` as a *class* rather than the `size` prop, because lucide types
+`size` as a number while CSS `width`/`height` override SVG presentation attributes anyway. The two
+explicit sizes in `App.css` (`.working-tree-file-status svg`) are unlayered and still win, keeping
+the status glyphs at their designed 7.8px and 13px.
+
+A caution for the next icon change: **tests must not identify an icon by a library-specific
+attribute.** Eleven assertions keyed off FA's `data-icon` and one E2E assertion did too; all had to
+move to lucide's `class="lucide lucide-<name>"`. Prefer asserting on the accessible name of the
+control instead, which survives a library swap.
