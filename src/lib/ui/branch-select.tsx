@@ -64,7 +64,10 @@ export function BranchSelect({
 
     const defaultEntries = entries.filter((e) => e.group === "default");
     if (defaultEntries.length > 0) {
-      groups.push({ label: "Default branch", entries: defaultEntries });
+      groups.push({
+        label: defaultBranch ?? "Default branch",
+        entries: defaultEntries,
+      });
     }
 
     const recentEntries = entries.filter((e) => e.group === "recent");
@@ -78,7 +81,7 @@ export function BranchSelect({
     }
 
     return groups;
-  }, [entries]);
+  }, [entries, defaultBranch]);
 
   return (
     <div className="grid gap-2">
@@ -96,39 +99,45 @@ export function BranchSelect({
           onChange={(event) => setFilter(event.currentTarget.value)}
         />
       </div>
-      <div className="grid max-h-[300px] gap-0.5 overflow-y-auto rounded-md border border-[var(--border)] p-1">
-        {grouped.length === 0 && (
-          <p className="px-2 py-1.5 text-sm text-muted-foreground">No matching branches</p>
-        )}
-        {grouped.map((group) => (
-          <div key={group.label}>
-            <h3 className="px-2 pt-1.5 pb-0.5 text-xs font-medium text-muted-foreground">
-              {group.label}
-            </h3>
-            {group.entries.map(({ branch }) => {
-              const isCurrent = branch.name === currentBranch;
-              const isSelected = selectedBranch?.name === branch.name;
-              const isRemote = branch.type === BranchType.Remote;
-              const Icon = isCurrent ? Check : GitBranch;
-              return (
-                <button
-                  key={branch.name}
-                  type="button"
-                  className={`flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground ${isSelected ? "bg-accent text-accent-foreground" : ""}`}
-                  onClick={() => onSelect(branch)}
-                >
-                  <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span className="min-w-0 truncate">
-                    {isRemote ? branch.nameWithoutRemote : branch.name}
-                  </span>
-                  <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                    {formatRelative(branch.tip.author.date.getTime() - Date.now())}
-                  </span>
-                </button>
-              );
-            })}
+      <div
+        className="overflow-y-auto rounded-md border border-[var(--border)]"
+        style={{ maxHeight: 300 }}
+      >
+        {grouped.length === 0 ? (
+          <p className="px-3 py-2 text-sm text-muted-foreground">No matching branches</p>
+        ) : (
+          <div className="grid gap-px p-1">
+            {grouped.map((group) => (
+              <div key={group.label}>
+                <h3 className="px-2 pt-2 pb-1 text-xs font-semibold text-muted-foreground">
+                  {group.label}
+                </h3>
+                {group.entries.map(({ branch }) => {
+                  const isCurrent = branch.name === currentBranch;
+                  const isSelected = selectedBranch?.name === branch.name;
+                  const isRemote = branch.type === BranchType.Remote;
+                  const Icon = isCurrent ? Check : GitBranch;
+                  return (
+                    <button
+                      key={branch.name}
+                      type="button"
+                      className={`flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground ${isSelected ? "bg-accent text-accent-foreground" : ""}`}
+                      onClick={() => onSelect(branch)}
+                    >
+                      <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      <span className="min-w-0 truncate">
+                        {isRemote ? branch.nameWithoutRemote : branch.name}
+                      </span>
+                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                        {formatRelative(branch.tip.author.date.getTime() - Date.now())}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
     </div>
   );
