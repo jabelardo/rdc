@@ -52,16 +52,40 @@ function fileUrlToPath(target: string): string {
   return __WIN32__ && /^\/[a-z]:\//i.test(pathname) ? pathname.slice(1) : pathname;
 }
 
-export function moveItemToTrash(path: string): Promise<void> {
-  return invoke("move_item_to_trash", { path });
+/** One path's failure within a batch operation. */
+export type PathFailure = {
+  readonly path: string;
+  readonly message: string;
+};
+
+/**
+ * Moves many repository-relative paths to the OS trash in one call.
+ *
+ * Resolves to the paths that failed rather than rejecting on the first one, so a caller partway
+ * through a multi-part operation can still finish it for the paths that succeeded. A path that is
+ * already gone is not a failure.
+ *
+ * Batched deliberately: doing this per file cost two IPC round-trips each — one to join the path,
+ * one to trash it — serialised, so a large discard spent thousands of round-trips before any git
+ * command ran.
+ */
+export function moveRepositoryPathsToTrash(
+  repositoryPath: string,
+  relativePaths: ReadonlyArray<string>,
+): Promise<ReadonlyArray<PathFailure>> {
+  return invoke("move_repository_paths_to_trash", {
+    repositoryPath,
+    relativePaths,
+  });
 }
 
-export function permanentlyDeleteRepositoryPath(
+/** Permanently deletes many repository-relative paths in one call, reporting per-path failures. */
+export function permanentlyDeleteRepositoryPaths(
   repositoryPath: string,
-  relativePath: string,
-): Promise<void> {
-  return invoke("permanently_delete_repository_path", {
+  relativePaths: ReadonlyArray<string>,
+): Promise<ReadonlyArray<PathFailure>> {
+  return invoke("permanently_delete_repository_paths", {
     repositoryPath,
-    relativePath,
+    relativePaths,
   });
 }

@@ -4,6 +4,7 @@ import { GitResetMode } from "../models/git-reset-mode";
 import { IndexStatus } from "../models/index-status";
 import { AppFileStatusKind, WorkingDirectoryFileChange } from "../models/status";
 import { discardChanges, TrashDiscardError } from "./discard-changes";
+import type { PathFailure } from "./platform/files";
 
 function file(
   path: string,
@@ -18,9 +19,8 @@ function file(
 
 function dependencies() {
   return {
-    resolvePath: vi.fn(async (repositoryPath, path) => `${repositoryPath}/${path}`),
-    moveItemToTrash: vi.fn(async () => undefined),
-    permanentlyDeleteRepositoryPath: vi.fn(async () => undefined),
+    moveRepositoryPathsToTrash: vi.fn(async (): Promise<ReadonlyArray<PathFailure>> => []),
+    permanentlyDeleteRepositoryPaths: vi.fn(async (): Promise<ReadonlyArray<PathFailure>> => []),
     getIndexChanges: vi.fn(async () => [
       ["new-name.ts", IndexStatus.Added] as const,
       ["old-name.ts", IndexStatus.Deleted] as const,
@@ -57,10 +57,12 @@ describe("discardChanges", () => {
 
     await discardChanges("/repo", files, {}, deps);
 
-    expect(deps.moveItemToTrash.mock.calls).toEqual([
-      ["/repo/modified.ts"],
-      ["/repo/untracked.ts"],
-      ["/repo/new-name.ts"],
+    // One batched call, not one round-trip per file.
+    expect(deps.moveRepositoryPathsToTrash).toHaveBeenCalledOnce();
+    expect(deps.moveRepositoryPathsToTrash).toHaveBeenCalledWith("/repo", [
+      "modified.ts",
+      "untracked.ts",
+      "new-name.ts",
     ]);
     expect(deps.resetSubmodulePaths).toHaveBeenCalledWith("/repo", ["module"]);
     expect(deps.resetPaths).toHaveBeenCalledWith("/repo", GitResetMode.Mixed, "HEAD", [
@@ -79,7 +81,9 @@ describe("discardChanges", () => {
 
   it("does not make an unrecoverable fallback when trash fails", async () => {
     const deps = dependencies();
-    deps.moveItemToTrash.mockRejectedValue(new Error("trash unavailable"));
+    deps.moveRepositoryPathsToTrash.mockResolvedValue([
+      { path: "untracked.ts", message: "trash unavailable" },
+    ]);
 
     await expect(
       discardChanges(
@@ -94,9 +98,61 @@ describe("discardChanges", () => {
       ),
     ).rejects.toBeInstanceOf(TrashDiscardError);
 
-    expect(deps.permanentlyDeleteRepositoryPath).not.toHaveBeenCalled();
+    expect(deps.permanentlyDeleteRepositoryPaths).not.toHaveBeenCalled();
+    // Nothing survived the removal, so there is no git work to do at all.
     expect(deps.resetPaths).not.toHaveBeenCalled();
     expect(deps.checkoutIndex).not.toHaveBeenCalled();
+  });
+
+  it("finishes the git half for the files that were removed when only some fail", async () => {
+    // The old per-file loop threw on the first failure, leaving every file it had already trashed
+    // gone from the working tree with the index and HEAD untouched — a state git could not explain.
+    const deps = dependencies();
+    deps.getIndexChanges.mockResolvedValue([]);
+    deps.listSubmodules.mockResolvedValue([]);
+    deps.moveRepositoryPathsToTrash.mockResolvedValue([
+      { path: "locked.ts", message: "permission denied" },
+    ]);
+
+    await expect(
+      discardChanges(
+        "/repo",
+        [
+          file("fine.ts", { kind: AppFileStatusKind.Modified }),
+          file("locked.ts", { kind: AppFileStatusKind.Modified }),
+          file("also-fine.ts", { kind: AppFileStatusKind.Modified }),
+        ],
+        {},
+        deps,
+      ),
+    ).rejects.toBeInstanceOf(TrashDiscardError);
+
+    // The failed path is excluded; the rest are restored so the tree is consistent.
+    expect(deps.checkoutIndex).toHaveBeenCalledWith("/repo", ["fine.ts", "also-fine.ts"]);
+  });
+
+  it("reports how many paths failed, naming the first", async () => {
+    const deps = dependencies();
+    deps.listSubmodules.mockResolvedValue([]);
+    deps.moveRepositoryPathsToTrash.mockResolvedValue([
+      { path: "one.ts", message: "permission denied" },
+      { path: "two.ts", message: "permission denied" },
+    ]);
+
+    const failure = await discardChanges(
+      "/repo",
+      [
+        file("one.ts", { kind: AppFileStatusKind.Modified }),
+        file("two.ts", { kind: AppFileStatusKind.Modified }),
+      ],
+      {},
+      deps,
+    ).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(TrashDiscardError);
+    expect((failure as TrashDiscardError).failureCount).toBe(2);
+    expect((failure as TrashDiscardError).message).toContain("2 files");
+    expect((failure as TrashDiscardError).message).toContain("one.ts");
   });
 
   it("permanently removes only untracked files after explicit confirmation", async () => {
@@ -114,10 +170,9 @@ describe("discardChanges", () => {
       deps,
     );
 
-    expect(deps.moveItemToTrash).not.toHaveBeenCalled();
-    expect(deps.resolvePath).not.toHaveBeenCalled();
-    expect(deps.permanentlyDeleteRepositoryPath).toHaveBeenCalledOnce();
-    expect(deps.permanentlyDeleteRepositoryPath).toHaveBeenCalledWith("/repo", "untracked.ts");
+    expect(deps.moveRepositoryPathsToTrash).not.toHaveBeenCalled();
+    expect(deps.permanentlyDeleteRepositoryPaths).toHaveBeenCalledOnce();
+    expect(deps.permanentlyDeleteRepositoryPaths).toHaveBeenCalledWith("/repo", ["untracked.ts"]);
     expect(deps.checkoutIndex).toHaveBeenCalledWith("/repo", [
       "modified.ts",
       "untracked.ts",

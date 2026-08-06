@@ -13,9 +13,9 @@ vi.mock("@tauri-apps/plugin-opener", () => ({
 }));
 
 const {
-  moveItemToTrash,
+  moveRepositoryPathsToTrash,
   openExternal,
-  permanentlyDeleteRepositoryPath,
+  permanentlyDeleteRepositoryPaths,
   showFolderContents,
   showItemInFolder,
   unsafeOpenDirectory,
@@ -90,24 +90,27 @@ describe("native file operations", () => {
     expect(invoke).not.toHaveBeenCalled();
   });
 
-  it("moves items through the recoverable Rust trash command", async () => {
-    invoke.mockResolvedValue(undefined);
+  it("trashes a batch of repository-relative paths through one command", async () => {
+    invoke.mockResolvedValue([]);
 
-    await moveItemToTrash("/tmp/old");
+    await moveRepositoryPathsToTrash("/repo", ["a.txt", "nested/b.txt"]);
 
-    expect(invoke).toHaveBeenCalledWith("move_item_to_trash", {
-      path: "/tmp/old",
+    // Repository-relative, not pre-joined absolute paths: Rust resolves them, which is what lets it
+    // apply the same containment checks the permanent-delete path always had.
+    expect(invoke).toHaveBeenCalledWith("move_repository_paths_to_trash", {
+      repositoryPath: "/repo",
+      relativePaths: ["a.txt", "nested/b.txt"],
     });
   });
 
-  it("permanently deletes only through the repository-relative command", async () => {
-    invoke.mockResolvedValue(undefined);
+  it("permanently deletes a batch through one command", async () => {
+    invoke.mockResolvedValue([]);
 
-    await permanentlyDeleteRepositoryPath("/repo", "untracked/file.txt");
+    await permanentlyDeleteRepositoryPaths("/repo", ["untracked/file.txt"]);
 
-    expect(invoke).toHaveBeenCalledWith("permanently_delete_repository_path", {
+    expect(invoke).toHaveBeenCalledWith("permanently_delete_repository_paths", {
       repositoryPath: "/repo",
-      relativePath: "untracked/file.txt",
+      relativePaths: ["untracked/file.txt"],
     });
   });
 });

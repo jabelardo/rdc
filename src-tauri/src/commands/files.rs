@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use crate::platform::{
-    files::{self, FolderOpenAction},
+    files::{self, FolderOpenAction, PathFailure},
     system,
 };
 
@@ -14,22 +14,35 @@ pub async fn classify_folder_open(path: PathBuf) -> Result<Option<FolderOpenActi
         .map_err(|error| CommandError::message(error.to_string()))
 }
 
+/// Moves many repository-relative paths to the trash in one call.
+///
+/// ```js
+/// await invoke('move_repository_paths_to_trash', { repositoryPath, relativePaths })
+/// // -> [{ path: 'locked.txt', message: '...' }]
+/// ```
+///
+/// Resolves to the paths that failed rather than rejecting on the first one, so a caller midway
+/// through a multi-part operation can finish it for the paths that succeeded. An empty array means
+/// everything was trashed.
 #[tauri::command]
-pub async fn move_item_to_trash(path: PathBuf) -> Result<(), CommandError> {
-    tauri::async_runtime::spawn_blocking(move || files::move_to_trash(&path))
-        .await
-        .map_err(|error| CommandError::message(format!("trash task failed: {error}")))?
-        .map_err(|error| CommandError::message(error.to_string()))
+pub async fn move_repository_paths_to_trash(
+    repository_path: PathBuf,
+    relative_paths: Vec<String>,
+) -> Result<Vec<PathFailure>, CommandError> {
+    Ok(files::move_repository_paths_to_trash(&repository_path, &relative_paths).await)
 }
 
+/// Permanently deletes many repository-relative paths in one call, reporting per-path failures.
+///
+/// ```js
+/// await invoke('permanently_delete_repository_paths', { repositoryPath, relativePaths })
+/// ```
 #[tauri::command]
-pub async fn permanently_delete_repository_path(
+pub async fn permanently_delete_repository_paths(
     repository_path: PathBuf,
-    relative_path: PathBuf,
-) -> Result<(), CommandError> {
-    files::permanently_delete_repository_path(&repository_path, &relative_path)
-        .await
-        .map_err(|error| CommandError::message(error.to_string()))
+    relative_paths: Vec<String>,
+) -> Result<Vec<PathFailure>, CommandError> {
+    Ok(files::permanently_delete_repository_paths(&repository_path, &relative_paths).await)
 }
 
 #[tauri::command]
