@@ -11,6 +11,8 @@ const showOpenDialog = vi.hoisted(() => vi.fn());
 const showSaveDialog = vi.hoisted(() => vi.fn());
 const initRepository = vi.hoisted(() => vi.fn());
 const showFolderContents = vi.hoisted(() => vi.fn());
+const openExternal = vi.hoisted(() => vi.fn(async () => true));
+const getAppArchitecture = vi.hoisted(() => vi.fn(async () => "arm64"));
 const getMainProcessConfig = vi.hoisted(() => vi.fn());
 const launchExternalEditor = vi.hoisted(() => vi.fn());
 const launchShell = vi.hoisted(() => vi.fn());
@@ -237,7 +239,11 @@ vi.mock("./lib/git-ipc", async (importOriginal) => ({
   initRepository,
 }));
 vi.mock("./lib/platform/config", () => ({ getMainProcessConfig }));
-vi.mock("./lib/platform/files", () => ({ showFolderContents }));
+vi.mock("./lib/platform/files", () => ({ showFolderContents, openExternal }));
+vi.mock("./lib/platform/paths", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./lib/platform/paths")>()),
+  getAppArchitecture,
+}));
 vi.mock("./lib/platform/editors", () => ({ launchExternalEditor }));
 vi.mock("./lib/platform/shells", () => ({ launchShell }));
 vi.mock("./lib/platform/theme", () => ({ onNativeThemeUpdated }));
@@ -573,6 +579,17 @@ describe("App", () => {
       `Version ${__APP_VERSION__}`,
     );
     expect(screen.getByText("A native Git client built with Tauri and Rust.")).toBeInTheDocument();
+
+    // The architecture is appended so the version can be pasted into a bug report as one string.
+    await waitFor(() =>
+      expect(screen.getByRole("dialog", { name: "About RDC" })).toHaveTextContent(
+        `Version ${__APP_VERSION__} (arm64)`,
+      ),
+    );
+
+    // Links must route through openExternal rather than navigating the webview.
+    await user.click(screen.getByRole("link", { name: "MIT License" }));
+    expect(openExternal).toHaveBeenCalledWith("https://github.com/jabelardo/rdc/blob/main/LICENSE");
 
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog", { name: "About RDC" })).not.toBeInTheDocument();

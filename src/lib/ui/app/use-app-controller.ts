@@ -15,6 +15,7 @@ import { showOpenDialog, showSaveDialog } from "../../platform/dialogs";
 import { launchExternalEditor } from "../../platform/editors";
 import { injectDebugState } from "../../debug/inject-test-state";
 import { showFolderContents } from "../../platform/files";
+import { getAppArchitecture, type Architecture } from "../../platform/paths";
 import { installDefaultCloseRequestHandler } from "../../platform/lifetime";
 import { launchShell } from "../../platform/shells";
 import { onNativeThemeUpdated } from "../../platform/theme";
@@ -115,6 +116,9 @@ export function useAppController() {
   const [manageRunning, setManageRunning] = useState(false);
   const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [showAboutDialog, setShowAboutDialog] = useState(false);
+  // Resolved once and shown in About, where it exists so a version string can be pasted
+  // into a bug report complete with the architecture it was running under.
+  const [appArchitecture, setAppArchitecture] = useState<Architecture | null>(null);
   const [showPreferencesDialog, setShowPreferencesDialog] = useState(false);
   const [repositoryToRemove, setRepositoryToRemove] = useState<Repository | null>(null);
   const [cloneURL, setCloneURL] = useState("");
@@ -389,6 +393,12 @@ export function useAppController() {
     () => workingTreeStore.onCommitTerminalOutput(setCommitTerminalOutput),
     [workingTreeStore],
   );
+
+  useEffect(() => {
+    void getAppArchitecture()
+      .then(setAppArchitecture)
+      .catch((error) => log.error("Failed to resolve the application architecture", error));
+  }, []);
 
   useEffect(() => historyStore.onDidUpdate(setHistoryState), [historyStore]);
   useEffect(() => messageStore.onDidUpdate(setMessageState), [messageStore]);
@@ -1216,6 +1226,7 @@ export function useAppController() {
     setRepositoryToRemove,
     showAboutDialog,
     setShowAboutDialog,
+    appArchitecture,
     showPreferencesDialog,
     setShowPreferencesDialog,
     discardFile,

@@ -6,6 +6,7 @@ import type { BranchState } from "../../stores/branch-store";
 import type { CloneState } from "../../stores/clone-store";
 import type { PreferencesState, PreferencesStore } from "../../stores/preferences-store";
 import { setWindowZoomFactor } from "../../platform/window";
+import type { Architecture } from "../../platform/paths";
 import type { HookFailureState, WorkingTreeStore } from "../../stores/working-tree-store";
 import { Modal } from "../modal";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -20,7 +21,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../../../components/ui/alert-dialog";
-import { Dialog, DialogContent, DialogFooter, DialogTitle } from "../../../components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../../../components/ui/dialog";
+import { Button } from "../../../components/ui/button";
+import { ExternalLink } from "../external-link";
 import { TerminalOutput } from "../terminal-output";
 
 const confirmationDialogClassName =
@@ -41,6 +51,7 @@ type AppDialogsProps = {
   readonly workingTreeStore: WorkingTreeStore;
   readonly repositoryToRemove: Repository | null;
   readonly showAboutDialog: boolean;
+  readonly appArchitecture: Architecture | null;
   readonly showPreferencesDialog: boolean;
   readonly preferencesState: PreferencesState;
   readonly preferencesStore: PreferencesStore;
@@ -117,6 +128,7 @@ export function AppDialogs({
   workingTreeStore,
   repositoryToRemove,
   showAboutDialog,
+  appArchitecture,
   showPreferencesDialog,
   preferencesState,
   preferencesStore,
@@ -650,20 +662,38 @@ export function AppDialogs({
       )}
 
       {showAboutDialog && (
-        <Modal
-          className={`${confirmationDialogClassName} about-dialog`}
-          aria-labelledby="about-dialog-title"
-          onDismiss={onDismissAbout}
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              onDismissAbout();
+            }
+          }}
         >
-          <h2 id="about-dialog-title">About RDC</h2>
-          <p>Version {__APP_VERSION__}</p>
-          <p>A native Git client built with Tauri and Rust.</p>
-          <div className={dialogActionsClassName}>
-            <button type="button" onClick={onDismissAbout}>
-              Close
-            </button>
-          </div>
-        </Modal>
+          {/* No corner X: the footer already carries an explicit Close, and two controls doing the
+           * same thing is what the dialog checklist flagged as duplicate-close UX. */}
+          <DialogContent showCloseButton={false}>
+            <DialogHeader>
+              <DialogTitle>About RDC</DialogTitle>
+              <DialogDescription>A native Git client built with Tauri and Rust.</DialogDescription>
+            </DialogHeader>
+            {/* Selectable so it can be pasted into a bug report — desktop-plus marks its own
+             * version string `selectable-text` for exactly that reason. */}
+            <p className="select-text">
+              Version {__APP_VERSION__}
+              {appArchitecture === null ? "" : ` (${appArchitecture})`}
+            </p>
+            <p className="flex flex-col gap-1">
+              <ExternalLink href="https://github.com/jabelardo/rdc">rdc on GitHub</ExternalLink>
+              <ExternalLink href="https://github.com/jabelardo/rdc/blob/main/LICENSE">
+                MIT License
+              </ExternalLink>
+            </p>
+            <DialogFooter>
+              <Button onClick={onDismissAbout}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {showPreferencesDialog && (

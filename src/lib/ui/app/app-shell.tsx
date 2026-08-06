@@ -60,6 +60,7 @@ export function AppShell({ controller }: AppShellProps) {
     setRepositoryToRemove,
     showAboutDialog,
     setShowAboutDialog,
+    appArchitecture,
     showPreferencesDialog,
     setShowPreferencesDialog,
     discardFile,
@@ -302,6 +303,7 @@ export function AppShell({ controller }: AppShellProps) {
         workingTreeStore={workingTreeStore}
         repositoryToRemove={repositoryToRemove}
         showAboutDialog={showAboutDialog}
+        appArchitecture={appArchitecture}
         showPreferencesDialog={showPreferencesDialog}
         preferencesState={preferencesState}
         preferencesStore={preferencesStore}

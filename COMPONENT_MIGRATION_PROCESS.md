@@ -161,3 +161,52 @@ Two E2E specs assert the pre-migration labels and the pre-migration focus order,
 broken: the labels they expect were rdc's own divergence, and the focus order they assert is the
 one Convention 1 restores. Both get updated once the decision above lands, so they encode decided
 behaviour rather than whatever Radix happens to do.
+
+---
+
+## Component 2 — About (`Dialog`, not `AlertDialog`)
+
+The first non-destructive dialog, so it tests whether the conventions generalise past confirmation
+prompts. Six of the eight rows were already settled — the table shrank exactly as intended.
+
+| Dimension | rdc today | desktop-plus | shadcn/Radix default | Verdict |
+|---|---|---|---|---|
+| Element semantics | hand-rolled `Modal` | modal dialog | `Dialog` (not `AlertDialog` — nothing to confirm) | **AGREED** |
+| Escape / backdrop | dismisses | dismisses | dismisses | **AGREED** |
+| Footer / separator | — | — | — | **SETTLED** (Convention 5) |
+| Scale and type | — | — | — | **SETTLED** (Convention 3) |
+| Button order | single button | single button | — | **SETTLED** (Convention 2 — n/a at one button) |
+| Default action | Close | Close | — | **SETTLED** (Convention 1 — Close *is* the safe action) |
+| Close button style | outline | solid | outline | **DECIDED** → solid `default` |
+| Corner X *and* footer Close | X only | footer only | X by default | **DECIDED** → no X |
+| Content scope | version only | version, arch, links | — | **DECIDED** → version + arch + links |
+
+### Resolved → Conventions 6 and 7
+
+- **Convention 6 — one close affordance per dialog.** `DialogContent` takes
+  `showCloseButton={false}` when the footer already carries an explicit Close. Two controls doing
+  the same thing is duplicate-close UX; shadcn's default X exists for dialogs with no footer, which
+  is not this one. A dialog whose footer has *no* dismissing action keeps the X.
+- **Convention 7 — a dialog's single dismissing button is `variant="default"` (solid).** With no
+  competing action there is nothing for an outline to differentiate against, and solid reads as the
+  obvious target. This does *not* apply to a Cancel sitting beside an affirmative action, where
+  Convention 1 governs and Cancel stays `outline`.
+
+### Also landed
+
+- **`ExternalLink` (`src/lib/ui/external-link.tsx`)** — new shared component. A webview has no
+  chrome to get back from, so an anchor that navigates strands the user; this keeps the `href` (so
+  the role stays `link` and the URL is inspectable) but cancels navigation and hands the URL to
+  `openExternal`, which guards the scheme. Every future dialog and the message system need this.
+- **Architecture in the version string.** `getAppArchitecture()` already existed and was unused;
+  About resolves it once so a pasted version string carries the architecture it ran under. The
+  fetch is `.catch`-logged and the suffix is omitted when it fails, so About never depends on it.
+- **Selectable version text** (`select-text`), matching desktop-plus's `selectable-text` on its own
+  version string, for the same paste-into-a-bug-report reason.
+
+### Deferred, deliberately
+
+The user asked for "licence / terms links". The **MIT licence link is real** and shipped. Two
+adjacent links were *not* added because they would be dead: rdc has no Terms and Conditions (it is
+not a hosted service — MIT covers use) and no third-party/open-source notices file yet. Generating
+a notices file belongs to Phase 9 (release engineering), where the dependency set is frozen.
