@@ -150,41 +150,49 @@
   --shadow-small: 0 1px 2px rgb(0 0 0 / 24%);
 }
 
-body {
-  margin: 0;
-  overflow: hidden;
-}
+/* These are element-level defaults, so they belong in @layer base — not because it reads tidier,
+ * but because unlayered CSS outranks every @layer regardless of specificity. Left unlayered, the
+ * bare `button` rule below silently beat Tailwind's `@layer utilities`, so every shadcn Button
+ * variant (bg-destructive, bg-primary, …) was overridden by `background: var(--secondary)` and
+ * every variant rendered identically. Anything matching a bare element selector has to be layered
+ * for utilities to work on top of it. */
+@layer base {
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
 
-code,
-pre {
-  font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
-}
+  code,
+  pre {
+    font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+  }
 
-button {
-  border: 1px solid var(--input);
-  border-radius: var(--radius-small);
-  padding: 0.5rem 0.75rem;
-  color: inherit;
-  background: var(--secondary);
-  box-shadow: var(--shadow-small);
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
+  button {
+    border: 1px solid var(--input);
+    border-radius: var(--radius-small);
+    padding: 0.5rem 0.75rem;
+    color: inherit;
+    background: var(--secondary);
+    box-shadow: var(--shadow-small);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+  }
 
-button:hover {
-  border-color: var(--primary);
-  background: var(--secondary);
-}
+  button:hover {
+    border-color: var(--primary);
+    background: var(--secondary);
+  }
 
-button:disabled {
-  cursor: default;
-  opacity: 0.52;
-}
+  button:disabled {
+    cursor: default;
+    opacity: 0.52;
+  }
 
-:is(button, input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: 2px;
+  :is(button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
 }
 
 .application-shell {
