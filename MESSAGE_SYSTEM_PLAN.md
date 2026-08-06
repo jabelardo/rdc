@@ -117,6 +117,35 @@ throws a descriptive `Error` instead, caught by the same wrapper. This is the ac
 outcome, not just relocating where existing state gets rendered — after the last slice, grepping
 for `application-error` should return nothing outside this plan's own history.
 
+## OPEN DECISION — where an in-dialog failure appears (blocks Slice 1)
+
+**Status: deferred, deliberately, 2026-08-06. Not yet decided. Do not implement Slice 1's dialog
+routing until it is.**
+
+Every slice below is written as though a failure raised *while a modal dialog is open* becomes a
+toast via `reportError`. **That is an assumption this plan made, not a decision anyone ratified.**
+It was surfaced during the dialog migration (`COMPONENT_MIGRATION_PROCESS.md`, destructive
+confirmation family) and consciously deferred to here, where the message system is actually built
+and the trade-off can be judged against a working toast rather than in the abstract.
+
+The three candidates, and what each costs:
+
+| Option | Gains | Costs |
+|---|---|---|
+| **Inline in the dialog, dialog stays open** | The failed action keeps its context and stays retryable without redoing the selection | A second error channel exists forever; `.application-error`'s replacement has to be a real styled element, not just a token swap |
+| **Toast, dialog closes** | One error channel app-wide, which is this plan's whole premise | Context is gone — retrying a discard means re-selecting the files |
+| **Toast, dialog stays open** | One channel *and* retryable | A toast fired from behind a modal can be overlapped by it, or read as unrelated to the dialog in front of you. Needs verification against the real `sonner` z-index and the Radix overlay, not reasoning |
+
+Note that the third option's risk is **empirically checkable** and should be checked before deciding:
+mount a toast while an `AlertDialog` is open and look at it. Radix renders its overlay in a portal
+on `document.body`, and `MessageToasts` portals `<Toaster>` to `document.body` too, so which one
+wins is a DOM-order and z-index question with a definite answer.
+
+**Interim rule, in force until this is settled:** dialogs being migrated keep their failure text
+inline and switch it from `.application-error` to the `--error-*` tokens. No dialog migration may
+resolve this by quietly picking an option, and no *new* `.application-error` usages may be added —
+there are 17 in `tsx` today and that number must only go down.
+
 ## Slices
 
 Each slice is independently gated and shippable, same discipline as `BRANCH_OPERATIONS_PLAN.md`'s

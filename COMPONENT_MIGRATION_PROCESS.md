@@ -49,6 +49,22 @@ treatment · width and clipping · forced-colors.
 
 ---
 
+## Open decisions
+
+Rows that came up during a component's review, reach further than that component, and were
+deliberately **not** settled there. A migration may not quietly resolve one by picking an option.
+
+| Decision | Raised by | Settled in | Interim rule |
+|---|---|---|---|
+| Where an in-dialog operation failure appears — inline, or as a toast | Destructive confirmation family (Discard file/all, Delete branch, Remove repository) | `MESSAGE_SYSTEM_PLAN.md` § *Open decision*, before its Slice 1 | Keep the failure text inline; switch `.application-error` → `--error-*` tokens. Never add a new `.application-error` usage — 17 remain in `tsx` and the count only goes down. |
+
+Deferring this one was the right call rather than a punt: the strongest option ("toast, dialog stays
+open") has a failure mode — a toast overlapped by, or read as unrelated to, the modal in front of it
+— that is *empirically checkable* against a real `sonner` toast and a real Radix overlay, and there
+is no working toast to check against until the message system is built.
+
+---
+
 ## Settled conventions
 
 Append-only. Each entry states the rule and the evidence, so a later component can cite it instead
