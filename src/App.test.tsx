@@ -1682,7 +1682,7 @@ describe("App", () => {
     expect(preferencesStore.setConfirmDiscardChanges).toHaveBeenCalledWith(false);
   });
 
-  it("lists the paths a discard-all will affect, and falls back to a count past the cap", async () => {
+  it("lists every path a discard-all will affect, at any count", async () => {
     const fileAt = (index: number) => ({
       id: `Modified+file-${index}.ts`,
       path: `src/file-${index}.ts`,
@@ -1706,7 +1706,6 @@ describe("App", () => {
 
     // Scoped to the dialog: the same paths are listed in the working-tree pane behind it.
     const listed = within(screen.getByRole("alertdialog", { name: "Discard all changes" }));
-    // The count appears whether or not the paths are listed — it is what conveys the scale.
     expect(
       listed.getByText("Are you sure you want to discard all changes to these 2 files:"),
     ).toBeInTheDocument();
@@ -1715,20 +1714,22 @@ describe("App", () => {
 
     await user.click(listed.getByRole("button", { name: "Cancel" }));
 
-    // Past the cap the list is replaced by a count — see MaxFilesToList in discard-file-list.tsx.
+    // A larger discard still says which files it covers. There is no cap past which the list is
+    // replaced by a bare count — that told the user nothing exactly when they most wanted to check.
     workingTreeStore.state = {
       ...workingTreeStore.state,
       workingDirectory: {
-        files: Array.from({ length: 11 }, (_unused, index) => fileAt(index)),
+        files: Array.from({ length: 40 }, (_unused, index) => fileAt(index)),
       },
     };
     await act(() => executeMenuEvent("discard-all-changes"));
 
-    const counted = within(screen.getByRole("alertdialog", { name: "Discard all changes" }));
+    const many = within(screen.getByRole("alertdialog", { name: "Discard all changes" }));
     expect(
-      counted.getByText("Are you sure you want to discard all changes to 11 changed files?"),
+      many.getByText("Are you sure you want to discard all changes to these 40 files:"),
     ).toBeInTheDocument();
-    expect(counted.queryByText("src/file-1.ts")).not.toBeInTheDocument();
+    expect(many.getByRole("list", { name: "Files to discard" })).toBeInTheDocument();
+    expect(many.getAllByRole("listitem")).toHaveLength(40);
   });
 
   it("refuses every dismissal while a discard is in flight", async () => {

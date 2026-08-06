@@ -16,7 +16,6 @@ import { launchExternalEditor } from "../../platform/editors";
 import { injectDebugState } from "../../debug/inject-test-state";
 import { showFolderContents } from "../../platform/files";
 import { getAppArchitecture, type Architecture } from "../../platform/paths";
-import { MaxFilesToList } from "../dialogs/discard-file-list";
 import { installDefaultCloseRequestHandler } from "../../platform/lifetime";
 import { launchShell } from "../../platform/shells";
 import { onNativeThemeUpdated } from "../../platform/theme";
@@ -96,9 +95,8 @@ export function useAppController() {
   );
   const [discardAll, setDiscardAll] = useState<{
     readonly permanent: boolean;
-    readonly fileCount: number;
-    // Capped at what the dialog can actually list. Holding every path here would retain an array
-    // the size of the working tree in React state to render at most ten of them.
+    // Every path, because the dialog lists every path. A snapshot rather than a live read so the
+    // list cannot change under the user while they are deciding.
     readonly paths: ReadonlyArray<string>;
   } | null>(null);
   // Reset whenever a discard dialog opens, and written to preferences only on confirm — ticking the
@@ -822,17 +820,13 @@ export function useAppController() {
       : preferencesStore.state.confirmDiscardChanges;
     if (shouldConfirm) {
       setDiscardOptOut(false);
-      setDiscardAll({
-        permanent,
-        fileCount: files.length,
-        paths: files.slice(0, MaxFilesToList).map((file) => file.path),
-      });
+      setDiscardAll({ permanent, paths: files.map((file) => file.path) });
       return;
     }
-    void discardAllWorkingChanges(permanent, files.length);
+    void discardAllWorkingChanges(permanent);
   }
 
-  async function discardAllWorkingChanges(permanent: boolean, fileCount: number): Promise<void> {
+  async function discardAllWorkingChanges(permanent: boolean): Promise<void> {
     setDiscarding(true);
     let result = await workingTreeStore.discardAllChanges(permanent);
     if (result === "trash-failed" && !preferencesStore.state.confirmDiscardChangesPermanently) {
@@ -842,14 +836,10 @@ export function useAppController() {
     if (result === "discarded") {
       setDiscardAll(null);
     } else if (result === "trash-failed") {
-      // The re-prompt reads the working tree again rather than reusing the first list: the trash
-      // attempt may already have removed some files, so the earlier snapshot is stale.
+      // Re-read the working tree rather than reusing the first list: the failed trash attempt may
+      // already have removed some files, so the earlier snapshot is stale.
       const remaining = workingTreeStore.state.workingDirectory?.files ?? [];
-      setDiscardAll({
-        permanent: true,
-        fileCount: remaining.length === 0 ? fileCount : remaining.length,
-        paths: remaining.slice(0, MaxFilesToList).map((file) => file.path),
-      });
+      setDiscardAll({ permanent: true, paths: remaining.map((file) => file.path) });
     }
   }
 
@@ -858,7 +848,7 @@ export function useAppController() {
       return;
     }
     applyDiscardOptOut(discardAll.permanent);
-    await discardAllWorkingChanges(discardAll.permanent, discardAll.fileCount);
+    await discardAllWorkingChanges(discardAll.permanent);
   }
 
   function cancelDiscardAll(): void {

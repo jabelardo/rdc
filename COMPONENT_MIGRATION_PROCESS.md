@@ -257,7 +257,13 @@ Seven of the ten rows arrived already settled, so review concentrated on three.
   change of mind never removes a confirmation on an irreversible action. Offered only for a
   whole-file discard — a line-level discard confirms regardless of the preference, so an opt-out
   there would promise to silence a dialog that would keep appearing.
-- **Paths listed up to `MaxFilesToList` (10), then a bare count** — desktop-plus's rule as-is.
+- **Every path is listed, with no cap.** This started as desktop-plus's rule ported as-is — list up
+  to ten, then a bare count — and was corrected once the realistic case was considered: a
+  hundred-file discard is common, and under that rule it told you *nothing* about which files it
+  covered, exactly when you most want to check. The list now lives in a fixed-height scroll region,
+  so ten paths and ten thousand cost the same vertical space, and `VirtualList` windows the DOM past
+  a hundred rows so the large case is not paid for by the small one. desktop-plus's cap was a
+  limitation worth *not* porting.
 - **Long paths wrap, they do not truncate.** desktop-plus middle-elides because it forces one line;
   a dialog with room to wrap loses nothing. rdc's own `truncateWithEllipsis` would be the wrong tool
   either way — it cuts the *end*, destroying the filename, which is the part you need to recognise.
