@@ -1,5 +1,5 @@
 import { CircleAlert } from "lucide-react";
-import type { Branch } from "../../../models/branch";
+import { BranchType, type Branch } from "../../../models/branch";
 import type { IRemote } from "../../../models/remote";
 import type { Repository } from "../../../models/repository";
 import type { WorkingDirectoryFileChange } from "../../../models/status";
@@ -35,6 +35,7 @@ import { ConfirmDialog } from "../dialogs/confirm-dialog";
 import { ConfirmOptOut } from "../dialogs/confirm-opt-out";
 import { DiscardFileList, discardAllQuestion } from "../dialogs/discard-file-list";
 import { NoticeDialog } from "../dialogs/notice-dialog";
+import { RenameBranchDialog } from "../dialogs/rename-branch-dialog";
 import { TerminalOutput } from "../terminal-output";
 import { BranchSelect } from "../branch-select";
 import { ComputedAction } from "../../../models/computed-action";
@@ -259,74 +260,18 @@ export function AppDialogs({
       )}
 
       {branchToRename !== null && (
-        <Dialog
-          open
-          onOpenChange={(open) => {
-            if (!open) {
-              onCancelRename();
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
-              <DialogTitle>Rename branch</DialogTitle>
-            </DialogHeader>
-            <form
-              onSubmit={(event) => {
-                event.preventDefault();
-                onConfirmRename();
-              }}
-            >
-              <label className="text-sm font-medium" htmlFor="rename-branch-name">
-                New name for <strong>{branchToRename.name}</strong>
-              </label>
-              <input
-                id="rename-branch-name"
-                className="mt-1.5 flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={renameName}
-                autoFocus
-                onChange={(event) => onRenameNameChange(event.currentTarget.value)}
-              />
-              {branchToRename.upstream !== null && (
-                <p className="mt-2 text-sm text-muted-foreground">
-                  This branch tracks <strong>{branchToRename.upstream}</strong>. Only the local
-                  branch is renamed; the remote branch keeps its current name.
-                </p>
-              )}
-              <DialogFooter className="mt-4">
-                {__DARWIN__ ? (
-                  <>
-                    <Button type="button" variant="outline" onClick={onCancelRename}>
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={
-                        renameName.trim().length === 0 || renameName.trim() === branchToRename.name
-                      }
-                    >
-                      Rename
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      type="submit"
-                      disabled={
-                        renameName.trim().length === 0 || renameName.trim() === branchToRename.name
-                      }
-                    >
-                      Rename
-                    </Button>
-                    <Button type="button" variant="outline" onClick={onCancelRename}>
-                      Cancel
-                    </Button>
-                  </>
-                )}
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <RenameBranchDialog
+          branch={branchToRename}
+          name={renameName}
+          existingNames={branchState.branches
+            .filter((branch) => branch.type === BranchType.Local)
+            .map((branch) => branch.name)}
+          busy={branchState.operation === "renaming"}
+          failure={branchState.operationError}
+          onNameChange={onRenameNameChange}
+          onConfirm={onConfirmRename}
+          onCancel={onCancelRename}
+        />
       )}
 
       {deleteRefusal !== null ? (
@@ -430,10 +375,7 @@ export function AppDialogs({
                   <DialogFooter>
                     {__DARWIN__ ? (
                       <>
-                        <Button
-                          type="button" variant="outline"
-                          onClick={onCancelMerge}
-                        >
+                        <Button type="button" variant="outline" onClick={onCancelMerge}>
                           Cancel
                         </Button>
                         <Button
@@ -465,10 +407,7 @@ export function AppDialogs({
                         >
                           {mergeRunning ? "Merging…" : "Merge"}
                         </Button>
-                        <Button
-                          type="button" variant="outline"
-                          onClick={onCancelMerge}
-                        >
+                        <Button type="button" variant="outline" onClick={onCancelMerge}>
                           Cancel
                         </Button>
                       </>

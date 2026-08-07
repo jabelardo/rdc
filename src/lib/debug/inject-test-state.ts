@@ -118,7 +118,11 @@ export function injectDebugState(options: DebugStateOptions = {}): Repository {
   const threeDaysAgo = new Date(Date.now() - 86_400_000 * 3);
   const weekAgo = new Date(Date.now() - 86_400_000 * 7);
 
-  function stubBranchWithDate(name: string, type: BranchType = BranchType.Local, date: Date = new Date()): Branch {
+  function stubBranchWithDate(
+    name: string,
+    type: BranchType = BranchType.Local,
+    date: Date = new Date(),
+  ): Branch {
     return new Branch(
       name,
       null,
