@@ -34,6 +34,7 @@ const preferencesState = {
   confirmRepositoryRemoval: true,
   confirmDiscardChanges: true,
   confirmDiscardChangesPermanently: true,
+  defaultMergeStrategy: "merge" as const,
   selectedExternalEditor: "Zed",
   selectedShell: "Ghostty",
   editors: [{ editor: "Zed", path: "/applications/zed" }],

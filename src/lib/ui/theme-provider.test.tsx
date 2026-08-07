@@ -13,6 +13,7 @@ const store = vi.hoisted(() => {
     confirmRepositoryRemoval: true,
     confirmDiscardChanges: true,
     confirmDiscardChangesPermanently: true,
+    defaultMergeStrategy: "merge" as const,
     selectedExternalEditor: null,
     selectedShell: null,
     editors: [],

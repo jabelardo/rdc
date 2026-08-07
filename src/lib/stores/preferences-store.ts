@@ -1,4 +1,5 @@
 import type { FoundEditor } from "../../models/editor";
+import type { MergeStrategy } from "../../models/merge-strategy";
 import { Shell, type FoundShell } from "../../models/shell";
 import { getAvailableEditors } from "../platform/editors";
 import { getAvailableShells } from "../platform/shells";
@@ -15,6 +16,13 @@ export type PreferencesState = {
   readonly confirmRepositoryRemoval: boolean;
   readonly confirmDiscardChanges: boolean;
   readonly confirmDiscardChangesPermanently: boolean;
+  /**
+   * Which strategy the merge dialog offers first.
+   *
+   * A team convention rather than a per-invocation choice, which is why it lives here instead of
+   * being re-decided in the dialog each time. The dialog still lets either be picked.
+   */
+  readonly defaultMergeStrategy: MergeStrategy;
   readonly selectedExternalEditor: string | null;
   readonly selectedShell: Shell | null;
   readonly editors: ReadonlyArray<FoundEditor>;
@@ -30,6 +38,7 @@ type PersistedPreferences = Pick<
   | "confirmRepositoryRemoval"
   | "confirmDiscardChanges"
   | "confirmDiscardChangesPermanently"
+  | "defaultMergeStrategy"
   | "selectedExternalEditor"
   | "selectedShell"
 >;
@@ -47,12 +56,19 @@ const DefaultPreferences: PersistedPreferences = {
   confirmRepositoryRemoval: true,
   confirmDiscardChanges: true,
   confirmDiscardChangesPermanently: true,
+  // A merge commit preserves the shape of the history, which is the safer default to assume when
+  // nobody has expressed a preference.
+  defaultMergeStrategy: "merge",
   selectedExternalEditor: null,
   selectedShell: null,
 };
 
 function isTheme(value: unknown): value is ThemeSource {
   return value === "light" || value === "dark" || value === "system";
+}
+
+function isMergeStrategy(value: unknown): value is MergeStrategy {
+  return value === "merge" || value === "squash";
 }
 
 function isShell(value: unknown): value is Shell {
@@ -104,6 +120,9 @@ function readPreferences(): PersistedPreferences {
       "confirmDiscardChangesPermanently",
       DefaultPreferences.confirmDiscardChangesPermanently,
     ),
+    defaultMergeStrategy: isMergeStrategy(record.defaultMergeStrategy)
+      ? record.defaultMergeStrategy
+      : DefaultPreferences.defaultMergeStrategy,
     selectedExternalEditor:
       typeof record.selectedExternalEditor === "string" ? record.selectedExternalEditor : null,
     selectedShell: isShell(record.selectedShell) ? record.selectedShell : null,
@@ -250,6 +269,10 @@ export class PreferencesStore {
     this.updateAndPersist({ confirmDiscardChangesPermanently: value });
   }
 
+  public setDefaultMergeStrategy(value: MergeStrategy): void {
+    this.updateAndPersist({ defaultMergeStrategy: value });
+  }
+
   public setSelectedExternalEditor(value: string | null): void {
     if (value !== null && !this.currentState.editors.some((editor) => editor.editor === value)) {
       return;
@@ -282,6 +305,7 @@ export class PreferencesStore {
       confirmRepositoryRemoval,
       confirmDiscardChanges,
       confirmDiscardChangesPermanently,
+      defaultMergeStrategy,
       selectedExternalEditor,
       selectedShell,
       zoomFactor,
@@ -294,6 +318,7 @@ export class PreferencesStore {
         confirmRepositoryRemoval,
         confirmDiscardChanges,
         confirmDiscardChangesPermanently,
+        defaultMergeStrategy,
         selectedExternalEditor,
         selectedShell,
       } satisfies PersistedPreferences),

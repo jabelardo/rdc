@@ -45,17 +45,6 @@ function stubRepo(): Repository {
   );
 }
 
-function stubBranch(name: string, type: BranchType = BranchType.Local): Branch {
-  return new Branch(
-    name,
-    null,
-    { sha: stubSha, author: { date: new Date() } },
-    type,
-    type === BranchType.Local ? `refs/heads/${name}` : `refs/remotes/origin/${name}`,
-    false,
-  );
-}
-
 function stubFileChange(path: string): WorkingDirectoryFileChange {
   return new WorkingDirectoryFileChange(
     path,

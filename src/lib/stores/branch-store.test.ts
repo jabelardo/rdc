@@ -377,7 +377,23 @@ describe("BranchStore", () => {
     );
 
     expect(determineMergeability).toHaveBeenCalledWith("/repo", "topic", "feature");
-    expect(mergeBranch).toHaveBeenCalledWith("/repo", "feature");
+    expect(mergeBranch).toHaveBeenCalledWith("/repo", "feature", { squash: false });
+  });
+
+  it("passes the squash option through as one operation", async () => {
+    // Not a second code path: git-ops' merge() runs `git merge --squash` and then
+    // `git commit --no-edit` under the commit hooks, so the result shape is identical.
+    const main = branch("main", BranchType.Local, "origin/main");
+    const topic = branch("topic");
+    const feature = branch("feature");
+    const { store, mergeBranch } = loadTopology("topic", [main, topic, feature]);
+    await store.load("/repo");
+
+    await expect(
+      store.initiateMerge("feature", { workingTreeDirty: false, squash: true }),
+    ).resolves.toBe("merged");
+
+    expect(mergeBranch).toHaveBeenCalledWith("/repo", "feature", { squash: true });
   });
 
   it("reports an already-up-to-date merge", async () => {

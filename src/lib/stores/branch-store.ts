@@ -396,7 +396,7 @@ export class BranchStore {
    */
   public async initiateMerge(
     targetBranchName: string,
-    options: { readonly workingTreeDirty: boolean },
+    options: { readonly workingTreeDirty: boolean; readonly squash?: boolean },
   ): Promise<MergeInitiationResult> {
     const repositoryPath = this.currentState.repositoryPath;
     const current = this.currentState.currentBranch;
@@ -437,7 +437,11 @@ export class BranchStore {
         return "invalid";
       }
 
-      const result = await this.dependencies.mergeBranch(repositoryPath, targetBranchName);
+      // `squash` is not a second operation: git-ops' merge() runs `git merge --squash` and then
+      // `git commit --no-edit` under the commit hooks, so the result shape is identical.
+      const result = await this.dependencies.mergeBranch(repositoryPath, targetBranchName, {
+        squash: options.squash === true,
+      });
       await this.finishOperation(repositoryPath, requestID, operationID);
       switch (result) {
         case MergeResult.Success:

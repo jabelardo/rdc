@@ -34,13 +34,12 @@ import { Checkbox } from "../../../components/ui/checkbox";
 import { ConfirmDialog } from "../dialogs/confirm-dialog";
 import { ConfirmOptOut } from "../dialogs/confirm-opt-out";
 import { DiscardFileList, discardAllQuestion } from "../dialogs/discard-file-list";
+import { MergeBranchDialog } from "../dialogs/merge-branch-dialog";
 import { NoticeDialog } from "../dialogs/notice-dialog";
 import { RenameBranchDialog } from "../dialogs/rename-branch-dialog";
 import { TerminalOutput } from "../terminal-output";
-import { BranchSelect } from "../branch-select";
-import { ComputedAction } from "../../../models/computed-action";
 import type { MergeTreeResult } from "../../../models/merge";
-import { formatNumber } from "../../format-number";
+import { MergeStrategyLabel, type MergeStrategy } from "../../../models/merge-strategy";
 
 const confirmationDialogClassName =
   "confirmation-dialog box-border w-[min(390px,calc(100vw-26px))] rounded-[var(--radius-medium)] border border-[var(--border)] bg-[var(--popover)] p-6 shadow-[var(--shadow-dialog)]";
@@ -96,6 +95,8 @@ type AppDialogsProps = {
   readonly mergeRunning: boolean;
   readonly mergeStatus: MergeTreeResult | null;
   readonly mergeCommitCount: number;
+  readonly mergeStrategy: MergeStrategy;
+  readonly onMergeStrategyChange: (strategy: MergeStrategy) => void;
   readonly onConfirmMerge: () => void;
   readonly onCancelMerge: () => void;
   readonly showManageRemotes: boolean;
@@ -177,6 +178,8 @@ export function AppDialogs({
   mergeRunning,
   mergeStatus,
   mergeCommitCount,
+  mergeStrategy,
+  onMergeStrategyChange,
   onConfirmMerge,
   onCancelMerge,
   showManageRemotes,
@@ -317,107 +320,24 @@ export function AppDialogs({
       )}
 
       {mergePickerOpen && (
-        <Dialog
-          open
-          onOpenChange={(open) => {
-            if (!open && !mergeRunning) {
-              onCancelMerge();
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogTitle>
-              Merge into <strong>{branchState.currentBranch ?? "—"}</strong>
-            </DialogTitle>
-            {(() => {
-              const candidates = branchState.branches.filter(
-                (branch) => branch.name !== branchState.currentBranch,
-              );
-              if (candidates.length === 0) {
-                return (
-                  <>
-                    <p>There are no other branches to merge.</p>
-                    <DialogFooter>
-                      <Button type="button" onClick={onCancelMerge}>
-                        Close
-                      </Button>
-                    </DialogFooter>
-                  </>
-                );
-              }
-              const selected =
-                mergeTarget !== ""
-                  ? (candidates.find((b) => b.name === mergeTarget) ?? null)
-                  : null;
-              return (
-                <>
-                  <BranchSelect
-                    branches={candidates}
-                    currentBranch={branchState.currentBranch}
-                    defaultBranch={branchState.defaultBranch}
-                    recentBranches={branchState.recentBranches}
-                    selectedBranch={selected}
-                    onSelect={(branch) => onMergeTargetChange(branch.name)}
-                  />
-                  {/*mergeStatus !== null && mergeTarget !== "" && (
-                    <MergePreview
-                      status={mergeStatus}
-                      commitCount={mergeCommitCount}
-                      targetBranch={mergeTarget}
-                      currentBranch={branchState.currentBranch ?? "—"}
-                    />
-                  )*/}
-                  {/* mergeMessage !== null && (
-                    <p className="application-error" role="alert">
-                      {mergeMessage}
-                    </p>
-                  )*/}
-                  <DialogFooter>
-                    {__DARWIN__ ? (
-                      <>
-                        <Button type="button" variant="outline" onClick={onCancelMerge}>
-                          Cancel
-                        </Button>
-                        <Button
-                          type="button"
-                          disabled={
-                            mergeRunning ||
-                            mergeTarget === "" ||
-                            (mergeStatus?.kind === ComputedAction.Clean &&
-                              mergeCommitCount === 0) ||
-                            mergeStatus?.kind === ComputedAction.Invalid
-                          }
-                          onClick={onConfirmMerge}
-                        >
-                          {mergeRunning ? "Merging…" : "Merge"}
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          type="button"
-                          disabled={
-                            mergeRunning ||
-                            mergeTarget === "" ||
-                            (mergeStatus?.kind === ComputedAction.Clean &&
-                              mergeCommitCount === 0) ||
-                            mergeStatus?.kind === ComputedAction.Invalid
-                          }
-                          onClick={onConfirmMerge}
-                        >
-                          {mergeRunning ? "Merging…" : "Merge"}
-                        </Button>
-                        <Button type="button" variant="outline" onClick={onCancelMerge}>
-                          Cancel
-                        </Button>
-                      </>
-                    )}
-                  </DialogFooter>
-                </>
-              );
-            })()}
-          </DialogContent>
-        </Dialog>
+        <MergeBranchDialog
+          currentBranch={branchState.currentBranch ?? "—"}
+          candidates={branchState.branches.filter(
+            (branch) => branch.name !== branchState.currentBranch,
+          )}
+          defaultBranch={branchState.defaultBranch}
+          recentBranches={branchState.recentBranches}
+          selected={branchState.branches.find((branch) => branch.name === mergeTarget) ?? null}
+          strategy={mergeStrategy}
+          status={mergeStatus}
+          commitCount={mergeCommitCount}
+          running={mergeRunning}
+          failure={mergeMessage}
+          onSelect={(branch) => onMergeTargetChange(branch.name)}
+          onStrategyChange={onMergeStrategyChange}
+          onConfirm={onConfirmMerge}
+          onCancel={onCancelMerge}
+        />
       )}
 
       {showManageRemotes && (
@@ -734,6 +654,20 @@ export function AppDialogs({
               ))}
             </select>
 
+            <label htmlFor="default-merge-strategy">Default merge</label>
+            {/* A team convention rather than a per-merge choice, which is why it lives here. The
+             * merge dialog still lets either be picked for a given merge. */}
+            <select
+              id="default-merge-strategy"
+              value={preferencesState.defaultMergeStrategy}
+              onChange={(event) =>
+                preferencesStore.setDefaultMergeStrategy(event.currentTarget.value as MergeStrategy)
+              }
+            >
+              <option value="merge">{MergeStrategyLabel.merge}</option>
+              <option value="squash">{MergeStrategyLabel.squash}</option>
+            </select>
+
             <fieldset>
               <legend>Confirm before</legend>
               <label>
@@ -849,61 +783,5 @@ export function AppDialogs({
         </Modal>
       )}
     </>
-  );
-}
-
-type MergePreviewProps = {
-  readonly status: MergeTreeResult;
-  readonly commitCount: number;
-  readonly targetBranch: string;
-  readonly currentBranch: string;
-};
-
-function MergePreview({ status, commitCount, targetBranch, currentBranch }: MergePreviewProps) {
-  if (status.kind === ComputedAction.Loading) {
-    return (
-      <p className="text-sm text-muted-foreground">Checking for ability to merge automatically…</p>
-    );
-  }
-
-  if (status.kind === ComputedAction.Invalid) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Unable to merge unrelated histories in this repository.
-      </p>
-    );
-  }
-
-  if (status.kind === ComputedAction.Clean) {
-    if (commitCount === 0) {
-      return (
-        <p className="text-sm text-muted-foreground">
-          <strong>{currentBranch}</strong> is already up to date with{" "}
-          <strong>{targetBranch}</strong>.
-        </p>
-      );
-    }
-    const pluralized = commitCount === 1 ? "commit" : "commits";
-    return (
-      <p className="text-sm text-muted-foreground">
-        This will merge{" "}
-        <strong>
-          {formatNumber(commitCount)} {pluralized}
-        </strong>{" "}
-        from <strong>{targetBranch}</strong> into <strong>{currentBranch}</strong>.
-      </p>
-    );
-  }
-
-  // Conflicts
-  const pluralized = status.conflictedFiles === 1 ? "file" : "files";
-  return (
-    <p className="text-sm text-[var(--warning-text)]">
-      There will be{" "}
-      <strong>
-        {formatNumber(status.conflictedFiles)} conflicted {pluralized}
-      </strong>{" "}
-      when merging <strong>{targetBranch}</strong> into <strong>{currentBranch}</strong>.
-    </p>
   );
 }

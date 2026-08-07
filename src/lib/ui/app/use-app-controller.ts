@@ -48,6 +48,7 @@ import { getAheadBehind } from "../../rev-list-ipc";
 import { revSymmetricDifference } from "../../rev-range";
 import { ComputedAction } from "../../../models/computed-action";
 import type { MergeTreeResult } from "../../../models/merge";
+import type { MergeStrategy } from "../../../models/merge-strategy";
 
 const rendererStartTime = performance.now();
 const rendererPlatform = currentMenuPlatform();
@@ -117,6 +118,11 @@ export function useAppController() {
   const [mergeTarget, setMergeTarget] = useState("");
   const [mergeMessage, setMergeMessage] = useState<string | null>(null);
   const [mergeRunning, setMergeRunning] = useState(false);
+  // Seeded from the preference each time the dialog opens, not once at mount: the preference can
+  // change in Preferences while the app runs, and the dialog should honour the current value.
+  const [mergeStrategy, setMergeStrategy] = useState<MergeStrategy>(
+    preferencesStore.state.defaultMergeStrategy,
+  );
   const [mergeStatus, setMergeStatus] = useState<MergeTreeResult | null>(null);
   const [mergeCommitCount, setMergeCommitCount] = useState(0);
   const [showManageRemotes, setShowManageRemotes] = useState(false);
@@ -1036,6 +1042,7 @@ export function useAppController() {
   }, [mergePickerOpen, mergeTarget, appState.selectedRepository, branchState.currentBranch]);
 
   function requestMerge(): void {
+    setMergeStrategy(preferencesStore.state.defaultMergeStrategy);
     setMergeTarget("");
     setMergeMessage(null);
     setMergeStatus(null);
@@ -1070,6 +1077,7 @@ export function useAppController() {
     try {
       const result = await branchStore.initiateMerge(target, {
         workingTreeDirty,
+        squash: mergeStrategy === "squash",
       });
       if (result === "merged" || result === "conflict") {
         await refreshAfterBranchChange(() => Promise.resolve(true));
@@ -1370,6 +1378,8 @@ export function useAppController() {
     mergeRunning,
     mergeStatus,
     mergeCommitCount,
+    mergeStrategy,
+    setMergeStrategy,
     confirmMerge,
     cancelMerge,
     requestMerge,

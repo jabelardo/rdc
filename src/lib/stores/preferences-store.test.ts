@@ -155,6 +155,9 @@ describe("PreferencesStore", () => {
       confirmRepositoryRemoval: false,
       confirmDiscardChanges: false,
       confirmDiscardChangesPermanently: false,
+      // Absent from the stored JSON this test seeds, so it round-trips at its default rather than
+      // being dropped — the guard that adding a preference does not silently discard the others.
+      defaultMergeStrategy: "merge",
       selectedExternalEditor: "Zed",
       selectedShell: Shell.Terminal,
     });
