@@ -108,10 +108,24 @@ collaborator to pick up post-MVP), not minimizing the current diff. In dependenc
    `merge-conflicts.tsx`, and no menu id at all. A user can complete a conflict but never back out
    of one in-app. Independent of items 1–2 above. **Stage 4; independent, any time.**
 
+4. **[`CODE_ORGANIZATION_PLAN.md`](./CODE_ORGANIZATION_PLAN.md) — establish a layout and enforce
+   it.** Scheduled **after** the dialog migration, so it moves settled code rather than code in
+   flight. Dialogs currently live in four places by accident of chronology, and `src/lib/` is a
+   110-file flat drawer mixing pure helpers, IPC wrappers, domain logic and desktop-plus's GitHub
+   service code — beside subdirectories that *are* grouped, so the repository demonstrates two
+   conventions and follows neither. Measured on 2026-08-07: **95 of 237 non-test modules are
+   unreachable from `src/main.tsx`**, of which the 30 directly under `src/lib/` are genuinely
+   unreferenced (`refs.ts`, `create-branch.ts`, `rebase.ts` have no non-test importer; `api.ts`
+   forms a dead cluster with three models). The `src/models/` share of that number is largely a
+   false positive — `import type` is erased, so type-only modules read as unreachable while being
+   in use. The plan document holds the inventory and the questions; it deliberately decides
+   nothing yet. **Stage 5; after the dialog migration.**
+
 **LICENSE (MIT) is added**, copyright holder Jose Gutierrez. `CONTRIBUTING.md`, issue/PR templates,
 README polish and an `ARCHITECTURE.md` newcomer overview are deliberately deferred to the
 post-MVP promotion phase, once the project is actually accepting contributions — recording that as
-a decision, not an oversight.
+a decision, not an oversight. `ARCHITECTURE.md` depends on item 4: there is no point documenting a
+structure nobody chose.
 
 ### QA cycle 2
 
