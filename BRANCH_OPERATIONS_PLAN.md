@@ -246,6 +246,66 @@ Phase 7f. Needs a persisted `updateBranchStrategy` preference (`models/update-br
 already ported), the merge-vs-rebase decision, the dynamic `contributionTargetDefaultBranch` label,
 and a remote-present enablement rule. Record in the checklist's "Removed" table.
 
+**Partly unblocked, 2026-08-07.** Two of those four are now settled by the decisions below: the
+merge-vs-rebase question is answered (both, chosen by the user), and a persisted default-strategy
+preference is being added. What remains specific to this item is the dynamic contribution-target
+label and the remote-present enablement rule. Re-evaluate whether it is still worth deferring once
+the strategy work lands.
+
+---
+
+## Amended scope, 2026-08-07 — rebase enters the MVP
+
+Jose's decision, recorded because this plan says of the Phase 7f deferral: *"Reverse this only
+deliberately — it is the one judgement call in this plan."* **This is that deliberate reversal**, and
+it is narrower than the deferral it touches: it adds rebase as a branch operation, not the
+update-from-default-branch convenience.
+
+### 1. Three strategies, and squash is nearly free
+
+| Strategy | Backend | Gap |
+|---|---|---|
+| Merge commit | complete and wired | none — shipped |
+| Squash and merge | **complete**: `MergeOptions { squash }`, and `merge()` then runs `git commit --no-edit` under the correct second hook set (`prepare-commit-msg`, `commit-msg`, `post-commit`) | `branch-store.ts` calls `mergeBranch(path, target)` with no options |
+| Rebase | `rebase_branch`, `continue_rebase`, `abort_rebase`, `get_rebase_snapshot`, `operation_state.rs` all exist; `rebaseBranch` has a TS wrapper | no store, no UI. `src/lib/rebase.ts` is in the unreachable set measured in `CODE_ORGANIZATION_PLAN.md` |
+
+### 2. Rebase gets its own dialog
+
+**Because rebase inverts the direction.** Merge and squash ask "bring what in?" — the picked branch
+is the *source*. Rebase asks "put mine on top of what?" — the picked branch is the *base*. The fixed
+side is the current branch in all three, since git cannot rebase a branch you are not on, so only the
+picked branch's role changes.
+
+desktop-plus reaches the same conclusion structurally: its strategy dropdown's `onOperationChange`
+dispatches a *different operation* and replaces the dialog rather than toggling a flag.
+
+The alternative — one dialog that re-labels itself — was rejected: a single control silently changing
+what the list beneath it means is the failure mode Atlassian still has an open issue about for
+SourceTree's "Rebase current changes onto \<branch\>"
+([SRCTREE-1578](https://jira.atlassian.com/browse/SRCTREE-1578)), where users read the direction
+backwards. Two dialogs, each saying one thing, avoids relying on the user inferring direction.
+
+**So: the merge dialog covers merge and squash. Rebase is a separate dialog.**
+
+### 3. The default strategy is a user preference
+
+Merge-commit versus squash-and-merge is a team convention, not a per-invocation choice, so it belongs
+in Preferences rather than being re-decided every time. Needs a new persisted preference plus a
+Preferences row. This is the same preference Phase 7f was blocked on.
+
+### 4. Boundaries — what this does *not* include
+
+- **Interactive rebase** (reorder, reword, edit, drag-to-squash) is a different feature, even though
+  `git-ops` already has `squash.rs` and `reorder.rs`. SourceTree exposes it from a *commit*, not a
+  branch. Out of scope; say so explicitly so "rebase in MVP" does not quietly expand.
+- **Rebase conflict recovery is not optional.** `conflict-store.ts` tracks only `mergeInProgress`
+  from `status.mergeHeadFound`; a rebase conflict writes `.git/rebase-merge/` and would be invisible
+  to it, stranding the user mid-rebase with no in-app way out. That is the same gap Slice 4 exists to
+  close for merge, so the two belong together.
+- **Force-push is already covered** at the backend — `push.rs` and `remote-ipc.ts` implement
+  `--force-with-lease` and deliberately never bare `--force`. Only the UI affordance is missing, and
+  a rebased branch that was already pushed needs it.
+
 ---
 
 ## Definition of done, per slice
