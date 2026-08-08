@@ -191,7 +191,8 @@ Reviewable **either** way, and both are worth one pass.
 
 Expected in the debug preview: `develop` **and** `origin/develop` are both absent — only the local
 ref is named as merged, and the remote one shares its commit, so the SHA half of the filter is what
-removes it.
+removes it. One stub branch is deliberately too long for its row, so the truncation and the
+tooltip's full name are both exercised.
 
 | Check | Light | Dark |
 |---|---|---|
@@ -201,6 +202,8 @@ removes it.
 | A conflicting branch still allows the merge — conflicts are an outcome, not a refusal | | |
 | Nothing selected: the message slot explains what the space is for, and the buttons do not move when a branch is then chosen | | |
 | The selected row is visibly marked | | |
+| Hovering a row shows a tooltip with its full name and an absolute last-modified time | | |
+| The long stub branch is truncated in the row, and its tooltip shows the whole name | | |
 | Up/Down move the selection, including across a group heading; Down from the filter field enters the list | | |
 | Switching to Squash restates the preview and relabels the button to "Squash into \<branch\>" | | |
 | The strategy caret greys and un-greys together with the action button beside it | | |

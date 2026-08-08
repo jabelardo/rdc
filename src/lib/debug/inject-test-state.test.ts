@@ -45,6 +45,18 @@ describe("debug merge previews", () => {
     expect([...merged.keys()]).toEqual(["refs/heads/develop"]);
   });
 
+  it("includes a branch too long for the row, so the tooltip has something to reveal", () => {
+    // The tooltip's whole purpose is the truncated case; stub data that never truncates would let
+    // it look correct while proving nothing.
+    const longest = [
+      "feature/add-user-authentication-flow",
+      "feature/consolidate-address-module-backend-validation-and-error-reporting-pipeline",
+    ].sort((left, right) => right.length - left.length)[0];
+
+    expect(longest.length).toBeGreaterThan(60);
+    expect(debugMergePreview(longest)?.status.kind).toBe(ComputedAction.Clean);
+  });
+
   it("returns nothing for a branch outside the stub set", () => {
     // A real repository's branches must fall through to git rather than getting a canned answer.
     expect(debugMergePreview("some-real-branch")).toBeNull();

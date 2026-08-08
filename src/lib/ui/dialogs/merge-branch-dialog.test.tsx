@@ -259,6 +259,19 @@ describe("MergeBranchDialog", () => {
     );
   });
 
+  it("carries the full name and exact time the row cannot show", async () => {
+    // The row truncates a long name and shows a relative time; the tooltip is where the two exact
+    // facts live.
+    const user = userEvent.setup();
+    renderDialog();
+
+    await user.hover(screen.getByRole("option", { name: /feature\/auth/ }));
+
+    const tip = await screen.findByRole("tooltip");
+    expect(tip).toHaveTextContent("Full name: feature/auth");
+    expect(tip).toHaveTextContent(/Last modified: \d{4}-\d{2}-\d{2} \d{2}:\d{2}/);
+  });
+
   it("offers only a way out when there is no other branch", () => {
     renderDialog({ candidates: [] });
 

@@ -3,6 +3,8 @@ import { Check, Search } from "lucide-react";
 import type { Branch } from "../../../models/branch";
 import { Input } from "../../../components/ui/input";
 import { formatRelative } from "../../format-relative";
+import { formatTimestamp } from "../../format-timestamp";
+import { Tooltip } from "../tooltip";
 import { cn } from "../../utils";
 import { handleListNavigation } from "../list-navigation";
 
@@ -147,38 +149,47 @@ export function BranchPicker({
               const selected = selectedBranch?.name === branch.name;
               const index = ordered.indexOf(branch);
               return (
-                <button
+                // The row truncates a long name and shows only a relative time, so the tooltip
+                // carries the two facts the row cannot: the whole name, and the exact moment. Same
+                // wording and format as the sidebar's branch rows.
+                <Tooltip
                   key={branch.name}
-                  type="button"
-                  role="option"
-                  aria-selected={selected}
-                  ref={(element) => {
-                    optionRefs.current[index] = element;
-                  }}
-                  onKeyDown={(event) => navigate(event, index)}
-                  className={cn(
-                    "flex w-full items-center gap-2 rounded-[var(--radius-small)] border-transparent bg-transparent px-2 py-1.5 text-left text-sm shadow-none",
-                    selected
-                      ? "bg-accent text-accent-foreground"
-                      : "hover:bg-accent/60 hover:text-accent-foreground",
-                  )}
-                  onClick={() => onSelect(branch)}
+                  label={`Full name: ${branch.name}\nLast modified: ${formatTimestamp(
+                    branch.tip.author.date,
+                  )}`}
                 >
-                  {/* Reserved whether or not it is shown, so rows do not shift as the selection
-                   * moves between them. */}
-                  <Check
-                    className={cn("size-4 shrink-0", selected ? "opacity-100" : "opacity-0")}
-                    aria-hidden
-                  />
-                  {/* Remotes keep their prefix. Stripping it and adding a "remote" badge instead
-                   * put two rows reading "develop" in the same list when a local branch and its
-                   * remote counterpart were both candidates — the one place a picker must not be
-                   * ambiguous. */}
-                  <span className="min-w-0 flex-1 truncate">{branch.name}</span>
-                  <span className="text-muted-foreground shrink-0 text-xs">
-                    {formatRelative(branch.tip.author.date.getTime() - Date.now())}
-                  </span>
-                </button>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    ref={(element) => {
+                      optionRefs.current[index] = element;
+                    }}
+                    onKeyDown={(event) => navigate(event, index)}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-[var(--radius-small)] border-transparent bg-transparent px-2 py-1.5 text-left text-sm shadow-none",
+                      selected
+                        ? "bg-accent text-accent-foreground"
+                        : "hover:bg-accent/60 hover:text-accent-foreground",
+                    )}
+                    onClick={() => onSelect(branch)}
+                  >
+                    {/* Reserved whether or not it is shown, so rows do not shift as the selection
+                     * moves between them. */}
+                    <Check
+                      className={cn("size-4 shrink-0", selected ? "opacity-100" : "opacity-0")}
+                      aria-hidden
+                    />
+                    {/* Remotes keep their prefix. Stripping it and adding a "remote" badge instead
+                     * put two rows reading "develop" in the same list when a local branch and its
+                     * remote counterpart were both candidates — the one place a picker must not be
+                     * ambiguous. */}
+                    <span className="min-w-0 flex-1 truncate">{branch.name}</span>
+                    <span className="text-muted-foreground shrink-0 text-xs">
+                      {formatRelative(branch.tip.author.date.getTime() - Date.now())}
+                    </span>
+                  </button>
+                </Tooltip>
               );
             })}
           </div>

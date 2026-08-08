@@ -22,13 +22,7 @@ import { mapStatus } from "../status";
 import { handleListNavigation } from "./list-navigation";
 import { Tooltip } from "./tooltip";
 import type { VirtualListRow } from "./virtual-list";
-
-function formatBranchModifiedDate(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
-    date.getDate(),
-  )} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+import { formatTimestamp } from "../format-timestamp";
 
 type RepositoryListRowProps = {
   readonly index: number;
@@ -132,7 +126,7 @@ export function BranchListRow({
   const description = current ? `${branch.name} — current branch` : `Check out ${branch.name}`;
   const tooltipDescription = `${
     current ? "Current branch" : "Check out branch"
-  }\nLast modified: ${formatBranchModifiedDate(branch.tip.author.date)}`;
+  }\nLast modified: ${formatTimestamp(branch.tip.author.date)}`;
   // Bound to a capitalised name so JSX renders it as a component rather than an element name.
   const BranchIcon = current ? Check : GitBranch;
 

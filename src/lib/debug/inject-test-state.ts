@@ -101,6 +101,11 @@ const DebugMergePreviews: ReadonlyMap<string, DebugMergePreview> = new Map<
   ["origin/develop", { status: { kind: ComputedAction.Clean }, commitCount: 2 }],
   // Reachable only by defeating the filter: a branch already contained in the current one.
   ["develop", { status: { kind: ComputedAction.Clean }, commitCount: 0 }],
+  // The truncated row, so the tooltip's full name has something to reveal.
+  [
+    "feature/consolidate-address-module-backend-validation-and-error-reporting-pipeline",
+    { status: { kind: ComputedAction.Clean }, commitCount: 9 },
+  ],
 ]);
 
 /** The canned preview for a stub branch, or null when the branch is not part of the debug set. */
@@ -215,6 +220,10 @@ export function injectDebugState(options: DebugStateOptions = {}): Repository {
       stubBranchWithDate("hotfix/critical-security-patch"),
       stubBranchWithDate("bugfix/resolve-navigation-issue"),
       stubBranchWithDate("release/v2.0.0"),
+      // Long enough that the row must truncate it, which is the case the tooltip exists for.
+      stubBranchWithDate(
+        "feature/consolidate-address-module-backend-validation-and-error-reporting-pipeline",
+      ),
       stubBranchWithDate("origin/main", BranchType.Remote, weekAgo),
       // Same commit as local `develop`, so filtering by SHA removes it even though
       // `git branch --merged` would only ever name the local ref.
