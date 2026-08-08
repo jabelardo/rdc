@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { ComputedAction } from "../../models/computed-action";
-import { debugMergePreview, debugMergedBranches, debugRebasePreview } from "./inject-test-state";
+import { getDefaultCloneStore } from "../stores/default-clone-store";
+import {
+  debugMergePreview,
+  debugMergedBranches,
+  debugRebasePreview,
+  injectCloneInProgress,
+  injectCloneProgress,
+} from "./inject-test-state";
 
 /**
  * The debug menu exists so a dialog can be reviewed without a repository behind it. That is only
@@ -125,5 +132,34 @@ describe("debug rebase previews", () => {
 
   it("returns nothing for a branch outside the stub set", () => {
     expect(debugRebasePreview("some-real-branch")).toBeNull();
+  });
+});
+
+describe("clone progress stub", () => {
+  it("injects an in-flight clone that starts at zero with a git line", () => {
+    // A clone cannot run from the debug menu, so the Clone progress step is reviewable only if the
+    // stub actually carries a value and a git line — otherwise the dialog would render an empty bar.
+    injectCloneInProgress();
+
+    const state = getDefaultCloneStore().state;
+    expect(state.operation).toBe("clone");
+    expect(state.error).toBeNull();
+    expect(state.progress?.value).toBe(0);
+    expect(state.progress?.description?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it("advances the bar with each injected frame", () => {
+    // The controller drives the preview 0→100 frame by frame; each publish must replace the value
+    // and the git line so the live region actually moves instead of showing a static bar.
+    injectCloneProgress(0.4, "Receiving objects: 40% (82/204)");
+    expect(getDefaultCloneStore().state.progress).toMatchObject({
+      value: 0.4,
+      description: "Receiving objects: 40% (82/204)",
+    });
+
+    injectCloneProgress(1, "Resolving deltas: 100% (55/55), done.");
+    expect(getDefaultCloneStore().state.progress).toMatchObject({
+      value: 1,
+    });
   });
 });

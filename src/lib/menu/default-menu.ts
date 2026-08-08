@@ -600,6 +600,11 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
         },
         { id: "debug-clone", label: "Clone", action: event("debug-show-clone-dialog") },
         {
+          id: "debug-clone-progress",
+          label: "Clone in progress…",
+          action: event("debug-show-clone-progress-dialog"),
+        },
+        {
           id: "debug-show-discard-file-dialog",
           label: "Discard file…",
           action: event("debug-show-discard-file-dialog"),

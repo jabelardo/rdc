@@ -91,6 +91,7 @@ export type MenuEvent =
   | "debug-show-about-dialog"
   | "debug-show-preferences-dialog"
   | "debug-show-clone-dialog"
+  | "debug-show-clone-progress-dialog"
   | "debug-show-discard-file-dialog"
   | "debug-show-discard-all-dialog"
   | "debug-show-rename-branch-dialog"

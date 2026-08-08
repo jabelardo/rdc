@@ -33,8 +33,8 @@ These three were the first migrated. Validate them in **Help → Show Dialog**. 
 | About | Dialog | Dark | | | | Close | | | |
 | Preferences | Dialog | Light | | | Form fields layout | Close | | Always available | |
 | Preferences | Dialog | Dark | | | Form fields layout | Close | | | |
-| Clone | Dialog | Light | | | Cancel / Choose path / Clone | | Always available | |
-| Clone | Dialog | Dark | | | Cancel / Choose path / Clone | | | | |
+| Clone | Dialog | Light | | | Cancel / Browse… / Clone | | Always available | Migrated |
+| Clone | Dialog | Dark | | | Cancel / Browse… / Clone | | | Migrated | |
 | Discard file… | AlertDialog | Light | | | Discard / Permanently discard | | Stub state injected by debug menu | |
 | Discard file… | AlertDialog | Dark | | | Discard / Permanently discard | | | | |
 | Discard all… | AlertDialog | Light | | | Discard all / Permanently discard all | | Stub state injected by debug menu | |

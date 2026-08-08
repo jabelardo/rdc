@@ -555,6 +555,45 @@ describe("App", () => {
     expect(preferencesStore.setConfirmRepositoryRemoval).toHaveBeenCalledWith(false);
   });
 
+  it("opens the clone progress preview from the debug menu", async () => {
+    render(<App />);
+    const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0];
+
+    await act(() => executeMenuEvent("debug-show-clone-progress-dialog"));
+
+    expect(screen.getByRole("alertdialog", { name: "Cloning in progress" })).toBeInTheDocument();
+  });
+
+  it("drives the clone progress preview 0→100 and then ends it", async () => {
+    // The mock clone must exercise the live updates the dialog exists for — the bar moving and
+    // the git line changing — and, being undismissable, must synthesize a completion rather than
+    // lock the UI forever.
+    vi.useFakeTimers();
+    try {
+      render(<App />);
+      const { executeMenuEvent } = installApplicationMenu.mock.calls[0][0];
+
+      await act(() => executeMenuEvent("debug-show-clone-progress-dialog"));
+      const dialog = screen.getByRole("alertdialog", { name: "Cloning in progress" });
+      expect(dialog).toBeInTheDocument();
+      expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
+
+      // One frame in, the bar and the line have moved: the bar left zero and the status now
+      // reports the enumerating stage instead of the opening "Cloning into…" line.
+      await act(async () => vi.advanceTimersByTime(667));
+      expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).not.toBe("0");
+      expect(screen.getByRole("status").textContent).toContain("Enumerating");
+
+      // The rest of the frames and the synthetic finish close the dialog and unlock the UI.
+      await act(async () => vi.advanceTimersByTime(8 * 667));
+      expect(
+        screen.queryByRole("alertdialog", { name: "Cloning in progress" }),
+      ).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("dismisses a safe modal with Escape and restores focus", async () => {
     const user = userEvent.setup();
     render(<App />);
@@ -566,8 +605,12 @@ describe("App", () => {
     expect(screen.getByRole("textbox", { name: "Repository URL" })).toHaveFocus();
 
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog", { name: "Clone a repository" })).not.toBeInTheDocument();
-    expect(opener).toHaveFocus();
+    // Radix restores focus to the invoking element on close, asynchronously (the old hand-rolled
+    // Modal did it synchronously). Wait for it rather than asserting mid-frame.
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Clone a repository" })).not.toBeInTheDocument();
+      expect(opener).toHaveFocus();
+    });
   });
 
   it("discards all changes from the native menu after the working tree loads", async () => {

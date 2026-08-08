@@ -17,6 +17,7 @@ import {
   debugMergePreview,
   debugMergedBranches,
   debugRebasePreview,
+  injectCloneProgress,
   injectDebugState,
   isDebugStateInjected,
 } from "../../debug/inject-test-state";
@@ -88,6 +89,12 @@ export function useAppController() {
   const activeRepositoryView = useRef<RepositoryView>("changes");
   const pendingRepositoryView = useRef<RepositoryView | null>(null);
   const repositoryViewTransitionID = useRef(0);
+  // The debug clone preview's frame timer, cleared on teardown so it never fires against an
+  // unmounted controller.
+  const clonePreviewTimer = useRef<number | undefined>(undefined);
+  // Clear the timer when the controller goes away; without this a pending preview could call
+  // setState against an unmounted hook after disposal.
+  useEffect(() => () => window.clearInterval(clonePreviewTimer.current), []);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [expandedSidebarSections, setExpandedSidebarSections] = useState<
     ReadonlySet<SidebarSectionID>
@@ -281,6 +288,53 @@ export function useAppController() {
       debugShowAboutDialog: () => setShowAboutDialog(true),
       debugShowPreferencesDialog: () => setShowPreferencesDialog(true),
       debugShowCloneDialog: () => setShowCloneDialog(true),
+      debugShowCloneProgressDialog: () => {
+        // No real clone can run from the debug menu, so drive the category-1 progress step with a
+        // canned clone that actually advances: value and git line moving 0→100 frame by frame over
+        // a few seconds, then a synthetic finish. A static bar would never exercise the live
+        // updates the dialog exists for, and an undismissable dialog that never ends would lock
+        // the UI forever.
+        setShowCloneDialog(true);
+        window.clearInterval(clonePreviewTimer.current);
+        const frames: ReadonlyArray<{ readonly value: number; readonly description: string }> = [
+          { value: 0.0, description: "Cloning into '/tmp/mock-repo'..." },
+          { value: 0.1, description: "remote: Enumerating objects: 204, done." },
+          { value: 0.25, description: "Receiving objects: 25% (51/204)" },
+          {
+            value: 0.4,
+            description: "Receiving objects: 40% (82/204), 12.4 MiB | 1.1 MiB/s",
+          },
+          {
+            value: 0.55,
+            description: "Receiving objects: 55% (113/204), 18.9 MiB | 1.3 MiB/s",
+          },
+          {
+            value: 0.7,
+            description: "Receiving objects: 70% (143/204), 24.6 MiB | 1.2 MiB/s",
+          },
+          {
+            value: 0.85,
+            description: "Receiving objects: 85% (174/204), 30.1 MiB | 1.1 MiB/s",
+          },
+          { value: 0.95, description: "Resolving deltas: 95% (52/55)" },
+          { value: 1.0, description: "Resolving deltas: 100% (55/55), done." },
+        ];
+        let index = 0;
+        const step = () => {
+          if (index >= frames.length) {
+            window.clearInterval(clonePreviewTimer.current);
+            setShowCloneDialog(false);
+            cloneStore.reset();
+            return;
+          }
+          const frame = frames[index++];
+          injectCloneProgress(frame.value, frame.description);
+        };
+        step();
+        // ~9 frames across the same window the old static preview used; each tick advances the
+        // bar and the git line, and the frame after 100% ends the preview.
+        clonePreviewTimer.current = window.setInterval(step, 667);
+      },
       debugShowDiscardAllDialog: () => {
         injectDebugState();
         requestDiscardAll(false);

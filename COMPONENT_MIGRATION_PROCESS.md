@@ -478,3 +478,105 @@ remove; and one branch too long for its row so the tooltip has something to reve
 state fails silently: the preview still looks correct and proves nothing. The `mergeStates` QA
 fixture covers the same three outcomes with real ancestry, so canned answers prove the dialog
 renders each state and real git proves the answers are right.
+
+## Component 6 — Clone repository (`Dialog`)
+
+The last of the three form dialogs with required inputs, and the first dialog that runs a long
+operation *inside itself* (a clone stays open, surfacing progress), which is the one dimension that
+made it more than a mechanical copy of Rename branch.
+
+| Dimension | rdc today | desktop-plus | shadcn/Radix | Verdict |
+|---|---|---|---|---|
+| Element semantics | hand-rolled `Modal` | `Dialog` + `TabBar` | `Dialog` | **SETTLED** (C6, Component 4) |
+| Title | `<h2>` | "Clone a repository" | `DialogHeader`/`DialogTitle` | **SETTLED** |
+| Focus on open | first tabbable | URL `TextBox` autoFocus | first tabbable | **AGREED** → URL `Input` |
+| Escape / backdrop | blocked in-flight (`onDismiss=undefined`) | blocked while loading | dismisses | **SETTLED** (C8) |
+| Button order | `[Cancel, Clone]` always | `[Cancel, Clone]` mac / else `[Clone, Cancel]` | — | **SETTLED (FIX)** (C2 — rdc's always-Cancel-first was wrong on Linux) |
+| Default / destructive | Clone, non-destructive | same | — | **SETTLED** (C2/C7 — Clone is the natural default, no destructive treatment) |
+| One close affordance | footer Cancel | footer Cancel | X by default | **SETTLED** (C6 → `showCloseButton={false}`) |
+| Fields | `<label>`+`<input>` | `TextBox` | `Input` + `Label` | **SETTLED** (Component 4) |
+| Empty url/path | enabled, fails on submit | Clone **disabled** when url/path empty | — | **DECIDED** → C16 |
+| Message slot | inline, moving layout | `DialogError` | — | **SETTLED** (C12 — one height-holding slot) |
+| Error display | `.application-error` | `DialogError` | — | **SETTLED** (`--error-*` tokens + `role="alert"`; arrives after open, so C10 does not apply) |
+| Progress | inline `<progress>` in dialog | in the toolbar | none vendored | **DECIDED** → keep rdc's inline |
+| Wording | "Repository URL" / "Destination path" | "…GitHub username and repository (hubot/cool-repo)" / "Local path" | — | **DECIDED** → keep rdc's honest labels |
+| Viewport fit | — | — | `DialogContent` caps height | **SETTLED** (C14) |
+
+### Resolved → Convention 16
+
+**Convention 16 — a form dialog's affirmative stays disabled until its required fields are valid,
+and the message slot says what is missing instead of the submit failing after the fact.**
+Rename and Add remote already half-obeyed this; Clone made it explicit. desktop-plus's `okButtonDisabled`
+disables on url/path empty; rdc used to enable the button and let the store error ("Enter a repository
+URL.") fire on submit. The disabled-button-plus-explanation wins: it is discoverable (the slot names the
+missing field) and it cannot fail *after* the fact. `confirmDisabled` is independent of `busy` — a form
+is invalid long before it is running.
+
+### Resolved → departures recorded for §8
+
+- **Progress stays in the dialog.** desktop-plus shows clone progress in its toolbar; rdc keeps the
+  dialog open for the whole clone, so the feedback belongs where the user acted. A `role="status"`
+  row under the fields, styled by the token system. Not a shadcn decision — shadcn has no vendored
+  `Progress` here — it is an rdc information-architecture choice.
+- **The `hubot/cool-repo` hint is dropped, deliberately.** The "Repository URL or GitHub username and
+  repository" label only makes sense with the GitHub-account shortcuts rdc does not have (git cannot
+  clone a bare `owner/repo`), so echoing it would be a lie. rdc keeps "Repository URL" and
+  "Destination path".
+- **No `TabBar`.** desktop-plus renders account tabs (GitHub.com / GitLab / Bitbucket / …); rdc has no
+  accounts, so the URL tab is the whole dialog. A future accounts slice reintroduces the tab bar there,
+  not here.
+
+## Progress presentation — categories, mapped from desktop-plus
+
+Raised by the clone dialog's progress indicator (Component 6) and settled here: rdc had never
+decided where progress bars belong, and desktop-plus has no single answer either — it has a
+*spectrum*, chosen by what the operation does to the repository. The rule that explains the
+spectrum: **progress is modal when the operation is the point — the repository's state is
+incoherent (the branch tip is moving) or nothing else is worth doing until it resolves (a commit
+under way, a clone with no repository yet). It is embedded only where the rest of the app stays
+truthful and usable.** Rebase/squash/reorder/cherry-pick move the branch tip commit-by-commit, so
+the history list would be misleading mid-flight. A commit pivots the working tree's meaning and a
+clone is the whole point of the moment. Those block. Fetch, push, pull and checkout leave the rest
+of the app truthful, so they ride in the control you pressed.
+
+**Consolidation.** desktop-plus has five presentations; rdc keeps two categories, each linked to the
+*same functionality* they are in desktop-plus:
+
+| rdc category | Operations (desktop-plus link preserved) | Presentation in rdc | Radix primitive |
+|---|---|---|---|
+| **1. Blocking progress** | Rebase, cherry-pick, squash, reorder (history moves) · merge and revert while they run · **clone** · **commit** | A **dedicated, separate progress dialog** that replaces the action dialog the moment the operation starts (desktop-plus's step swap: `ChooseBranch` → `ShowProgress`, exactly its `multi-commit-operation/dialog/progress-dialog.tsx`). Title "X in progress"; a bar — "commit N of M" + current summary for the history moves, title + bar + description for clone, title + terminal/hook output for commit. **Not an embedded bar inside the action dialog.** Undismissable; **no abort inside** — abort appears only once there is something to act on (the conflict step / abort-confirmation) | **AlertDialog** — Radix's nondismissable primitive, mirroring desktop-plus's `dismissDisabled`. The action dialog that precedes it stays a `Dialog` (it needs a picker); the progress dialog replaces it; the abort decision is rdc's `ConfirmDialog` (an `AlertDialog`) |
+| **2. Embedded background progress** | Fetch, push, pull, checkout | Non-modal bar/percent **in the control that was pressed** — toolbar remote status, sidebar checkout row. The app stays usable | None needed (plain markup) |
+
+**What this means for existing and planned rdc surfaces:**
+
+- **The first step is creating the shared progress dialog itself** — the single component every
+  category-1 operation mounts (rdc's translation of desktop-plus's `dialog/progress-dialog.tsx`):
+  an undismissable `AlertDialog` with a themed bar and a per-operation content slot. Nothing else
+  in category 1 lands before it exists.
+- **Clone is category 1.** When cloning starts, the clone dialog gives way to the dedicated
+  progress dialog ("Cloning in progress": title, bar, description, destination) — not a bar
+  embedded in the form.
+- **Commit is category 1, and rdc currently has no commit-progress dialog at all** — commit shows
+  terminal text in the Changes pane while it runs. desktop-plus shows a modal `CommitProgress`
+  popup for exactly this; rdc should mount the same shared progress dialog for a commit (bar where
+  git provides one, hook terminal output otherwise), so the user cannot leave a commit mid-flight.
+- Fetch/push/pull and checkout are **category 2** — rdc already shows their text and percentage in
+  the toolbar and sidebar; only the bar is missing, and it must be the same small embedded element
+  everywhere, not a dialog.
+- The history operations planned in `HISTORY_OPERATIONS_PLAN.md` (cherry-pick, squash, reorder,
+  and revert's conflict step) own **category 1**: once confirmed, they swap to the shared progress
+  dialog; abort lives in the conflict step — the desktop-plus pattern.
+- One shared themed progress bar (the shadcn/Radix `Progress` primitive) serves both categories;
+  what differs per category is *where* it is mounted (the dedicated progress dialog / toolbar /
+  sidebar), not the element.
+
+**Landed:** the shared progress dialog is `src/lib/ui/dialogs/operation-progress-dialog.tsx`
+(undismissable `AlertDialog`, themed `Progress` from `src/components/ui/progress.tsx`, a
+per-operation content slot) with parameters `operation`, `progress.value/title/description`, the
+optional commit-N-of-M, and `children` — so clone, commit and every history operation mount the
+same component. **Clone is the first consumer**: its dialog swaps to it when cloning starts
+(category 1), and Help → Show Dialog → **Clone in progress…** injects a canned in-flight clone
+(`injectCloneProgress`) so the progress step is reviewable from the menu without a real clone; the
+preview drives the bar 0→100 frame by frame (value and git line moving on a timeline, then a
+synthetic finish), so it exercises the live updates the dialog exists for and still cannot lock the
+UI forever. Commit and the history ops mount it next.

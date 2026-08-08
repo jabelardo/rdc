@@ -1,8 +1,11 @@
 /**
  * Base interface containing all the properties that progress events
  * need to support.
+ *
+ * Exported so a consumer that needs any progress shape (the shared operation-progress dialog)
+ * can type against the common fields without depending on a specific kind.
  */
-interface IProgress {
+export interface IProgress {
   /**
    * The overall progress of the operation, represented as a fraction between
    * 0 and 1.

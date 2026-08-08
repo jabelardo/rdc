@@ -209,6 +209,7 @@ describe("repository application menu", () => {
           debugShowAboutDialog: vi.fn(),
           debugShowPreferencesDialog: vi.fn(),
           debugShowCloneDialog: vi.fn(),
+          debugShowCloneProgressDialog: vi.fn(),
           debugShowDiscardAllDialog: vi.fn(),
           debugShowRenameBranchDialog: vi.fn(),
           debugShowDeleteBranchDialog: vi.fn(),

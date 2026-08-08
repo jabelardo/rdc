@@ -142,8 +142,12 @@ cherry-pick over uncommitted changes), set an `operation: "cherry-picking"` stat
 (`isCherryPickHeadFound` after the attempt) share the same honest boundary as revert — do not hand
 off to the merge-conflict surface that cannot see a cherry-pick state.
 
-**Controller / UI** — "Cherry-pick commit…" from the shared context menu; progress through the same
-Channel path revert uses; no confirmation (the operation is a new commit, nothing is lost).
+**Controller / UI** — "Cherry-pick commit…" from the shared context menu. Once confirmed, the
+operation's progress belongs to **category 1 (blocking progress)** in
+`COMPONENT_MIGRATION_PROCESS.md` § Progress presentation: the action dialog gives way to the
+**dedicated, undismissable progress dialog** ("Cherry-pick in progress", "commit N of M" from
+`IMultiCommitOperationProgress`'s position/total), with abort deferred to the conflict step — the
+desktop-plus step-swap pattern. No confirmation (the operation is a new commit, nothing is lost).
 
 **Tests** — store: dirty-tree refusal, correct argument, result mapping; controller: menu wiring;
 and the shared enablement matrix's no-in-flight-operation rule.

@@ -33,6 +33,7 @@ import { ExternalLink } from "../external-link";
 import { Checkbox } from "../../../components/ui/checkbox";
 import { ConfirmDialog } from "../dialogs/confirm-dialog";
 import { ConfirmOptOut } from "../dialogs/confirm-opt-out";
+import { CloneRepositoryDialog } from "../dialogs/clone-repository-dialog";
 import { DiscardFileList, discardAllQuestion } from "../dialogs/discard-file-list";
 import { MergeBranchDialog, mergeCandidates } from "../dialogs/merge-branch-dialog";
 import { RebaseBranchDialog, rebaseCandidates } from "../dialogs/rebase-branch-dialog";
@@ -256,9 +257,6 @@ export function AppDialogs({
                 ? "Changes cannot be restored after deletion."
                 : "Changes can be restored from the operating system trash."}
           </p>
-          {/* Offered only for a whole-file discard: a line-level discard confirms regardless of the
-           * preference, so an opt-out here would promise to silence a dialog that would keep
-           * appearing. */}
           {!discardSelection && (
             <ConfirmOptOut checked={discardOptOut} onChange={onDiscardOptOutChange} />
           )}
@@ -320,10 +318,6 @@ export function AppDialogs({
             onConfirm={onConfirmDelete}
             onCancel={onCancelDelete}
           >
-            {/* A warning about what confirming costs, not a failure, so it takes the warning tokens
-             * rather than the error ones. No role="alert" either: it is present when the dialog
-             * opens, and the dialog is already announced, so announcing it again as an
-             * interruption is wrong. */}
             {deleteUnmerged && (
               <p className="rounded-[var(--radius-small)] border border-[var(--warning-border)] bg-[var(--warning-surface)] px-2.5 py-2 text-[var(--warning-text)]">
                 This branch has commits that are not in the current branch. Deleting it will
@@ -697,8 +691,6 @@ export function AppDialogs({
             </select>
 
             <label htmlFor="default-merge-strategy">Default merge</label>
-            {/* A team convention rather than a per-merge choice, which is why it lives here. The
-             * merge dialog still lets either be picked for a given merge. */}
             <select
               id="default-merge-strategy"
               value={preferencesState.defaultMergeStrategy}
@@ -760,69 +752,18 @@ export function AppDialogs({
       )}
 
       {showCloneDialog && (
-        <Modal
-          className={`${confirmationDialogClassName} clone-dialog`}
-          aria-labelledby="clone-dialog-title"
-          onDismiss={cloneState.operation === null ? onDismissClone : undefined}
-        >
-          <h2 id="clone-dialog-title">Clone a repository</h2>
-          <form
-            aria-busy={cloneState.operation !== null}
-            onSubmit={(event) => {
-              event.preventDefault();
-              onSubmitClone();
-            }}
-          >
-            <label htmlFor="clone-url">Repository URL</label>
-            <input
-              id="clone-url"
-              value={cloneURL}
-              disabled={cloneState.operation !== null}
-              onChange={(event) => onCloneURLChange(event.currentTarget.value)}
-            />
-            <label htmlFor="clone-path">Destination path</label>
-            <div className="clone-path grid gap-2 [grid-template-columns:minmax(0,1fr)_auto]">
-              <input
-                id="clone-path"
-                value={clonePath}
-                disabled={cloneState.operation !== null}
-                onChange={(event) => onClonePathChange(event.currentTarget.value)}
-              />
-              <button
-                type="button"
-                disabled={cloneState.operation !== null}
-                onClick={onChooseCloneDestination}
-              >
-                Browse…
-              </button>
-            </div>
-            {cloneState.progress !== null && (
-              <div className="clone-progress grid gap-[4.55px]" role="status">
-                <progress value={cloneState.progress.value} max={1} />
-                <span>
-                  {cloneState.progress.description ?? cloneState.progress.title ?? "Cloning…"}
-                </span>
-              </div>
-            )}
-            {cloneState.error !== null && (
-              <p className="application-error" role="alert">
-                {cloneState.error}
-              </p>
-            )}
-            <div className={dialogActionsClassName}>
-              <button
-                type="button"
-                disabled={cloneState.operation !== null}
-                onClick={onDismissClone}
-              >
-                Cancel
-              </button>
-              <button type="submit" disabled={cloneState.operation !== null}>
-                {cloneState.operation === "clone" ? "Cloning…" : "Clone"}
-              </button>
-            </div>
-          </form>
-        </Modal>
+        <CloneRepositoryDialog
+          url={cloneURL}
+          path={clonePath}
+          onUrlChange={onCloneURLChange}
+          onPathChange={onClonePathChange}
+          running={cloneState.operation !== null}
+          progress={cloneState.progress}
+          error={cloneState.error}
+          onChooseDestination={onChooseCloneDestination}
+          onConfirm={onSubmitClone}
+          onCancel={onDismissClone}
+        />
       )}
     </>
   );

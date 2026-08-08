@@ -25,6 +25,7 @@ import { getDefaultRemoteStore } from "../stores/default-remote-store";
 import { ComputedAction } from "../../models/computed-action";
 import type { MergeTreeResult } from "../../models/merge";
 import type { RebasePreview } from "../../models/rebase-preview";
+import { getDefaultCloneStore } from "../stores/default-clone-store";
 
 // ── Stub data factories ──────────────────────────────────────────────
 
@@ -169,6 +170,33 @@ const DebugRebasePreviews: ReadonlyMap<string, RebasePreview> = new Map<string, 
 /** The canned rebase preview for a stub branch, or null when it is not part of the debug set. */
 export function debugRebasePreview(branchName: string): RebasePreview | null {
   return DebugRebasePreviews.get(branchName) ?? null;
+}
+
+// ── Clone progress stub ─────────────────────────────────────────────────
+//
+// A clone cannot actually run from the debug menu (no network, no destination), yet the progress
+// dialog still needs to be reviewable. These inject a mock in-flight clone into the clone store so
+// the Clone dialog renders its category-1 progress step ("Cloning in progress") from Help → Show
+// Dialog → Clone in progress…. The controller drives the bar 0→100 frame by frame with
+// `injectCloneProgress`, so the preview exercises the live updates rather than a static value.
+
+/** Publish a single mock clone progress frame, replacing the previous one. */
+export function injectCloneProgress(value: number, description: string): void {
+  setStoreState(getDefaultCloneStore(), {
+    operation: "clone",
+    progress: {
+      kind: "clone",
+      title: "Cloning into /tmp/mock-repo",
+      value,
+      description,
+    },
+    error: null,
+  });
+}
+
+/** The initial frame: a clone that has just started. */
+export function injectCloneInProgress(): void {
+  injectCloneProgress(0, "Cloning into '/tmp/mock-repo'...");
 }
 
 /**
