@@ -34,7 +34,7 @@ import { Checkbox } from "../../../components/ui/checkbox";
 import { ConfirmDialog } from "../dialogs/confirm-dialog";
 import { ConfirmOptOut } from "../dialogs/confirm-opt-out";
 import { DiscardFileList, discardAllQuestion } from "../dialogs/discard-file-list";
-import { MergeBranchDialog } from "../dialogs/merge-branch-dialog";
+import { MergeBranchDialog, mergeCandidates } from "../dialogs/merge-branch-dialog";
 import { NoticeDialog } from "../dialogs/notice-dialog";
 import { RenameBranchDialog } from "../dialogs/rename-branch-dialog";
 import { TerminalOutput } from "../terminal-output";
@@ -97,6 +97,8 @@ type AppDialogsProps = {
   readonly mergeCommitCount: number;
   readonly mergeStrategy: MergeStrategy;
   readonly onMergeStrategyChange: (strategy: MergeStrategy) => void;
+  readonly mergePreviewError: string | null;
+  readonly mergedBranchRefs: ReadonlySet<string>;
   readonly onConfirmMerge: () => void;
   readonly onCancelMerge: () => void;
   readonly showManageRemotes: boolean;
@@ -180,6 +182,8 @@ export function AppDialogs({
   mergeCommitCount,
   mergeStrategy,
   onMergeStrategyChange,
+  mergePreviewError,
+  mergedBranchRefs,
   onConfirmMerge,
   onCancelMerge,
   showManageRemotes,
@@ -322,8 +326,10 @@ export function AppDialogs({
       {mergePickerOpen && (
         <MergeBranchDialog
           currentBranch={branchState.currentBranch ?? "—"}
-          candidates={branchState.branches.filter(
-            (branch) => branch.name !== branchState.currentBranch,
+          candidates={mergeCandidates(
+            branchState.branches,
+            branchState.currentBranch,
+            mergedBranchRefs,
           )}
           defaultBranch={branchState.defaultBranch}
           recentBranches={branchState.recentBranches}
@@ -332,7 +338,7 @@ export function AppDialogs({
           status={mergeStatus}
           commitCount={mergeCommitCount}
           running={mergeRunning}
-          failure={mergeMessage}
+          failure={mergeMessage ?? mergePreviewError}
           onSelect={(branch) => onMergeTargetChange(branch.name)}
           onStrategyChange={onMergeStrategyChange}
           onConfirm={onConfirmMerge}

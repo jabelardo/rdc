@@ -113,6 +113,8 @@ export function AppShell({ controller }: AppShellProps) {
     mergeCommitCount,
     mergeStrategy,
     setMergeStrategy,
+    mergePreviewError,
+    mergedBranchRefs,
     confirmMerge,
     cancelMerge,
     showManageRemotes,
@@ -346,6 +348,8 @@ export function AppShell({ controller }: AppShellProps) {
         mergeCommitCount={mergeCommitCount}
         mergeStrategy={mergeStrategy}
         onMergeStrategyChange={setMergeStrategy}
+        mergePreviewError={mergePreviewError}
+        mergedBranchRefs={mergedBranchRefs}
         onConfirmMerge={() => void confirmMerge()}
         onCancelMerge={cancelMerge}
         showManageRemotes={showManageRemotes}

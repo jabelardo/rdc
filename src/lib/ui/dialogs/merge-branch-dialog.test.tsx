@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { Branch, BranchType } from "../../../models/branch";
 import { ComputedAction } from "../../../models/computed-action";
-import { MergeBranchDialog } from "./merge-branch-dialog";
+import { MergeBranchDialog, mergeCandidates } from "./merge-branch-dialog";
 
 function branch(name: string, type: BranchType = BranchType.Local): Branch {
   return new Branch(
@@ -174,11 +174,58 @@ describe("MergeBranchDialog", () => {
     expect(screen.getByRole("button", { name: /Choose how to combine/ })).toBeDisabled();
   });
 
+  it("says when mergeability could not be determined, instead of claiming up to date", () => {
+    // The controller used to report any failure as ComputedAction.Clean with a zero commit count,
+    // which rendered as "<current> is already up to date with <branch>" — a confident, wrong
+    // statement about the repository whenever the lookup merely failed.
+    renderDialog({
+      selected: candidates[1],
+      status: null,
+      failure: "Could not determine whether these branches can be combined.",
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Could not determine");
+    expect(screen.getByRole("alert")).not.toHaveTextContent(/up to date/);
+    expect(screen.getByRole("button", { name: "Merge into main" })).toBeDisabled();
+  });
+
   it("offers only a way out when there is no other branch", () => {
     renderDialog({ candidates: [] });
 
     expect(screen.getByText("There are no other branches to merge.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+});
+
+describe("mergeCandidates", () => {
+  it("drops the current branch and anything already contained in it", () => {
+    // An already-merged branch can only produce "Already up to date", so offering it just to refuse
+    // it wastes a click.
+    const all = [branch("main"), branch("develop"), branch("feature/auth")];
+
+    const offered = mergeCandidates(all, "main", new Set(["refs/heads/develop"]));
+
+    expect(offered.map((entry) => entry.name)).toEqual(["feature/auth"]);
+  });
+
+  it("keeps a remote branch that git branch --merged cannot report on", () => {
+    // --merged lists local refs only, so a merged remote still appears; the per-branch preview
+    // catches it on selection rather than the list hiding it.
+    const all = [branch("origin/develop", BranchType.Remote)];
+
+    const offered = mergeCandidates(all, "main", new Set(["refs/heads/develop"]));
+
+    expect(offered.map((entry) => entry.name)).toEqual(["origin/develop"]);
+  });
+
+  it("offers everything when the merged lookup produced nothing", () => {
+    // A failed `git branch --merged` filters nothing rather than emptying the list.
+    const all = [branch("develop"), branch("feature/auth")];
+
+    expect(mergeCandidates(all, "main", new Set()).map((entry) => entry.name)).toEqual([
+      "develop",
+      "feature/auth",
+    ]);
   });
 });

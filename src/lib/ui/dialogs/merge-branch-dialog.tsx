@@ -14,6 +14,25 @@ import { StrategyActions } from "./strategy-actions";
 
 const MessageID = "merge-branch-message";
 
+/**
+ * The branches worth offering as a merge source.
+ *
+ * Excludes the current branch, and any branch already contained in it. An already-merged branch
+ * produces "Already up to date" and nothing else, so offering it only to refuse it wastes the
+ * user's click. `mergedRefs` holds canonical refs from `git branch --merged`, which covers local
+ * branches only — a remote one that happens to be merged still appears and is caught by the
+ * per-branch preview on selection.
+ */
+export function mergeCandidates(
+  branches: ReadonlyArray<Branch>,
+  currentBranch: string | null,
+  mergedRefs: ReadonlySet<string>,
+): ReadonlyArray<Branch> {
+  return branches.filter(
+    (branch) => branch.name !== currentBranch && !mergedRefs.has(`refs/heads/${branch.name}`),
+  );
+}
+
 type MergeBranchDialogProps = {
   readonly currentBranch: string;
   readonly candidates: ReadonlyArray<Branch>;

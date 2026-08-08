@@ -124,6 +124,12 @@ export function useAppController() {
     preferencesStore.state.defaultMergeStrategy,
   );
   const [mergeStatus, setMergeStatus] = useState<MergeTreeResult | null>(null);
+  // Distinct from a status: "we could not work out whether this can merge" is not the same claim as
+  // any ComputedAction, and collapsing it into one was reporting failures as "already up to date".
+  const [mergePreviewError, setMergePreviewError] = useState<string | null>(null);
+  // Canonical refs (refs/heads/…) of branches already contained in the current branch. One
+  // `git branch --merged` on open, not one call per branch.
+  const [mergedBranchRefs, setMergedBranchRefs] = useState<ReadonlySet<string>>(new Set());
   const [mergeCommitCount, setMergeCommitCount] = useState(0);
   const [showManageRemotes, setShowManageRemotes] = useState(false);
   const [remoteFilter, setRemoteFilter] = useState("");
@@ -1001,6 +1007,7 @@ export function useAppController() {
     if (!mergePickerOpen || mergeTarget === "") {
       setMergeStatus(null);
       setMergeCommitCount(0);
+      setMergePreviewError(null);
       return;
     }
 
@@ -1015,6 +1022,7 @@ export function useAppController() {
     }
 
     let disposed = false;
+    setMergePreviewError(null);
     setMergeStatus({ kind: ComputedAction.Loading });
 
     void determineMergeability(repository.path, currentBranch, mergeTarget)
@@ -1030,10 +1038,18 @@ export function useAppController() {
         setMergeCommitCount(aheadBehind ? aheadBehind.behind : 0);
         setMergeStatus(status);
       })
-      .catch(() => {
-        if (!disposed) {
-          setMergeStatus({ kind: ComputedAction.Clean });
+      .catch((error: unknown) => {
+        if (disposed) {
+          return;
         }
+        // Previously this reported ComputedAction.Clean, which with a zero commit count rendered as
+        // "<current> is already up to date with <branch>" — a confident, wrong statement about the
+        // user's repository whenever the lookup merely failed. Say what actually happened instead,
+        // and refuse the merge rather than starting one on an unverified assumption.
+        log.error("Failed to determine mergeability", error instanceof Error ? error : undefined);
+        setMergeStatus(null);
+        setMergeCommitCount(0);
+        setMergePreviewError("Could not determine whether these branches can be combined.");
       });
 
     return () => {
@@ -1047,7 +1063,22 @@ export function useAppController() {
     setMergeMessage(null);
     setMergeStatus(null);
     setMergeCommitCount(0);
+    setMergePreviewError(null);
+    setMergedBranchRefs(new Set());
     setMergePickerOpen(true);
+
+    // Branches already contained in the current branch cannot produce a merge, so they are dropped
+    // from the candidates rather than offered and then refused. One call, and a failure just means
+    // nothing is filtered — the per-branch preview still catches it on selection.
+    const repository = appStore.state.selectedRepository;
+    const current = branchStore.state.currentBranch;
+    if (repository !== null && current !== null) {
+      void getMergedBranches(repository.path, current)
+        .then((merged) => setMergedBranchRefs(new Set(merged.keys())))
+        .catch((error: unknown) => {
+          log.error("Failed to list merged branches", error instanceof Error ? error : undefined);
+        });
+    }
   }
 
   function mergeMessageFor(result: MergeInitiationResult, target: string): string {
@@ -1380,6 +1411,8 @@ export function useAppController() {
     mergeCommitCount,
     mergeStrategy,
     setMergeStrategy,
+    mergePreviewError,
+    mergedBranchRefs,
     confirmMerge,
     cancelMerge,
     requestMerge,
