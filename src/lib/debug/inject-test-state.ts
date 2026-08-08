@@ -73,6 +73,16 @@ function setStoreState(store: unknown, state: unknown): void {
 
 type DebugStateOptions = {
   /**
+   * Leave the branch store alone.
+   *
+   * The stub branches exist only in this module, so injecting them while a real repository is
+   * selected makes every branch-aware preview meaningless: `git merge-tree` cannot resolve a branch
+   * that is not in the repository, and `git branch --merged` returns real refs that match none of
+   * the stub names, so nothing can be filtered. Dialogs whose content is computed *from* the
+   * repository — merge, and rebase when it lands — should preview against real branches.
+   */
+  readonly keepBranches?: boolean;
+  /**
    * Whether to leave a pending hook failure in the working-tree state.
    *
    * Opt-in, and off by default: the hook-failure dialog renders from working-tree state alone, so
@@ -122,29 +132,31 @@ export function injectDebugState(options: DebugStateOptions = {}): Repository {
     );
   }
 
-  setStoreState(getDefaultBranchStore(), {
-    repositoryPath: repo.path,
-    currentBranch: "main",
-    defaultBranch: "main",
-    branches: [
-      stubBranchWithDate("main", BranchType.Local, weekAgo),
-      stubBranchWithDate("develop"),
-      stubBranchWithDate("feature/add-user-authentication-flow"),
-      stubBranchWithDate("feature/update-dashboard-layout"),
-      stubBranchWithDate("hotfix/critical-security-patch"),
-      stubBranchWithDate("bugfix/resolve-navigation-issue"),
-      stubBranchWithDate("release/v2.0.0"),
-      stubBranchWithDate("origin/main", BranchType.Remote, weekAgo),
-      stubBranchWithDate("origin/develop", BranchType.Remote, threeDaysAgo),
-      stubBranchWithDate("origin/feature/add-user-authentication-flow", BranchType.Remote),
-    ],
-    recentBranches: ["feature/update-dashboard-layout", "hotfix/critical-security-patch"],
-    loading: false,
-    error: null,
-    operation: null,
-    progress: null,
-    operationError: null,
-  });
+  if (options.keepBranches !== true) {
+    setStoreState(getDefaultBranchStore(), {
+      repositoryPath: repo.path,
+      currentBranch: "main",
+      defaultBranch: "main",
+      branches: [
+        stubBranchWithDate("main", BranchType.Local, weekAgo),
+        stubBranchWithDate("develop"),
+        stubBranchWithDate("feature/add-user-authentication-flow"),
+        stubBranchWithDate("feature/update-dashboard-layout"),
+        stubBranchWithDate("hotfix/critical-security-patch"),
+        stubBranchWithDate("bugfix/resolve-navigation-issue"),
+        stubBranchWithDate("release/v2.0.0"),
+        stubBranchWithDate("origin/main", BranchType.Remote, weekAgo),
+        stubBranchWithDate("origin/develop", BranchType.Remote, threeDaysAgo),
+        stubBranchWithDate("origin/feature/add-user-authentication-flow", BranchType.Remote),
+      ],
+      recentBranches: ["feature/update-dashboard-layout", "hotfix/critical-security-patch"],
+      loading: false,
+      error: null,
+      operation: null,
+      progress: null,
+      operationError: null,
+    });
+  }
 
   // ── RemoteStore ──
   setStoreState(getDefaultRemoteStore(), {

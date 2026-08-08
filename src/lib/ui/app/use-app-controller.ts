@@ -278,7 +278,11 @@ export function useAppController() {
         deleteCurrentBranch();
       },
       debugShowMergeDialog: () => {
-        injectDebugState();
+        // Merge is computed from the repository — mergeability and ahead/behind both ask git about
+        // the chosen branch — so stub branches make the preview meaningless: the branch does not
+        // exist, so the lookup fails, and `git branch --merged` cannot filter names it never
+        // returns. Preview against the real branches whenever a real repository is open.
+        injectDebugState({ keepBranches: appStore.state.selectedRepository !== null });
         requestMerge();
       },
       debugShowManageRemotesDialog: () => {
