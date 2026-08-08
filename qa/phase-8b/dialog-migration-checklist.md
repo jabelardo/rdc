@@ -27,26 +27,37 @@ These three were the first migrated. Validate them in **Help → Show Dialog**. 
 
 ## Sub-slice 2.1 — Mechanical Migrations (one row per dialog as it lands)
 
-| Dialog (menu label) | Type | Theme | Backdrop | Header | Width / content | Footer | Focus / Escape | Notes | Signed off |
-|---|---|---|---|---|---|---|---|---|---|
-| About | Dialog | Light | | | | Close | | Always available | |
-| About | Dialog | Dark | | | | Close | | | |
-| Preferences | Dialog | Light | | | Form fields layout | Close | | Always available | |
-| Preferences | Dialog | Dark | | | Form fields layout | Close | | | |
-| Clone | Dialog | Light | | | Cancel / Browse… / Clone | | Always available | Migrated |
-| Clone | Dialog | Dark | | | Cancel / Browse… / Clone | | | Migrated | |
-| Discard file… | AlertDialog | Light | | | Discard / Permanently discard | | Stub state injected by debug menu | |
-| Discard file… | AlertDialog | Dark | | | Discard / Permanently discard | | | | |
-| Discard all… | AlertDialog | Light | | | Discard all / Permanently discard all | | Stub state injected by debug menu | |
-| Discard all… | AlertDialog | Dark | | | Discard all / Permanently discard all | | | | |
-| Rename branch… | Dialog | Light | | | Cancel / Rename | | Stub state injected by debug menu | Migrated |
-| Rename branch… | Dialog | Dark | | | Cancel / Rename | | | Migrated | |
-| Delete branch… | AlertDialog | Light | | | Close / Delete | | Stub state injected by debug menu | |
-| Delete branch… | AlertDialog | Dark | | | Close / Delete | | | | |
-| Merge… | Dialog | Light | | | Cancel / Merge | | Stub state injected by debug menu | Migrated |
-| Merge… | Dialog | Dark | | | Cancel / Merge | | | Migrated | |
-| Remove repository… | AlertDialog | Light | | | Cancel / Remove | | Stub state injected by debug menu | |
-| Remove repository… | AlertDialog | Dark | | | Cancel / Remove | | | | |
+| Dialog (menu label) | Type | Theme | Backdrop | Header | Width / content | Footer | Progress mechanism? | Focus / Escape | Notes | Signed off |
+|---|---|---|---|---|---|---|---|---|---|---|
+| About | Dialog | Light | | | | Close | — | | Always available | |
+| About | Dialog | Dark | | | | Close | — | | | |
+| Preferences | Dialog | Light | | | Form fields layout | Close | — | | Always available | |
+| Preferences | Dialog | Dark | | | Form fields layout | Close | — | | | |
+| Clone | Dialog | Light | | | Cancel / Browse… / Clone | **Cat 1 — progress dialog** | | Always available | Migrated |
+| Clone | Dialog | Dark | | | Cancel / Browse… / Clone | **Cat 1 — progress dialog** | | | Migrated | |
+| Discard file… | AlertDialog | Light | | | Discard / Permanently discard | — | | Stub state injected by debug menu | |
+| Discard file… | AlertDialog | Dark | | | Discard / Permanently discard | — | | | |
+| Discard all… | AlertDialog | Light | | | Discard all / Permanently discard all | Busy only (no data) | | Stub state injected by debug menu | |
+| Discard all… | AlertDialog | Dark | | | Discard all / Permanently discard all | Busy only (no data) | | | |
+| Rename branch… | Dialog | Light | | | Cancel / Rename | — | | Stub state injected by debug menu | Migrated |
+| Rename branch… | Dialog | Dark | | | Cancel / Rename | — | | | Migrated | |
+| Delete branch… | AlertDialog | Light | | | Close / Delete | — | | Stub state injected by debug menu | |
+| Delete branch… | AlertDialog | Dark | | | Close / Delete | — | | | |
+| Merge… | Dialog | Light | | | Cancel / Merge | **Cat 1 — while running (not wired)** | | Stub state injected by debug menu | Migrated |
+| Merge… | Dialog | Dark | | | Cancel / Merge | **Cat 1 — while running (not wired)** | | | Migrated | |
+| Rebase… | Dialog | Light | | | Cancel / Rebase | **Cat 1 — while running (not wired)** | | Stub state injected by debug menu | Migrated |
+| Rebase… | Dialog | Dark | | | Cancel / Rebase | **Cat 1 — while running (not wired)** | | | Migrated | |
+| Remove repository… | AlertDialog | Light | | | Cancel / Remove | — | | Stub state injected by debug menu | |
+| Remove repository… | AlertDialog | Dark | | | Cancel / Remove | — | | | |
+
+> **Commit is not a dialog, but it still needs a progress mechanism.** It is **category 1** in the
+> progress-presentation decision (`COMPONENT_MIGRATION_PROCESS.md` § Progress presentation): a
+> commit under way must not be abandonable, so its progress belongs in the same undismissable
+> `OperationProgressDialog` as clone and the history operations — yet a commit isn't a dialog today
+> (it runs from the Changes pane and shows only terminal text), and rdc **has no commit-progress
+> dialog yet**. It sits outside this table precisely because there is no dialog row for it; it needs
+> the shared progress dialog built and mounted around the commit flow before the category is truly
+> covered.
 
 ---
 
