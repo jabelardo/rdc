@@ -8,6 +8,8 @@ import {
   getStatus,
   mergeBranch,
   MergeResult,
+  rebaseBranch as rebaseBranchCommand,
+  RebaseResult,
   type IStatusResult,
 } from "../git-ipc";
 import {
@@ -20,7 +22,13 @@ import { determineMergeability, getRecentBranches } from "../misc-ipc";
 import { getRemoteHEAD, getRemotes } from "../remote-ipc";
 import { testForInvalidChars } from "../sanitize-ref-name";
 
-export type BranchOperation = "creating" | "checking-out" | "renaming" | "deleting" | "merging";
+export type BranchOperation =
+  | "creating"
+  | "checking-out"
+  | "renaming"
+  | "deleting"
+  | "merging"
+  | "rebasing";
 
 /** The outcome of an in-app merge initiation. */
 export type MergeInitiationResult =
@@ -30,6 +38,9 @@ export type MergeInitiationResult =
   | "invalid"
   | "dirty"
   | "failed";
+
+/** The outcome of an in-app rebase initiation. */
+export type RebaseInitiationResult = "completed" | "conflict" | "up-to-date" | "dirty" | "failed";
 
 export type BranchState = {
   readonly repositoryPath: string | null;
@@ -62,6 +73,7 @@ type BranchStoreDependencies = {
   readonly deleteRef: typeof deleteRef;
   readonly determineMergeability: typeof determineMergeability;
   readonly mergeBranch: typeof mergeBranch;
+  readonly rebaseBranch: typeof rebaseBranchCommand;
 };
 
 const defaultDependencies: BranchStoreDependencies = {
@@ -77,6 +89,7 @@ const defaultDependencies: BranchStoreDependencies = {
   deleteRef,
   determineMergeability,
   mergeBranch,
+  rebaseBranch: rebaseBranchCommand,
 };
 
 const EmptyState: BranchState = {
@@ -450,6 +463,58 @@ export class BranchStore {
           return "up-to-date";
         case MergeResult.Failed:
           return "conflict";
+      }
+    } catch (error) {
+      this.failOperation(requestID, operationID, error);
+      return "failed";
+    }
+  }
+
+  /**
+   * Rebases the current branch onto `baseBranchName` (`git rebase <base> <current>`).
+   *
+   * Mirrors `initiateMerge`'s shape, including the dirty-tree guard (git refuses to rebase with
+   * uncommitted changes) and the `finishOperation` reload. Rebase conflicts are reported, not
+   * auto-resolved: rdc's conflict recovery tracks only `mergeInProgress`, so a rebase conflict
+   * (which writes `.git/rebase-merge/`) is surfaced to the caller rather than silently handed off
+   * to the merge-conflict surface that cannot see it.
+   */
+  public async rebaseBranch(
+    baseBranchName: string,
+    options: { readonly workingTreeDirty: boolean },
+  ): Promise<RebaseInitiationResult> {
+    const repositoryPath = this.currentState.repositoryPath;
+    const current = this.currentState.currentBranch;
+    const base = this.currentState.branches.find(
+      (branch) => branch.type === BranchType.Local && branch.name === baseBranchName,
+    );
+    if (repositoryPath === null || base === undefined || current === null) {
+      return "failed";
+    }
+    if (options.workingTreeDirty) {
+      return "dirty";
+    }
+
+    const operationID = ++this.operationID;
+    const requestID = this.requestID;
+    this.update({
+      ...this.currentState,
+      operation: "rebasing",
+      progress: null,
+      operationError: null,
+    });
+    try {
+      const result = await this.dependencies.rebaseBranch(repositoryPath, baseBranchName, current);
+      await this.finishOperation(repositoryPath, requestID, operationID);
+      switch (result) {
+        case RebaseResult.CompletedWithoutError:
+          return "completed";
+        case RebaseResult.ConflictsEncountered:
+          return "conflict";
+        case RebaseResult.AlreadyUpToDate:
+          return "up-to-date";
+        default:
+          return "failed";
       }
     } catch (error) {
       this.failOperation(requestID, operationID, error);

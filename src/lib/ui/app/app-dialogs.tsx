@@ -35,11 +35,13 @@ import { ConfirmDialog } from "../dialogs/confirm-dialog";
 import { ConfirmOptOut } from "../dialogs/confirm-opt-out";
 import { DiscardFileList, discardAllQuestion } from "../dialogs/discard-file-list";
 import { MergeBranchDialog, mergeCandidates } from "../dialogs/merge-branch-dialog";
+import { RebaseBranchDialog, rebaseCandidates } from "../dialogs/rebase-branch-dialog";
 import { NoticeDialog } from "../dialogs/notice-dialog";
 import { RenameBranchDialog } from "../dialogs/rename-branch-dialog";
 import { TerminalOutput } from "../terminal-output";
 import type { MergeTreeResult } from "../../../models/merge";
 import { MergeStrategyLabel, type MergeStrategy } from "../../../models/merge-strategy";
+import type { RebasePreview } from "../../../models/rebase-preview";
 
 const confirmationDialogClassName =
   "confirmation-dialog box-border w-[min(390px,calc(100vw-26px))] rounded-[var(--radius-medium)] border border-[var(--border)] bg-[var(--popover)] p-6 shadow-[var(--shadow-dialog)]";
@@ -101,6 +103,15 @@ type AppDialogsProps = {
   readonly mergedBranches: ReadonlyMap<string, string>;
   readonly onConfirmMerge: () => void;
   readonly onCancelMerge: () => void;
+  readonly rebasePickerOpen: boolean;
+  readonly rebaseTarget: string;
+  readonly onRebaseTargetChange: (value: string) => void;
+  readonly rebaseMessage: string | null;
+  readonly rebaseRunning: boolean;
+  readonly rebasePreview: RebasePreview | null;
+  readonly rebasePreviewError: string | null;
+  readonly onConfirmRebase: () => void;
+  readonly onCancelRebase: () => void;
   readonly showManageRemotes: boolean;
   readonly remotes: ReadonlyArray<IRemote>;
   readonly remoteFilter: string;
@@ -186,6 +197,15 @@ export function AppDialogs({
   mergedBranches,
   onConfirmMerge,
   onCancelMerge,
+  rebasePickerOpen,
+  rebaseTarget,
+  onRebaseTargetChange,
+  rebaseMessage,
+  rebaseRunning,
+  rebasePreview,
+  rebasePreviewError,
+  onConfirmRebase,
+  onCancelRebase,
   showManageRemotes,
   remotes,
   remoteFilter,
@@ -343,6 +363,22 @@ export function AppDialogs({
           onStrategyChange={onMergeStrategyChange}
           onConfirm={onConfirmMerge}
           onCancel={onCancelMerge}
+        />
+      )}
+
+      {rebasePickerOpen && (
+        <RebaseBranchDialog
+          currentBranch={branchState.currentBranch ?? "—"}
+          candidates={rebaseCandidates(branchState.branches, branchState.currentBranch)}
+          defaultBranch={branchState.defaultBranch}
+          recentBranches={branchState.recentBranches}
+          selected={branchState.branches.find((branch) => branch.name === rebaseTarget) ?? null}
+          preview={rebasePreview}
+          running={rebaseRunning}
+          failure={rebaseMessage ?? rebasePreviewError}
+          onSelect={(branch) => onRebaseTargetChange(branch.name)}
+          onConfirm={onConfirmRebase}
+          onCancel={onCancelRebase}
         />
       )}
 

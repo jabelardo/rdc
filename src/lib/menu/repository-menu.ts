@@ -51,6 +51,7 @@ type RepositoryMenuEnvironment = {
   readonly debugShowRenameBranchDialog?: () => void;
   readonly debugShowDeleteBranchDialog?: () => void;
   readonly debugShowMergeDialog?: () => void;
+  readonly debugShowRebaseDialog?: () => void;
   readonly debugShowManageRemotesDialog?: () => void;
   readonly debugShowHookFailureDialog?: () => void;
 };
@@ -135,6 +136,7 @@ export function buildRepositoryMenu(
   enabledByID.set("debug-rename-branch", hasSelection);
   enabledByID.set("debug-delete-branch", hasSelection);
   enabledByID.set("debug-merge-branch", hasSelection);
+  enabledByID.set("debug-rebase-branch", hasSelection);
   enabledByID.set("debug-manage-remotes", hasSelection);
   enabledByID.set("debug-hook-failure", hasSelection);
   enabledByID.set("debug-show-discard-file-dialog", hasSelection);
@@ -354,6 +356,9 @@ export function createRepositoryMenuEventExecutor(
         return true;
       case "debug-show-merge-dialog":
         environment.debugShowMergeDialog?.();
+        return true;
+      case "debug-show-rebase-dialog":
+        environment.debugShowRebaseDialog?.();
         return true;
       case "debug-show-manage-remotes-dialog":
         environment.debugShowManageRemotesDialog?.();

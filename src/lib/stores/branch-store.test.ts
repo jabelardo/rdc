@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Branch, BranchType } from "../../models/branch";
 import { ComputedAction } from "../../models/computed-action";
 import type { MergeTreeResult } from "../../models/merge";
-import { MergeResult } from "../git-ipc";
+import { MergeResult, RebaseResult } from "../git-ipc";
 import { BranchStore } from "./branch-store";
 
 function branch(name: string, type = BranchType.Local, upstream: string | null = null): Branch {
@@ -213,6 +213,7 @@ describe("BranchStore", () => {
       async (): Promise<MergeTreeResult> => ({ kind: ComputedAction.Clean }),
     );
     const mergeBranch = vi.fn(async () => MergeResult.Success);
+    const rebaseBranch = vi.fn(async () => RebaseResult.CompletedWithoutError);
     const store = new BranchStore({
       getBranches,
       getStatus,
@@ -224,6 +225,7 @@ describe("BranchStore", () => {
       deleteRef,
       determineMergeability,
       mergeBranch,
+      rebaseBranch,
     });
     return {
       store,
@@ -233,6 +235,7 @@ describe("BranchStore", () => {
       deleteRef,
       determineMergeability,
       mergeBranch,
+      rebaseBranch,
     };
   }
 
@@ -469,5 +472,63 @@ describe("BranchStore", () => {
     await expect(store.initiateMerge("topic", { workingTreeDirty: false })).resolves.toBe("failed");
 
     expect(mergeBranch).not.toHaveBeenCalled();
+  });
+
+  it("rebases the current branch onto a chosen base", async () => {
+    const main = branch("main", BranchType.Local, "origin/main");
+    const topic = branch("topic");
+    const base = branch("main");
+    const { store, rebaseBranch } = loadTopology("topic", [main, topic, base]);
+    await store.load("/repo");
+
+    await expect(store.rebaseBranch("main", { workingTreeDirty: false })).resolves.toBe(
+      "completed",
+    );
+
+    // target is the current branch; the picked branch is the base.
+    expect(rebaseBranch).toHaveBeenCalledWith("/repo", "main", "topic");
+  });
+
+  it("reports a rebase that leaves conflicts", async () => {
+    const main = branch("main", BranchType.Local, "origin/main");
+    const topic = branch("topic");
+    const { store, rebaseBranch } = loadTopology("topic", [main, topic]);
+    rebaseBranch.mockResolvedValueOnce(RebaseResult.ConflictsEncountered);
+    await store.load("/repo");
+
+    await expect(store.rebaseBranch("main", { workingTreeDirty: false })).resolves.toBe("conflict");
+  });
+
+  it("reports a rebase that was already up to date", async () => {
+    const main = branch("main", BranchType.Local, "origin/main");
+    const topic = branch("topic");
+    const { store, rebaseBranch } = loadTopology("topic", [main, topic]);
+    rebaseBranch.mockResolvedValueOnce(RebaseResult.AlreadyUpToDate);
+    await store.load("/repo");
+
+    await expect(store.rebaseBranch("main", { workingTreeDirty: false })).resolves.toBe(
+      "up-to-date",
+    );
+  });
+
+  it("refuses to rebase over a dirty working tree", async () => {
+    const main = branch("main", BranchType.Local, "origin/main");
+    const topic = branch("topic");
+    const { store, rebaseBranch } = loadTopology("topic", [main, topic]);
+    await store.load("/repo");
+
+    await expect(store.rebaseBranch("main", { workingTreeDirty: true })).resolves.toBe("dirty");
+
+    expect(rebaseBranch).not.toHaveBeenCalled();
+  });
+
+  it("reports a git failure as a failed rebase", async () => {
+    const main = branch("main", BranchType.Local, "origin/main");
+    const topic = branch("topic");
+    const { store, rebaseBranch } = loadTopology("topic", [main, topic]);
+    rebaseBranch.mockRejectedValue(new Error("boom"));
+    await store.load("/repo");
+
+    await expect(store.rebaseBranch("main", { workingTreeDirty: false })).resolves.toBe("failed");
   });
 });

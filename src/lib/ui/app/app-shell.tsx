@@ -117,6 +117,15 @@ export function AppShell({ controller }: AppShellProps) {
     mergedBranches,
     confirmMerge,
     cancelMerge,
+    rebasePickerOpen,
+    rebaseTarget,
+    setRebaseTarget,
+    rebaseMessage,
+    rebaseRunning,
+    rebasePreview,
+    rebasePreviewError,
+    confirmRebase,
+    cancelRebase,
     showManageRemotes,
     remoteFilter,
     setRemoteFilter,
@@ -352,6 +361,15 @@ export function AppShell({ controller }: AppShellProps) {
         mergedBranches={mergedBranches}
         onConfirmMerge={() => void confirmMerge()}
         onCancelMerge={cancelMerge}
+        rebasePickerOpen={rebasePickerOpen}
+        rebaseTarget={rebaseTarget}
+        onRebaseTargetChange={setRebaseTarget}
+        rebaseMessage={rebaseMessage}
+        rebaseRunning={rebaseRunning}
+        rebasePreview={rebasePreview}
+        rebasePreviewError={rebasePreviewError}
+        onConfirmRebase={() => void confirmRebase()}
+        onCancelRebase={cancelRebase}
         showManageRemotes={showManageRemotes}
         remotes={remoteState.remotes}
         remoteFilter={remoteFilter}

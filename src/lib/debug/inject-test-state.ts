@@ -24,6 +24,7 @@ import { getDefaultBranchStore } from "../stores/default-branch-store";
 import { getDefaultRemoteStore } from "../stores/default-remote-store";
 import { ComputedAction } from "../../models/computed-action";
 import type { MergeTreeResult } from "../../models/merge";
+import type { RebasePreview } from "../../models/rebase-preview";
 
 // ── Stub data factories ──────────────────────────────────────────────
 
@@ -121,6 +122,53 @@ export function debugMergePreview(branchName: string): DebugMergePreview | null 
  */
 export function debugMergedBranches(): ReadonlyMap<string, string> {
   return new Map([["refs/heads/develop", stubShaFor("develop")]]);
+}
+
+// ── Rebase preview stubs ───────────────────────────────────────────────
+//
+// Like mergeability, the rebase relationship is normally computed by git from the two branches'
+// ancestry. Stub branches have no ancestry, so these canned answers let every outcome the rebase
+// dialog renders be reviewed from Help → Show Dialog.
+
+/** Each stub branch maps to a preview in a different state, so one pass covers the whole dialog. */
+const DebugRebasePreviews: ReadonlyMap<string, RebasePreview> = new Map<string, RebasePreview>([
+  // Diverged and both ahead and behind — the ordinary rebase: replay the current branch's commits
+  // on top of the base.
+  ["develop", { kind: ComputedAction.Clean, commitsAhead: 3, commitsBehind: 2 }],
+  // One commit to replay, so the singular "commit" wording is exercised.
+  [
+    "feature/add-user-authentication-flow",
+    { kind: ComputedAction.Clean, commitsAhead: 1, commitsBehind: 3 },
+  ],
+  // Fast-forward: the current branch is a strict ancestor of the base, so it just moves forward.
+  [
+    "hotfix/critical-security-patch",
+    { kind: ComputedAction.Clean, commitsAhead: 0, commitsBehind: 4 },
+  ],
+  // Fast-forward large enough to show the thousands separator.
+  [
+    "bugfix/resolve-navigation-issue",
+    { kind: ComputedAction.Clean, commitsAhead: 0, commitsBehind: 1284 },
+  ],
+  // A remote base that rebases cleanly, so remotes are covered too.
+  ["origin/develop", { kind: ComputedAction.Clean, commitsAhead: 1, commitsBehind: 2 }],
+  // Unrelated histories — refused, with the button disabled.
+  ["release/v2.0.0", { kind: ComputedAction.Invalid }],
+  // The current branch is already past this base, so a rebase would be a no-op.
+  [
+    "feature/update-dashboard-layout",
+    { kind: ComputedAction.Clean, commitsAhead: 2, commitsBehind: 0 },
+  ],
+  // The truncated row, so the tooltip's full name has something to reveal.
+  [
+    "feature/consolidate-address-module-backend-validation-and-error-reporting-pipeline",
+    { kind: ComputedAction.Clean, commitsAhead: 5, commitsBehind: 3 },
+  ],
+]);
+
+/** The canned rebase preview for a stub branch, or null when it is not part of the debug set. */
+export function debugRebasePreview(branchName: string): RebasePreview | null {
+  return DebugRebasePreviews.get(branchName) ?? null;
 }
 
 /**

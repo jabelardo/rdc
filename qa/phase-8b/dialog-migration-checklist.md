@@ -213,3 +213,37 @@ tooltip's full name are both exercised.
 > commit: the filter matches on **SHA as well as ref name**, which is deliberate — it is what lets one
 > `git branch --merged` call also account for remote branches, since that command reports local refs
 > only.
+
+---
+
+## Rebase dialog — every preview state
+
+Reviewable **either** way, and both are worth one pass.
+
+- **`Help → Show Dialog → Rebase…`** — no repository needed. Rebaseability is normally computed by
+  git from the branches' ancestry, so the stub branches carry canned previews chosen to reach every
+  state the dialog renders differently: update (both ahead and behind), fast-forward (behind only)
+  at 1 and 1284 commits for the singular/plural and thousands wordings, already up to date (not
+  behind), unrelated histories, and one branch too long for its row so the tooltip has something to
+  reveal. `inject-test-state.test.ts` asserts that coverage, so the preview cannot quietly stop
+  exercising a state.
+- **A real repository, via the debug menu after selecting it** — the same states produced by real
+  ancestry (`getAheadBehind(current…base)`) rather than canned answers. A branch you are already on
+  must be absent; a branch behind the current one must read "already up to date" and refuse.
+
+| Check | Light | Dark |
+|---|---|---|
+| The current branch is **absent** from the list — you cannot rebase onto yourself | | |
+| A diverged base reads "This will update *main* by applying its N commits on top of *base*" | | |
+| A fast-forward base reads "This will fast-forward main by N commits to match *base*" | | |
+| "1 commit" is singular; a 1,284-commit fast-forward shows the thousands separator | | |
+| A base the current branch has already passed reads "already up to date" and disables the button | | |
+| Unrelated histories are refused with the button disabled | | |
+| Nothing selected: the message slot explains what the space is for | | |
+| The title states the direction — "Rebase *main*" — and the button is a plain single-action "Rebase" with no strategy caret | | |
+| Up/Down move the selection; the tooltip shows the truncated branch's full name | | |
+| The button greys while the preview loads, and says "Rebasing…" while running | | |
+
+> A rebase conflict is reported in the dialog rather than closing into rdc's conflict surface, which
+> tracks only merge conflicts. That copy is deliberately honest about the boundary; in-app rebase
+> conflict recovery (continue/abort) is planned work, not claimed here.

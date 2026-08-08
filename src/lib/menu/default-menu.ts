@@ -621,8 +621,13 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
         },
         {
           id: "debug-merge-branch",
-          label: "Merge…",
+          label: "Merge branch…",
           action: event("debug-show-merge-dialog"),
+        },
+        {
+          id: "debug-rebase-branch",
+          label: "Rebase branch…",
+          action: event("debug-show-rebase-dialog"),
         },
         {
           id: "debug-manage-remotes",

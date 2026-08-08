@@ -12,6 +12,13 @@ const repository = {
   path: "/projects/rdc",
 } as Repository;
 
+/** Flatten a menu tree to every level, including the nested Help → Show Dialog submenu. */
+function flattenMenu(items: ReadonlyArray<MenuItem>): ReadonlyArray<MenuItem> {
+  return items.flatMap((item) =>
+    item.type === "submenuItem" ? [item, ...flattenMenu(item.menu.items)] : [item],
+  );
+}
+
 const remoteState = {
   repositoryPath: repository.path,
   remotes: [{ name: "origin", url: "/remotes/origin.git" }],
@@ -52,9 +59,7 @@ function allItems(items: ReadonlyArray<MenuItem>): ReadonlyArray<MenuItem> {
 describe("repository application menu", () => {
   it("keeps repository actions disabled until a repository is selected", () => {
     const menu = buildRepositoryMenu({ repositories: [], selectedRepository: null }, "macos");
-    const appMenu = menu.items.flatMap((item) =>
-      item.type === "submenuItem" ? [item, ...item.menu.items] : [item],
-    );
+    const appMenu = flattenMenu(menu.items);
     const byId = (id: string) => appMenu.find((item) => item.id === id);
 
     expect(byId("add-local-repository")).toMatchObject({ enabled: true });
@@ -67,6 +72,9 @@ describe("repository application menu", () => {
       enabled: false,
     });
     expect(byId("pull")).toMatchObject({ enabled: false });
+    // Debug branch dialogs require a selected repository, so they stay honest with no selection.
+    expect(byId("debug-merge-branch")).toMatchObject({ enabled: false });
+    expect(byId("debug-rebase-branch")).toMatchObject({ enabled: false });
   });
 
   it("enables only the Phase 7a repository actions backed by the shell", () => {
@@ -77,9 +85,7 @@ describe("repository application menu", () => {
       },
       "linux",
     );
-    const appMenu = menu.items.flatMap((item) =>
-      item.type === "submenuItem" ? [item, ...item.menu.items] : [item],
-    );
+    const appMenu = flattenMenu(menu.items);
     const byId = (id: string) => appMenu.find((item) => item.id === id);
 
     expect(byId("show-repository-list")).toMatchObject({ enabled: true });
@@ -92,6 +98,9 @@ describe("repository application menu", () => {
     expect(byId("pull")).toMatchObject({ enabled: false });
     expect(byId("show-changes")).toMatchObject({ enabled: true });
     expect(byId("show-history")).toMatchObject({ enabled: true });
+    // With a selected repository the debug branch dialogs are available, as they must be to open.
+    expect(byId("debug-merge-branch")).toMatchObject({ enabled: true });
+    expect(byId("debug-rebase-branch")).toMatchObject({ enabled: true });
   });
 
   it("enables synchronization only with usable remote state and no operation", () => {
@@ -204,6 +213,7 @@ describe("repository application menu", () => {
           debugShowRenameBranchDialog: vi.fn(),
           debugShowDeleteBranchDialog: vi.fn(),
           debugShowMergeDialog: vi.fn(),
+          debugShowRebaseDialog: vi.fn(),
           debugShowManageRemotesDialog: vi.fn(),
           debugShowHookFailureDialog: vi.fn(),
         },

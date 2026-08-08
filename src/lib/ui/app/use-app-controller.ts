@@ -16,6 +16,7 @@ import { launchExternalEditor } from "../../platform/editors";
 import {
   debugMergePreview,
   debugMergedBranches,
+  debugRebasePreview,
   injectDebugState,
   isDebugStateInjected,
 } from "../../debug/inject-test-state";
@@ -30,7 +31,7 @@ import { shouldShowWindowDragRegion } from "../../platform/window-drag-region";
 import { setWindowZoomFactor } from "../../platform/window";
 import type { AppStoreState } from "../../stores/app-store";
 import type { BranchState } from "../../stores/branch-store";
-import type { MergeInitiationResult } from "../../stores/branch-store";
+import type { MergeInitiationResult, RebaseInitiationResult } from "../../stores/branch-store";
 import type { CloneState } from "../../stores/clone-store";
 import type { ConflictState } from "../../stores/conflict-store";
 import { getDefaultAppStore } from "../../stores/default-app-store";
@@ -54,6 +55,7 @@ import { revSymmetricDifference } from "../../rev-range";
 import { ComputedAction } from "../../../models/computed-action";
 import type { MergeTreeResult } from "../../../models/merge";
 import type { MergeStrategy } from "../../../models/merge-strategy";
+import type { RebasePreview } from "../../../models/rebase-preview";
 
 const rendererStartTime = performance.now();
 const rendererPlatform = currentMenuPlatform();
@@ -137,6 +139,14 @@ export function useAppController() {
   // recognised, since --merged itself reports only local refs.
   const [mergedBranches, setMergedBranches] = useState<ReadonlyMap<string, string>>(new Map());
   const [mergeCommitCount, setMergeCommitCount] = useState(0);
+  const [rebasePickerOpen, setRebasePickerOpen] = useState(false);
+  const [rebaseTarget, setRebaseTarget] = useState("");
+  const [rebasePreview, setRebasePreview] = useState<RebasePreview | null>(null);
+  const [rebaseRunning, setRebaseRunning] = useState(false);
+  const [rebaseMessage, setRebaseMessage] = useState<string | null>(null);
+  // Distinct from a preview: "we could not work out how far apart these branches are" is not the
+  // same claim as any ComputedAction, and collapsing it into one reported failures as "up to date".
+  const [rebasePreviewError, setRebasePreviewError] = useState<string | null>(null);
   const [showManageRemotes, setShowManageRemotes] = useState(false);
   const [remoteFilter, setRemoteFilter] = useState("");
   const [showAddRemote, setShowAddRemote] = useState(false);
@@ -287,6 +297,10 @@ export function useAppController() {
         injectDebugState();
         requestMerge();
       },
+      debugShowRebaseDialog: () => {
+        injectDebugState();
+        requestRebase();
+      },
       debugShowManageRemotesDialog: () => {
         injectDebugState();
         requestManageRemotes();
@@ -374,6 +388,12 @@ export function useAppController() {
     setMergePickerOpen(false);
     setMergeMessage(null);
     setMergeRunning(false);
+    setRebasePickerOpen(false);
+    setRebaseTarget("");
+    setRebasePreview(null);
+    setRebaseRunning(false);
+    setRebaseMessage(null);
+    setRebasePreviewError(null);
     setShowManageRemotes(false);
     setShowAddRemote(false);
     setRemoteFilter("");
@@ -1157,6 +1177,126 @@ export function useAppController() {
     setMergeCommitCount(0);
   }
 
+  // Reactive rebase preview: when rebaseTarget changes, work out how far the current branch is
+  // from the base, mirroring desktop-plus's updateRebasePreview. `ahead` is the current branch's
+  // own commits (the ones a rebase replays); `behind` is the base's commits the current branch is
+  // missing, and a rebase can only start when it is positive.
+  useEffect(() => {
+    if (!rebasePickerOpen || rebaseTarget === "") {
+      setRebasePreview(null);
+      setRebasePreviewError(null);
+      return;
+    }
+
+    // Stub branches have no ancestry, so git has nothing to compute from. Canned answers keep
+    // every outcome reachable from Help -> Show Dialog, which is what that menu is for.
+    if (isDebugStateInjected()) {
+      const preview = debugRebasePreview(rebaseTarget);
+      if (preview !== null) {
+        setRebasePreviewError(null);
+        setRebasePreview(preview);
+        return;
+      }
+    }
+
+    const repository = appState.selectedRepository;
+    const current = branchState.currentBranch;
+    if (repository === null || current === null) {
+      return;
+    }
+
+    let disposed = false;
+    setRebasePreviewError(null);
+    setRebasePreview({ kind: ComputedAction.Loading });
+    void getAheadBehind(repository.path, revSymmetricDifference(current, rebaseTarget))
+      .then((result) => {
+        if (disposed) {
+          return;
+        }
+        // A ref in the range vanished; desktop-plus treats the same case as Invalid.
+        if (result === null) {
+          setRebasePreview({ kind: ComputedAction.Invalid });
+          return;
+        }
+        setRebasePreview({
+          kind: ComputedAction.Clean,
+          commitsAhead: result.ahead,
+          commitsBehind: result.behind,
+        });
+      })
+      .catch((error: unknown) => {
+        if (disposed) {
+          return;
+        }
+        log.error("Failed to preview rebase", error instanceof Error ? error : undefined);
+        setRebasePreview(null);
+        setRebasePreviewError("Could not determine whether these branches can be combined.");
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [rebasePickerOpen, rebaseTarget, appState.selectedRepository, branchState.currentBranch]);
+
+  function requestRebase(): void {
+    setRebaseTarget("");
+    setRebaseMessage(null);
+    setRebasePreview(null);
+    setRebasePreviewError(null);
+    setRebasePickerOpen(true);
+  }
+
+  function rebaseMessageFor(result: RebaseInitiationResult): string {
+    switch (result) {
+      case "completed":
+        return "";
+      case "conflict":
+        // A rebase conflict writes .git/rebase-merge/, which rdc's conflict recovery (tracked on
+        // mergeInProgress) does not see, so closing the dialog into that void would strand the user.
+        // Stay openly in the dialog and state the boundary rather than pretend recovery exists.
+        return "The rebase stopped on conflicts. Resolve them, then continue or abort the rebase from a terminal.";
+      case "up-to-date":
+        return "The current branch is already up to date with the selected base.";
+      case "dirty":
+        return "Clean the working tree before rebasing.";
+      case "failed":
+        return "The rebase failed.";
+    }
+  }
+
+  async function confirmRebase(): Promise<void> {
+    if (rebaseTarget === "" || rebaseRunning) {
+      return;
+    }
+    setRebaseRunning(true);
+    setRebaseMessage(null);
+    const target = rebaseTarget;
+    const workingTreeDirty = (workingTreeState.workingDirectory?.files.length ?? 0) > 0;
+    try {
+      const result = await branchStore.rebaseBranch(target, { workingTreeDirty });
+      if (result === "completed") {
+        await refreshAfterBranchChange(() => Promise.resolve(true));
+        setRebasePickerOpen(false);
+        return;
+      }
+      setRebaseMessage(rebaseMessageFor(result));
+    } catch {
+      setRebaseMessage("The rebase failed.");
+    } finally {
+      setRebaseRunning(false);
+    }
+  }
+
+  function cancelRebase(): void {
+    if (rebaseRunning) {
+      return;
+    }
+    setRebasePickerOpen(false);
+    setRebaseMessage(null);
+    setRebaseTarget("");
+    setRebasePreview(null);
+  }
+
   function requestManageRemotes(): void {
     setRemoteFilter("");
     setManageRemoteError(null);
@@ -1439,6 +1579,16 @@ export function useAppController() {
     confirmMerge,
     cancelMerge,
     requestMerge,
+    rebasePickerOpen,
+    rebaseTarget,
+    setRebaseTarget,
+    rebaseMessage,
+    rebaseRunning,
+    rebasePreview,
+    rebasePreviewError,
+    confirmRebase,
+    cancelRebase,
+    requestRebase,
     showManageRemotes,
     remoteFilter,
     setRemoteFilter,

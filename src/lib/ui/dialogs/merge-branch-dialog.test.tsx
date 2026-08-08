@@ -75,14 +75,14 @@ describe("MergeBranchDialog", () => {
     renderDialog({ selected: candidates[1], status: clean, commitCount: 4 });
 
     expect(message()).toHaveTextContent("Brings 4 commits from feature/auth into main");
-    expect(screen.getByRole("button", { name: "Merge into main" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Merge" })).toBeEnabled();
   });
 
   it("says when there is nothing to merge, and blocks the action", () => {
     renderDialog({ selected: candidates[1], status: clean, commitCount: 0 });
 
     expect(message()).toHaveTextContent("main is already up to date with feature/auth");
-    expect(screen.getByRole("button", { name: "Merge into main" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Merge" })).toBeDisabled();
   });
 
   it("allows a conflicting merge but warns how many files", () => {
@@ -94,28 +94,29 @@ describe("MergeBranchDialog", () => {
     });
 
     expect(message()).toHaveTextContent("This will leave 3 files conflicted");
-    expect(screen.getByRole("button", { name: "Merge into main" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Merge" })).toBeEnabled();
   });
 
   it("blocks unrelated histories", () => {
     renderDialog({ selected: candidates[1], status: { kind: ComputedAction.Invalid } });
 
     expect(screen.getByRole("alert")).toHaveTextContent("unrelated histories");
-    expect(screen.getByRole("button", { name: "Merge into main" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Merge" })).toBeDisabled();
   });
 
   it("blocks while mergeability is still being computed", () => {
     renderDialog({ selected: candidates[1], status: { kind: ComputedAction.Loading } });
 
     expect(message()).toHaveTextContent(/Checking whether/);
-    expect(screen.getByRole("button", { name: "Merge into main" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Merge" })).toBeDisabled();
   });
 
-  it("names the strategy and the destination on the button", () => {
-    // Direction is the thing users get wrong, so the button says the whole sentence.
+  it("names the chosen strategy on the button", () => {
+    // The title already names the destination ("Merge into main"); the button names only the
+    // strategy, which is the one thing the user chooses here.
     renderDialog({ selected: candidates[1], status: clean, commitCount: 4, strategy: "squash" });
 
-    expect(screen.getByRole("button", { name: "Squash into main" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Squash" })).toBeEnabled();
     expect(message()).toHaveTextContent("Combines 4 commits from feature/auth into one commit");
   });
 
@@ -175,7 +176,7 @@ describe("MergeBranchDialog", () => {
     // One control in two halves — a lit caret beside a greyed confirm read as two buttons.
     renderDialog();
 
-    expect(screen.getByRole("button", { name: "Merge into main" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Merge" })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Choose how to combine/ })).toBeDisabled();
   });
 
@@ -191,7 +192,7 @@ describe("MergeBranchDialog", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent("Could not determine");
     expect(screen.getByRole("alert")).not.toHaveTextContent(/up to date/);
-    expect(screen.getByRole("button", { name: "Merge into main" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Merge" })).toBeDisabled();
   });
 
   it("moves the selection with the arrow keys from the focused row", async () => {

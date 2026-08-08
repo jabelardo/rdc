@@ -10,23 +10,118 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../compo
 import { formatNumber } from "../../format-number";
 import { BranchPicker } from "./branch-picker";
 import { DialogMessage, type DialogMessageTone } from "./dialog-message";
-import { StrategyActions } from "./strategy-actions";
+import { ChevronDown } from "lucide-react";
+import { Button } from "../../../components/ui/button";
+import { DialogFooter } from "../../../components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "../../../components/ui/dropdown-menu";
 
 const MessageID = "merge-branch-message";
 
-/**
- * The branches worth offering as a merge source.
- *
- * Excludes the current branch and anything already contained in it. An already-merged branch can
- * only produce "Already up to date", so listing it is noise in a control whose entire purpose is
- * choosing something to act on.
- *
- * `merged` is `git branch --merged`'s ref-to-SHA map. Matching on **SHA as well as ref** is what
- * makes this cover remote branches: `--merged` reports local refs only, but a remote branch sitting
- * on a commit that is already merged has that same commit, so the one call answers for both. A
- * branch pointing at the current branch's own tip is included for the same reason — trivially up to
- * date, and git excludes the current branch from its own merged list.
- */
+const Strategies: ReadonlyArray<MergeStrategy> = ["merge", "squash"];
+
+type StrategyActionsProps = {
+  readonly strategy: MergeStrategy;
+  readonly busy: boolean;
+  readonly confirmDisabled: boolean;
+  readonly dismissOnly?: boolean;
+  readonly onStrategyChange: (strategy: MergeStrategy) => void;
+  readonly onConfirm: () => void;
+  readonly onCancel: () => void;
+};
+
+function StrategyActions({
+  strategy,
+  busy,
+  confirmDisabled,
+  dismissOnly = false,
+  onStrategyChange,
+  onConfirm,
+  onCancel,
+}: StrategyActionsProps) {
+  if (dismissOnly) {
+    return (
+      <DialogFooter>
+        <Button type="button" onClick={onCancel}>
+          Close
+        </Button>
+      </DialogFooter>
+    );
+  }
+
+  const verb = strategy === "squash" ? "Squash" : "Merge";
+  const busyLabel = strategy === "squash" ? "Squashing…" : "Merging…";
+
+  const cancel = (
+    <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
+      Cancel
+    </Button>
+  );
+
+  const confirm = (
+    <div className="flex">
+      <Button
+        type="button"
+        className="rounded-r-none"
+        disabled={busy || confirmDisabled}
+        onClick={onConfirm}
+      >
+        {busy ? busyLabel : `${verb}`}
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            className="rounded-l-none border-l border-l-[color-mix(in_oklch,var(--primary-foreground),transparent_70%)] px-1.5"
+            disabled={busy || confirmDisabled}
+            aria-label="Choose how to combine the branches"
+          >
+            <ChevronDown aria-hidden />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-[22rem]">
+          <DropdownMenuRadioGroup
+            value={strategy}
+            onValueChange={(value) => onStrategyChange(value as MergeStrategy)}
+          >
+            {Strategies.map((option) => (
+              <DropdownMenuRadioItem key={option} value={option} className="items-start">
+                <span className="grid gap-0.5">
+                  <span className="font-medium">{MergeStrategyLabel[option]}</span>
+                  <span className="text-muted-foreground text-xs leading-snug">
+                    {MergeStrategyDescription[option]}
+                  </span>
+                </span>
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+
+  return (
+    <DialogFooter>
+      {__DARWIN__ ? (
+        <>
+          {cancel}
+          {confirm}
+        </>
+      ) : (
+        <>
+          {confirm}
+          {cancel}
+        </>
+      )}
+    </DialogFooter>
+  );
+}
+
 export function mergeCandidates(
   branches: ReadonlyArray<Branch>,
   currentBranch: string | null,
@@ -53,7 +148,6 @@ type MergeBranchDialogProps = {
   readonly recentBranches: ReadonlyArray<string>;
   readonly selected: Branch | null;
   readonly strategy: MergeStrategy;
-  /** Mergeability of `selected` into `currentBranch`, or null before one is picked. */
   readonly status: MergeTreeResult | null;
   readonly commitCount: number;
   readonly running: boolean;
@@ -64,13 +158,6 @@ type MergeBranchDialogProps = {
   readonly onCancel: () => void;
 };
 
-/**
- * Combine another branch into the current one, by merge commit or squash.
- *
- * Rebase is deliberately not here. It inverts the direction — the picked branch would become the
- * base rather than the source — so it is its own dialog rather than a third value on the strategy
- * control. See `BRANCH_OPERATIONS_PLAN.md` § "Amended scope".
- */
 export function MergeBranchDialog({
   currentBranch,
   candidates,
@@ -88,9 +175,6 @@ export function MergeBranchDialog({
   onCancel,
 }: MergeBranchDialogProps) {
   const nothingToMerge = status?.kind === ComputedAction.Clean && commitCount === 0;
-  // Conflicts do not block: desktop-plus starts anyway and resolves afterwards, and rdc has the
-  // conflict recovery flow for exactly that. Loading does block — until mergeability is known,
-  // "can this proceed" has no answer yet.
   const canMerge =
     selected !== null &&
     status !== null &&
@@ -104,8 +188,6 @@ export function MergeBranchDialog({
     tone = "error";
     message = failure;
   } else if (selected === null || status === null) {
-    // The slot holds its height either way, so leaving it blank read as an unexplained gap between
-    // the list and the buttons. Saying what the space is for costs nothing and answers "why here".
     message = "Choose a branch to see what merging it will do.";
   } else if (status.kind === ComputedAction.Loading) {
     message = "Checking whether these branches can be combined automatically…";
@@ -158,7 +240,7 @@ export function MergeBranchDialog({
       <DialogContent className="sm:max-w-[520px]" aria-describedby={MessageID}>
         <DialogHeader>
           <DialogTitle>
-            Merge a branch into <strong>{currentBranch}</strong>
+            Merge into <strong>{currentBranch}</strong>
           </DialogTitle>
         </DialogHeader>
         {candidates.length === 0 ? (
@@ -166,7 +248,6 @@ export function MergeBranchDialog({
             <DialogMessage id={MessageID}>There are no other branches to merge.</DialogMessage>
             <StrategyActions
               strategy={strategy}
-              currentBranch={currentBranch}
               busy={false}
               confirmDisabled
               dismissOnly
@@ -190,7 +271,6 @@ export function MergeBranchDialog({
             </DialogMessage>
             <StrategyActions
               strategy={strategy}
-              currentBranch={currentBranch}
               busy={running}
               confirmDisabled={!canMerge}
               onStrategyChange={onStrategyChange}
