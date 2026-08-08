@@ -2,6 +2,12 @@
 
 **Status**: active. Dialogs first; the same process applies to every component family after.
 
+**Queue.** Migrated and approved: hook failure, About, discard file, discard all, delete branch
+(+ the "cannot delete" notice), remove repository, manage remotes, add remote, rename branch, merge.
+Remaining: **rebase** (new, scoped in `BRANCH_OPERATIONS_PLAN.md` § "Amended scope"), **clone**,
+**preferences**. Fifteen conventions in, a typical table now resolves to one or two genuine
+decisions — which is what the process was for.
+
 ## Why this exists
 
 The shadcn/Radix migration is not a mechanical swap, and adopting a library default is a UI/UX
@@ -356,50 +362,119 @@ control instead, which survives a library swap.
 
 ## Component 4 — Rename branch (`Dialog`)
 
-The simplest non-destructive form dialog. Every row was already settled by existing conventions —
-the review table shrank to zero genuine decisions, exactly as the process intended.
+The first dialog with a text field, so it settles the field conventions Clone and Preferences will
+inherit. An earlier pass recorded this as introducing nothing; finishing it showed otherwise.
 
-| Dimension | rdc today | desktop-plus | shadcn/Radix default | Verdict |
+| Dimension | rdc today | desktop-plus | shadcn/Radix | Verdict |
 |---|---|---|---|---|
-| Element semantics | hand-rolled `Modal` | modal dialog | `Dialog` (not `AlertDialog` — nothing to confirm) | **SETTLED** (Convention 6) |
-| Escape / backdrop | dismisses | dismisses | dismisses | **AGREED** |
-| Button order | N/A (Cancel + submit) | N/A | — | **SETTLED** (Convention 2) |
-| Default action | Rename (submit) | Rename (submit) | — | **SETTLED** (Convention 7 — Cancel is outline, Rename is default) |
-| Footer / separator | — | — | — | **SETTLED** (Convention 5) |
-| Scale and type | — | — | — | **SETTLED** (Convention 3) |
-| Close button | none | footer only | X by default | **SETTLED** (Convention 6 — footer has Cancel, no X) |
-| Icon | none | none | — | **SETTLED** (Convention 11 — n/a) |
-| Disabled state | Rename disabled when name empty or unchanged | same | — | **AGREED** |
-
-No conventions created or modified. This dialog exercises Conventions 2, 3, 5, 6 and 7 but
-introduces no new behaviour.
-
----
-
-## Component 5 — Merge picker (`Dialog`)
-
-A form dialog with two modes: an informational "no branches" state and a branch-select state.
-Conditionally dismissible (blocked while `mergeRunning` is true).
-
-| Dimension | rdc today | desktop-plus | shadcn/Radix default | Verdict |
-|---|---|---|---|---|
-| Element semantics | hand-rolled `Modal` | modal dialog | `Dialog` | **SETTLED** (Convention 6) |
-| Escape / backdrop | blocked while running | blocked while running | dismisses | **SETTLED** → Convention 8 pattern (`onOpenChange` guard) |
-| Button order | macOS `[Cancel, Merge]`, else `[Merge, Cancel]` | same rule | — | **SETTLED** (Convention 2) |
-| Default action | Merge (not destructive — merges are reversible via reset) | same | — | **SETTLED** (Convention 7 — Cancel is outline, Merge is default) |
-| Footer / separator | — | — | — | **SETTLED** (Convention 5) |
-| Scale and type | — | — | — | **SETTLED** (Convention 3) |
-| Close button | none | footer only | X by default | **SETTLED** (Convention 6 — footer has Close/Cancel) |
-| Error display | `.application-error` class | — | — | **FIX** → `--error-*` tokens (interim rule) |
-| "No branches" state | plain text + Close button | — | — | **AGREED** → single Close button, `variant="default"` (Convention 7) |
-| Busy label | "Merging…" | same | — | **AGREED** |
+| Element semantics · Escape · order · footer · scale · close affordance | — | — | — | **SETTLED** (C2, C3, C5, C6, C7) |
+| Field primitive | hand-rolled `<input>` with a raw utility string | `RefNameTextBox` | `Input` + `Label` | **AGREED** → shadcn |
+| Name validation | empty and unchanged only | sanitises as you type, warns "will be saved as" | — | **DECIDED** → validate and explain |
+| Failure feedback | **none** — a rejected rename showed no reason | dispatcher-level | — | **FIX** |
+| Busy state | none | — | — | **FIX** |
+| Focus on open | input focused | close button focused | first tabbable | **DECIDED** → input, text selected |
+| Where messages appear | inline, moving the layout | inline | — | **DECIDED** → Convention 12 |
 
 ### Resolved
 
-- **Error tokens switched from `.application-error`** to `--error-*` tokens during migration,
-  per the interim rule in COMPONENT_MIGRATION_PROCESS.md's open decisions. This is the fifth
-  consumer of the error styling pattern.
-- **"No branches" Close is `variant="default"`** (Convention 7) — with no competing action,
-  solid reads as the obvious target.
+- **Validate and explain, rather than sanitise silently.** The user keeps what they typed and a
+  message says why it cannot be used; nothing rewrites the field under them. `sanitizedRefName` had
+  been ported for exactly this and had **zero callers**, so anything but empty-or-unchanged reached
+  git and failed after the fact. Messages name the specific rule — "cannot contain spaces" — because
+  "invalid branch name" leaves the user hunting for the character.
+- **A collision is caught before git sees it**, using `branchState.branches`.
+- **The existing name is selected on open**, so typing replaces it while a small correction is still
+  possible. desktop-plus focuses its close button instead; that was not worth porting.
+- **`DialogActions`** extracts Convention 2's platform ordering for ordinary `Dialog` footers, the
+  job `ConfirmDialog` does for `AlertDialog`. Two hand-written `__DARWIN__` ternaries in one file are
+  two chances to get the order backwards.
 
-No new conventions created.
+---
+
+## Component 5 — Merge (`Dialog`)
+
+Reviewed twice. The first pass was abandoned mid-flight with four features written and commented
+out — the branch selection was computed and never rendered, the preview was complete but not shown,
+and the failure message likewise — so the dialog greyed out its own action with no explanation. That
+is worth recording: **commented-out code in a dialog reads to the user as a broken feature, not as
+unfinished work.**
+
+| Dimension | rdc today | desktop-plus | shadcn/Radix | Verdict |
+|---|---|---|---|---|
+| Element semantics · Escape · order · footer · scale · busy guard | — | — | — | **SETTLED** (C2, C3, C5, C6, C7, C8) |
+| Strategy choice | merge only | split button switching **operation** | — | **DECIDED** → split button, merge + squash |
+| Rebase | absent | third option in the same control | — | **DECIDED** → its own dialog |
+| Default strategy | n/a | n/a | — | **DECIDED** → a persisted preference |
+| Conflicts | blocked | **allowed** — resolved afterwards | — | **FIX** → allow |
+| Loading | allowed | blocked | — | **FIX** → block |
+| Branch rows | sidebar's `.branch-list-selection` | `BranchList` | — | **FIX** → own layout |
+| Keyboard | Tab only | arrow keys | — | **DECIDED** → both |
+
+### Resolved
+
+- **Rebase is a separate dialog**, because it inverts the direction: merge and squash ask "bring what
+  in?" and the picked branch is the *source*; rebase asks "put mine on top of what?" and it is the
+  *base*. The fixed side is the current branch in all three. desktop-plus reaches the same conclusion
+  structurally — its dropdown dispatches a different operation and replaces the dialog. The
+  one-dialog alternative was rejected on evidence: Atlassian still has an open issue
+  ([SRCTREE-1578](https://jira.atlassian.com/browse/SRCTREE-1578)) about users reading the direction
+  backwards in SourceTree, which is what a self-relabelling dialog invites.
+- **The confirm button names the whole sentence** — "Merge into main", not "Merge" — for the same
+  reason. Direction is the thing users get wrong.
+- **Squash cost no backend work.** `MergeOptions { squash }` was complete and `merge()` already
+  followed it with `git commit --no-edit` under the correct second hook set; `branch-store` was
+  dropping the option.
+- **Already-merged branches are filtered out**, matching on **SHA as well as ref**, which is what
+  lets one `git branch --merged` also account for remote branches.
+
+### Resolved → Conventions 12–15
+
+- **Convention 12 — all of a dialog's messages share one slot, and the slot holds its height.**
+  Jose's rule, and the strongest layout constraint the migration produced. A message appearing as the
+  user types would otherwise move the confirm button out from under their cursor at the worst
+  possible moment. One slot forces a priority order — failure, then validation, then context — which
+  is a feature: it says which fact matters most. When there is nothing to report the slot says what
+  the space is for rather than sitting blank, which reads as an unexplained gap. `DialogMessage`.
+- **Convention 13 — a control in two halves shares one state.** The split button's caret greys with
+  the action beside it; a lit caret next to a greyed confirm reads as two unrelated buttons.
+- **Convention 14 — a dialog must fit the viewport in both axes.** `DialogContent` had no
+  max-height, so a tall dialog centred with `-translate-y-1/2` overflowed equally above and below and
+  slid under the macOS title bar — which web content can never paint over. Both primitives now cap
+  height and scroll internally. This is the third geometry bug of the same family (missing max-width,
+  the rectangular checkbox), so `e2e/discard.test.mjs` asserts dialog geometry with **lower bounds as
+  well as upper ones**: a zero-width dialog satisfies "narrower than the window", and a 0×0 checkbox
+  is "square".
+- **Convention 15 — a list is unambiguous before it is pretty.** Two rows read "develop" while a
+  remote's prefix was stripped in favour of a badge. Remotes keep their prefix. A picker that cannot
+  distinguish two options has failed at its only job.
+
+### Keyboard, after three attempts
+
+Worth recording because the first two looked right and were not:
+
+1. Options as buttons, arrows via the shared helper — **focus never moved from the filter field**,
+   because `handleListNavigation`'s fallback walks up from the event target to `[data-keyboard-list]`
+   and the filter field is a *sibling* of the list. Silent no-op. That constraint is now documented
+   on the helper.
+2. A roving `aria-activedescendant` listbox — fixed the arrows but **took Tab away**, which was a
+   regression, not a trade.
+3. What shipped: rows stay individually focusable so **Tab steps through them**, arrows move focus
+   **by ref** rather than by DOM search, and each move pairs with
+   `scrollIntoView({ block: "nearest" })` so arrowing past the last *visible* row scrolls instead of
+   escaping to the action button.
+
+**The lesson generalises: a keyboard test that asserts only the selection callback proves nothing.**
+Both failing attempts passed their tests. Assert `document.activeElement`.
+
+### Debug data is part of the component
+
+Mergeability is computed by git, so stub branches produced no state at all and the dialog could not
+be reviewed from Help → Show Dialog. The stubs now carry canned previews reaching every state the
+dialog renders differently — clean at 1, 4 and 1284 commits for the singular, plural and thousands
+wordings; conflicts; unrelated histories; one already-merged branch so the filter has something to
+remove; and one branch too long for its row so the tooltip has something to reveal.
+
+**`inject-test-state.test.ts` asserts that coverage**, because stub data that stops exercising a
+state fails silently: the preview still looks correct and proves nothing. The `mergeStates` QA
+fixture covers the same three outcomes with real ancestry, so canned answers prove the dialog
+renders each state and real git proves the answers are right.
