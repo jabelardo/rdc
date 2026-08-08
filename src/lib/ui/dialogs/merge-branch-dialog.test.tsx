@@ -5,11 +5,16 @@ import { Branch, BranchType } from "../../../models/branch";
 import { ComputedAction } from "../../../models/computed-action";
 import { MergeBranchDialog, mergeCandidates } from "./merge-branch-dialog";
 
-function branch(name: string, type: BranchType = BranchType.Local): Branch {
+/** Distinct per name, so two branches only share a SHA when a test says they do. */
+function sha(name: string): string {
+  return name.length.toString(16).padStart(2, "0").repeat(20);
+}
+
+function branch(name: string, type: BranchType = BranchType.Local, sameCommitAs?: string): Branch {
   return new Branch(
     name,
     null,
-    { sha: "a".repeat(40), author: { date: new Date(0) } },
+    { sha: sha(sameCommitAs ?? name), author: { date: new Date(0) } },
     type,
     type === BranchType.Local ? `refs/heads/${name}` : `refs/remotes/origin/${name}`,
     false,
@@ -189,6 +194,31 @@ describe("MergeBranchDialog", () => {
     expect(screen.getByRole("button", { name: "Merge into main" })).toBeDisabled();
   });
 
+  it("moves the selection with the arrow keys, across group boundaries", async () => {
+    const user = userEvent.setup();
+    const props = renderDialog();
+
+    // From the filter field, so typing and choosing are one gesture without a Tab in between.
+    // The first step lands on the first row in display order, which is the default-branch group.
+    await user.click(screen.getByRole("searchbox"));
+    await user.keyboard("{ArrowDown}");
+    expect(props.onSelect).toHaveBeenCalledWith(candidates[0]);
+  });
+
+  it("continues past the end of a group rather than stopping at the heading", async () => {
+    const user = userEvent.setup();
+    // develop is the default group, feature/auth the recent group: one step crosses between them.
+    const onSelect = vi.fn();
+    renderDialog({ selected: candidates[0], onSelect });
+
+    // Focus a row without re-selecting, then step: develop is the last of the default-branch group
+    // and feature/auth the first of the recent group.
+    screen.getByRole("option", { name: /develop/ }).focus();
+    await user.keyboard("{ArrowDown}");
+
+    expect(onSelect).toHaveBeenCalledWith(candidates[1]);
+  });
+
   it("offers only a way out when there is no other branch", () => {
     renderDialog({ candidates: [] });
 
@@ -200,30 +230,68 @@ describe("MergeBranchDialog", () => {
 
 describe("mergeCandidates", () => {
   it("drops the current branch and anything already contained in it", () => {
-    // An already-merged branch can only produce "Already up to date", so offering it just to refuse
-    // it wastes a click.
+    // An already-merged branch can only produce "Already up to date", so listing it is noise in a
+    // control whose whole purpose is choosing something to act on.
     const all = [branch("main"), branch("develop"), branch("feature/auth")];
 
-    const offered = mergeCandidates(all, "main", new Set(["refs/heads/develop"]));
+    const offered = mergeCandidates(all, "main", new Map([["refs/heads/develop", sha("develop")]]));
 
     expect(offered.map((entry) => entry.name)).toEqual(["feature/auth"]);
   });
 
-  it("keeps a remote branch that git branch --merged cannot report on", () => {
-    // --merged lists local refs only, so a merged remote still appears; the per-branch preview
-    // catches it on selection rather than the list hiding it.
-    const all = [branch("origin/develop", BranchType.Remote)];
+  it("drops a remote branch sitting on an already-merged commit", () => {
+    // --merged reports local refs only, so the ref name never matches. The SHA does, which is why
+    // the map's values matter as much as its keys — and why this needs no extra git call.
+    const all = [branch("origin/develop", BranchType.Remote, "develop")];
 
-    const offered = mergeCandidates(all, "main", new Set(["refs/heads/develop"]));
+    const offered = mergeCandidates(all, "main", new Map([["refs/heads/develop", sha("develop")]]));
 
-    expect(offered.map((entry) => entry.name)).toEqual(["origin/develop"]);
+    expect(offered).toEqual([]);
+  });
+
+  it("drops a branch pointing at the current branch's own tip", () => {
+    // Trivially up to date, and git excludes the current branch from its own --merged list.
+    const all = [branch("main"), branch("mirror-of-main", BranchType.Local, "main")];
+
+    expect(mergeCandidates(all, "main", new Map())).toEqual([]);
+  });
+
+  it("keeps both mergeable branches when given real git output", () => {
+    // SHAs and the merged map are taken verbatim from the mergeStates QA fixture, whose three
+    // branches are built to be already-merged, cleanly mergeable, and conflicting. The filter must
+    // remove exactly one of them — this is the guard against it becoming over-eager and emptying a
+    // list that should have had candidates in it.
+    const real = (name: string, tip: string) =>
+      new Branch(
+        name,
+        null,
+        { sha: tip, author: { date: new Date(0) } },
+        BranchType.Local,
+        `refs/heads/${name}`,
+        false,
+      );
+    const branches = [
+      real("already-merged", "81b34322b6754b4123c4131eaf680c658e93cffa"),
+      real("clean-merge", "24e9e22aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+      real("conflicting-merge", "dd9f1ffaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+      real("main", "6f87db5ae4ebc173757eecd6c3a33d7c5fb3882c"),
+    ];
+    // git-ops excludes the queried branch from its own merged list, so main is absent here.
+    const merged = new Map([
+      ["refs/heads/already-merged", "81b34322b6754b4123c4131eaf680c658e93cffa"],
+    ]);
+
+    expect(mergeCandidates(branches, "main", merged).map((entry) => entry.name)).toEqual([
+      "clean-merge",
+      "conflicting-merge",
+    ]);
   });
 
   it("offers everything when the merged lookup produced nothing", () => {
     // A failed `git branch --merged` filters nothing rather than emptying the list.
     const all = [branch("develop"), branch("feature/auth")];
 
-    expect(mergeCandidates(all, "main", new Set()).map((entry) => entry.name)).toEqual([
+    expect(mergeCandidates(all, "main", new Map()).map((entry) => entry.name)).toEqual([
       "develop",
       "feature/auth",
     ]);

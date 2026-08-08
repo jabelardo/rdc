@@ -218,6 +218,62 @@ function createDiscardManyScenario(target, name, fileCount) {
   };
 }
 
+/**
+ * One repository holding every state the merge dialog distinguishes, so the dialog can be reviewed
+ * against data that actually exercises it.
+ *
+ * The debug menu's stub branches cannot do this: mergeability is computed by git from the
+ * repository, so a branch that exists only in the renderer produces no state at all. Reviewing the
+ * merge dialog needs real branches with real ancestry.
+ */
+function createMergeStatesScenario(target) {
+  const repository = path.join(target, "merge-states");
+  const shared = "shared.txt";
+  initializeRepository(repository, { [shared]: "line one\nline two\nline three\n" });
+
+  // Already merged: contained in main, so it can only report "already up to date" and the dialog
+  // filters it out of the candidates entirely.
+  git(["checkout", "--quiet", "-b", "already-merged"], repository);
+  writeFileSync(path.join(repository, "merged-only.txt"), "from the merged branch\n");
+  git(["add", "."], repository);
+  git(["commit", "--quiet", "-m", "Work that has already landed"], repository);
+  git(["checkout", "--quiet", "main"], repository);
+  git(["merge", "--quiet", "--no-ff", "-m", "Merge already-merged", "already-merged"], repository);
+
+  // Clean: two commits touching a file main never touches, so it merges without conflict.
+  git(["checkout", "--quiet", "-b", "clean-merge"], repository);
+  for (const index of [1, 2]) {
+    writeFileSync(path.join(repository, `clean-${index}.txt`), `clean change ${index}\n`);
+    git(["add", "."], repository);
+    git(["commit", "--quiet", "-m", `Clean change ${index}`], repository);
+  }
+  git(["checkout", "--quiet", "main"], repository);
+
+  // Conflicting: edits the same lines that main edits afterwards.
+  git(["checkout", "--quiet", "-b", "conflicting-merge"], repository);
+  writeFileSync(path.join(repository, shared), "line one\nBRANCH EDIT\nline three\n");
+  git(["add", "."], repository);
+  git(["commit", "--quiet", "-m", "Edit the shared line on the branch"], repository);
+  git(["checkout", "--quiet", "main"], repository);
+  writeFileSync(path.join(repository, shared), "line one\nMAIN EDIT\nline three\n");
+  git(["add", "."], repository);
+  git(["commit", "--quiet", "-m", "Edit the same shared line on main"], repository);
+
+  return {
+    repository,
+    initialBranch: "main",
+    // Filtered out of the candidate list, because merging it would do nothing.
+    alreadyMergedBranch: "already-merged",
+    // Offered, and reports the commit count below.
+    cleanBranch: "clean-merge",
+    expectedCleanCommitCount: 2,
+    // Offered, and warns about the conflicted file count below.
+    conflictingBranch: "conflicting-merge",
+    expectedConflictedFiles: 1,
+    conflictedFile: shared,
+  };
+}
+
 function createCommitHookScenario(target) {
   const repository = path.join(target, "commit-hook");
   initializeRepository(repository);
@@ -362,6 +418,7 @@ export function createPhase8bFixture(requestedTarget) {
       discardAll: createDiscardAllScenario(target),
       discardMany99: createDiscardManyScenario(target, "discard-many-99", 99),
       discardMany1000: createDiscardManyScenario(target, "discard-many-1000", 1000),
+      mergeStates: createMergeStatesScenario(target),
       commitHook: createCommitHookScenario(target),
       mergeConflict: createMergeConflictScenario(target),
       remoteFetchPull: createFetchPullScenario(target),

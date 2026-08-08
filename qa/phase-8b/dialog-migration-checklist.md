@@ -172,3 +172,41 @@ Show Dialog menu — that injects three stub files and cannot reach these counts
 - **Any per-path failure message.** A partial failure should report a count ("Failed to remove N
   files, starting with …"), leave the successfully-removed files properly discarded, and re-prompt
   with a count that reflects what actually remains.
+
+---
+
+## Merge dialog — the three outcomes
+
+Reviewable **either** way, and both are worth one pass.
+
+- **`Help → Show Dialog → Merge…`** — no repository needed. Mergeability is normally computed by git,
+  so the stub branches carry canned previews chosen to reach every state the dialog renders
+  differently: clean at 1, 4 and 1284 commits (the singular, plural and thousands wordings),
+  conflicts, unrelated histories, and one already-merged branch so the candidate filter has something
+  to remove. `inject-test-state.test.ts` asserts that coverage, so the preview cannot quietly stop
+  exercising a state.
+- **The `mergeStates` fixture repository, via Repository → Merge…** — the same three outcomes
+  produced by real ancestry rather than canned answers, which is what confirms the git side agrees
+  with the stubs.
+
+Expected in the debug preview: `develop` **and** `origin/develop` are both absent — only the local
+ref is named as merged, and the remote one shares its commit, so the SHA half of the filter is what
+removes it.
+
+| Check | Light | Dark |
+|---|---|---|
+| `already-merged` is **absent** from the list — merging it could only report "already up to date" | | |
+| `clean-merge` is offered, and selecting it reports **2 commits** | | |
+| `conflicting-merge` is offered, and selecting it warns about **1 conflicted file** | | |
+| A conflicting branch still allows the merge — conflicts are an outcome, not a refusal | | |
+| Nothing selected: the message slot explains what the space is for, and the buttons do not move when a branch is then chosen | | |
+| The selected row is visibly marked | | |
+| Up/Down move the selection, including across a group heading; Down from the filter field enters the list | | |
+| Switching to Squash restates the preview and relabels the button to "Squash into \<branch\>" | | |
+| The strategy caret greys and un-greys together with the action button beside it | | |
+| The default strategy honours Preferences → Default merge, re-read each time the dialog opens | | |
+
+> If a branch you expected to be offered is missing, check whether it points at an already-merged
+> commit: the filter matches on **SHA as well as ref name**, which is deliberate — it is what lets one
+> `git branch --merged` call also account for remote branches, since that command reports local refs
+> only.

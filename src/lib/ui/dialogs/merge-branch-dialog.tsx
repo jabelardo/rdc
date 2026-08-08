@@ -17,19 +17,32 @@ const MessageID = "merge-branch-message";
 /**
  * The branches worth offering as a merge source.
  *
- * Excludes the current branch, and any branch already contained in it. An already-merged branch
- * produces "Already up to date" and nothing else, so offering it only to refuse it wastes the
- * user's click. `mergedRefs` holds canonical refs from `git branch --merged`, which covers local
- * branches only — a remote one that happens to be merged still appears and is caught by the
- * per-branch preview on selection.
+ * Excludes the current branch and anything already contained in it. An already-merged branch can
+ * only produce "Already up to date", so listing it is noise in a control whose entire purpose is
+ * choosing something to act on.
+ *
+ * `merged` is `git branch --merged`'s ref-to-SHA map. Matching on **SHA as well as ref** is what
+ * makes this cover remote branches: `--merged` reports local refs only, but a remote branch sitting
+ * on a commit that is already merged has that same commit, so the one call answers for both. A
+ * branch pointing at the current branch's own tip is included for the same reason — trivially up to
+ * date, and git excludes the current branch from its own merged list.
  */
 export function mergeCandidates(
   branches: ReadonlyArray<Branch>,
   currentBranch: string | null,
-  mergedRefs: ReadonlySet<string>,
+  merged: ReadonlyMap<string, string>,
 ): ReadonlyArray<Branch> {
+  const mergedShas = new Set(merged.values());
+  const currentTip = branches.find((branch) => branch.name === currentBranch)?.tip.sha;
+  if (currentTip !== undefined) {
+    mergedShas.add(currentTip);
+  }
+
   return branches.filter(
-    (branch) => branch.name !== currentBranch && !mergedRefs.has(`refs/heads/${branch.name}`),
+    (branch) =>
+      branch.name !== currentBranch &&
+      !merged.has(`refs/heads/${branch.name}`) &&
+      !mergedShas.has(branch.tip.sha),
   );
 }
 

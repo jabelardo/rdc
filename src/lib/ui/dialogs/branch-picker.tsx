@@ -4,6 +4,7 @@ import type { Branch } from "../../../models/branch";
 import { Input } from "../../../components/ui/input";
 import { formatRelative } from "../../format-relative";
 import { cn } from "../../utils";
+import { handleListNavigation } from "../list-navigation";
 
 type BranchGroup = {
   readonly label: string;
@@ -71,6 +72,20 @@ export function BranchPicker({
     ];
   }, [filter, branches, defaultBranch, recentBranches]);
 
+  // Groups are presentational; navigation runs over one flat order so Up and Down cross a group
+  // heading rather than stopping at it.
+  const ordered = useMemo(() => groups.flatMap((group) => group.branches), [groups]);
+  const selectedIndex = ordered.findIndex((branch) => branch.name === selectedBranch?.name);
+
+  function navigate(event: React.KeyboardEvent<HTMLElement>): void {
+    handleListNavigation(event, selectedIndex, ordered.length, (index) => {
+      const branch = ordered[index];
+      if (branch !== undefined) {
+        onSelect(branch);
+      }
+    });
+  }
+
   return (
     <div className="grid gap-2">
       <label className="grid gap-1.5">
@@ -86,6 +101,9 @@ export function BranchPicker({
             placeholder="Filter branches"
             value={filter}
             onChange={(event) => setFilter(event.currentTarget.value)}
+            // Arrow keys reach the list without a Tab first, so filtering and choosing are one
+            // gesture: type a few characters, then Down.
+            onKeyDown={navigate}
           />
         </span>
       </label>
@@ -93,6 +111,7 @@ export function BranchPicker({
         className="max-h-[min(260px,40dvh)] overflow-y-auto rounded-[var(--radius-small)] border border-[var(--border)] bg-[var(--card)] p-1"
         role="listbox"
         aria-label={label}
+        data-keyboard-list
       >
         {groups.length === 0 && (
           <p className="text-muted-foreground px-2 py-1.5 text-sm">No matching branches.</p>
@@ -102,12 +121,16 @@ export function BranchPicker({
             <h3 className="text-muted-foreground px-2 py-1 text-xs font-medium">{group.label}</h3>
             {group.branches.map((branch) => {
               const selected = selectedBranch?.name === branch.name;
+              const index = ordered.indexOf(branch);
               return (
                 <button
                   key={branch.name}
                   type="button"
                   role="option"
                   aria-selected={selected}
+                  data-keyboard-list-item
+                  data-keyboard-list-index={index}
+                  onKeyDown={navigate}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-[var(--radius-small)] border-transparent bg-transparent px-2 py-1.5 text-left text-sm shadow-none",
                     selected

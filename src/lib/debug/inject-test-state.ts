@@ -22,10 +22,19 @@ import { getDefaultAppStore } from "../stores/default-app-store";
 import { getDefaultWorkingTreeStore } from "../stores/default-working-tree-store";
 import { getDefaultBranchStore } from "../stores/default-branch-store";
 import { getDefaultRemoteStore } from "../stores/default-remote-store";
+import { ComputedAction } from "../../models/computed-action";
+import type { MergeTreeResult } from "../../models/merge";
 
 // ── Stub data factories ──────────────────────────────────────────────
 
-const stubSha = "a".repeat(40);
+/** A stable, distinct 40-hex SHA per branch name. */
+function stubShaFor(name: string): string {
+  let hash = 0;
+  for (const character of name) {
+    hash = (hash * 31 + character.codePointAt(0)!) % 0xffff_ffff;
+  }
+  return hash.toString(16).padStart(8, "0").repeat(5);
+}
 
 function stubRepo(): Repository {
   return new Repository(
@@ -53,6 +62,74 @@ function stubFileChange(path: string): WorkingDirectoryFileChange {
   );
 }
 
+// ── Merge preview stubs ───────────────────────────────────────────────
+//
+// Mergeability is normally computed by git from the repository, so stub branches would otherwise
+// produce no state at all and the merge dialog could not be reviewed from the debug menu. These
+// canned answers exist so every outcome the dialog distinguishes is reachable there.
+
+export type DebugMergePreview = {
+  readonly status: MergeTreeResult;
+  readonly commitCount: number;
+};
+
+/** Each stub branch is deliberately in a different state, so one pass covers the whole dialog. */
+const DebugMergePreviews: ReadonlyMap<string, DebugMergePreview> = new Map<
+  string,
+  DebugMergePreview
+>([
+  // Clean, ordinary — the common case, and the only one that should read as unremarkable.
+  [
+    "feature/add-user-authentication-flow",
+    { status: { kind: ComputedAction.Clean }, commitCount: 4 },
+  ],
+  // Clean and singular, so the "1 commit" wording is exercised rather than assumed.
+  ["hotfix/critical-security-patch", { status: { kind: ComputedAction.Clean }, commitCount: 1 }],
+  // Large enough to show thousands separators.
+  [
+    "bugfix/resolve-navigation-issue",
+    { status: { kind: ComputedAction.Clean }, commitCount: 1284 },
+  ],
+  // Conflicts — offered anyway, because a conflict is an outcome to resolve, not a refusal.
+  [
+    "feature/update-dashboard-layout",
+    { status: { kind: ComputedAction.Conflicts, conflictedFiles: 3 }, commitCount: 7 },
+  ],
+  // Unrelated histories — refused, with the button disabled.
+  ["release/v2.0.0", { status: { kind: ComputedAction.Invalid }, commitCount: 0 }],
+  // A remote branch that merges cleanly, so remotes are covered too.
+  ["origin/develop", { status: { kind: ComputedAction.Clean }, commitCount: 2 }],
+  // Reachable only by defeating the filter: a branch already contained in the current one.
+  ["develop", { status: { kind: ComputedAction.Clean }, commitCount: 0 }],
+]);
+
+/** The canned preview for a stub branch, or null when the branch is not part of the debug set. */
+export function debugMergePreview(branchName: string): DebugMergePreview | null {
+  return DebugMergePreviews.get(branchName) ?? null;
+}
+
+/**
+ * The stub equivalent of `git branch --merged`, so the candidate filter has something to remove.
+ *
+ * `develop` and its remote counterpart share a commit here, which is what makes the SHA half of the
+ * filter observable: only `develop` is named, yet both disappear from the list.
+ */
+export function debugMergedBranches(): ReadonlyMap<string, string> {
+  return new Map([["refs/heads/develop", stubShaFor("develop")]]);
+}
+
+/**
+ * Whether stub state has been injected in this session.
+ *
+ * Set once and never cleared: the injected state is not reversible either, and every caller is
+ * behind the test-only menu.
+ */
+let debugStateInjected = false;
+
+export function isDebugStateInjected(): boolean {
+  return debugStateInjected;
+}
+
 // ── Store injection ───────────────────────────────────────────────────
 
 /**
@@ -73,16 +150,6 @@ function setStoreState(store: unknown, state: unknown): void {
 
 type DebugStateOptions = {
   /**
-   * Leave the branch store alone.
-   *
-   * The stub branches exist only in this module, so injecting them while a real repository is
-   * selected makes every branch-aware preview meaningless: `git merge-tree` cannot resolve a branch
-   * that is not in the repository, and `git branch --merged` returns real refs that match none of
-   * the stub names, so nothing can be filtered. Dialogs whose content is computed *from* the
-   * repository — merge, and rebase when it lands — should preview against real branches.
-   */
-  readonly keepBranches?: boolean;
-  /**
    * Whether to leave a pending hook failure in the working-tree state.
    *
    * Opt-in, and off by default: the hook-failure dialog renders from working-tree state alone, so
@@ -98,6 +165,7 @@ type DebugStateOptions = {
  * Returns the stub repository for use by controller-level state setters.
  */
 export function injectDebugState(options: DebugStateOptions = {}): Repository {
+  debugStateInjected = true;
   const repo = stubRepo();
 
   // ── AppStore ──
@@ -121,42 +189,45 @@ export function injectDebugState(options: DebugStateOptions = {}): Repository {
     name: string,
     type: BranchType = BranchType.Local,
     date: Date = new Date(),
+    sameCommitAs?: string,
   ): Branch {
     return new Branch(
       name,
       null,
-      { sha: stubSha, author: { date } },
+      // Distinct per branch. They shared one SHA, which is not a state git can produce for
+      // unrelated branches and which any SHA-based comparison reads as "the same commit".
+      { sha: stubShaFor(sameCommitAs ?? name), author: { date } },
       type,
       type === BranchType.Local ? `refs/heads/${name}` : `refs/remotes/origin/${name}`,
       false,
     );
   }
 
-  if (options.keepBranches !== true) {
-    setStoreState(getDefaultBranchStore(), {
-      repositoryPath: repo.path,
-      currentBranch: "main",
-      defaultBranch: "main",
-      branches: [
-        stubBranchWithDate("main", BranchType.Local, weekAgo),
-        stubBranchWithDate("develop"),
-        stubBranchWithDate("feature/add-user-authentication-flow"),
-        stubBranchWithDate("feature/update-dashboard-layout"),
-        stubBranchWithDate("hotfix/critical-security-patch"),
-        stubBranchWithDate("bugfix/resolve-navigation-issue"),
-        stubBranchWithDate("release/v2.0.0"),
-        stubBranchWithDate("origin/main", BranchType.Remote, weekAgo),
-        stubBranchWithDate("origin/develop", BranchType.Remote, threeDaysAgo),
-        stubBranchWithDate("origin/feature/add-user-authentication-flow", BranchType.Remote),
-      ],
-      recentBranches: ["feature/update-dashboard-layout", "hotfix/critical-security-patch"],
-      loading: false,
-      error: null,
-      operation: null,
-      progress: null,
-      operationError: null,
-    });
-  }
+  setStoreState(getDefaultBranchStore(), {
+    repositoryPath: repo.path,
+    currentBranch: "main",
+    defaultBranch: "main",
+    branches: [
+      stubBranchWithDate("main", BranchType.Local, weekAgo),
+      stubBranchWithDate("develop"),
+      stubBranchWithDate("feature/add-user-authentication-flow"),
+      stubBranchWithDate("feature/update-dashboard-layout"),
+      stubBranchWithDate("hotfix/critical-security-patch"),
+      stubBranchWithDate("bugfix/resolve-navigation-issue"),
+      stubBranchWithDate("release/v2.0.0"),
+      stubBranchWithDate("origin/main", BranchType.Remote, weekAgo),
+      // Same commit as local `develop`, so filtering by SHA removes it even though
+      // `git branch --merged` would only ever name the local ref.
+      stubBranchWithDate("origin/develop", BranchType.Remote, threeDaysAgo, "develop"),
+      stubBranchWithDate("origin/feature/add-user-authentication-flow", BranchType.Remote),
+    ],
+    recentBranches: ["feature/update-dashboard-layout", "hotfix/critical-security-patch"],
+    loading: false,
+    error: null,
+    operation: null,
+    progress: null,
+    operationError: null,
+  });
 
   // ── RemoteStore ──
   setStoreState(getDefaultRemoteStore(), {

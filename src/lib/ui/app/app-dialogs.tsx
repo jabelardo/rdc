@@ -98,7 +98,7 @@ type AppDialogsProps = {
   readonly mergeStrategy: MergeStrategy;
   readonly onMergeStrategyChange: (strategy: MergeStrategy) => void;
   readonly mergePreviewError: string | null;
-  readonly mergedBranchRefs: ReadonlySet<string>;
+  readonly mergedBranches: ReadonlyMap<string, string>;
   readonly onConfirmMerge: () => void;
   readonly onCancelMerge: () => void;
   readonly showManageRemotes: boolean;
@@ -183,7 +183,7 @@ export function AppDialogs({
   mergeStrategy,
   onMergeStrategyChange,
   mergePreviewError,
-  mergedBranchRefs,
+  mergedBranches,
   onConfirmMerge,
   onCancelMerge,
   showManageRemotes,
@@ -329,7 +329,7 @@ export function AppDialogs({
           candidates={mergeCandidates(
             branchState.branches,
             branchState.currentBranch,
-            mergedBranchRefs,
+            mergedBranches,
           )}
           defaultBranch={branchState.defaultBranch}
           recentBranches={branchState.recentBranches}

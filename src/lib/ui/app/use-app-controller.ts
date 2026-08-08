@@ -13,7 +13,12 @@ import { buildRepositoryMenu, createRepositoryMenuEventExecutor } from "../../me
 import { getMainProcessConfig } from "../../platform/config";
 import { showOpenDialog, showSaveDialog } from "../../platform/dialogs";
 import { launchExternalEditor } from "../../platform/editors";
-import { injectDebugState } from "../../debug/inject-test-state";
+import {
+  debugMergePreview,
+  debugMergedBranches,
+  injectDebugState,
+  isDebugStateInjected,
+} from "../../debug/inject-test-state";
 import { showFolderContents } from "../../platform/files";
 import { getAppArchitecture, type Architecture } from "../../platform/paths";
 import { installDefaultCloseRequestHandler } from "../../platform/lifetime";
@@ -127,9 +132,10 @@ export function useAppController() {
   // Distinct from a status: "we could not work out whether this can merge" is not the same claim as
   // any ComputedAction, and collapsing it into one was reporting failures as "already up to date".
   const [mergePreviewError, setMergePreviewError] = useState<string | null>(null);
-  // Canonical refs (refs/heads/…) of branches already contained in the current branch. One
-  // `git branch --merged` on open, not one call per branch.
-  const [mergedBranchRefs, setMergedBranchRefs] = useState<ReadonlySet<string>>(new Set());
+  // `git branch --merged`'s ref-to-SHA map for the current branch. One call on open, not one per
+  // branch — and keeping the SHAs is what lets a remote branch on an already-merged commit be
+  // recognised, since --merged itself reports only local refs.
+  const [mergedBranches, setMergedBranches] = useState<ReadonlyMap<string, string>>(new Map());
   const [mergeCommitCount, setMergeCommitCount] = useState(0);
   const [showManageRemotes, setShowManageRemotes] = useState(false);
   const [remoteFilter, setRemoteFilter] = useState("");
@@ -278,11 +284,7 @@ export function useAppController() {
         deleteCurrentBranch();
       },
       debugShowMergeDialog: () => {
-        // Merge is computed from the repository — mergeability and ahead/behind both ask git about
-        // the chosen branch — so stub branches make the preview meaningless: the branch does not
-        // exist, so the lookup fails, and `git branch --merged` cannot filter names it never
-        // returns. Preview against the real branches whenever a real repository is open.
-        injectDebugState({ keepBranches: appStore.state.selectedRepository !== null });
+        injectDebugState();
         requestMerge();
       },
       debugShowManageRemotesDialog: () => {
@@ -1015,6 +1017,18 @@ export function useAppController() {
       return;
     }
 
+    // Stub branches exist only in the renderer, so git has nothing to compute from. Canned answers
+    // keep every outcome reachable from Help -> Show Dialog, which is what that menu is for.
+    if (isDebugStateInjected()) {
+      const preview = debugMergePreview(mergeTarget);
+      if (preview !== null) {
+        setMergePreviewError(null);
+        setMergeStatus(preview.status);
+        setMergeCommitCount(preview.commitCount);
+        return;
+      }
+    }
+
     const repository = appState.selectedRepository;
     if (repository === null) {
       return;
@@ -1068,17 +1082,22 @@ export function useAppController() {
     setMergeStatus(null);
     setMergeCommitCount(0);
     setMergePreviewError(null);
-    setMergedBranchRefs(new Set());
+    setMergedBranches(new Map());
     setMergePickerOpen(true);
 
     // Branches already contained in the current branch cannot produce a merge, so they are dropped
     // from the candidates rather than offered and then refused. One call, and a failure just means
     // nothing is filtered — the per-branch preview still catches it on selection.
+    if (isDebugStateInjected()) {
+      setMergedBranches(debugMergedBranches());
+      return;
+    }
+
     const repository = appStore.state.selectedRepository;
     const current = branchStore.state.currentBranch;
     if (repository !== null && current !== null) {
       void getMergedBranches(repository.path, current)
-        .then((merged) => setMergedBranchRefs(new Set(merged.keys())))
+        .then(setMergedBranches)
         .catch((error: unknown) => {
           log.error("Failed to list merged branches", error instanceof Error ? error : undefined);
         });
@@ -1416,7 +1435,7 @@ export function useAppController() {
     mergeStrategy,
     setMergeStrategy,
     mergePreviewError,
-    mergedBranchRefs,
+    mergedBranches,
     confirmMerge,
     cancelMerge,
     requestMerge,
