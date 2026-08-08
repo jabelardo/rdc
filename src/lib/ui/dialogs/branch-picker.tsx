@@ -1,10 +1,10 @@
-import { useId, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Check, Search } from "lucide-react";
 import type { Branch } from "../../../models/branch";
 import { Input } from "../../../components/ui/input";
 import { formatRelative } from "../../format-relative";
 import { cn } from "../../utils";
-import { listNavigationTarget } from "../list-navigation";
+import { handleListNavigation } from "../list-navigation";
 
 type BranchGroup = {
   readonly label: string;
@@ -75,50 +75,43 @@ export function BranchPicker({
   // Groups are presentational; navigation runs over one flat order so Up and Down cross a group
   // heading rather than stopping at it.
   const ordered = useMemo(() => groups.flatMap((group) => group.branches), [groups]);
-  const listID = useId();
-  const listRef = useRef<HTMLDivElement>(null);
-  const [activeIndex, setActiveIndex] = useState(0);
-
-  const selectedIndex = ordered.findIndex((branch) => branch.name === selectedBranch?.name);
-  // Follows the selection when there is one, so re-opening resumes where the user left off.
-  const active = Math.min(selectedIndex === -1 ? activeIndex : selectedIndex, ordered.length - 1);
-  const optionID = (index: number) => `${listID}-option-${index}`;
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   /**
-   * Move the active option, keeping focus on the list itself.
+   * Focus a row by index, scrolling it into view if it is not already.
    *
-   * The list owns focus and points at the active option through `aria-activedescendant`, rather than
-   * each option being separately focusable. Two reasons: Tab would otherwise walk through every
-   * branch in the repository before reaching the buttons, and moving focus between options depends
-   * on finding the next element in the DOM — which silently failed from the filter field, because
-   * that field is a sibling of the list rather than inside it.
+   * Passed explicitly to `handleListNavigation` rather than letting it find the row itself. Its
+   * fallback walks up from the event target to the list, which works but ties navigation to DOM
+   * structure; a ref cannot silently miss. `nearest` scrolls only when the row is actually out of
+   * view, so stepping between visible rows does not yank the list around — the reason arrowing past
+   * the last *visible* row now scrolls rather than appearing to jump elsewhere.
    */
-  function moveTo(index: number): void {
-    const branch = ordered[index];
-    if (branch === undefined) {
-      return;
-    }
-    setActiveIndex(index);
-    onSelect(branch);
-    listRef.current?.focus({ preventScroll: true });
-    // `nearest` scrolls only when the option is actually out of view, so a visible one does not
-    // yank the list around.
-    listRef.current
-      ?.querySelector(`#${CSS.escape(optionID(index))}`)
-      ?.scrollIntoView({ block: "nearest" });
+  function focusIndex(index: number): void {
+    const option = optionRefs.current[index];
+    option?.focus();
+    option?.scrollIntoView({ block: "nearest" });
   }
 
-  function navigate(event: React.KeyboardEvent<HTMLElement>): boolean {
-    if (event.altKey || event.ctrlKey || event.metaKey) {
-      return false;
-    }
-    const target = listNavigationTarget(event.key, active, ordered.length);
-    if (target === null) {
-      return false;
-    }
-    event.preventDefault();
-    moveTo(target);
-    return true;
+  /**
+   * Arrow navigation, relative to the row the event came from.
+   *
+   * Rows stay individually focusable, so Tab still steps through them as it does in any list of
+   * controls; the arrows are an addition rather than a replacement. Arrow handling is deliberately
+   * absent from the filter field, where the arrows move the caret as they do in any text field.
+   */
+  function navigate(event: React.KeyboardEvent<HTMLElement>, index: number): void {
+    handleListNavigation(
+      event,
+      index,
+      ordered.length,
+      (target) => {
+        const branch = ordered[target];
+        if (branch !== undefined) {
+          onSelect(branch);
+        }
+      },
+      focusIndex,
+    );
   }
 
   return (
@@ -135,21 +128,7 @@ export function BranchPicker({
             className="pl-8"
             placeholder="Filter branches"
             value={filter}
-            onChange={(event) => {
-              setFilter(event.currentTarget.value);
-              // The old active index means nothing against a new set of matches.
-              setActiveIndex(0);
-            }}
-            // Arrow keys reach the list without a Tab first, so filtering and choosing are one
-            // gesture: type a few characters, then Down. Entering lands *on* the active option
-            // rather than stepping past it, which would silently skip the first branch.
-            onKeyDown={(event) => {
-              if (event.key !== "ArrowDown" && event.key !== "ArrowUp") {
-                return;
-              }
-              event.preventDefault();
-              moveTo(event.key === "ArrowDown" ? active : ordered.length - 1);
-            }}
+            onChange={(event) => setFilter(event.currentTarget.value)}
           />
         </span>
       </label>
@@ -157,12 +136,6 @@ export function BranchPicker({
         className="max-h-[min(260px,40dvh)] overflow-y-auto rounded-[var(--radius-small)] border border-[var(--border)] bg-[var(--card)] p-1"
         role="listbox"
         aria-label={label}
-        tabIndex={0}
-        aria-activedescendant={ordered.length === 0 ? undefined : optionID(active)}
-        ref={listRef}
-        onKeyDown={(event) => {
-          navigate(event);
-        }}
       >
         {groups.length === 0 && (
           <p className="text-muted-foreground px-2 py-1.5 text-sm">No matching branches.</p>
@@ -174,18 +147,22 @@ export function BranchPicker({
               const selected = selectedBranch?.name === branch.name;
               const index = ordered.indexOf(branch);
               return (
-                <div
+                <button
                   key={branch.name}
-                  id={optionID(index)}
+                  type="button"
                   role="option"
                   aria-selected={selected}
+                  ref={(element) => {
+                    optionRefs.current[index] = element;
+                  }}
+                  onKeyDown={(event) => navigate(event, index)}
                   className={cn(
                     "flex w-full items-center gap-2 rounded-[var(--radius-small)] border-transparent bg-transparent px-2 py-1.5 text-left text-sm shadow-none",
                     selected
                       ? "bg-accent text-accent-foreground"
                       : "hover:bg-accent/60 hover:text-accent-foreground",
                   )}
-                  onClick={() => moveTo(index)}
+                  onClick={() => onSelect(branch)}
                 >
                   {/* Reserved whether or not it is shown, so rows do not shift as the selection
                    * moves between them. */}
@@ -201,7 +178,7 @@ export function BranchPicker({
                   <span className="text-muted-foreground shrink-0 text-xs">
                     {formatRelative(branch.tip.author.date.getTime() - Date.now())}
                   </span>
-                </div>
+                </button>
               );
             })}
           </div>

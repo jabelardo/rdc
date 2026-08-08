@@ -194,15 +194,41 @@ describe("MergeBranchDialog", () => {
     expect(screen.getByRole("button", { name: "Merge into main" })).toBeDisabled();
   });
 
-  it("moves the selection with the arrow keys, across group boundaries", async () => {
+  it("moves the selection with the arrow keys from the focused row", async () => {
     const user = userEvent.setup();
     const props = renderDialog();
 
-    // From the filter field, so typing and choosing are one gesture without a Tab in between.
-    // The first step lands on the first row in display order, which is the default-branch group.
-    await user.click(screen.getByRole("searchbox"));
+    screen.getByRole("option", { name: /develop/ }).focus();
     await user.keyboard("{ArrowDown}");
-    expect(props.onSelect).toHaveBeenCalledWith(candidates[0]);
+
+    expect(props.onSelect).toHaveBeenCalledWith(candidates[1]);
+  });
+
+  it("leaves the arrow keys alone in the filter field", async () => {
+    // Arrow navigation belongs to the rows. In a text field the arrows move the caret, as they do
+    // in any text field, and Tab is what moves between the field and the list.
+    const user = userEvent.setup();
+    const props = renderDialog();
+
+    const filter = screen.getByRole("searchbox");
+    filter.focus();
+    await user.keyboard("{ArrowDown}{ArrowUp}");
+
+    expect(props.onSelect).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(filter);
+  });
+
+  it("keeps Tab stepping through the rows", async () => {
+    // Rows stay individually focusable: the arrows are an addition, not a replacement for Tab.
+    const user = userEvent.setup();
+    renderDialog();
+
+    screen.getByRole("searchbox").focus();
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("option", { name: /develop/ }));
+
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole("option", { name: /feature\/auth/ }));
   });
 
   it("continues past the end of a group rather than stopping at the heading", async () => {
@@ -212,40 +238,25 @@ describe("MergeBranchDialog", () => {
     const onSelect = vi.fn();
     renderDialog({ selected: candidates[0], onSelect });
 
-    screen.getByRole("listbox").focus();
+    screen.getByRole("option", { name: /develop/ }).focus();
     await user.keyboard("{ArrowDown}");
 
     expect(onSelect).toHaveBeenCalledWith(candidates[1]);
   });
 
-  it("keeps focus on the list while navigating, rather than walking the dialog", async () => {
-    // The first attempt moved focus by searching the DOM for the next option, which silently did
-    // nothing from the filter field — that field is a sibling of the list, not inside it — so the
-    // arrow keys appeared to leak into the rest of the dialog. The list owns focus and points at
-    // the active option instead, which also keeps Tab from walking every branch in the repository.
+  it("keeps focus inside the list while arrowing, and stops at the last row", async () => {
+    // The complaint this guards: arrowing past the last row escaping to the action button. Focus
+    // moves by ref rather than by walking the DOM, and clamps at the end.
     const user = userEvent.setup();
     renderDialog();
 
-    screen.getByRole("searchbox").focus();
-    await user.keyboard("{ArrowDown}{ArrowDown}");
-
-    const list = screen.getByRole("listbox");
-    expect(document.activeElement).toBe(list);
-    expect(list).toHaveAttribute("aria-activedescendant");
-  });
-
-  it("does not step past the last branch into the buttons", async () => {
-    const user = userEvent.setup();
-    const onSelect = vi.fn();
-    renderDialog({ onSelect });
-
-    screen.getByRole("listbox").focus();
-    // More presses than there are branches: the active option clamps at the end instead of the
-    // focus escaping to the action button.
+    screen.getByRole("option", { name: /develop/ }).focus();
     await user.keyboard("{ArrowDown}".repeat(candidates.length + 3));
 
-    expect(document.activeElement).toBe(screen.getByRole("listbox"));
-    expect(onSelect).toHaveBeenLastCalledWith(candidates[candidates.length - 1]);
+    expect(document.activeElement).toHaveAttribute("role", "option");
+    expect(document.activeElement).toBe(
+      screen.getByRole("option", { name: new RegExp(candidates[candidates.length - 1].name) }),
+    );
   });
 
   it("offers only a way out when there is no other branch", () => {
