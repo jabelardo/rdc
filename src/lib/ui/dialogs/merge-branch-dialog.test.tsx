@@ -146,6 +146,34 @@ describe("MergeBranchDialog", () => {
     expect(props.onCancel).not.toHaveBeenCalled();
   });
 
+  it("distinguishes a remote branch from a local one of the same name", () => {
+    // Both rendered as "develop" while the remote's prefix was stripped, which made the picker
+    // ambiguous in exactly the case where it matters.
+    renderDialog({
+      candidates: [branch("develop"), branch("origin/develop", BranchType.Remote)],
+      recentBranches: [],
+      defaultBranch: null,
+    });
+
+    expect(screen.getByRole("option", { name: /^develop/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /^origin\/develop/ })).toBeInTheDocument();
+  });
+
+  it("says what the reserved message space is for before a branch is chosen", () => {
+    // The slot holds its height so the footer cannot move; blank, it read as an unexplained gap.
+    renderDialog();
+
+    expect(message()).toHaveTextContent("Choose a branch to see what merging it will do.");
+  });
+
+  it("greys the strategy caret with the action it belongs to", () => {
+    // One control in two halves — a lit caret beside a greyed confirm read as two buttons.
+    renderDialog();
+
+    expect(screen.getByRole("button", { name: "Merge into main" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Choose how to combine/ })).toBeDisabled();
+  });
+
   it("offers only a way out when there is no other branch", () => {
     renderDialog({ candidates: [] });
 

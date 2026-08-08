@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Check, Search } from "lucide-react";
-import { BranchType, type Branch } from "../../../models/branch";
+import type { Branch } from "../../../models/branch";
 import { Input } from "../../../components/ui/input";
 import { formatRelative } from "../../format-relative";
 import { cn } from "../../utils";
@@ -90,7 +90,7 @@ export function BranchPicker({
         </span>
       </label>
       <div
-        className="max-h-[260px] overflow-y-auto rounded-[var(--radius-small)] border border-[var(--border)] bg-[var(--card)] p-1"
+        className="max-h-[min(260px,40dvh)] overflow-y-auto rounded-[var(--radius-small)] border border-[var(--border)] bg-[var(--card)] p-1"
         role="listbox"
         aria-label={label}
       >
@@ -102,7 +102,6 @@ export function BranchPicker({
             <h3 className="text-muted-foreground px-2 py-1 text-xs font-medium">{group.label}</h3>
             {group.branches.map((branch) => {
               const selected = selectedBranch?.name === branch.name;
-              const remote = branch.type === BranchType.Remote;
               return (
                 <button
                   key={branch.name}
@@ -123,14 +122,11 @@ export function BranchPicker({
                     className={cn("size-4 shrink-0", selected ? "opacity-100" : "opacity-0")}
                     aria-hidden
                   />
-                  <span className="min-w-0 flex-1 truncate">
-                    {remote ? branch.nameWithoutRemote : branch.name}
-                  </span>
-                  {remote && (
-                    <span className="text-muted-foreground shrink-0 text-xs">
-                      {branch.upstreamRemoteName ?? "remote"}
-                    </span>
-                  )}
+                  {/* Remotes keep their prefix. Stripping it and adding a "remote" badge instead
+                   * put two rows reading "develop" in the same list when a local branch and its
+                   * remote counterpart were both candidates — the one place a picker must not be
+                   * ambiguous. */}
+                  <span className="min-w-0 flex-1 truncate">{branch.name}</span>
                   <span className="text-muted-foreground shrink-0 text-xs">
                     {formatRelative(branch.tip.author.date.getTime() - Date.now())}
                   </span>

@@ -72,7 +72,9 @@ export function MergeBranchDialog({
     tone = "error";
     message = failure;
   } else if (selected === null || status === null) {
-    message = null;
+    // The slot holds its height either way, so leaving it blank read as an unexplained gap between
+    // the list and the buttons. Saying what the space is for costs nothing and answers "why here".
+    message = "Choose a branch to see what merging it will do.";
   } else if (status.kind === ComputedAction.Loading) {
     message = "Checking whether these branches can be combined automatically…";
   } else if (status.kind === ComputedAction.Invalid) {

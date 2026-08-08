@@ -147,7 +147,10 @@ describe("discard", () => {
       const checkbox = dialog?.querySelector('[data-slot="checkbox"]');
       return {
         dialogWidth: dialog?.getBoundingClientRect().width ?? 0,
+        dialogTop: dialog?.getBoundingClientRect().top ?? 0,
+        dialogBottom: dialog?.getBoundingClientRect().bottom ?? 0,
         windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
         checkbox:
           checkbox === null || checkbox === undefined
             ? null
@@ -162,6 +165,12 @@ describe("discard", () => {
     assert.ok(
       geometry.dialogWidth > 200 && geometry.dialogWidth < geometry.windowWidth * 0.9,
       `confirmation dialog width ${geometry.dialogWidth} of window ${geometry.windowWidth}`,
+    );
+    // A centred dialog taller than the viewport overflows equally above and below, sliding its top
+    // off-screen — under the native title bar on macOS, which web content cannot paint over.
+    assert.ok(
+      geometry.dialogTop >= 0 && geometry.dialogBottom <= geometry.windowHeight,
+      `dialog escapes the viewport vertically: ${geometry.dialogTop}..${geometry.dialogBottom} of ${geometry.windowHeight}`,
     );
     assert.notEqual(geometry.checkbox, null, "the discard opt-out checkbox is missing");
     assert.ok(

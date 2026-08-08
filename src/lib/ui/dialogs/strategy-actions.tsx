@@ -84,13 +84,13 @@ export function StrategyActions({
           <Button
             type="button"
             className="rounded-l-none border-l border-l-[color-mix(in_oklch,var(--primary-foreground),transparent_70%)] px-1.5"
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             aria-label="Choose how to combine the branches"
           >
             <ChevronDown aria-hidden />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="max-w-[320px]">
+        <DropdownMenuContent align="end" className="w-[22rem]">
           <DropdownMenuRadioGroup
             value={strategy}
             onValueChange={(value) => onStrategyChange(value as MergeStrategy)}
@@ -99,7 +99,7 @@ export function StrategyActions({
               <DropdownMenuRadioItem key={option} value={option} className="items-start">
                 <span className="grid gap-0.5">
                   <span className="font-medium">{MergeStrategyLabel[option]}</span>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-muted-foreground text-xs leading-snug">
                     {MergeStrategyDescription[option]}
                   </span>
                 </span>
