@@ -204,7 +204,7 @@ One line each; detail lives in the plan under the same heading.
 | 5b | Authenticated media + GitHub collaboration (retires `update-accounts`) |
 | 5c | Enterprise networking — PAC/proxy resolution, certificate trust. Highest architectural risk in the plan; no longer blocks the UI |
 | 6b | Consent-aware crash/error reporting pipeline |
-| 7f | UI and upstream parity: accounts, stashes, tags, advanced merge/rebase, worktrees, LFS, submodules, syntax-highlighted diffs, full xterm, spell checking |
+| 7f | UI and upstream parity: accounts, stashes, tags, advanced merge/rebase, worktrees, LFS, submodules, syntax-highlighted diffs, full xterm, spell checking. History operations (reset hard/mixed/soft, revert, cherry-pick, checkout-commit, amend) are scoped in [`HISTORY_OPERATIONS_PLAN.md`](./HISTORY_OPERATIONS_PLAN.md), with the backend-complete inventory itemised there |
 | 9 | Public release engineering: signing, notarization, updater key/endpoint, single-instance/deep-link routing, OAuth callback, standalone CLI |
 | 10 | Windows support — six work groups. `git-ops`'s library already compiles for `x86_64-pc-windows-msvc` and CI keeps it that way |
 
