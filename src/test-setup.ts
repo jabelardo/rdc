@@ -18,6 +18,14 @@ window.matchMedia ??= (query: string) =>
     dispatchEvent: () => false,
   }) as MediaQueryList;
 
+// jsdom does not implement Element.prototype.scrollIntoView — nothing lays out, so there is
+// nothing to scroll to. The branch picker's keyboard navigation calls it on the focused row,
+// which threw "not a function" inside the event handler for every arrow-key test and produced
+// Vitest's unhandled-error noise (which it explicitly warns can cause false-positive failures
+// in other files running in parallel). A no-op stub keeps the navigation contract under test
+// without pretending jsdom performs layout.
+Element.prototype.scrollIntoView ??= () => {};
+
 // The ambient `log` global is a runtime object (unlike the __FOO__ constants,
 // which Vite's `define` substitutes at build time). Tests get a no-op
 // implementation, matching desktop-plus/app/test/globals.mts, so ported code

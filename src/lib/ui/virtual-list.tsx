@@ -59,12 +59,18 @@ export function VirtualList<T>({
       if (virtualized) {
         virtualizer.scrollToIndex(index);
       }
-      const focus = () =>
-        listRef.current
-          ?.querySelector<HTMLElement>(`[data-keyboard-list-index="${index}"]`)
-          ?.focus();
-      focus();
-      requestAnimationFrame(() => requestAnimationFrame(focus));
+      const find = () =>
+        listRef.current?.querySelector<HTMLElement>(`[data-keyboard-list-index="${index}"]`);
+      const row = find();
+      row?.focus();
+      // The deferred retry exists for one case only: a virtualized scroll that has not rendered
+      // the target row yet, so the immediate query finds nothing. When the row is already in the
+      // DOM, focusing it once synchronously is the whole answer — a deferred refocus then is a
+      // race that can land *after* a later navigation and steal focus back (the flaky
+      // arrow/Home/End keyboard contract). Defer exclusively when the row is genuinely missing.
+      if (row === null || row === undefined) {
+        requestAnimationFrame(() => requestAnimationFrame(() => find()?.focus()));
+      }
     },
     [virtualized, virtualizer],
   );
