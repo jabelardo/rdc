@@ -207,16 +207,45 @@ describe("MergeBranchDialog", () => {
 
   it("continues past the end of a group rather than stopping at the heading", async () => {
     const user = userEvent.setup();
-    // develop is the default group, feature/auth the recent group: one step crosses between them.
+    // develop is the last of the default-branch group and feature/auth the first of the recent
+    // group, so one step has to cross a heading.
     const onSelect = vi.fn();
     renderDialog({ selected: candidates[0], onSelect });
 
-    // Focus a row without re-selecting, then step: develop is the last of the default-branch group
-    // and feature/auth the first of the recent group.
-    screen.getByRole("option", { name: /develop/ }).focus();
+    screen.getByRole("listbox").focus();
     await user.keyboard("{ArrowDown}");
 
     expect(onSelect).toHaveBeenCalledWith(candidates[1]);
+  });
+
+  it("keeps focus on the list while navigating, rather than walking the dialog", async () => {
+    // The first attempt moved focus by searching the DOM for the next option, which silently did
+    // nothing from the filter field — that field is a sibling of the list, not inside it — so the
+    // arrow keys appeared to leak into the rest of the dialog. The list owns focus and points at
+    // the active option instead, which also keeps Tab from walking every branch in the repository.
+    const user = userEvent.setup();
+    renderDialog();
+
+    screen.getByRole("searchbox").focus();
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+
+    const list = screen.getByRole("listbox");
+    expect(document.activeElement).toBe(list);
+    expect(list).toHaveAttribute("aria-activedescendant");
+  });
+
+  it("does not step past the last branch into the buttons", async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    renderDialog({ onSelect });
+
+    screen.getByRole("listbox").focus();
+    // More presses than there are branches: the active option clamps at the end instead of the
+    // focus escaping to the action button.
+    await user.keyboard("{ArrowDown}".repeat(candidates.length + 3));
+
+    expect(document.activeElement).toBe(screen.getByRole("listbox"));
+    expect(onSelect).toHaveBeenLastCalledWith(candidates[candidates.length - 1]);
   });
 
   it("offers only a way out when there is no other branch", () => {

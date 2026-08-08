@@ -22,6 +22,15 @@ export function listNavigationTarget(
   }
 }
 
+/**
+ * Move a list's selection and focus in response to an arrow key.
+ *
+ * **The event must originate inside the list.** Without an explicit `focus` callback this locates
+ * the next row by walking up from `event.currentTarget` to `[data-keyboard-list]`, so a handler
+ * attached to a control *beside* the list — a filter field, say — finds nothing and moves focus
+ * nowhere, silently. A control outside the list should either pass `focus`, or manage focus itself
+ * and use {@linkcode listNavigationTarget} for the index arithmetic alone.
+ */
 export function handleListNavigation(
   event: KeyboardEvent<HTMLElement>,
   currentIndex: number,
