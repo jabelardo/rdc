@@ -411,6 +411,22 @@ row since the mapping is mechanical; flagging only what's non-mechanical:
   already-100-commit-bounded History list stays direct. Extracted rows preserve selection and
   screen-reader semantics. The Ubuntu WebKit contract holds 1,000 changed files and 250 additional
   repositories below 40 live DOM rows per list and proves `End` can reveal/select the final file.
+- The Phase 8b component-migration process (see `COMPONENT_MIGRATION_PROCESS.md`) is porting the
+  upstream feature dialogs into focused components under `src/lib/ui/dialogs/`. Ten are done — hook
+  failure, About, discard file, discard all, delete branch (+ "cannot delete"), remove repository,
+  manage remotes, add remote, **rename branch** and **merge** — with rebase, clone and preferences
+  left. The two branch dialogs are the notable new arrivals: `rename-branch-dialog.tsx` (extracted
+  from `app-dialogs.tsx`, adds validation via the first caller of `sanitizedRefName` and a shared
+  message slot) and `merge-branch-dialog.tsx` + `strategy-actions.tsx` (merge and squash from a
+  split button, SHA-plus-ref candidate filtering, persisted `defaultMergeStrategy` preference,
+  canned debug previews asserted by `inject-test-state.test.ts`, and the `mergeStates` QA fixture).
+  Shared primitives extracted along the way are `dialog-actions.tsx`, `dialog-message.tsx` and the
+  keyboard-correct `branch-picker.tsx`. Also new: `src/lib/format-timestamp.ts`
+  (`formatTimestamp`), `src/lib/validate-branch-name.ts`, `src/models/merge-strategy.ts` and
+  `src/components/ui/{input,label}.tsx`. The full queue and the four conventions the process
+  promoted (messages share one height-holding slot; split controls share one state; a dialog fits
+  the viewport in both axes; a list is unambiguous) live in `COMPONENT_MIGRATION_PROCESS.md`.
+  A code-organization survey (`CODE_ORGANIZATION_PLAN.md`) is scheduled after this migration.
 - `ui/main-process-proxy.ts`, `ui/install-globals.ts` — these are the renderer-side IPC
   centralization points; become the primary callers of `invoke`/`listen`, everything else in
   `ui/` should keep going through the dispatcher rather than calling `invoke` directly.

@@ -3107,8 +3107,13 @@ cycle. The next non-human-blocked milestone is Phase 8a automated qualification 
 
 #### Phase 7f — post-MVP UI and upstream parity
 
-- GitHub accounts/collaboration, stashes, tags, advanced merge/rebase flows, worktrees, LFS,
-  submodules, advanced preferences, keybinding preferences and other surfaces not required above.
+- GitHub accounts/collaboration, stashes, tags, worktrees, LFS, submodules, advanced
+  preferences, keybinding preferences and other surfaces not required above. **Merge and squash
+  are no longer post-MVP** — the merge dialog (and with it branch rename/delete) shipped during
+  Phase 8b, and **non-interactive rebase entered MVP scope** by a deliberate reversal of the
+  Phase 7f deferral (see `BRANCH_OPERATIONS_PLAN.md` § "Amended scope"). What remains here for
+  the merge/rebase family is **interactive rebase** (reorder/reword/edit/drag-to-squash), advanced
+  flows and the update-from-default-branch convenience.
 - Add syntax-highlighted diffs through the Vite worker and the full xterm hook/operation progress
   presentation; move the temporary commit-form hook toggle into persisted hook preferences.
 - Finish webview-native edit context menus and spell checking with their text-input consumers.
@@ -3370,6 +3375,74 @@ and the frameless Custom style) are recorded in `MIGRATION_MAP.md` §8 — that 
 includes re-measuring the context-menu CSD offset, since the Linux context-menu path (see above)
 no longer uses a tuned constant at all.
 
+**Component/dialog migration (recorded 2026-08-08).** Phase 8b's component-migration process
+(`COMPONENT_MIGRATION_PROCESS.md`) ran its three-way review — rdc / desktop-plus / shadcn — through
+ten dialogs: hook failure, About, discard file, discard all, delete branch (+ the "cannot delete"
+notice), remove repository, manage remotes, add remote, rename branch and merge. Remaining in the
+queue: **rebase** (newly scoped into the MVP), **clone** and **preferences**. The process promoted
+the four conventions that are now the strongest layout rules the migration produced:
+
+- **Convention 12** — all of a dialog's messages share one height-holding slot, so a message that
+  appears as the user types cannot move the confirm button out from under their cursor.
+- **Convention 13** — a control in two halves shares one enabled state; a lit caret cannot sit
+  beside a greyed confirm.
+- **Convention 14** — a dialog must fit the viewport in both axes; this was the third geometry bug
+  of one family, so the discard E2E asserts lower bounds as well as upper ones.
+- **Convention 15** — a list is unambiguous before it is pretty; remotes keep their `origin/`
+  prefix.
+
+Two branch dialogs finished here. **Rename branch**
+(`src/lib/ui/dialogs/rename-branch-dialog.tsx`) was extracted from `app-dialogs.tsx`, closed the
+`MESSAGE_SYSTEM_PLAN` Slice 1 bug where a rejected rename showed no reason, and added the
+validation that was missing — a space, a tilde or a taken name used to reach git and fail after
+the fact.
+`sanitizedRefName` gained its first caller, collisions are caught before git sees them, and a
+failure/busy message fills the shared slot while every dismissal is blocked. `DialogActions`
+centralises Convention 2's platform ordering for ordinary form dialogs. **Merge**
+(`src/lib/ui/dialogs/merge-branch-dialog.tsx` + `strategy-actions.tsx`) replaces the abandoned WIP
+— four features were written and commented out, which read to a user as a broken feature, not
+unfinished work. It covers merge and squash as two strategies from a split button whose label names
+the whole sentence ("Merge into main"), matches on **SHA as well as ref** so one `git branch
+--merged` call also accounts for remote branches, allows a conflicting merge as an outcome rather
+than a refusal, and blocks while loading. It is reachable either from a real repository
+(`Repository → Merge…`) or from `Help → Show Dialog`, whose stub branches now carry canned previews
+reaching every state the dialog renders; `inject-test-state.test.ts` asserts that coverage so the
+preview cannot quietly stop exercising a state, and the `mergeStates` QA fixture reproduces the
+same
+outcomes from real ancestry.
+
+The branch picker underneath is now a proper keyboard surface: rows stay individually focusable so
+Tab steps through them, arrows move focus by ref paired with
+`scrollIntoView({ block: "nearest" })`,
+and each row's tooltip carries the full name and an absolute last-modified time — the two facts the
+row itself cannot show. A `formatTimestamp` helper moved out of the row so the sidebar and picker
+cannot drift into two formats. The recorded lesson: a keyboard test that asserts only the selection
+callback proves nothing; both failing arrow-navigation attempts passed such tests, and only
+asserting `document.activeElement` caught it.
+
+Squash cost no backend work (`MergeOptions { squash }` and its `git commit --no-edit` follow-up were
+already complete; `branch-store` was dropping the option), and the default strategy is now a
+persisted preference (`defaultMergeStrategy`) — the same per-team-convention preference a Phase 7f
+item was blocked on.
+
+**Scope decision recorded 2026-08-07 — rebase enters the MVP.** This deliberately reverses the
+Phase 7f deferral of `update-from-default-branch` ("reverse this only deliberately"), but narrower:
+it adds rebase as a branch operation, not the update convenience. Rebase gets its own dialog because
+it inverts the direction — the picked branch is the *base*, not the *source*. Interactive rebase
+stays out, and rebase-conflict recovery is not optional because `conflict-store` tracks only
+`mergeInProgress`: a `.git/rebase-merge/` conflict would otherwise strand the user with no in-app
+way out. Full boundaries are in `BRANCH_OPERATIONS_PLAN.md` § "Amended scope".
+
+**Code organization, scheduled after the dialog migration** (`CODE_ORGANIZATION_PLAN.md`,
+recorded 2026-08-07): dialogs previously sat in four places by accident of chronology, and `src/lib/`
+is a 110-file flat drawer mixing pure helpers, IPC wrappers, domain logic and desktop-plus's GitHub
+service code beside properly grouped subdirectories — the repository demonstrates two conventions
+and follows neither. Measured: **95 of 237 non-test modules are unreachable from `src/main.tsx`**, of
+which the 30 directly under `src/lib/` are genuinely unreferenced (`refs.ts`, `create-branch.ts`,
+`rebase.ts` have no non-test importer); the `src/models/` share is largely a type-only false
+positive. The document holds the inventory and the questions and deliberately decides nothing yet;
+it runs after the dialog migration so it moves settled code, and `ARCHITECTURE.md` depends on it.
+
 Record before/after evidence, accepted non-blocking deviations and the final results for both
 platforms. Phase 8b closes only after the last fix has passed 8a again, its affected human checks
 have been repeated, and the final packages pass their focused acceptance pass. Signing,
@@ -3394,9 +3467,12 @@ notarization and public release credentials remain post-MVP Phase 9 work.
 The milestone closes only when both target platforms expose the same supported workflow:
 
 1. A clean artifact launches, adds an existing repository, persists it and reopens the selection.
-2. The user can inspect status and text diffs; stage, unstage and discard; and create a commit.
-3. The user can inspect history; create and check out a branch; and recover from the minimum supported
-   merge-conflict state without being stranded.
+2. The user can inspect status and text diffs; stage, unstage and discard — individual files, a
+   selected range, or the whole tree; and create a commit.
+3. The user can inspect history; create, check out, rename and delete a branch; initiate a merge or
+   squash-merge; and recover from the minimum supported merge-conflict state without being stranded
+   (including aborting a merge in progress). Non-interactive rebase is in MVP scope per the
+   cross-branch-operation scope decision of 2026-08-07 (`BRANCH_OPERATIONS_PLAN.md`).
 4. Clone, fetch, pull and push work with a local bare remote and with credentials already available to
    system Git/SSH. Unsupported account, PAC/proxy or certificate-trust cases fail with actionable copy.
 5. Menus, dialogs, close/relaunch, editor/shell launch and MVP preferences operate on both platforms;
@@ -3505,6 +3581,11 @@ still the highest architectural risk, but proxy/PAC and application-managed cert
 block the MVP unless the initial-user profile changes. Phases 6b and 9 follow the MVP. Phase 7f is the
 remaining UI/parity backlog. Phase 10 owns the complete Windows target and consumes shared public-release
 infrastructure from Phase 9 where appropriate.
+
+Phase 8b is running the component/dialog migration in parallel with its QA/fix cycle (ten
+dialogs done, three left: rebase, clone, preferences — `COMPONENT_MIGRATION_PROCESS.md`); the
+code-organization pass (`CODE_ORGANIZATION_PLAN.md`) is scheduled immediately after so it moves
+settled code rather than code in flight.
 
 ## Weak points in the current codebase worth calling out (summary)
 
