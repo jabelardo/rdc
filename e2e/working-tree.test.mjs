@@ -110,7 +110,11 @@ describe("working tree", () => {
     let hookResult;
     try {
       hookResult = await driver.wait(
-        until.elementLocated(By.css('[role="alertdialog"], .commit-form .application-error')),
+        until.elementLocated(
+          By.xpath(
+            "//*[@role='alertdialog' and .//*[normalize-space()='Ignore and Continue']]",
+          ),
+        ),
         10_000,
       );
     } catch (error) {

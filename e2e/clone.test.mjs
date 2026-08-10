@@ -49,10 +49,14 @@ describe("clone", () => {
       .findElement(By.xpath(".//button[@type='submit' and normalize-space()='Clone']"))
       .click();
 
-    // CloneStore finishes the native operation before AppStore persists and selects the new
-    // repository. Wait for the dialog to leave the DOM so the sidebar assertion starts after that
-    // entire hand-off, rather than racing the intermediate progress state.
-    await driver.wait(until.stalenessOf(cloneDialog), 10_000);
+    // CloneRepositoryDialog stays mounted while it swaps its form for the progress dialog, so the
+    // Radix content node is not a reliable staleness boundary. The form itself leaving the DOM is
+    // the observable hand-off into the running operation; repository persistence is asserted below.
+    await driver.wait(
+      async () => (await driver.findElements(By.css("#clone-url"))).length === 0,
+      10_000,
+      "clone dialog did not enter its progress state",
+    );
 
     // The cloned repository is asserted through its sidebar row, so its panel has to be open.
     await expandSidebarSection(driver, "repositories");
