@@ -111,9 +111,7 @@ describe("working tree", () => {
     try {
       hookResult = await driver.wait(
         until.elementLocated(
-          By.xpath(
-            "//*[@role='alertdialog' and .//*[normalize-space()='Ignore and Continue']]",
-          ),
+          By.xpath("//*[@role='alertdialog' and .//*[normalize-space()='Ignore and Continue']]"),
         ),
         10_000,
       );
