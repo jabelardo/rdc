@@ -39,7 +39,7 @@ describe("clone", () => {
     sendNativeKeys("ctrl+shift+o");
     const cloneDialog = await driver.wait(
       until.elementLocated(
-        By.xpath("//section[@role='dialog' and @aria-labelledby='clone-dialog-title']"),
+        By.xpath("//*[@role='dialog' and .//*[normalize-space()='Clone a repository'] ]"),
       ),
       5_000,
     );
