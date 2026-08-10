@@ -34,6 +34,7 @@ function renderDialog(overrides: Partial<Parameters<typeof MergeBranchDialog>[0]
     status: null,
     commitCount: 0,
     running: false,
+    progress: null,
     failure: null,
     onSelect: vi.fn(),
     onStrategyChange: vi.fn(),
@@ -147,7 +148,7 @@ describe("MergeBranchDialog", () => {
       running: true,
     });
 
-    expect(screen.getByRole("button", { name: "Merging…" })).toBeDisabled();
+    expect(screen.getByRole("alertdialog", { name: "Merging in progress" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(props.onCancel).not.toHaveBeenCalled();
   });

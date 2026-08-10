@@ -427,6 +427,33 @@ describe("BranchStore", () => {
     );
   });
 
+  it("publishes blocking progress while a merge is running", async () => {
+    const main = branch("main", BranchType.Local, "origin/main");
+    const topic = branch("topic");
+    const feature = branch("feature");
+    const { store, mergeBranch } = loadTopology("topic", [main, topic, feature]);
+    let finish: (() => void) | undefined;
+    mergeBranch.mockImplementation(async () => {
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return MergeResult.Success;
+    });
+    await store.load("/repo");
+
+    const merging = store.initiateMerge("feature", { workingTreeDirty: false });
+    await vi.waitFor(() =>
+      expect(store.state.progress).toEqual({
+        kind: "generic",
+        value: 0,
+        title: "Merging changes",
+      }),
+    );
+    expect(store.state.operation).toBe("merging");
+    finish?.();
+    await expect(merging).resolves.toBe("merged");
+  });
+
   it("refuses to merge branches with unrelated histories", async () => {
     const main = branch("main", BranchType.Local, "origin/main");
     const topic = branch("topic");

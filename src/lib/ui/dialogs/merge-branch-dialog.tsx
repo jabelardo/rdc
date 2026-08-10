@@ -1,6 +1,7 @@
 import type { Branch } from "../../../models/branch";
 import { ComputedAction } from "../../../models/computed-action";
 import type { MergeTreeResult } from "../../../models/merge";
+import type { IGenericProgress } from "../../../models/progress";
 import {
   MergeStrategyDescription,
   MergeStrategyLabel,
@@ -10,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../compo
 import { formatNumber } from "../../format-number";
 import { BranchPicker } from "./branch-picker";
 import { DialogMessage, type DialogMessageTone } from "./dialog-message";
+import { OperationProgressDialog } from "./operation-progress-dialog";
 import { ChevronDown } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { DialogFooter } from "../../../components/ui/dialog";
@@ -151,6 +153,7 @@ type MergeBranchDialogProps = {
   readonly status: MergeTreeResult | null;
   readonly commitCount: number;
   readonly running: boolean;
+  readonly progress: IGenericProgress | null;
   readonly failure: string | null;
   readonly onSelect: (branch: Branch) => void;
   readonly onStrategyChange: (strategy: MergeStrategy) => void;
@@ -168,12 +171,22 @@ export function MergeBranchDialog({
   status,
   commitCount,
   running,
+  progress,
   failure,
   onSelect,
   onStrategyChange,
   onConfirm,
   onCancel,
 }: MergeBranchDialogProps) {
+  if (running) {
+    return (
+      <OperationProgressDialog
+        operation={strategy === "squash" ? "Squashing" : "Merging"}
+        progress={progress ?? { value: 0 }}
+      />
+    );
+  }
+
   const nothingToMerge = status?.kind === ComputedAction.Clean && commitCount === 0;
   const canMerge =
     selected !== null &&

@@ -584,4 +584,6 @@ UI forever. **Rebase is the second consumer:** its existing `IMultiCommitOperati
 now reaches `BranchStore`, and the picker swaps to the shared dialog with “commit N of M” and the
 current commit summary while Git replays commits. **Commit is now the third consumer:** the Changes
 pane's `commitLoading` state mounts the shared dialog and its bounded terminal buffer is rendered as
-the dialog's content. Merge and the remaining history operations are still pending consumers.
+the dialog's content. **Merge is now the fourth consumer:** its branch operation publishes a
+blocking generic progress state while Git determines and applies the merge. The remaining history
+operations are still pending consumers.

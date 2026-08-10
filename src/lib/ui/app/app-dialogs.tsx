@@ -101,6 +101,7 @@ type AppDialogsProps = {
   readonly mergeRunning: boolean;
   readonly mergeStatus: MergeTreeResult | null;
   readonly mergeCommitCount: number;
+  readonly mergeProgress: Extract<BranchState["progress"], { kind: "generic" }> | null;
   readonly mergeStrategy: MergeStrategy;
   readonly onMergeStrategyChange: (strategy: MergeStrategy) => void;
   readonly mergePreviewError: string | null;
@@ -201,6 +202,7 @@ export function AppDialogs({
   mergeRunning,
   mergeStatus,
   mergeCommitCount,
+  mergeProgress,
   mergeStrategy,
   onMergeStrategyChange,
   mergePreviewError,
@@ -373,6 +375,7 @@ export function AppDialogs({
           status={mergeStatus}
           commitCount={mergeCommitCount}
           running={mergeRunning}
+          progress={mergeProgress}
           failure={mergeMessage ?? mergePreviewError}
           onSelect={(branch) => onMergeTargetChange(branch.name)}
           onStrategyChange={onMergeStrategyChange}

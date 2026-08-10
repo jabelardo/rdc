@@ -356,6 +356,7 @@ export function AppShell({ controller }: AppShellProps) {
         mergeRunning={mergeRunning}
         mergeStatus={mergeStatus}
         mergeCommitCount={mergeCommitCount}
+        mergeProgress={branchState.progress?.kind === "generic" ? branchState.progress : null}
         mergeStrategy={mergeStrategy}
         onMergeStrategyChange={setMergeStrategy}
         mergePreviewError={mergePreviewError}

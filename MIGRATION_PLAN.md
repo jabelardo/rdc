@@ -3379,8 +3379,8 @@ no longer uses a tuned constant at all.
 (`COMPONENT_MIGRATION_PROCESS.md`) ran its three-way review — rdc / desktop-plus / shadcn — through
 ten dialogs: hook failure, About, discard file, discard all, delete branch (+ the "cannot delete"
 notice), remove repository, manage remotes, add remote, rename branch and merge. Remaining in the
-queue: **preferences**. Rebase and Clone are migrated; Rebase now also consumes the shared blocking
-progress dialog, while Merge remains migrated but still needs its progress wiring. The process promoted
+queue: **preferences**. Rebase, Clone and Merge are migrated and consume the shared blocking progress
+dialog. The process promoted
 the four conventions that are now the strongest layout rules the migration produced:
 
 - **Convention 12** — all of a dialog's messages share one height-holding slot, so a message that

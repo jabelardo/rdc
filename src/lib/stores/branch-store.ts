@@ -1,6 +1,10 @@
 import { BranchType, type Branch } from "../../models/branch";
 import { ComputedAction } from "../../models/computed-action";
-import type { ICheckoutProgress, IMultiCommitOperationProgress } from "../../models/progress";
+import type {
+  ICheckoutProgress,
+  IGenericProgress,
+  IMultiCommitOperationProgress,
+} from "../../models/progress";
 import type { IRemote } from "../../models/remote";
 import { getBranches } from "../branch-ipc";
 import {
@@ -51,7 +55,7 @@ export type BranchState = {
   readonly loading: boolean;
   readonly error: string | null;
   readonly operation: BranchOperation | null;
-  readonly progress: ICheckoutProgress | IMultiCommitOperationProgress | null;
+  readonly progress: ICheckoutProgress | IGenericProgress | IMultiCommitOperationProgress | null;
   readonly operationError: string | null;
 };
 
@@ -433,7 +437,7 @@ export class BranchStore {
     this.update({
       ...this.currentState,
       operation: "merging",
-      progress: null,
+      progress: { kind: "generic", value: 0, title: "Merging changes" },
       operationError: null,
     });
     try {
