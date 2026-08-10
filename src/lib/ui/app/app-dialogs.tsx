@@ -6,10 +6,8 @@ import type { WorkingDirectoryFileChange } from "../../../models/status";
 import type { BranchState } from "../../stores/branch-store";
 import type { CloneState } from "../../stores/clone-store";
 import type { PreferencesState, PreferencesStore } from "../../stores/preferences-store";
-import { setWindowZoomFactor } from "../../platform/window";
 import type { Architecture } from "../../platform/paths";
 import type { HookFailureState, WorkingTreeStore } from "../../stores/working-tree-store";
-import { Modal } from "../modal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,6 +38,7 @@ import { RebaseBranchDialog, rebaseCandidates } from "../dialogs/rebase-branch-d
 import { NoticeDialog } from "../dialogs/notice-dialog";
 import { RenameBranchDialog } from "../dialogs/rename-branch-dialog";
 import { OperationProgressDialog } from "../dialogs/operation-progress-dialog";
+import { PreferencesDialog } from "../dialogs/preferences-dialog";
 import { TerminalOutput } from "../terminal-output";
 import type { MergeTreeResult } from "../../../models/merge";
 import { MergeStrategyLabel, type MergeStrategy } from "../../../models/merge-strategy";
@@ -150,8 +149,9 @@ type AppDialogsProps = {
  * The application's modal layer.
  *
  * Keeping these workflows together is intentional: only one can be actionable at a time, they
- * share focus restoration through `Modal`, and none participates in the repository workspace's
- * layout. Extracting them prevents modal state changes from obscuring the main shell structure.
+ * own focus restoration through their dialog primitives, and none participates in the repository
+ * workspace's layout. Extracting them prevents modal state changes from obscuring the main shell
+ * structure.
  */
 export function AppDialogs({
   discardFile,
@@ -624,156 +624,11 @@ export function AppDialogs({
       )}
 
       {showPreferencesDialog && (
-        <Modal
-          className={`${confirmationDialogClassName} preferences-dialog`}
-          aria-labelledby="preferences-dialog-title"
+        <PreferencesDialog
+          state={preferencesState}
+          store={preferencesStore}
           onDismiss={onDismissPreferences}
-        >
-          <h2 id="preferences-dialog-title">Preferences</h2>
-          <div className="preferences-fields grid items-center gap-x-4 gap-y-3">
-            <label htmlFor="theme-preference">Theme</label>
-            <select
-              id="theme-preference"
-              value={preferencesState.theme}
-              onChange={(event) =>
-                void preferencesStore.setTheme(
-                  event.currentTarget.value as PreferencesState["theme"],
-                )
-              }
-            >
-              <option value="system">System</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-
-            <label>Zoom</label>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const next = Math.max(0.5, preferencesState.zoomFactor - 0.05);
-                  preferencesStore.setZoomFactor(next);
-                  void setWindowZoomFactor(next);
-                }}
-                disabled={preferencesState.zoomFactor <= 0.5}
-                aria-label="Decrease zoom"
-              >
-                −
-              </button>
-              <span aria-live="polite">{Math.round(preferencesState.zoomFactor * 100)}%</span>
-              <button
-                type="button"
-                onClick={() => {
-                  const next = Math.min(2.0, preferencesState.zoomFactor + 0.05);
-                  preferencesStore.setZoomFactor(next);
-                  void setWindowZoomFactor(next);
-                }}
-                disabled={preferencesState.zoomFactor >= 2.0}
-                aria-label="Increase zoom"
-              >
-                +
-              </button>
-            </div>
-
-            <label htmlFor="editor-preference">External editor</label>
-            <select
-              id="editor-preference"
-              value={preferencesState.selectedExternalEditor ?? ""}
-              disabled={preferencesState.loading}
-              onChange={(event) =>
-                preferencesStore.setSelectedExternalEditor(event.currentTarget.value || null)
-              }
-            >
-              {preferencesState.editors.length === 0 && (
-                <option value="">No supported editor found</option>
-              )}
-              {preferencesState.editors.map((editor) => (
-                <option key={editor.editor} value={editor.editor}>
-                  {editor.editor}
-                </option>
-              ))}
-            </select>
-
-            <label htmlFor="shell-preference">Shell</label>
-            <select
-              id="shell-preference"
-              value={preferencesState.selectedShell ?? ""}
-              disabled={preferencesState.loading}
-              onChange={(event) =>
-                preferencesStore.setSelectedShell(
-                  (event.currentTarget.value || null) as PreferencesState["selectedShell"],
-                )
-              }
-            >
-              {preferencesState.shells.length === 0 && (
-                <option value="">No supported shell found</option>
-              )}
-              {preferencesState.shells.map((shell) => (
-                <option key={shell.shell} value={shell.shell}>
-                  {shell.shell}
-                </option>
-              ))}
-            </select>
-
-            <label htmlFor="default-merge-strategy">Default merge</label>
-            <select
-              id="default-merge-strategy"
-              value={preferencesState.defaultMergeStrategy}
-              onChange={(event) =>
-                preferencesStore.setDefaultMergeStrategy(event.currentTarget.value as MergeStrategy)
-              }
-            >
-              <option value="merge">{MergeStrategyLabel.merge}</option>
-              <option value="squash">{MergeStrategyLabel.squash}</option>
-            </select>
-
-            <fieldset>
-              <legend>Confirm before</legend>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={preferencesState.confirmRepositoryRemoval}
-                  onChange={(event) =>
-                    preferencesStore.setConfirmRepositoryRemoval(event.currentTarget.checked)
-                  }
-                />
-                Removing a repository from rdc
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={preferencesState.confirmDiscardChanges}
-                  onChange={(event) =>
-                    preferencesStore.setConfirmDiscardChanges(event.currentTarget.checked)
-                  }
-                />
-                Discarding file changes
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={preferencesState.confirmDiscardChangesPermanently}
-                  onChange={(event) =>
-                    preferencesStore.setConfirmDiscardChangesPermanently(
-                      event.currentTarget.checked,
-                    )
-                  }
-                />
-                Permanently discarding changes when trash fails
-              </label>
-            </fieldset>
-          </div>
-          {preferencesState.error !== null && (
-            <p className="application-error" role="alert">
-              {preferencesState.error}
-            </p>
-          )}
-          <div className={dialogActionsClassName}>
-            <button type="button" onClick={onDismissPreferences}>
-              Close
-            </button>
-          </div>
-        </Modal>
+        />
       )}
 
       {showCloneDialog && (

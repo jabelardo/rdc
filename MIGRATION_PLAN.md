@@ -3379,8 +3379,8 @@ no longer uses a tuned constant at all.
 component-migration process (`COMPONENT_MIGRATION_PROCESS.md`) ran its three-way review — rdc /
 desktop-plus / shadcn — through ten dialogs: hook failure, About, discard file, discard all, delete
 branch (+ the "cannot delete" notice), remove repository, manage remotes, add remote, rename branch
-and merge. **Preferences is the only dialog remaining in that migration queue.** Rebase and Clone
-were subsequently migrated, and Rebase, Clone, Commit and Merge now consume the shared blocking
+and merge. **Preferences is now extracted and migrated; only its visual QA sign-off remains.** Rebase
+and Clone were subsequently migrated, and Rebase, Clone, Commit and Merge now consume the shared blocking
 progress dialog. Fetch, Push, Pull and Checkout expose embedded text/percentage progress, but still
 need the shared compact progress-bar presentation. Cherry-pick and Revert remain planned blocking
 history-operation consumers; interactive squash/reorder remains deferred to the interactive-rebase
@@ -3588,8 +3588,9 @@ remaining UI/parity backlog. Phase 10 owns the complete Windows target and consu
 infrastructure from Phase 9 where appropriate.
 
 Phase 8b is running the component/dialog migration in parallel with its QA/fix cycle. The reviewed
-dialog queue has one item left — Preferences — while Rebase and Clone have since completed their
-migration. The shared blocking progress dialog is now consumed by Clone, Rebase, Commit and Merge;
+dialog queue is now complete, with Preferences extracted into its own Radix dialog; its Light/Dark
+visual sign-off remains. Rebase and Clone have also completed their migration. The shared blocking
+progress dialog is now consumed by Clone, Rebase, Commit and Merge;
 the remaining progress work is the embedded bar for Fetch/Push/Pull/Checkout and the planned
 history-operation consumers. The code-organization pass (`CODE_ORGANIZATION_PLAN.md`) remains
 scheduled immediately after so it moves settled code rather than code in flight.
