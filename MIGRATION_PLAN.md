@@ -309,7 +309,7 @@ recorded against the phase that owns its blocker. File counterparts alone are in
 | Left open | Owner | Why it isn't Phase 2 |
 |---|---|---|
 | Commit terminal transport | Phase 3 | **Done:** combined stdout/stderr crosses a command-scoped Channel. The only production consumer upstream is commit progress. |
-| Commit terminal history/dialog and the hook-failure decision | Phase 7 | These require repository state, a late-subscriber buffer, popup lifecycle, and an answer from the user. They are consumers of the Phase 3 seams, not transport work. |
+| Commit terminal history/dialog and the hook-failure decision | Phase 7 | **Complete:** the late-subscriber buffer and hook decision remain in `WorkingTreeStore`; the shared `OperationProgressDialog` owns the in-flight commit terminal presentation. They are consumers of the Phase 3 seams, not transport work. |
 | Image diff production and blob transport | Phase 3 / Phase 7 | **Phase 3 done:** image diffs use scoped `rdc-blob` capability URLs, with no raw-byte command. Phase 7 owns rendering and the bounded text-prefix consumer. |
 | `envForProxy` | Phase 5c | Electron's `session.resolveProxy` is a `session`-level capability, not a platform swap — rehomed from Phase 4 when Phase 4 was planned. **No remote operation has proxy support today**; that is a known gap, not an oversight. |
 | `getGlobalConfigPath` | Phase 4 — **done** | `GlobalConfig::path` asks `git config --edit --global` under `GIT_EDITOR=printf %s`, preserving path resolution and file creation; the command and typed wrapper are green. |

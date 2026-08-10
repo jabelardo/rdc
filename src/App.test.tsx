@@ -2009,7 +2009,7 @@ describe("App", () => {
       }),
     );
 
-    const dialog = screen.getByRole("alertdialog");
+    const dialog = screen.getByRole("alertdialog", { name: /hook failed/i });
     expect(dialog).toHaveTextContent("pre-commit");
     expect(screen.getByRole("button", { name: "Abort" })).toBeInTheDocument();
 
@@ -2049,6 +2049,7 @@ describe("App", () => {
 
     act(() => listener("running pre-commit hook"));
 
+    expect(screen.getByRole("alertdialog", { name: "Committing in progress" })).toBeInTheDocument();
     expect(screen.getByLabelText("Commit terminal output")).toHaveTextContent(
       "running pre-commit hook",
     );

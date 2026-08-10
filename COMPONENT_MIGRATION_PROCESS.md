@@ -557,10 +557,10 @@ of the app truthful, so they ride in the control you pressed.
 - **Clone is category 1.** When cloning starts, the clone dialog gives way to the dedicated
   progress dialog ("Cloning in progress": title, bar, description, destination) — not a bar
   embedded in the form.
-- **Commit is category 1, and rdc currently has no commit-progress dialog at all** — commit shows
-  terminal text in the Changes pane while it runs. desktop-plus shows a modal `CommitProgress`
-  popup for exactly this; rdc should mount the same shared progress dialog for a commit (bar where
-  git provides one, hook terminal output otherwise), so the user cannot leave a commit mid-flight.
+- **Commit is category 1.** The Changes pane starts the commit, then rdc mounts the shared
+  undismissable progress dialog ("Committing in progress") with the live terminal stream as its
+  operation-specific content. When an intercepted hook needs a decision, the hook-failure dialog
+  temporarily owns the modal layer; the commit progress dialog returns after Abort/Ignore resolves.
 - Fetch/push/pull and checkout are **category 2** — rdc already shows their text and percentage in
   the toolbar and sidebar; only the bar is missing, and it must be the same small embedded element
   everywhere, not a dialog.
@@ -582,5 +582,6 @@ preview drives the bar 0→100 frame by frame (value and git line moving on a ti
 synthetic finish), so it exercises the live updates the dialog exists for and still cannot lock the
 UI forever. **Rebase is the second consumer:** its existing `IMultiCommitOperationProgress` Channel
 now reaches `BranchStore`, and the picker swaps to the shared dialog with “commit N of M” and the
-current commit summary while Git replays commits. Merge, Commit and the remaining history operations
-are still pending consumers.
+current commit summary while Git replays commits. **Commit is now the third consumer:** the Changes
+pane's `commitLoading` state mounts the shared dialog and its bounded terminal buffer is rendered as
+the dialog's content. Merge and the remaining history operations are still pending consumers.

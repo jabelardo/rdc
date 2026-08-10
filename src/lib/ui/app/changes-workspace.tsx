@@ -29,7 +29,6 @@ type ChangesWorkspaceProps = {
   readonly conflictStore: ConflictStore;
   readonly commitMessage: string;
   readonly bypassHooks: boolean;
-  readonly commitTerminalOutput: string;
   readonly onCommitMessageChange: (message: string) => void;
   readonly onBypassHooksChange: (enabled: boolean) => void;
   readonly onDiscard: (fileID: string, selection: boolean) => void;
@@ -62,7 +61,6 @@ export function ChangesWorkspace({
   conflictStore,
   commitMessage,
   bypassHooks,
-  commitTerminalOutput,
   onCommitMessageChange,
   onBypassHooksChange,
   onDiscard,
@@ -356,11 +354,6 @@ export function ChangesWorkspace({
             <p className="application-error" role="alert">
               {state.commitError}
             </p>
-          )}
-          {commitTerminalOutput.length > 0 && (
-            <pre className="commit-terminal-output" aria-label="Commit terminal output">
-              {commitTerminalOutput}
-            </pre>
           )}
         </form>
       )}

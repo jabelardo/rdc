@@ -289,7 +289,6 @@ export function AppShell({ controller }: AppShellProps) {
               conflictStore={conflictStore}
               commitMessage={commitMessage}
               bypassHooks={bypassHooks}
-              commitTerminalOutput={commitTerminalOutput}
               onCommitMessageChange={setCommitMessage}
               onBypassHooksChange={setBypassHooks}
               onDiscard={requestDiscard}
@@ -318,6 +317,8 @@ export function AppShell({ controller }: AppShellProps) {
         discarding={discarding}
         workingTreeError={workingTreeState.error}
         hookFailure={workingTreeState.hookFailure}
+        commitLoading={workingTreeState.commitLoading}
+        commitTerminalOutput={commitTerminalOutput}
         workingTreeStore={workingTreeStore}
         repositoryToRemove={repositoryToRemove}
         showAboutDialog={showAboutDialog}

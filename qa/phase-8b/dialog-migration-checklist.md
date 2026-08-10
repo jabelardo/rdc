@@ -50,14 +50,10 @@ These three were the first migrated. Validate them in **Help → Show Dialog**. 
 | Remove repository… | AlertDialog | Light | | | Cancel / Remove | — | | Stub state injected by debug menu | |
 | Remove repository… | AlertDialog | Dark | | | Cancel / Remove | — | | | |
 
-> **Commit is not a dialog, but it still needs a progress mechanism.** It is **category 1** in the
-> progress-presentation decision (`COMPONENT_MIGRATION_PROCESS.md` § Progress presentation): a
-> commit under way must not be abandonable, so its progress belongs in the same undismissable
-> `OperationProgressDialog` as clone and the history operations — yet a commit isn't a dialog today
-> (it runs from the Changes pane and shows only terminal text), and rdc **has no commit-progress
-> dialog yet**. It sits outside this table precisely because there is no dialog row for it; it needs
-> the shared progress dialog built and mounted around the commit flow before the category is truly
-> covered.
+> **Commit is not an action dialog, but it has a category-1 progress dialog.** The Changes pane starts
+> the operation; `OperationProgressDialog` owns the undismissable in-flight state and renders the
+> bounded terminal stream. An intercepted hook temporarily replaces it with the hook-failure decision
+> dialog, then the commit progress dialog returns when the decision resolves.
 
 ---
 

@@ -39,6 +39,7 @@ import { MergeBranchDialog, mergeCandidates } from "../dialogs/merge-branch-dial
 import { RebaseBranchDialog, rebaseCandidates } from "../dialogs/rebase-branch-dialog";
 import { NoticeDialog } from "../dialogs/notice-dialog";
 import { RenameBranchDialog } from "../dialogs/rename-branch-dialog";
+import { OperationProgressDialog } from "../dialogs/operation-progress-dialog";
 import { TerminalOutput } from "../terminal-output";
 import type { MergeTreeResult } from "../../../models/merge";
 import { MergeStrategyLabel, type MergeStrategy } from "../../../models/merge-strategy";
@@ -61,6 +62,8 @@ type AppDialogsProps = {
   readonly discarding: boolean;
   readonly workingTreeError: string | null;
   readonly hookFailure: HookFailureState | null;
+  readonly commitLoading: boolean;
+  readonly commitTerminalOutput: string;
   readonly workingTreeStore: WorkingTreeStore;
   readonly repositoryToRemove: Repository | null;
   readonly showAboutDialog: boolean;
@@ -159,6 +162,8 @@ export function AppDialogs({
   discarding,
   workingTreeError,
   hookFailure,
+  commitLoading,
+  commitTerminalOutput,
   workingTreeStore,
   repositoryToRemove,
   showAboutDialog,
@@ -238,6 +243,17 @@ export function AppDialogs({
 }: AppDialogsProps) {
   return (
     <>
+      {commitLoading && hookFailure === null && (
+        <OperationProgressDialog
+          operation="Committing"
+          progress={{ value: 0, title: "Committing changes" }}
+        >
+          {commitTerminalOutput.length > 0 && (
+            <TerminalOutput output={commitTerminalOutput} aria-label="Commit terminal output" />
+          )}
+        </OperationProgressDialog>
+      )}
+
       {discardFile !== null && (
         <ConfirmDialog
           title={permanentlyDiscard ? "Permanently discard changes" : "Confirm discard changes"}
