@@ -109,6 +109,10 @@ type AppDialogsProps = {
   readonly onRebaseTargetChange: (value: string) => void;
   readonly rebaseMessage: string | null;
   readonly rebaseRunning: boolean;
+  readonly rebaseProgress: Extract<
+    BranchState["progress"],
+    { kind: "multiCommitOperation" }
+  > | null;
   readonly rebasePreview: RebasePreview | null;
   readonly rebasePreviewError: string | null;
   readonly onConfirmRebase: () => void;
@@ -203,6 +207,7 @@ export function AppDialogs({
   onRebaseTargetChange,
   rebaseMessage,
   rebaseRunning,
+  rebaseProgress,
   rebasePreview,
   rebasePreviewError,
   onConfirmRebase,
@@ -369,6 +374,7 @@ export function AppDialogs({
           selected={branchState.branches.find((branch) => branch.name === rebaseTarget) ?? null}
           preview={rebasePreview}
           running={rebaseRunning}
+          progress={rebaseProgress}
           failure={rebaseMessage ?? rebasePreviewError}
           onSelect={(branch) => onRebaseTargetChange(branch.name)}
           onConfirm={onConfirmRebase}

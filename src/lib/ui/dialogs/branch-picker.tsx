@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, Search } from "lucide-react";
 import type { Branch } from "../../../models/branch";
 import { Input } from "../../../components/ui/input";
@@ -78,6 +78,7 @@ export function BranchPicker({
   // heading rather than stopping at it.
   const ordered = useMemo(() => groups.flatMap((group) => group.branches), [groups]);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const restoreSelectionFocus = useRef(false);
 
   /**
    * Focus a row by index, scrolling it into view if it is not already.
@@ -93,6 +94,21 @@ export function BranchPicker({
     option?.focus();
     option?.scrollIntoView({ block: "nearest" });
   }
+
+  // A selection click updates the parent, which can rerender the picker while the browser is still
+  // completing the pointer sequence. WebKit may leave focus on the dialog in that case, so restore
+  // focus after the selected row has been committed to the DOM. Arrow navigation itself focuses
+  // directly through `focusIndex` and does not use this path.
+  useLayoutEffect(() => {
+    if (!restoreSelectionFocus.current || selectedBranch === null) {
+      return;
+    }
+    const selectedIndex = ordered.findIndex((branch) => branch.name === selectedBranch.name);
+    if (selectedIndex >= 0) {
+      optionRefs.current[selectedIndex]?.focus();
+    }
+    restoreSelectionFocus.current = false;
+  }, [ordered, selectedBranch]);
 
   /**
    * Arrow navigation, relative to the row the event came from.
@@ -172,6 +188,13 @@ export function BranchPicker({
                         ? "bg-accent text-accent-foreground"
                         : "hover:bg-accent/60 hover:text-accent-foreground",
                     )}
+                    onMouseDown={(event) => {
+                      // WebKit does not consistently focus a button on an ordinary mouse click.
+                      // The picker relies on the focused row as the origin for custom ArrowUp/
+                      // ArrowDown navigation, so establish that focus before the click selects it.
+                      event.currentTarget.focus();
+                      restoreSelectionFocus.current = true;
+                    }}
                     onClick={() => onSelect(branch)}
                   >
                     {/* Reserved whether or not it is shown, so rows do not shift as the selection

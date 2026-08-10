@@ -498,7 +498,7 @@ made it more than a mechanical copy of Rename branch.
 | Empty url/path | enabled, fails on submit | Clone **disabled** when url/path empty | — | **DECIDED** → C16 |
 | Message slot | inline, moving layout | `DialogError` | — | **SETTLED** (C12 — one height-holding slot) |
 | Error display | `.application-error` | `DialogError` | — | **SETTLED** (`--error-*` tokens + `role="alert"`; arrives after open, so C10 does not apply) |
-| Progress | inline `<progress>` in dialog | in the toolbar | none vendored | **DECIDED** → keep rdc's inline |
+| Progress | shared `OperationProgressDialog` replaces the form while running | in the toolbar | none vendored | **DECIDED** → category 1 blocking dialog |
 | Wording | "Repository URL" / "Destination path" | "…GitHub username and repository (hubot/cool-repo)" / "Local path" | — | **DECIDED** → keep rdc's honest labels |
 | Viewport fit | — | — | `DialogContent` caps height | **SETTLED** (C14) |
 
@@ -515,8 +515,9 @@ is invalid long before it is running.
 ### Resolved → departures recorded for §8
 
 - **Progress stays in the dialog.** desktop-plus shows clone progress in its toolbar; rdc keeps the
-  dialog open for the whole clone, so the feedback belongs where the user acted. A `role="status"`
-  row under the fields, styled by the token system. Not a shadcn decision — shadcn has no vendored
+  dialog open for the whole clone, replacing the form with the shared, undismissable
+  `OperationProgressDialog`. The progress dialog owns the themed bar and `role="status"` row, so
+  the feedback belongs where the user acted. Not a shadcn decision — shadcn has no vendored
   `Progress` here — it is an rdc information-architecture choice.
 - **The `hubot/cool-repo` hint is dropped, deliberately.** The "Repository URL or GitHub username and
   repository" label only makes sense with the GitHub-account shortcuts rdc does not have (git cannot
@@ -579,4 +580,7 @@ same component. **Clone is the first consumer**: its dialog swaps to it when clo
 (`injectCloneProgress`) so the progress step is reviewable from the menu without a real clone; the
 preview drives the bar 0→100 frame by frame (value and git line moving on a timeline, then a
 synthetic finish), so it exercises the live updates the dialog exists for and still cannot lock the
-UI forever. Commit and the history ops mount it next.
+UI forever. **Rebase is the second consumer:** its existing `IMultiCommitOperationProgress` Channel
+now reaches `BranchStore`, and the picker swaps to the shared dialog with “commit N of M” and the
+current commit summary while Git replays commits. Merge, Commit and the remaining history operations
+are still pending consumers.

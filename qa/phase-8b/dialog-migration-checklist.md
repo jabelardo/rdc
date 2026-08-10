@@ -45,8 +45,8 @@ These three were the first migrated. Validate them in **Help → Show Dialog**. 
 | Delete branch… | AlertDialog | Dark | | | Close / Delete | — | | | |
 | Merge… | Dialog | Light | | | Cancel / Merge | **Cat 1 — while running (not wired)** | | Stub state injected by debug menu | Migrated |
 | Merge… | Dialog | Dark | | | Cancel / Merge | **Cat 1 — while running (not wired)** | | | Migrated | |
-| Rebase… | Dialog | Light | | | Cancel / Rebase | **Cat 1 — while running (not wired)** | | Stub state injected by debug menu | Migrated |
-| Rebase… | Dialog | Dark | | | Cancel / Rebase | **Cat 1 — while running (not wired)** | | | Migrated | |
+| Rebase… | Dialog | Light | | | Cancel / Rebase | **Cat 1 — shared progress dialog wired** | | Stub state injected by debug menu | Migrated; progress wired |
+| Rebase… | Dialog | Dark | | | Cancel / Rebase | **Cat 1 — shared progress dialog wired** | | | Migrated; progress wired | |
 | Remove repository… | AlertDialog | Light | | | Cancel / Remove | — | | Stub state injected by debug menu | |
 | Remove repository… | AlertDialog | Dark | | | Cancel / Remove | — | | | |
 

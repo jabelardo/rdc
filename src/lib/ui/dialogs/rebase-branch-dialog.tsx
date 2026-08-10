@@ -1,6 +1,7 @@
 import type { Branch } from "../../../models/branch";
 import { ComputedAction } from "../../../models/computed-action";
 import type { RebasePreview } from "../../../models/rebase-preview";
+import type { IMultiCommitOperationProgress } from "../../../models/progress";
 import { Button } from "../../../components/ui/button";
 import {
   Dialog,
@@ -12,6 +13,7 @@ import {
 import { formatNumber } from "../../format-number";
 import { BranchPicker } from "./branch-picker";
 import { DialogMessage, type DialogMessageTone } from "./dialog-message";
+import { OperationProgressDialog } from "./operation-progress-dialog";
 
 const MessageID = "rebase-branch-message";
 
@@ -31,6 +33,7 @@ type RebaseBranchDialogProps = {
   /** Preview of rebasing `currentBranch` onto `selected`, or null before one is picked. */
   readonly preview: RebasePreview | null;
   readonly running: boolean;
+  readonly progress: IMultiCommitOperationProgress | null;
   readonly failure: string | null;
   readonly onSelect: (branch: Branch) => void;
   readonly onConfirm: () => void;
@@ -45,11 +48,30 @@ export function RebaseBranchDialog({
   selected,
   preview,
   running,
+  progress,
   failure,
   onSelect,
   onConfirm,
   onCancel,
 }: RebaseBranchDialogProps) {
+  if (running) {
+    return (
+      <OperationProgressDialog
+        operation="Rebasing"
+        progress={progress ?? { value: 0 }}
+        currentCommit={
+          progress === null
+            ? undefined
+            : {
+                position: progress.position,
+                totalCommitCount: progress.totalCommitCount,
+                summary: progress.currentCommitSummary,
+              }
+        }
+      />
+    );
+  }
+
   const canRebase =
     selected !== null &&
     preview !== null &&

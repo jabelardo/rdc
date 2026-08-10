@@ -366,6 +366,9 @@ export function AppShell({ controller }: AppShellProps) {
         onRebaseTargetChange={setRebaseTarget}
         rebaseMessage={rebaseMessage}
         rebaseRunning={rebaseRunning}
+        rebaseProgress={
+          branchState.progress?.kind === "multiCommitOperation" ? branchState.progress : null
+        }
         rebasePreview={rebasePreview}
         rebasePreviewError={rebasePreviewError}
         onConfirmRebase={() => void confirmRebase()}

@@ -31,6 +31,7 @@ function renderDialog(overrides: Partial<Parameters<typeof RebaseBranchDialog>[0
     selected: null,
     preview: null,
     running: false,
+    progress: null,
     failure: null,
     onSelect: vi.fn(),
     onConfirm: vi.fn(),
@@ -54,6 +55,77 @@ describe("RebaseBranchDialog", () => {
       "aria-selected",
       "true",
     );
+  });
+
+  it("keeps arrow navigation working after selecting a row with the mouse", async () => {
+    const user = userEvent.setup();
+    const props = renderDialog();
+    const selectedRow = screen.getByRole("option", { name: /feature\/auth/ });
+
+    await user.click(selectedRow);
+    expect(document.activeElement).toBe(selectedRow);
+
+    await user.keyboard("{ArrowDown}");
+    expect(props.onSelect).toHaveBeenLastCalledWith(candidates[2]);
+  });
+
+  it("restores row focus when the selected branch prop rerenders the picker", async () => {
+    const user = userEvent.setup();
+    const props = {
+      currentBranch: "main",
+      candidates,
+      defaultBranch: "develop",
+      recentBranches: ["feature/auth"],
+      selected: null,
+      preview: null,
+      running: false,
+      progress: null,
+      failure: null,
+      onSelect: vi.fn(),
+      onConfirm: vi.fn(),
+      onCancel: vi.fn(),
+    };
+    const view = render(<RebaseBranchDialog {...props} />);
+    const selectedRow = screen.getByRole("option", { name: /feature\/auth/ });
+
+    await user.click(selectedRow);
+    expect(document.activeElement).toBe(selectedRow);
+
+    // Model the controller committing the selected branch and updating the preview after the
+    // callback. This is the rerender that can otherwise steal the row's focus in WebKit.
+    view.rerender(<RebaseBranchDialog {...props} selected={candidates[1]} preview={clean(2, 1)} />);
+    expect(document.activeElement).toBe(screen.getByRole("option", { name: /feature\/auth/ }));
+
+    await user.keyboard("{ArrowDown}");
+    expect(props.onSelect).toHaveBeenLastCalledWith(candidates[2]);
+  });
+
+  it("replaces the picker with the shared progress dialog while rebasing", async () => {
+    const user = userEvent.setup();
+    const props = renderDialog({
+      selected: candidates[1],
+      preview: clean(3, 2),
+      running: true,
+      progress: {
+        kind: "multiCommitOperation",
+        value: 0.5,
+        title: "Rebasing onto feature/auth",
+        description: "Applying commit 2 of 3",
+        position: 2,
+        totalCommitCount: 3,
+        currentCommitSummary: "Move authentication behind the flag",
+      },
+    });
+
+    expect(screen.getByRole("alertdialog", { name: "Rebasing in progress" })).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "50");
+    expect(screen.getByRole("status")).toHaveTextContent("Commit 2 of 3");
+    expect(screen.getByRole("status")).toHaveTextContent("Move authentication behind the flag");
+    expect(screen.queryByRole("button", { name: "Rebase" })).not.toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.getByRole("alertdialog", { name: "Rebasing in progress" })).toBeInTheDocument();
+    expect(props.onCancel).not.toHaveBeenCalled();
   });
 
   it("explains the rebase rather than only disabling the button", () => {
@@ -129,7 +201,7 @@ describe("RebaseBranchDialog", () => {
       running: true,
     });
 
-    expect(screen.getByRole("button", { name: "Rebasing…" })).toBeDisabled();
+    expect(screen.getByRole("alertdialog", { name: "Rebasing in progress" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(props.onCancel).not.toHaveBeenCalled();
   });

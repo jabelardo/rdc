@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Branch, BranchType } from "../../models/branch";
 import { ComputedAction } from "../../models/computed-action";
 import type { MergeTreeResult } from "../../models/merge";
-import { MergeResult, RebaseResult } from "../git-ipc";
+import { MergeResult, rebaseBranch as rebaseBranchCommand, RebaseResult } from "../git-ipc";
 import { BranchStore } from "./branch-store";
 
 function branch(name: string, type = BranchType.Local, upstream: string | null = null): Branch {
@@ -213,7 +213,9 @@ describe("BranchStore", () => {
       async (): Promise<MergeTreeResult> => ({ kind: ComputedAction.Clean }),
     );
     const mergeBranch = vi.fn(async () => MergeResult.Success);
-    const rebaseBranch = vi.fn(async () => RebaseResult.CompletedWithoutError);
+    const rebaseBranch = vi.fn<typeof rebaseBranchCommand>(
+      async () => RebaseResult.CompletedWithoutError,
+    );
     const store = new BranchStore({
       getBranches,
       getStatus,
@@ -486,7 +488,44 @@ describe("BranchStore", () => {
     );
 
     // target is the current branch; the picked branch is the base.
-    expect(rebaseBranch).toHaveBeenCalledWith("/repo", "main", "topic");
+    expect(rebaseBranch).toHaveBeenCalledWith("/repo", "main", "topic", expect.any(Function));
+  });
+
+  it("publishes rebase progress while the operation is running", async () => {
+    const main = branch("main", BranchType.Local, "origin/main");
+    const topic = branch("topic");
+    const base = branch("main");
+    const { store, rebaseBranch } = loadTopology("topic", [main, topic, base]);
+    let finish: (() => void) | undefined;
+    rebaseBranch.mockImplementation(async (...args: Parameters<typeof rebaseBranchCommand>) => {
+      const onProgress = args[3];
+      onProgress?.({
+        kind: "multiCommitOperation",
+        value: 0.5,
+        title: "Rebasing",
+        description: "Applying commit 1 of 2",
+        position: 1,
+        totalCommitCount: 2,
+        currentCommitSummary: "First commit",
+      });
+      await new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      return RebaseResult.CompletedWithoutError;
+    });
+    await store.load("/repo");
+
+    const rebasing = store.rebaseBranch("main", { workingTreeDirty: false });
+    await vi.waitFor(() =>
+      expect(store.state.progress).toMatchObject({
+        kind: "multiCommitOperation",
+        value: 0.5,
+        position: 1,
+      }),
+    );
+    expect(store.state.operation).toBe("rebasing");
+    finish?.();
+    await expect(rebasing).resolves.toBe("completed");
   });
 
   it("reports a rebase that leaves conflicts", async () => {

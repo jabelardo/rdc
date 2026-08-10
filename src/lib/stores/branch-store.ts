@@ -1,6 +1,6 @@
 import { BranchType, type Branch } from "../../models/branch";
 import { ComputedAction } from "../../models/computed-action";
-import type { ICheckoutProgress } from "../../models/progress";
+import type { ICheckoutProgress, IMultiCommitOperationProgress } from "../../models/progress";
 import type { IRemote } from "../../models/remote";
 import { getBranches } from "../branch-ipc";
 import {
@@ -51,7 +51,7 @@ export type BranchState = {
   readonly loading: boolean;
   readonly error: string | null;
   readonly operation: BranchOperation | null;
-  readonly progress: ICheckoutProgress | null;
+  readonly progress: ICheckoutProgress | IMultiCommitOperationProgress | null;
   readonly operationError: string | null;
 };
 
@@ -504,7 +504,12 @@ export class BranchStore {
       operationError: null,
     });
     try {
-      const result = await this.dependencies.rebaseBranch(repositoryPath, baseBranchName, current);
+      const result = await this.dependencies.rebaseBranch(
+        repositoryPath,
+        baseBranchName,
+        current,
+        (progress) => this.publishRebaseProgress(requestID, operationID, progress),
+      );
       await this.finishOperation(repositoryPath, requestID, operationID);
       switch (result) {
         case RebaseResult.CompletedWithoutError:
@@ -610,6 +615,16 @@ export class BranchStore {
     requestID: number,
     operationID: number,
     progress: ICheckoutProgress,
+  ): void {
+    if (this.isCurrentOperation(requestID, operationID)) {
+      this.update({ ...this.currentState, progress });
+    }
+  }
+
+  private publishRebaseProgress(
+    requestID: number,
+    operationID: number,
+    progress: IMultiCommitOperationProgress,
   ): void {
     if (this.isCurrentOperation(requestID, operationID)) {
       this.update({ ...this.currentState, progress });
