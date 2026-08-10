@@ -3375,12 +3375,16 @@ and the frameless Custom style) are recorded in `MIGRATION_MAP.md` §8 — that 
 includes re-measuring the context-menu CSD offset, since the Linux context-menu path (see above)
 no longer uses a tuned constant at all.
 
-**Component/dialog migration (recorded 2026-08-08).** Phase 8b's component-migration process
-(`COMPONENT_MIGRATION_PROCESS.md`) ran its three-way review — rdc / desktop-plus / shadcn — through
-ten dialogs: hook failure, About, discard file, discard all, delete branch (+ the "cannot delete"
-notice), remove repository, manage remotes, add remote, rename branch and merge. Remaining in the
-queue: **preferences**. Rebase, Clone and Merge are migrated and consume the shared blocking progress
-dialog. The process promoted
+**Component/dialog migration (recorded 2026-08-08; status reconciled 2026-08-10).** Phase 8b's
+component-migration process (`COMPONENT_MIGRATION_PROCESS.md`) ran its three-way review — rdc /
+desktop-plus / shadcn — through ten dialogs: hook failure, About, discard file, discard all, delete
+branch (+ the "cannot delete" notice), remove repository, manage remotes, add remote, rename branch
+and merge. **Preferences is the only dialog remaining in that migration queue.** Rebase and Clone
+were subsequently migrated, and Rebase, Clone, Commit and Merge now consume the shared blocking
+progress dialog. Fetch, Push, Pull and Checkout expose embedded text/percentage progress, but still
+need the shared compact progress-bar presentation. Cherry-pick and Revert remain planned blocking
+history-operation consumers; interactive squash/reorder remains deferred to the interactive-rebase
+scope. The process promoted
 the four conventions that are now the strongest layout rules the migration produced:
 
 - **Convention 12** — all of a dialog's messages share one height-holding slot, so a message that
@@ -3583,10 +3587,12 @@ block the MVP unless the initial-user profile changes. Phases 6b and 9 follow th
 remaining UI/parity backlog. Phase 10 owns the complete Windows target and consumes shared public-release
 infrastructure from Phase 9 where appropriate.
 
-Phase 8b is running the component/dialog migration in parallel with its QA/fix cycle (ten
-dialogs done, three left: rebase, clone, preferences — `COMPONENT_MIGRATION_PROCESS.md`); the
-code-organization pass (`CODE_ORGANIZATION_PLAN.md`) is scheduled immediately after so it moves
-settled code rather than code in flight.
+Phase 8b is running the component/dialog migration in parallel with its QA/fix cycle. The reviewed
+dialog queue has one item left — Preferences — while Rebase and Clone have since completed their
+migration. The shared blocking progress dialog is now consumed by Clone, Rebase, Commit and Merge;
+the remaining progress work is the embedded bar for Fetch/Push/Pull/Checkout and the planned
+history-operation consumers. The code-organization pass (`CODE_ORGANIZATION_PLAN.md`) remains
+scheduled immediately after so it moves settled code rather than code in flight.
 
 ## Weak points in the current codebase worth calling out (summary)
 

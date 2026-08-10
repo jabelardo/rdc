@@ -586,4 +586,7 @@ current commit summary while Git replays commits. **Commit is now the third cons
 pane's `commitLoading` state mounts the shared dialog and its bounded terminal buffer is rendered as
 the dialog's content. **Merge is now the fourth consumer:** its branch operation publishes a
 blocking generic progress state while Git determines and applies the merge. The remaining history
-operations are still pending consumers.
+operations are still pending consumers. The category-2 operations already publish and render text
+and percentages in their existing controls; the shared compact bar remains to be added for
+Fetch/Push/Pull in the toolbar and Checkout in the branch sidebar. Interactive squash/reorder is
+not yet a consumer because interactive rebase remains outside the current MVP scope.
