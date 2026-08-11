@@ -43,6 +43,12 @@ pub struct WatchdogPolicy {
     pub poll_interval: Duration,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OperationWaitReason {
+    CredentialPrompt,
+    HookDecision,
+}
+
 impl Default for WatchdogPolicy {
     fn default() -> Self {
         Self {
@@ -59,6 +65,8 @@ struct RegistryInner {
     records: HashMap<String, OperationRecord>,
     latest_events: HashMap<String, OperationEvent>,
     controls: HashMap<String, ExecutionControl>,
+    user_waits: HashMap<String, OperationWaitReason>,
+    activity_clocks: HashMap<String, tokio::time::Instant>,
 }
 
 impl OperationRegistry {
@@ -102,6 +110,9 @@ impl OperationRegistry {
         };
         inner.locks.insert(lock_key, id.clone());
         inner.controls.insert(id.clone(), ExecutionControl::new());
+        inner
+            .activity_clocks
+            .insert(id.clone(), tokio::time::Instant::now());
         inner.records.insert(id, record.clone());
         Ok(record)
     }
@@ -128,10 +139,13 @@ impl OperationRegistry {
         &self,
         operation_id: &str,
     ) -> Result<OperationRecord, OperationRegistryError> {
-        self.update(operation_id, |record, inner| {
-            if record.state != OperationState::Running {
-                return;
+        let mut inner = self.lock_inner();
+        let mut record = inner.records.get(operation_id).cloned().ok_or_else(|| {
+            OperationRegistryError::NotFound {
+                operation_id: operation_id.to_owned(),
             }
+        })?;
+        if record.state == OperationState::Running {
             record.state = OperationState::TakingLongerThanExpected;
             inner.latest_events.insert(
                 operation_id.to_owned(),
@@ -140,7 +154,11 @@ impl OperationRegistry {
                     state: OperationLifecycleState::TakingLongerThanExpected,
                 },
             );
-        })
+            inner
+                .records
+                .insert(operation_id.to_owned(), record.clone());
+        }
+        Ok(record)
     }
 
     /// Records non-progress activity such as an output chunk, hook transition or credential
@@ -150,6 +168,28 @@ impl OperationRegistry {
         operation_id: &str,
     ) -> Result<OperationRecord, OperationRegistryError> {
         self.update(operation_id, |record, _| {
+            record.last_activity_at = now_millis();
+        })
+    }
+
+    /// Suspends inactivity timeout while the user is expected to answer an explicit prompt.
+    pub fn begin_user_wait(
+        &self,
+        operation_id: &str,
+        reason: OperationWaitReason,
+    ) -> Result<OperationRecord, OperationRegistryError> {
+        self.update(operation_id, |record, inner| {
+            inner.user_waits.insert(operation_id.to_owned(), reason);
+            record.last_activity_at = now_millis();
+        })
+    }
+
+    pub fn end_user_wait(
+        &self,
+        operation_id: &str,
+    ) -> Result<OperationRecord, OperationRegistryError> {
+        self.update(operation_id, |record, inner| {
+            inner.user_waits.remove(operation_id);
             record.last_activity_at = now_millis();
         })
     }
@@ -241,6 +281,7 @@ impl OperationRegistry {
             inner.locks.remove(&scope_lock_key(&record.scope));
             inner.controls.remove(operation_id);
         }
+        inner.activity_clocks.remove(operation_id);
         inner.latest_events.insert(
             operation_id.to_owned(),
             OperationEvent::Finished {
@@ -320,8 +361,10 @@ impl OperationRegistry {
                 ) {
                     break;
                 }
-                let inactive_for =
-                    Duration::from_millis(now_millis().saturating_sub(record.last_activity_at));
+                if registry.is_user_waiting(&operation_id) {
+                    continue;
+                }
+                let inactive_for = registry.inactivity_for(&operation_id);
                 if inactive_for >= policy.hard_inactivity {
                     let _ = registry.request_timeout(&operation_id);
                     break;
@@ -346,9 +389,23 @@ impl OperationRegistry {
         })?;
         update(&mut record, &mut inner);
         inner
+            .activity_clocks
+            .insert(operation_id.to_owned(), tokio::time::Instant::now());
+        inner
             .records
             .insert(operation_id.to_owned(), record.clone());
         Ok(record)
+    }
+
+    fn is_user_waiting(&self, operation_id: &str) -> bool {
+        self.lock_inner().user_waits.contains_key(operation_id)
+    }
+
+    fn inactivity_for(&self, operation_id: &str) -> Duration {
+        self.lock_inner()
+            .activity_clocks
+            .get(operation_id)
+            .map_or(Duration::MAX, tokio::time::Instant::elapsed)
     }
 
     fn lock_inner(&self) -> std::sync::MutexGuard<'_, RegistryInner> {
@@ -675,6 +732,89 @@ mod tests {
             .await
             .expect("watchdog should clean up after completion")
             .expect("watchdog should not panic");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn paused_time_covers_soft_and_hard_watchdog_thresholds() {
+        let registry = registry();
+        let record = registry
+            .start(
+                repository_scope("repo-paused"),
+                None,
+                GitOperationKind::Fetch,
+                CancellationCapability::Unavailable,
+            )
+            .expect("operation should reserve");
+        let watchdog = registry.spawn_watchdog(
+            record.id.clone(),
+            WatchdogPolicy {
+                soft_inactivity: Duration::from_secs(10),
+                hard_inactivity: Duration::from_secs(30),
+                poll_interval: Duration::from_secs(5),
+            },
+        );
+
+        tokio::task::yield_now().await;
+        tokio::time::advance(Duration::from_secs(15)).await;
+        for _ in 0..5 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(
+            registry.get(&record.id).expect("record remains").state,
+            OperationState::TakingLongerThanExpected
+        );
+
+        tokio::time::advance(Duration::from_secs(20)).await;
+        for _ in 0..5 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(
+            registry.get(&record.id).expect("record remains").state,
+            OperationState::Cancelling
+        );
+        watchdog.await.expect("watchdog should finish");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn credential_and_hook_waits_suspend_timeout_until_the_user_responds() {
+        let registry = registry();
+        let record = registry
+            .start(
+                repository_scope("repo-wait"),
+                None,
+                GitOperationKind::Fetch,
+                CancellationCapability::Unavailable,
+            )
+            .expect("operation should reserve");
+        registry
+            .begin_user_wait(&record.id, OperationWaitReason::CredentialPrompt)
+            .expect("credential wait should be recorded");
+        let watchdog = registry.spawn_watchdog(
+            record.id.clone(),
+            WatchdogPolicy {
+                soft_inactivity: Duration::from_secs(10),
+                hard_inactivity: Duration::from_secs(30),
+                poll_interval: Duration::from_secs(5),
+            },
+        );
+
+        tokio::time::advance(Duration::from_secs(60)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(
+            registry.get(&record.id).expect("record remains").state,
+            OperationState::Running
+        );
+
+        registry
+            .end_user_wait(&record.id)
+            .expect("credential wait should end");
+        tokio::time::advance(Duration::from_secs(35)).await;
+        tokio::task::yield_now().await;
+        assert_eq!(
+            registry.get(&record.id).expect("record remains").state,
+            OperationState::Cancelling
+        );
+        watchdog.await.expect("watchdog should finish");
     }
 
     #[test]
