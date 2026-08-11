@@ -79,6 +79,17 @@ pub async fn start_repository_operation(
         .map_err(|error| CommandError::message(error.to_string()))
 }
 
+/// Finds the active operation owning a repository, including an operation retained for recovery.
+pub async fn active_repository_operation(
+    registry: &OperationRegistry,
+    repository_path: &str,
+) -> Result<Option<OperationRecord>, CommandError> {
+    let Some(scope) = repository_scope(repository_path).await? else {
+        return Ok(None);
+    };
+    Ok(registry.active_for_scope(&scope))
+}
+
 /// Replays the latest retained event for an operation after a renderer joins it.
 #[tauri::command]
 pub fn get_latest_operation_event(

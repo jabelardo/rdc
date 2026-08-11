@@ -481,7 +481,9 @@ work is lock coverage review and multi-window conflict/concurrency verification.
 The merge command is now the first history-changing boundary with the same repository lock and
 terminal lifecycle, including hook setup and merge-result/error handling.
 The initial Rebase command now acquires the repository lock, records its initiating window, and
-releases it on clean or failed replay results; rebase continuation/recovery remains separate.
+releases it on clean or failed replay results. Conflict and outstanding-file results instead enter
+recovery while retaining the lock; Rebase Continue uses that retained operation and releases it only
+after a terminal result. Abort/recovery-failure handling remains separate.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

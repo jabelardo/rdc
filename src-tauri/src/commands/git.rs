@@ -628,6 +628,12 @@ pub async fn rebase_branch(
     )
     .await;
     match result {
+        Ok(
+            result @ (RebaseResult::ConflictsEncountered | RebaseResult::OutstandingFilesNotStaged),
+        ) => {
+            let _ = registry.enter_recovery(&operation.id);
+            Ok(result)
+        }
         Ok(result) => {
             let _ = registry.finish(
                 &operation.id,
@@ -657,13 +663,20 @@ pub async fn rebase_branch(
 /// Stages the selected resolutions and continues an in-progress rebase.
 #[tauri::command]
 pub async fn continue_rebase(
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     files: Vec<FileToStage>,
     manual_resolutions: Vec<ManualResolution>,
     no_verify: bool,
     on_progress: Channel<MultiCommitOperationProgress>,
 ) -> Result<RebaseResult, CommandError> {
-    git_ops::rebase::continue_rebase_with_progress(
+    let operation =
+        crate::commands::operation::active_repository_operation(&registry, &repository_path)
+            .await?
+            .ok_or_else(|| {
+                CommandError::message("no active rebase operation owns this repository")
+            })?;
+    let result = git_ops::rebase::continue_rebase_with_progress(
         &repository_path,
         &files,
         &manual_resolutions,
@@ -672,8 +685,38 @@ pub async fn continue_rebase(
             let _ = on_progress.send(progress);
         },
     )
-    .await
-    .map_err(CommandError::from)
+    .await;
+    match result {
+        Ok(
+            result @ (RebaseResult::ConflictsEncountered | RebaseResult::OutstandingFilesNotStaged),
+        ) => {
+            let _ = registry.enter_recovery(&operation.id);
+            Ok(result)
+        }
+        Ok(result) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(result)
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Aborts an in-progress rebase.
