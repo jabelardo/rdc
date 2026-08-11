@@ -1418,6 +1418,7 @@ name = "git-ops"
 version = "0.1.0"
 dependencies = [
  "ignore",
+ "libc",
  "regex",
  "serde",
  "serde_json",

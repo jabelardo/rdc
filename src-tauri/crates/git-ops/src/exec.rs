@@ -22,14 +22,59 @@ use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::process::Command;
+use tokio::sync::Notify;
 
-use crate::error::GitError;
+use crate::error::{GitError, TerminationReason};
 use crate::git_error_kind::GitErrorKind;
 
 /// How much combined stdout/stderr to retain for error context, in bytes.
 ///
 /// Matches the 256kb cap in `core.ts`.
 pub const TERMINAL_OUTPUT_CAPACITY: usize = 256 * 1024;
+
+/// Cancellation signal shared by a native operation and its Git process.
+#[derive(Debug, Clone, Default)]
+pub struct ExecutionControl {
+    cancelled: Arc<AtomicBool>,
+    reason: Arc<std::sync::atomic::AtomicU8>,
+    notify: Arc<Notify>,
+}
+
+impl ExecutionControl {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn cancel(&self, reason: TerminationReason) {
+        self.reason.store(
+            match reason {
+                TerminationReason::Cancelled => 1,
+                TerminationReason::TimedOut => 2,
+            },
+            Ordering::Release,
+        );
+        self.cancelled.store(true, Ordering::Release);
+        self.notify.notify_waiters();
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Acquire)
+    }
+
+    fn reason(&self) -> TerminationReason {
+        match self.reason.load(Ordering::Acquire) {
+            2 => TerminationReason::TimedOut,
+            _ => TerminationReason::Cancelled,
+        }
+    }
+
+    async fn cancelled(&self) {
+        if self.is_cancelled() {
+            return;
+        }
+        self.notify.notified().await;
+    }
+}
 
 /// Options for a single git invocation.
 #[derive(Debug, Clone)]
@@ -320,6 +365,7 @@ async fn spawn_git(
         .stderr(Stdio::piped())
         // Don't leave git running if the future is dropped (e.g. a cancelled request).
         .kill_on_drop(true);
+    process_group::configure(&mut command);
 
     for (key, value) in &options.env {
         command.env(key, value);
@@ -361,11 +407,78 @@ async fn spawn_git(
     Ok(child)
 }
 
+/// Platform seam for terminating the whole Git process tree.
+///
+/// Unix starts Git as its own process group so hooks, SSH and LFS descendants receive the same
+/// signal. Windows currently uses the direct-child fallback behind the same API; the Job Object
+/// implementation is the next platform slice and must replace that arm before Windows support.
+#[cfg(unix)]
+mod process_group {
+    use std::io;
+
+    use tokio::process::{Child, Command};
+
+    pub fn configure(command: &mut Command) {
+        command.process_group(0);
+    }
+
+    pub fn terminate(child: &mut Child, force: bool) -> io::Result<()> {
+        let Some(pid) = child.id() else {
+            return Ok(());
+        };
+        let signal = if force { libc::SIGKILL } else { libc::SIGTERM };
+        // SAFETY: Git was started in its own process group by `configure`; a negative pid targets
+        // that group and cannot signal an unrelated process group.
+        let result = unsafe { libc::kill(-(pid as libc::pid_t), signal) };
+        if result == 0 || std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH) {
+            Ok(())
+        } else {
+            Err(io::Error::last_os_error())
+        }
+    }
+}
+
+#[cfg(windows)]
+mod process_group {
+    use std::io;
+
+    use tokio::process::{Child, Command};
+
+    pub fn configure(_command: &mut Command) {
+        // Keep the platform-neutral seam compiled on Windows. The Job Object implementation is
+        // intentionally a follow-up before exposing cancellation there.
+    }
+
+    pub fn terminate(child: &mut Child, _force: bool) -> io::Result<()> {
+        child.start_kill()
+    }
+}
+
 pub async fn git_streaming<O, E>(
     args: &[impl AsRef<std::ffi::OsStr>],
     path: impl AsRef<Path>,
     name: &str,
     options: GitOptions,
+    on_stdout: O,
+    on_stderr: E,
+) -> Result<GitOutput, GitError>
+where
+    O: FnMut(&[u8]) + Send,
+    E: FnMut(&[u8]) + Send,
+{
+    git_streaming_controlled(args, path, name, options, None, on_stdout, on_stderr).await
+}
+
+/// Runs git with an optional cancellation signal while continuing to drain both output pipes.
+///
+/// This is the incremental execution seam for operation-owned cancellation. Existing callers use
+/// [`git_streaming`] unchanged until their operation has a recovery policy.
+pub async fn git_streaming_controlled<O, E>(
+    args: &[impl AsRef<std::ffi::OsStr>],
+    path: impl AsRef<Path>,
+    name: &str,
+    options: GitOptions,
+    control: Option<ExecutionControl>,
     mut on_stdout: O,
     mut on_stderr: E,
 ) -> Result<GitOutput, GitError>
@@ -415,14 +528,49 @@ where
     };
 
     // Drain both pipes while the process runs. Waiting first can deadlock when either pipe fills.
-    let (stdout, stderr_bytes, status) = tokio::try_join!(read_stdout, read_stderr, child.wait())
-        .map_err(|source| GitError::Spawn {
-        name: name.to_owned(),
-        path: path.to_owned(),
-        source,
-    })?;
+    let wait = wait_for_child(&mut child, control.clone());
+    let (stdout, stderr_bytes, (status, termination)) =
+        tokio::try_join!(read_stdout, read_stderr, wait).map_err(|source| GitError::Spawn {
+            name: name.to_owned(),
+            path: path.to_owned(),
+            source,
+        })?;
+
+    if let Some(reason) = termination {
+        return Err(GitError::OperationTerminated {
+            name: name.to_owned(),
+            path: path.to_owned(),
+            reason,
+            stderr: String::from_utf8_lossy(&stderr_bytes).into_owned(),
+        });
+    }
 
     finish_git(name, path, stdout, &stderr_bytes, status, &options)
+}
+
+async fn wait_for_child(
+    child: &mut tokio::process::Child,
+    control: Option<ExecutionControl>,
+) -> std::io::Result<(std::process::ExitStatus, Option<TerminationReason>)> {
+    let Some(control) = control else {
+        return child.wait().await.map(|status| (status, None));
+    };
+
+    tokio::select! {
+        status = child.wait() => status.map(|status| (status, None)),
+        _ = control.cancelled() => {
+            let reason = control.reason();
+            process_group::terminate(child, false)?;
+            let status = tokio::select! {
+                status = child.wait() => status?,
+                _ = tokio::time::sleep(Duration::from_millis(250)) => {
+                    process_group::terminate(child, true)?;
+                    child.wait().await?
+                }
+            };
+            Ok((status, Some(reason)))
+        }
+    }
 }
 
 /// Whether this git's `<subcommand>` accepts `flag`.
@@ -932,6 +1080,40 @@ mod tests {
 
         assert_eq!(String::from_utf8_lossy(&chunks), "streamed-progress\n");
         assert_eq!(output.stderr, "streamed-progress\n");
+    }
+
+    #[tokio::test]
+    async fn cancellation_terminates_a_git_alias_process_group() {
+        let repo = empty_repository().await;
+        let control = ExecutionControl::new();
+        let cancellation = control.clone();
+        let task = tokio::spawn(async move {
+            git_streaming_controlled(
+                &["-c", "alias.wait=!sleep 30", "wait"],
+                repo.path(),
+                "cancellable-test",
+                GitOptions::default(),
+                Some(control),
+                |_| {},
+                |_| {},
+            )
+            .await
+        });
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        cancellation.cancel(TerminationReason::Cancelled);
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("cancellation should reap the process group")
+            .expect("test task should not panic");
+
+        assert!(matches!(
+            result,
+            Err(GitError::OperationTerminated {
+                reason: TerminationReason::Cancelled,
+                ..
+            })
+        ));
     }
     // --- capped reads ---
 

@@ -312,6 +312,13 @@ Git termination. Cover stdout/stderr pipe pressure so cancellation cannot deadlo
 
 **Exit:** a native test cancels an operation ID and proves the process tree and pipes terminate.
 
+**Progress:** in progress. `git_streaming_controlled` and `ExecutionControl` now provide a
+transport-neutral cancellation seam; Unix starts Git in a dedicated process group and terminates
+the group with graceful-then-force escalation while stdout/stderr remain drained. A descendant
+process test covers the Unix path. The remaining work is connecting the control to registry
+operation IDs and replacing the Windows direct-child seam with a Job Object implementation before
+this slice can close.
+
 ## Slice 6 — Add native activity watchdogs
 
 **Goal:** prevent an operation from remaining perpetually “running” without lying about legitimate

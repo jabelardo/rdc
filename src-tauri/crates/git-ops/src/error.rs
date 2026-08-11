@@ -5,6 +5,12 @@
 
 use std::path::PathBuf;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminationReason {
+    Cancelled,
+    TimedOut,
+}
+
 /// A failure running or interpreting a git command.
 #[derive(Debug, thiserror::Error)]
 pub enum GitError {
@@ -48,6 +54,15 @@ pub enum GitError {
     Terminated {
         name: String,
         path: PathBuf,
+        stderr: String,
+    },
+
+    /// The operation requested termination and the process tree was reaped.
+    #[error("git '{name}' in {path} was terminated by the operation ({reason:?}): {stderr}")]
+    OperationTerminated {
+        name: String,
+        path: PathBuf,
+        reason: TerminationReason,
         stderr: String,
     },
 

@@ -114,7 +114,7 @@ pub use diff_parser::{
     DiffHunkExpansionType, DiffHunkHeader, DiffLine, DiffLineType, RawDiff,
     DEFAULT_DIFF_EXPANSION_STEP,
 };
-pub use error::GitError;
+pub use error::{GitError, TerminationReason};
 pub use exec::{
     git, git_capped, git_with_stderr, CappedOutput, GitOptions, GitOutput, TERMINAL_OUTPUT_CAPACITY,
 };
