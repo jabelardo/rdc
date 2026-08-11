@@ -474,6 +474,9 @@ or failure, while retaining its existing authentication error classification. Pu
 same lifecycle, including hook setup and remote error classification.
 The local `fast_forward_branches` ref update now also acquires the repository lock and records
 terminal success/failure; remote branch deletion and single-ref fetch remain.
+Single-ref Fetch now also participates in the repository lock, including trampoline bind failure and
+remote error cleanup. Remote branch deletion is the remaining remote mutator before Slice 9's lock
+coverage review.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

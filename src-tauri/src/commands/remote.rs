@@ -330,22 +330,69 @@ pub async fn fetch(
 /// which is news about the remote, not a failure of the fetch.
 #[tauri::command]
 pub async fn fetch_refspec(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     state: State<'_, TrampolineState>,
     repository_path: String,
     remote_name: String,
     refspec: String,
     is_background_task: Option<bool>,
 ) -> Result<(), CommandError> {
-    let remote = state
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Fetch,
+    )
+    .await?;
+    let remote = match state
         .session_for(&repository_path, is_background_task.unwrap_or(false))
         .await
-        .map_err(bind_error)?;
+    {
+        Ok(remote) => remote,
+        Err(error) => {
+            let command_error = bind_error(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            return Err(command_error);
+        }
+    };
 
-    git_ops::fetch::fetch_refspec(&repository_path, &remote_name, &refspec, &remote.env)
-        .await
-        .map_err(|error| remote_error(&remote, error))?;
-
-    Ok(())
+    let result =
+        git_ops::fetch::fetch_refspec(&repository_path, &remote_name, &refspec, &remote.env).await;
+    match result {
+        Ok(_) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let command_error = remote_error(&remote, error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Pulls from a remote.
