@@ -505,8 +505,11 @@ pub async fn checkout_paths(
 /// `interceptHooks` runs the repository's hooks with the user's shell environment. A merge reaches
 /// `pre-merge-commit`, `post-merge` and `commit-msg`; a **squash** merge additionally commits, which reaches
 /// the commit hooks — so the operation names both sets rather than the caller.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn merge_branch(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     hooks: State<'_, HookRegistry>,
     repository_path: String,
     branch: String,
@@ -515,22 +518,67 @@ pub async fn merge_branch(
     on_hook_progress: Channel<HookProgressUpdate>,
     on_hook_failure: Channel<HookFailurePrompt>,
 ) -> Result<MergeResult, CommandError> {
-    let support = support_for(
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Merge,
+    )
+    .await?;
+    let support = match support_for(
         intercept_hooks.unwrap_or(false),
         &hooks,
         on_hook_progress,
         on_hook_failure,
-    )
-    .map_err(CommandError::message)?;
+    ) {
+        Ok(support) => support,
+        Err(message) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: message.clone(),
+                    recoverable: true,
+                }),
+            );
+            return Err(CommandError::message(message));
+        }
+    };
 
-    git_ops::merge::merge(
+    let result = git_ops::merge::merge(
         &repository_path,
         &branch,
         options.unwrap_or_default(),
         support.as_ref(),
     )
-    .await
-    .map_err(CommandError::from)
+    .await;
+    match result {
+        Ok(result) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(result)
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Returns the common ancestor of two refs, or `None` when there isn't one or a ref is missing.

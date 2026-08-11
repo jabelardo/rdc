@@ -478,6 +478,8 @@ Single-ref Fetch now also participates in the repository lock, including trampol
 remote error cleanup. Remote branch deletion now uses the Push lock category and the same session
 and terminal cleanup rules. The initial remote-mutator lock set is complete; Slice 9's remaining
 work is lock coverage review and multi-window conflict/concurrency verification.
+The merge command is now the first history-changing boundary with the same repository lock and
+terminal lifecycle, including hook setup and merge-result/error handling.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
