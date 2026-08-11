@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slices 1–5 complete; Slice 6 in progress
+**Status:** Slices 1–6 complete; Slice 7 not started
 **Recorded:** 2026-08-11  
 **Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
 history-changing operations.
@@ -346,7 +346,7 @@ separate explicit user-wait policy.
 **Exit:** paused-time tests cover activity reset, soft warning, hard timeout, cancellation races and
 watchdog cleanup after completion.
 
-**Progress:** in progress. `WatchdogPolicy` and the native watchdog now reset their decision from
+**Progress:** complete. `WatchdogPolicy` and the native watchdog now reset their decision from
 the operation record's activity timestamp, emit `takingLongerThanExpected`, and request timeout
 termination without releasing the repository lock. `record_activity` provides the native heartbeat
 for output chunks, hook transitions and credential events, and controlled Git/LFS execution now
@@ -361,6 +361,10 @@ callback wiring remains pending when the credential provider/prompt surface land
 Focused handler tests now verify that both askpass responses and credential lookups bracket their
 awaits with the prompt wait hooks. The remaining Slice 6 work is wiring these hooks to a real
 operation-owned credential/prompt surface when that surface is introduced.
+
+That wiring is intentionally deferred with the credential UI and operation routing; the current
+`Decline` provider opens no user prompt and therefore has no operation to associate with a wait.
+Slice 6 is complete against the current architecture and its exit criteria.
 
 ## Slice 7 — Route and replay events across windows
 
