@@ -89,6 +89,55 @@ describe("OperationStore", () => {
     expect(store.state.operation).toBeNull();
   });
 
+  it("publishes cancellation and timeout state from native records", async () => {
+    let receive: ((event: OperationEventEnvelope) => void) | undefined;
+    const cancel = vi.fn().mockResolvedValue({
+      ...record("operation-1", "window-a", "cancelling"),
+      cancellation: { kind: "requested" },
+    });
+    const store = new OperationStore("window-b", {
+      getScope: vi.fn().mockResolvedValue(record("operation-1", "window-a").scope),
+      getActive: vi.fn().mockResolvedValue(record("operation-1", "window-a")),
+      listen: vi.fn().mockImplementation(async (callback) => {
+        receive = callback;
+        return () => {};
+      }),
+      cancel,
+    });
+    await store.selectRepository("/repo-a");
+    receive?.(envelope(record("operation-1", "window-a", "takingLongerThanExpected")));
+    expect(store.state.takingLonger).toBe(true);
+
+    await store.requestCancellation(true);
+    expect(cancel).toHaveBeenCalledWith("operation-1", true);
+    expect(store.state.cancellationRequested).toBe(true);
+  });
+
+  it("preserves recovery and terminal error state", async () => {
+    let receive: ((event: OperationEventEnvelope) => void) | undefined;
+    const store = new OperationStore("window-a", {
+      getScope: vi.fn().mockResolvedValue(record("operation-1", "window-a").scope),
+      getActive: vi.fn().mockResolvedValue(record("operation-1", "window-a")),
+      listen: vi.fn().mockImplementation(async (callback) => {
+        receive = callback;
+        return () => {};
+      }),
+    });
+    await store.selectRepository("/repo-a");
+    const recovering = record("operation-1", "window-a", "recovering");
+    receive?.(envelope(recovering));
+    expect(store.state.recovering).toBe(true);
+
+    const failed = {
+      ...record("operation-1", "window-a", "failed"),
+      outcome: "unknown" as const,
+      error: { kind: "failed" as const, message: "recovery failed", recoverable: false },
+    };
+    receive?.(envelope(failed));
+    expect(store.state.outcome).toBe("unknown");
+    expect(store.state.error?.message).toBe("recovery failed");
+  });
+
   it("isolates selection changes and cleanup", async () => {
     const cleanups = [vi.fn(), vi.fn()];
     let selection = 0;

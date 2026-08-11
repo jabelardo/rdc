@@ -448,6 +448,8 @@ existing domain stores still own their operation-specific refresh behavior and h
 migrated yet.
 The focused store suite now also covers owner loss transitioning to `unowned` and isolation from a
 different repository's live event stream.
+It also covers native cancellation requests, soft-timeout warning state, recovery state, and
+terminal error/outcome propagation.
 The app controller now consumes this store directly, resolves the current window label for role
 presentation, and owns the store lifecycle per webview instead of maintaining a parallel operation
 router state.
