@@ -391,6 +391,8 @@ repositories are safe because scope resolution is independent of active operatio
 Owner, observer, and unowned presentation roles are now explicit. Native cancellation accepts the
 owner directly and requires an explicit observer confirmation for a peer window; destroying the
 owner only clears ownership and never cancels the operation.
+Native unit tests now enforce owner cancellation, rejected unconfirmed observer cancellation,
+confirmed observer adoption, and cancellation after owner loss.
 
 Do not rely solely on a Tauri Channel captured by the initiating command; it disappears with that
 webview. The native registry must retain the latest snapshot and broadcast lifecycle events.

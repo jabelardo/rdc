@@ -10,6 +10,15 @@ use crate::{
 
 use super::CommandError;
 
+fn cancellation_is_authorized(
+    owner_window: Option<&str>,
+    requesting_window: &str,
+    confirm_observer: bool,
+) -> bool {
+    let is_owner = owner_window == Some(requesting_window);
+    is_owner || owner_window.is_none() || confirm_observer
+}
+
 async fn repository_scope(repository_path: &str) -> Result<Option<OperationScope>, CommandError> {
     let Some(identity) = resolve_repository_identity(repository_path)
         .await
@@ -68,11 +77,11 @@ pub fn request_operation_cancellation(
     let record = registry
         .get(&operation_id)
         .ok_or_else(|| CommandError::message(format!("operation {operation_id} was not found")))?;
-    let is_owner = record
-        .owner_window
-        .as_deref()
-        .is_some_and(|owner| owner == window.label());
-    if !is_owner && record.owner_window.is_some() && !confirm_observer {
+    if !cancellation_is_authorized(
+        record.owner_window.as_deref(),
+        window.label(),
+        confirm_observer,
+    ) {
         return Err(CommandError::message(
             "cancellation requires confirmation because this operation belongs to another window",
         ));
@@ -81,4 +90,37 @@ pub fn request_operation_cancellation(
     registry
         .request_cancellation(&operation_id)
         .map_err(|error| CommandError::message(error.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cancellation_is_authorized;
+
+    #[test]
+    fn owner_can_cancel_without_confirmation() {
+        assert!(cancellation_is_authorized(
+            Some("window-a"),
+            "window-a",
+            false
+        ));
+    }
+
+    #[test]
+    fn observer_must_confirm_before_cancelling() {
+        assert!(!cancellation_is_authorized(
+            Some("window-a"),
+            "window-b",
+            false
+        ));
+        assert!(cancellation_is_authorized(
+            Some("window-a"),
+            "window-b",
+            true
+        ));
+    }
+
+    #[test]
+    fn an_operation_without_an_owner_can_be_adopted() {
+        assert!(cancellation_is_authorized(None, "window-b", false));
+    }
 }
