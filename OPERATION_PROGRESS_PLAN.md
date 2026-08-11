@@ -466,7 +466,7 @@ lock before running Git, records its initiating window, rejects same-repository 
 different repositories to proceed, and releases the lock on both success and failure. Additional
 mutating command boundaries and multi-window product behavior remain. The local branch checkout
 command now uses the same lock lifecycle and records its initiating window; remote-branch, detached
-commit, path checkout, and remote/history boundaries remain.
+commit, and path checkout commands now use it as well. Remote/history boundaries remain.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

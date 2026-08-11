@@ -344,12 +344,21 @@ pub async fn checkout_branch(
 /// that failure to prompt.
 #[tauri::command]
 pub async fn checkout_remote_branch(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     remote_ref: String,
     local_name: String,
     on_progress: Channel<CheckoutProgress>,
 ) -> Result<(), CommandError> {
-    git_ops::checkout::checkout_branch_with_progress(
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await?;
+    let result = git_ops::checkout::checkout_branch_with_progress(
         &repository_path,
         CheckoutTarget::Remote {
             remote_ref: &remote_ref,
@@ -359,8 +368,32 @@ pub async fn checkout_remote_branch(
             let _ = on_progress.send(progress);
         },
     )
-    .await
-    .map_err(CommandError::from)
+    .await;
+    match result {
+        Ok(()) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Checks out a commit, leaving `HEAD` detached.
@@ -370,15 +403,52 @@ pub async fn checkout_remote_branch(
 /// ```
 #[tauri::command]
 pub async fn checkout_commit(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     commit: String,
     on_progress: Channel<CheckoutProgress>,
 ) -> Result<(), CommandError> {
-    git_ops::checkout::checkout_commit_with_progress(&repository_path, &commit, move |progress| {
-        let _ = on_progress.send(progress);
-    })
-    .await
-    .map_err(CommandError::from)
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await?;
+    let result = git_ops::checkout::checkout_commit_with_progress(
+        &repository_path,
+        &commit,
+        move |progress| {
+            let _ = on_progress.send(progress);
+        },
+    )
+    .await;
+    match result {
+        Ok(()) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Restores the given paths from `HEAD`, discarding working-tree changes to them.
@@ -390,12 +460,44 @@ pub async fn checkout_commit(
 /// **This discards the user's edits to those paths.** An empty list is a no-op, not "everything".
 #[tauri::command]
 pub async fn checkout_paths(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     paths: Vec<String>,
 ) -> Result<(), CommandError> {
-    git_ops::checkout::checkout_paths(&repository_path, &paths)
-        .await
-        .map_err(CommandError::from)
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await?;
+    let result = git_ops::checkout::checkout_paths(&repository_path, &paths).await;
+    match result {
+        Ok(()) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Merges a branch into the current branch.
