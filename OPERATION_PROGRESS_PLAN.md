@@ -496,6 +496,8 @@ success or failure, preventing concurrent history mutations in the same reposito
 Cherry-pick now acquires the same lock, retains it across conflict and outstanding-file recovery,
 and releases it only after completion or successful abort. Failed aborts retain the lock as
 `recoveryFailed`.
+Squash and reorder now use the Rebase lock category and retain the repository lock when their
+replay reports conflicts or outstanding files requiring recovery.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

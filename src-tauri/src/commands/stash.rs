@@ -360,8 +360,11 @@ pub async fn reset_submodule_paths(
 ///
 /// Resolves to a `RebaseResult` string. A validation failure — an empty list, a target that is also in
 /// the list, a target not in the log — comes back as `Error` rather than rejecting.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn squash(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     to_squash: Vec<String>,
     squash_onto: String,
@@ -369,7 +372,14 @@ pub async fn squash(
     commit_message: Option<String>,
     on_progress: Channel<MultiCommitOperationProgress>,
 ) -> Result<RebaseResult, CommandError> {
-    git_ops::squash::squash(
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Rebase,
+    )
+    .await?;
+    let result = git_ops::squash::squash(
         &repository_path,
         &to_squash,
         &squash_onto,
@@ -379,8 +389,8 @@ pub async fn squash(
             let _ = on_progress.send(progress);
         }),
     )
-    .await
-    .map_err(CommandError::from)
+    .await;
+    finish_rebase_result(&registry, &operation.id, result)
 }
 
 /// Moves commits so they sit immediately before another.
@@ -398,13 +408,22 @@ pub async fn squash(
 /// The moved commits keep their relative log order regardless of how `toMove` is ordered.
 #[tauri::command]
 pub async fn reorder(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     to_move: Vec<String>,
     before: Option<String>,
     last_retained_commit_ref: Option<String>,
     on_progress: Channel<MultiCommitOperationProgress>,
 ) -> Result<RebaseResult, CommandError> {
-    git_ops::reorder::reorder(
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Rebase,
+    )
+    .await?;
+    let result = git_ops::reorder::reorder(
         &repository_path,
         &to_move,
         before.as_deref(),
@@ -413,6 +432,45 @@ pub async fn reorder(
             let _ = on_progress.send(progress);
         }),
     )
-    .await
-    .map_err(CommandError::from)
+    .await;
+    finish_rebase_result(&registry, &operation.id, result)
+}
+
+fn finish_rebase_result(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    result: Result<RebaseResult, git_ops::GitError>,
+) -> Result<RebaseResult, CommandError> {
+    match result {
+        Ok(
+            result @ (RebaseResult::ConflictsEncountered | RebaseResult::OutstandingFilesNotStaged),
+        ) => {
+            let _ = registry.enter_recovery(operation_id);
+            Ok(result)
+        }
+        Ok(result) => {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(result)
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message,
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
