@@ -13,6 +13,11 @@ use git_ops::rev_parse::RepositoryType;
 use git_ops::revert::RevertProgress;
 
 use super::CommandError;
+use crate::operation::{
+    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
+};
+use crate::operation_registry::OperationRegistry;
+use tauri::{State, WebviewWindow};
 
 /// Creates an annotated tag on a commit.
 #[tauri::command]
@@ -62,12 +67,21 @@ pub async fn get_all_tags(repository_path: String) -> Result<Vec<(String, String
 /// Progress `value` is always `0` — see `git_ops::revert` for why.
 #[tauri::command]
 pub async fn revert_commit(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     commit: String,
     parent_count: usize,
     on_progress: Channel<RevertProgress>,
 ) -> Result<(), CommandError> {
-    git_ops::revert::revert_commit(
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Revert,
+    )
+    .await?;
+    let result = git_ops::revert::revert_commit(
         &repository_path,
         &commit,
         parent_count,
@@ -75,8 +89,33 @@ pub async fn revert_commit(
             let _ = on_progress.send(progress);
         }),
     )
-    .await
-    .map_err(CommandError::from)
+    .await;
+    match result {
+        Ok(()) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message,
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// The most recently checked-out branches, newest first.

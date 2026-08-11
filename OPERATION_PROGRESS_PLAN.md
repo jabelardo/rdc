@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slices 1–8 complete; Slice 9 not started
+**Status:** Slices 1–8 complete; Slice 9 in progress
 **Recorded:** 2026-08-11  
 **Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
 history-changing operations.
@@ -491,6 +491,8 @@ The repository toolbar now disables Fetch, Pull, and Push while the selected rep
 active locked operation, including an operation observed from another window.
 Merge recovery completion now consumes the retained operation: a successful recovery commit ends
 it as recovered, while a recovery-commit failure records `recoveryFailed` and retains the lock.
+The Revert command now acquires the repository lock before invoking Git and records terminal
+success or failure, preventing concurrent history mutations in the same repository.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
