@@ -42,6 +42,7 @@ pub mod log;
 pub mod merge;
 pub mod merge_tree;
 pub mod multi_operation_terminal_output;
+pub mod operation_identity;
 pub mod operation_state;
 pub mod patch_formatter;
 pub mod progress;
@@ -142,6 +143,9 @@ pub use merge::{abort_merge, get_merge_base, merge, MergeOptions, MergeResult};
 pub use merge_tree::{determine_mergeability, MergeTreeResult};
 pub use multi_operation_terminal_output::{
     MultiOperationTerminalOutput, TerminalOutputSubscription,
+};
+pub use operation_identity::{
+    clone_destination_lock_key, resolve_repository_identity, RepositoryIdentity,
 };
 pub use operation_state::{
     get_rebase_internal_state, is_cherry_pick_head_found, is_merge_head_set, is_rebase_head_set,

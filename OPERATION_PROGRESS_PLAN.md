@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slice 1 and Slice 2 complete; Slice 3 next
+**Status:** Slice 1, Slice 2 and Slice 3 complete; Slice 4 next
 **Recorded:** 2026-08-11  
 **Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
 history-changing operations.
@@ -238,6 +238,12 @@ is wrong for displayed repository paths. A lock key may be canonicalized interna
 the user-facing path.
 
 **Exit:** identity tests prove same-repository convergence and different-repository isolation.
+
+**Status:** complete. `git_ops::operation_identity` now resolves the top-level worktree, worktree
+Git directory, common Git directory and canonical internal lock key. It keeps displayed paths
+lexical, canonicalizes only lock keys, handles linked worktrees through `commondir`, and provides
+lexical lock keys for missing clone destinations. Tests cover subdirectories, linked worktrees,
+symlinked paths, separate repositories and missing destinations.
 
 ## Slice 4 — Build the native `OperationRegistry`
 
