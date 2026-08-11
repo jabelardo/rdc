@@ -378,6 +378,9 @@ cancellation authority remain.
 The registry now also broadcasts an envelope containing the event, operation snapshot, scope, and
 owner window; a two-repository test proves observers can filter without an application-global busy
 state.
+The application now forwards that broadcast as the `operation-event` Tauri event to every window,
+and the frontend has typed query, replay, and subscription helpers. Destroyed windows clear their
+owner assignment without cancelling the native operation.
 
 Do not rely solely on a Tauri Channel captured by the initiating command; it disappears with that
 webview. The native registry must retain the latest snapshot and broadcast lifecycle events.

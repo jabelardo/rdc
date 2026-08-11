@@ -113,6 +113,21 @@ pub fn run() {
             qa_driver::spawn(app.handle().clone());
             #[cfg(not(target_os = "macos"))]
             let _ = app;
+            let mut operation_events = app
+                .state::<operation_registry::OperationRegistry>()
+                .subscribe();
+            let operation_event_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                loop {
+                    match operation_events.recv().await {
+                        Ok(event) => {
+                            let _ = operation_event_app.emit("operation-event", event);
+                        }
+                        Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                        Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+                    }
+                }
+            });
             #[cfg(target_os = "macos")]
             {
                 let directory = app.path().app_config_dir()?;
@@ -138,6 +153,9 @@ pub fn run() {
         })
         .on_window_event(|window, event| {
             if matches!(event, tauri::WindowEvent::Destroyed) {
+                window
+                    .state::<operation_registry::OperationRegistry>()
+                    .clear_owner_window(window.label());
                 window
                     .state::<platform::window::WindowRoutingState>()
                     .remove(window.label());
