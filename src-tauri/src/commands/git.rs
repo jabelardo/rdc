@@ -892,13 +892,24 @@ pub async fn get_branches_differing_from_upstream(
 /// the user first.
 #[tauri::command]
 pub async fn reset(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     mode: ResetMode,
     ref_name: String,
 ) -> Result<(), CommandError> {
-    git_ops::reset::reset(&repository_path, mode, &ref_name)
-        .await
-        .map_err(CommandError::from)
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await?;
+    finish_checkout_mutation(
+        &registry,
+        &operation.id,
+        git_ops::reset::reset(&repository_path, mode, &ref_name).await,
+    )
 }
 
 /// Updates the index for `paths` from the tree at `refName`.
@@ -913,14 +924,25 @@ pub async fn reset(
 /// git without a pathspec, and the opposite of what an empty selection means.
 #[tauri::command]
 pub async fn reset_paths(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     mode: ResetMode,
     ref_name: String,
     paths: Vec<String>,
 ) -> Result<(), CommandError> {
-    git_ops::reset::reset_paths(&repository_path, mode, &ref_name, &paths)
-        .await
-        .map_err(CommandError::from)
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await?;
+    finish_checkout_mutation(
+        &registry,
+        &operation.id,
+        git_ops::reset::reset_paths(&repository_path, mode, &ref_name, &paths).await,
+    )
 }
 
 /// Clears the staging area.
@@ -932,10 +954,23 @@ pub async fn reset_paths(
 /// `reset -- .` rather than a bare `reset`, which also makes it work in a repository with no commits, where
 /// `HEAD` doesn't resolve.
 #[tauri::command]
-pub async fn unstage_all(repository_path: String) -> Result<(), CommandError> {
-    git_ops::reset::unstage_all(&repository_path)
-        .await
-        .map_err(CommandError::from)
+pub async fn unstage_all(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+) -> Result<(), CommandError> {
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await?;
+    finish_checkout_mutation(
+        &registry,
+        &operation.id,
+        git_ops::reset::unstage_all(&repository_path).await,
+    )
 }
 
 /// Removes every path from the index, leaving the working tree alone.
@@ -947,10 +982,56 @@ pub async fn unstage_all(repository_path: String) -> Result<(), CommandError> {
 /// Different from `unstage_all` despite the name: this is `rm --cached`, which empties the index — including
 /// paths that exist only there — while a reset restores it to a commit.
 #[tauri::command]
-pub async fn unstage_all_files(repository_path: String) -> Result<(), CommandError> {
-    git_ops::rm::unstage_all_files(&repository_path)
-        .await
-        .map_err(CommandError::from)
+pub async fn unstage_all_files(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+) -> Result<(), CommandError> {
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await?;
+    finish_checkout_mutation(
+        &registry,
+        &operation.id,
+        git_ops::rm::unstage_all_files(&repository_path).await,
+    )
+}
+
+fn finish_checkout_mutation(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    result: Result<(), git_ops::GitError>,
+) -> Result<(), CommandError> {
+    match result {
+        Ok(()) => {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message,
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Stages the conflicts the user has finished with.

@@ -498,6 +498,8 @@ and releases it only after completion or successful abort. Failed aborts retain 
 `recoveryFailed`.
 Squash and reorder now use the Rebase lock category and retain the repository lock when their
 replay reports conflicts or outstanding files requiring recovery.
+Reset, path reset, and index-clearing commands now use the Checkout lock category and report
+terminal success or failure, preventing concurrent worktree/index writes in the same repository.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
