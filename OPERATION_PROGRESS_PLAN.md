@@ -385,6 +385,9 @@ The frontend now exposes a pure scope filter keyed by the native `lockKey`, with
 window accepts its repository's events and ignores a different repository's events.
 An `OperationEventRouter` now switches that filter with repository selection and drops events while
 no repository is selected; tests cover selection changes and cleanup.
+The app controller now resolves the native scope and active snapshot on selection, subscribes to the
+shared event stream, routes matching records, and cleans up on deselection or unmount. Idle
+repositories are safe because scope resolution is independent of active operations.
 
 Do not rely solely on a Tauri Channel captured by the initiating command; it disappears with that
 webview. The native registry must retain the latest snapshot and broadcast lifecycle events.

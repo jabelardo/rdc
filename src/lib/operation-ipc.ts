@@ -5,6 +5,7 @@ import type {
   OperationEvent,
   OperationEventEnvelope,
   OperationRecord,
+  OperationScope,
 } from "../models/operation";
 
 export type { OperationEventEnvelope } from "../models/operation";
@@ -13,6 +14,12 @@ export function getActiveOperationForRepository(
   repositoryPath: string,
 ): Promise<OperationRecord | null> {
   return invoke<OperationRecord | null>("get_active_operation_for_repository", { repositoryPath });
+}
+
+export function getOperationScopeForRepository(
+  repositoryPath: string,
+): Promise<OperationScope | null> {
+  return invoke<OperationScope | null>("get_operation_scope_for_repository", { repositoryPath });
 }
 
 export function getLatestOperationEvent(operationId: string): Promise<OperationEvent | null> {
