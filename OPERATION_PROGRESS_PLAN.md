@@ -469,6 +469,8 @@ command now uses the same lock lifecycle and records its initiating window; remo
 commit, and path checkout commands now use it as well. User/background Fetch now acquires the same
 repository lock and releases it after credential setup and Git success/failure; Push, Pull, and
 remaining remote/history boundaries remain.
+Push now acquires and releases the repository lock across session setup, hook setup, and Git success
+or failure, while retaining its existing authentication error classification.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
