@@ -312,6 +312,7 @@ pub fn run() {
             commands::operation::get_active_operation_for_repository,
             commands::operation::get_operation_scope_for_repository,
             commands::operation::get_latest_operation_event,
+            commands::operation::request_operation_cancellation,
             commands::misc::checkout_index,
             commands::misc::get_trailer_separator_characters,
             commands::misc::parse_trailers,

@@ -26,6 +26,16 @@ export function getLatestOperationEvent(operationId: string): Promise<OperationE
   return invoke<OperationEvent | null>("get_latest_operation_event", { operationId });
 }
 
+export function requestOperationCancellation(
+  operationId: string,
+  confirmObserver = false,
+): Promise<OperationRecord> {
+  return invoke<OperationRecord>("request_operation_cancellation", {
+    operationId,
+    confirmObserver,
+  });
+}
+
 /** Listen to all native operation events; callers must filter by the selected repository scope. */
 export function listenToOperationEvents(
   callback: (event: OperationEventEnvelope) => void,

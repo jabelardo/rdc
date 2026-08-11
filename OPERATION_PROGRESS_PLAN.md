@@ -388,6 +388,9 @@ no repository is selected; tests cover selection changes and cleanup.
 The app controller now resolves the native scope and active snapshot on selection, subscribes to the
 shared event stream, routes matching records, and cleans up on deselection or unmount. Idle
 repositories are safe because scope resolution is independent of active operations.
+Owner, observer, and unowned presentation roles are now explicit. Native cancellation accepts the
+owner directly and requires an explicit observer confirmation for a peer window; destroying the
+owner only clears ownership and never cancels the operation.
 
 Do not rely solely on a Tauri Channel captured by the initiating command; it disappears with that
 webview. The native registry must retain the latest snapshot and broadcast lifecycle events.

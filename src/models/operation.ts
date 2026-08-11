@@ -77,3 +77,5 @@ export type OperationEventEnvelope = {
   readonly record: OperationRecord;
   readonly event: OperationEvent;
 };
+
+export type OperationPresentationRole = "owner" | "observer" | "unowned";

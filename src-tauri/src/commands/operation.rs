@@ -1,7 +1,7 @@
 //! Operation lifecycle queries used by windows joining an existing operation.
 
 use git_ops::operation_identity::resolve_repository_identity;
-use tauri::State;
+use tauri::{State, WebviewWindow};
 
 use crate::{
     operation::{OperationEvent, OperationRecord, OperationScope},
@@ -55,4 +55,30 @@ pub fn get_latest_operation_event(
     operation_id: String,
 ) -> Result<Option<OperationEvent>, CommandError> {
     Ok(registry.latest_event(&operation_id))
+}
+
+/// Requests cancellation from the owner window or from an observer after explicit confirmation.
+#[tauri::command]
+pub fn request_operation_cancellation(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    operation_id: String,
+    confirm_observer: bool,
+) -> Result<OperationRecord, CommandError> {
+    let record = registry
+        .get(&operation_id)
+        .ok_or_else(|| CommandError::message(format!("operation {operation_id} was not found")))?;
+    let is_owner = record
+        .owner_window
+        .as_deref()
+        .is_some_and(|owner| owner == window.label());
+    if !is_owner && record.owner_window.is_some() && !confirm_observer {
+        return Err(CommandError::message(
+            "cancellation requires confirmation because this operation belongs to another window",
+        ));
+    }
+
+    registry
+        .request_cancellation(&operation_id)
+        .map_err(|error| CommandError::message(error.to_string()))
 }
