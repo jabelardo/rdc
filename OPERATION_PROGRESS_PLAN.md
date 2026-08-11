@@ -1,0 +1,682 @@
+# Repository-scoped Git operations, cancellation, timeouts and progress UI
+
+**Status:** approved plan, not started  
+**Recorded:** 2026-08-11  
+**Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
+history-changing operations.
+
+This document is the implementation plan for consolidating Git-operation progress while preserving
+rdc's multi-window behavior. It is written as instructions for an implementation agent. Follow the
+slices in order: later UI work depends on native cancellation and recovery being truthful.
+
+The central rule is:
+
+> The native process owns operation lifetime, the repository owns the lock, and each window owns
+> only its presentation. An application-global registry must never become an application-global
+> lock.
+
+## Read before changing code
+
+Read these sources before starting a slice:
+
+- `AGENTS.md` — repository rules and the seven required pre-commit gates.
+- `MIGRATION_PLAN.md` — current phase status and architectural constraints.
+- `MIGRATION_MAP.md` — deliberate departures and deferred work.
+- `COMPONENT_MIGRATION_PROCESS.md` § “Progress presentation” — current category-1/category-2
+  decision. This plan deliberately amends its “no abort inside” rule once cancellation is real.
+- `BRANCH_OPERATIONS_PLAN.md` — merge/rebase recovery boundaries.
+- `HISTORY_OPERATIONS_PLAN.md` — cherry-pick/revert/reset scope.
+- `src-tauri/crates/git-ops/src/exec.rs` — current process execution and `kill_on_drop` behavior.
+- `src-tauri/src/platform/window.rs` — current per-window repository routing metadata.
+
+Port fidelity remains the default. Desktop-plus has no general Git cancellation or Git-operation
+timeout mechanism, so the cancellation and watchdog behavior in this plan is an intentional rdc
+departure. Record it in `MIGRATION_MAP.md` §8 when the first production slice lands.
+
+## Fixed decisions and safety invariants
+
+These are settled. Do not silently reinterpret them during implementation.
+
+1. **Operation lifetime is native-owned.** Closing, hiding, reloading or destroying the initiating
+   window does not implicitly cancel Git.
+2. **Locks are repository-scoped.** Operations in different local repositories must run
+   concurrently and must not disable one another's UI.
+3. **Presentation is window-local.** A progress dialog blocks only the window rendering it. It never
+   creates an application-modal surface.
+4. **Same-repository windows coordinate.** They observe one operation and block incompatible writes.
+   They do not start competing mutations against the same repository.
+5. **A frontend timeout never clears an operation.** The backend must terminate the process tree,
+   inspect the repository and finish recovery before publishing a terminal timeout event.
+6. **A Cancel button is capability-driven.** The UI receives cancellation capability from the
+   operation record. It must not infer safety from an operation-name string.
+7. **Cancellation is not always cancellation.** Push may finish remotely before the local process
+   stops; its terminal outcome may be `unknown`. A cancellation race may also report `completed`.
+8. **Recovery failure retains the repository write lock.** Do not return the UI to an apparently idle
+   state while Git may remain mid-operation.
+9. **Process-tree termination is required.** Killing only the direct `git` child can leave SSH, Git
+   LFS, credential helpers, hooks or editors running.
+10. **Background work stays non-modal.** User-initiated operations use the unified progress dialog.
+    Scheduled/background fetch uses the same operation model and progress body in an embedded
+    presentation.
+
+## Target ownership model
+
+```text
+Application
+└── Native OperationRegistry
+    ├── Repository A (stable Git identity)
+    │   └── Rebase — owner window repository-1
+    ├── Repository B (different stable Git identity)
+    │   └── Fetch — owner window repository-2
+    └── Clone destination /work/new-repository
+        └── Clone — owner window repository-3
+```
+
+The registry is application-owned so operations survive window loss. Every active write lock is
+indexed by a repository or clone-destination scope, never by a singleton “application busy” flag.
+
+## Target contracts
+
+Exact names may change to fit Rust conventions, but preserve this information and state model.
+
+```ts
+type OperationState =
+  | "running"
+  | "takingLongerThanExpected"
+  | "cancelling"
+  | "recovering"
+  | "completed"
+  | "cancelled"
+  | "timedOut"
+  | "failed";
+
+type OperationOutcome = "unchanged" | "recovered" | "completed" | "unknown";
+
+type CancellationCapability =
+  | { readonly kind: "unavailable" }
+  | { readonly kind: "available"; readonly label: string }
+  | { readonly kind: "requested" };
+
+type OperationRecord = {
+  readonly id: string;
+  readonly scope: OperationScope;
+  readonly ownerWindow: string | null;
+  readonly operation: GitOperationKind;
+  readonly state: OperationState;
+  readonly cancellation: CancellationCapability;
+  readonly progress: IProgress | null;
+  readonly lastActivityAt: number;
+  readonly outcome: OperationOutcome | null;
+  readonly error: OperationError | null;
+};
+```
+
+The event stream must distinguish progress, lifecycle changes and terminal errors:
+
+```ts
+type OperationEvent =
+  | { readonly kind: "progress"; readonly operationId: string; readonly progress: IProgress }
+  | {
+      readonly kind: "state";
+      readonly operationId: string;
+      readonly state: "takingLongerThanExpected" | "cancelling" | "recovering";
+    }
+  | {
+      readonly kind: "finished";
+      readonly operationId: string;
+      readonly state: "completed" | "cancelled" | "timedOut" | "failed";
+      readonly outcome: OperationOutcome;
+      readonly error: OperationError | null;
+    };
+```
+
+Do not overload `GitErrorKind` with timeout/cancellation categories: those are operation-lifecycle
+failures, not Git's interpretation of stderr. Extend the command error contract or add an operation
+error contract while preserving the existing Git classification.
+
+## Locking model
+
+Start conservatively with one exclusive write operation per Git common directory.
+
+- Resolve repository roots, subdirectories and alternate spellings to a stable native identity.
+- Use Git's common directory as the initial write-lock key so shared refs/history cannot be mutated
+  concurrently through linked worktrees.
+- Keep the worktree directory and worktree-specific Git directory in the scope for future refinement.
+- Use a normalized destination-path scope for clone because no repository exists yet.
+- Do not lock repositories together because they share a remote URL.
+- Read-only commands remain allowed unless their result would be misleading during a history move.
+
+Refine common-directory locking only after tests prove a safe benefit. Correct conservative locking
+inside one repository is preferable to speculative concurrency; application-wide locking is never
+acceptable.
+
+## Required user-visible behavior
+
+| Situation | Required behavior |
+|---|---|
+| Window A rebases Repository A; Window B shows Repository B | Window B remains fully usable |
+| Window A fetches Repository A; Window B commits Repository B | Both operations may run concurrently |
+| Two windows show Repository A | One operation is shared; incompatible writes are disabled in both |
+| Initiating window closes | The native operation and watchdog continue |
+| A new window opens Repository A mid-operation | It hydrates the latest operation snapshot |
+| A peer window shows the same repository | It identifies “Started in another window” and mirrors progress |
+| Timeout recovery succeeds | Matching windows receive a terminal timeout error and refresh |
+| Timeout recovery fails | Matching windows remain write-locked and receive recovery guidance |
+| No matching window remains | Native operation continues and terminal state remains queryable |
+
+## Slice 1 — Record the amended architecture
+
+**Goal:** update the source-of-truth documents before code gives the decision inertia.
+
+1. Amend `COMPONENT_MIGRATION_PROCESS.md`:
+   - category-1 progress may expose a cancellation action only when the operation record declares it;
+   - user-initiated progress uses the unified dialog;
+   - background fetch remains embedded;
+   - modal scope is a single native window, not the app.
+2. Add the deliberate departure to `MIGRATION_MAP.md` §8.
+3. Link this plan from the active Phase 8b section of `MIGRATION_PLAN.md`.
+4. Add a multi-window/cancellation section to the Phase 8b QA checklist.
+
+**Exit:** the docs no longer state an unconditional “no abort inside” rule and explicitly prohibit
+application-wide locking.
+
+## Slice 2 — Define and pin the wire contracts
+
+**Goal:** establish typed operation lifecycle data before implementing transport.
+
+Likely files:
+
+- `src/models/operation.ts` or a focused equivalent;
+- `src-tauri/crates/git-ops/src/` only for transport-neutral types that truly belong there;
+- `src-tauri/src/commands/` for Tauri-facing serialization;
+- `src/lib/__generated__/wire-snapshot.json` and wire tests.
+
+Tasks:
+
+1. Define operation ID, kind, state, outcome, cancellation capability, scope and error.
+2. Decide whether operation records are emitted from a command module or a dedicated native module.
+3. Add serializer fixtures and TypeScript-checked fixtures.
+4. Regenerate the wire snapshot; never edit it by hand.
+5. Test unknown/optional fields according to the repository's existing wire compatibility policy.
+
+**Exit:** Rust serialization and TypeScript fixtures agree, and no UI uses ad-hoc string states.
+
+## Slice 3 — Resolve stable repository identity
+
+**Goal:** ensure two paths to one repository share a lock and two repositories never do.
+
+Implement a platform-neutral native resolver returning at least:
+
+- top-level worktree path;
+- worktree-specific Git directory;
+- common Git directory;
+- stable lock key.
+
+Tests must cover:
+
+- repository root versus subdirectory;
+- lexical normalization (`.` and `..`);
+- symlinked paths where supported;
+- case behavior on the target platform;
+- linked worktrees;
+- separate clones of one remote producing distinct keys;
+- missing clone destination normalization.
+
+Do not use frontend path normalization as the source of truth. Do not let macOS `/var` versus
+`/private/var` behavior regress; `rev_parse.rs` already documents why indiscriminate canonicalization
+is wrong for displayed repository paths. A lock key may be canonicalized internally without changing
+the user-facing path.
+
+**Exit:** identity tests prove same-repository convergence and different-repository isolation.
+
+## Slice 4 — Build the native `OperationRegistry`
+
+**Goal:** own operation lifetime and repository locks independently of webviews.
+
+Likely location: a new native state module managed from `src-tauri/src/lib.rs`, following the
+existing `WindowRoutingState`/`HookRegistry` patterns.
+
+The registry must support:
+
+- reserve/start operation;
+- reject a conflicting write with a structured error naming the existing operation;
+- publish activity, progress and lifecycle state;
+- request cancellation;
+- enter recovery;
+- finish with state/outcome/error;
+- query active operation by repository scope;
+- list/query operations for a newly opened window;
+- retain the latest event and terminal result for bounded replay;
+- transfer or clear owner-window metadata without cancelling the operation.
+
+Never hold a synchronous mutex guard across `.await`. Registry state updates must be short and
+separate from process/recovery futures.
+
+Tests:
+
+- same key rejects a second write;
+- different keys accept concurrent writes;
+- clone destinations lock independently;
+- destroying the owner does not finish the operation;
+- terminal state releases the lock only after successful recovery or a known-safe finish;
+- failed recovery retains a blocked/recovery-required record.
+
+**Exit:** repository-level concurrency is proven without running Git cancellation yet.
+
+## Slice 5 — Add cancellable process-tree execution
+
+**Goal:** let the registry stop the native work rather than merely hiding its UI.
+
+Refactor `src-tauri/crates/git-ops/src/exec.rs` around a transport-neutral execution control type.
+Preserve existing `git`, `git_with_stderr`, `git_with_stdout` and LFS behavior through wrappers so the
+change can migrate callers incrementally.
+
+Required behavior:
+
+1. Register the child against an operation cancellation token.
+2. Start Git in a process group on Unix.
+3. Add a Windows Job Object seam with the same platform-neutral API; do not leave an uncompiled arm.
+4. On cancellation, signal the group, allow a bounded graceful period, then force termination.
+5. Continue draining stdout/stderr and wait for the child after signalling it.
+6. Emit activity for every stdout/stderr chunk, not only successfully parsed progress.
+7. Keep Git LFS tailing termination-safe.
+8. Distinguish user cancellation, timeout termination, signal death and ordinary Git failure.
+
+Do not expose this as a public UI capability yet.
+
+Tests need a helper process that spawns a child so they prove descendant termination, not only direct
+Git termination. Cover stdout/stderr pipe pressure so cancellation cannot deadlock while draining.
+
+**Exit:** a native test cancels an operation ID and proves the process tree and pipes terminate.
+
+## Slice 6 — Add native activity watchdogs
+
+**Goal:** prevent an operation from remaining perpetually “running” without lying about legitimate
+long work.
+
+Activity resets include:
+
+- stdout/stderr bytes;
+- Git/LFS progress;
+- hook started/finished/failed events;
+- credential prompt opened/resolved events;
+- explicit recovery progress.
+
+Implement two policy thresholds:
+
+1. **Soft inactivity:** emit `takingLongerThanExpected`; do not kill anything.
+2. **Hard inactivity:** invoke the operation's termination/recovery policy and ultimately emit a typed
+   timeout terminal event.
+
+Thresholds must be operation policy, not one global duration. Start conservatively and document the
+chosen values with tests using paused time. A credential or hook decision that is visibly waiting on
+the user must not be mistaken for an unobserved deadlock; either suspend the hard watchdog or apply a
+separate explicit user-wait policy.
+
+**Exit:** paused-time tests cover activity reset, soft warning, hard timeout, cancellation races and
+watchdog cleanup after completion.
+
+## Slice 7 — Route and replay events across windows
+
+**Goal:** make operation state observable independently of the initiating `invoke()` Channel.
+
+Do not rely solely on a Tauri Channel captured by the initiating command; it disappears with that
+webview. The native registry must retain the latest snapshot and broadcast lifecycle events.
+
+Tasks:
+
+1. Capture the initiating `WebviewWindow` label at command entry.
+2. Emit operation events with repository scope and operation ID.
+3. Add a query command for current operation by selected repository.
+4. Hydrate a newly opened or newly switched window from the registry snapshot.
+5. Route only matching repository events into each renderer's operation state.
+6. Handle owner-window destruction without cancelling the operation.
+7. Define cancellation authority after owner loss. Preferred initial rule: a matching observer may
+   adopt cancellation authority through an explicit confirmation.
+
+Tests must use at least two distinct window labels and two repository keys.
+
+**Exit:** a second window can join an existing operation, while a different-repository window sees no
+busy state.
+
+## Slice 8 — Add the frontend `OperationStore`
+
+**Goal:** centralize lifecycle presentation without moving domain refresh logic out of domain stores.
+
+Create one operation store per webview. It owns:
+
+- selected-repository subscription;
+- active operation snapshot;
+- latest progress;
+- owner versus observer status;
+- timeout warning;
+- cancellation request state;
+- recovery state;
+- terminal outcome/error.
+
+`CloneStore`, `BranchStore`, `RemoteStore` and `WorkingTreeStore` continue to own validation and
+post-operation data refresh. Migrate their duplicated progress/lifecycle state only after the shared
+store can represent it; do not rewrite every store in this slice.
+
+Reject stale events by operation ID. Query the registry whenever repository selection changes.
+
+**Exit:** unit tests prove hydration, event filtering, stale-event rejection, owner loss and
+different-repository isolation.
+
+## Slice 9 — Enforce repository-scoped operation locks
+
+**Goal:** prevent same-repository corruption without affecting other repositories.
+
+Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
+
+- repository metadata/ref writes: Fetch, Push and related refresh/fast-forward stages;
+- worktree/index writes: Checkout and Commit;
+- history operations: Merge, Rebase, Cherry-pick, Revert, Squash and Reorder;
+- destination writes: Clone.
+
+Frontend behavior for a peer window showing the same repository:
+
+- disable incompatible write actions;
+- show operation summary and “Started in another window”;
+- suppress stale History for a history-moving operation;
+- refresh relevant stores after terminal events.
+
+Frontend behavior for a different repository: no disabled controls, no operation dialog and no
+operation error.
+
+**Exit:** unit/native tests and a multi-window integration test prove same-repository exclusion and
+different-repository concurrency.
+
+## Slice 10 — Prove the architecture with cancellable Fetch
+
+**Goal:** ship the first safe end-to-end cancellation path before touching history.
+
+Fetch policy:
+
+- cancellation capability: `{ kind: "available", label: "Cancel fetch" }`;
+- kill the process tree;
+- wait for termination;
+- refresh remotes/refs/status;
+- tolerate unreachable downloaded objects;
+- release the write lock only after refresh;
+- report `cancelled/unchanged` or an accurate recovery error;
+- hard timeout uses the same cancellation/recovery path but ends as `timedOut`.
+
+Add a controllable Git/SSH fixture that blocks after reporting activity. Do not depend on a real
+network timeout.
+
+Required tests:
+
+- user cancellation;
+- hard timeout;
+- cancellation racing successful completion;
+- owner window closed during fetch;
+- peer same-repository window observes cancellation;
+- different-repository operation continues unaffected;
+- repository lock is released only after refresh.
+
+**Milestone gate:** stop and review architecture after this slice. Do not expand cancellation until
+the process tree, timeout, recovery, replay and repository isolation are demonstrated together.
+
+## Slice 11 — Make Clone transactional and cancellable
+
+**Goal:** avoid leaving an ambiguous partially cloned user destination.
+
+Preferred design:
+
+1. Create an app-owned temporary sibling destination.
+2. Clone into the temporary destination.
+3. On success, atomically move/rename it to the requested path where supported.
+4. On cancellation/timeout, remove only the app-owned temporary destination.
+5. Never recursively delete a pre-existing user-selected directory.
+
+Decide and test behavior when the destination already exists and is empty. Cross-device rename and
+platform differences need explicit handling; do not silently fall back to copying a partially visible
+repository without preserving cancellation safety.
+
+**Exit:** cancellation and timeout leave neither a registered repository nor app-owned partial data.
+
+## Slice 12 — Present hook cancellation
+
+**Goal:** expose the cancellation capability the backend already has for a running hook.
+
+- Route hook ID/status into the operation record.
+- Offer `Stop hook`, not `Cancel commit/push/pull`.
+- After stopping, preserve the existing hook-failure Abort/Ignore decision.
+- Treat terminal hook output as activity.
+- Handle a hook completing just before the stop request.
+
+**Exit:** commit-hook and push-hook tests prove stop, race and Abort/Ignore handoff.
+
+## Slice 13 — Recover sequencer/history operations
+
+**Goal:** support cancellation only when the process has stopped and Git state can be recovered.
+
+Apply the pattern to Rebase, Cherry-pick, Revert, Squash and Reorder:
+
+1. capture pre-operation `HEAD` and operation snapshot;
+2. request process-tree termination;
+3. wait for termination;
+4. inspect rebase/sequencer state;
+5. invoke the matching abort command when state exists;
+6. refresh `HEAD`, index, worktree and operation state;
+7. classify race outcomes as `completed`, `recovered`, `unchanged` or `unknown`.
+
+Existing `abort_rebase` and `abort_cherry_pick` recover paused operations; they are not concurrent
+process cancellation. Add `revert --abort` support before claiming Revert is cancellable.
+
+**Exit:** real-repository tests prove branch/worktree restoration and completion races for each
+operation family.
+
+## Slice 14 — Add Merge cancellation and recovery
+
+**Goal:** stop an active merge without racing `merge --abort` against the original process.
+
+After termination:
+
+- if `MERGE_HEAD` exists, run `merge --abort` and refresh;
+- if `HEAD` advanced, classify as completed rather than resetting history automatically;
+- if neither is true, verify the index/worktree before reporting unchanged;
+- if a squash merge is between merge and commit stages, use a distinct recovery policy.
+
+**Exit:** tests cover clean merge, conflict, fast-forward race, squash pre-commit and recovery failure.
+
+## Slice 15 — Resolve risky operation policies
+
+Do not expose cancellation for these operations until their individual policy is implemented and
+tested.
+
+### Push
+
+- UI label: `Stop waiting`, not `Cancel push`.
+- The remote may already have accepted the update.
+- After local termination, fetch the remote to determine the result when possible.
+- Permit terminal `outcome: "unknown"` when reconciliation fails.
+
+### Pull
+
+- Split/report phases: network fetch versus merge/rebase integration.
+- Network-phase cancellation may use Fetch policy.
+- Integration-phase cancellation delegates to Merge/Rebase recovery.
+- Do not infer phase from percentage alone.
+
+### Checkout
+
+- No `checkout --abort` exists.
+- Design a pre-operation snapshot and restoration strategy for `HEAD`, index and worktree.
+- Keep cancellation unavailable until real-repository tests prove restoration.
+
+### Commit
+
+- Current implementation unstages and stages the real index before `git commit`.
+- Capture pre-operation `HEAD` and an index restoration snapshot.
+- After termination, inspect whether `HEAD` advanced before deciding to restore.
+- Keep general cancellation unavailable until staged state and completion races are proven.
+- Hook cancellation remains independently available through Slice 12.
+
+**Exit:** every progress-producing operation has an explicit supported, unavailable or
+outcome-unknown policy; none silently inherits a generic Cancel button.
+
+## Slice 16 — Build the final unified progress presentation
+
+**Goal:** render one lifecycle model consistently after the backend can uphold it.
+
+Refactor `src/lib/ui/dialogs/operation-progress-dialog.tsx` to consume an operation view model rather
+than loose operation-specific props. Extract a shared progress body so background operations can use
+the same content without mounting a dialog.
+
+The presentation must support:
+
+- `Running`;
+- `Taking longer than expected`;
+- `Cancelling…`;
+- `Recovering repository…`;
+- `Cancelled`;
+- `Timed out`;
+- `Failed`;
+- `Completed before cancellation`;
+- `Outcome unknown`;
+- recovery-required state that does not dismiss or unlock the repository.
+
+Controls:
+
+- no Cancel control for `unavailable`;
+- operation-specific label for `available`;
+- disabled progress action after cancellation is requested;
+- `Retry` only when the operation policy marks retry safe;
+- `Close` only after a terminal/recovered state;
+- recovery guidance/actions when automatic recovery fails.
+
+Window behavior:
+
+- initiating window gets full controls;
+- same-repository peer windows mirror progress and identify the owner;
+- peer windows normally omit cancellation while the owner exists;
+- after owner loss, a peer may explicitly adopt cancellation authority;
+- different-repository windows render nothing for the operation.
+
+Accessibility:
+
+- keep `role="alertdialog"` for blocking user-initiated operations;
+- retain live progress status without repeatedly re-announcing the entire dialog;
+- announce lifecycle transitions and timeout errors;
+- move focus predictably when Cancel changes to a terminal action;
+- Escape/backdrop remain blocked while the repository is running/cancelling/recovering;
+- errors and recovery instructions remain keyboard reachable.
+
+**Exit:** focused component tests cover every state/capability/owner combination and focus behavior.
+
+## Slice 17 — Migrate all progress producers
+
+Migrate incrementally to the operation record and shared presentation:
+
+1. Fetch pilot.
+2. Clone.
+3. Rebase.
+4. Commit and hook handoff.
+5. Merge/squash merge.
+6. Push/Pull.
+7. Checkout.
+8. Cherry-pick/Revert/Squash/Reorder as their UI slices land.
+
+Remove duplicated operation/progress fields only after their final consumer migrates. Preserve stale
+callback rejection by operation ID. Keep domain-store post-operation refresh behavior intact.
+
+User-initiated operations mount the unified dialog. Scheduled/background Fetch mounts the shared
+progress body in its non-modal control and never opens a surprise dialog.
+
+**Exit:** no production progress producer uses a second ad-hoc lifecycle model.
+
+## Slice 18 — Restart and abandoned-operation recovery
+
+**Goal:** avoid hiding Git state after app crash or forced termination.
+
+On repository load, inspect at least:
+
+- merge state (`MERGE_HEAD`);
+- rebase state;
+- cherry-pick/revert sequencer state;
+- operation recovery markers owned by rdc;
+- stale app-owned clone temporary destinations.
+
+Do not claim the original process is still running after an app restart. Present the detected
+repository state as recovery-required and offer the operation-specific continue/abort path.
+
+If recovery failure needs to survive a full app restart, persist a small operation journal outside the
+repository and reconcile it against actual Git state on startup. Actual Git state wins over stale
+journal data.
+
+**Exit:** restart tests recover or honestly explain each supported interrupted state.
+
+## Slice 19 — Required multi-window and resilience coverage
+
+Add automated coverage for this matrix:
+
+- operations in two different repositories run concurrently;
+- Repository A never disables Repository B;
+- two windows on Repository A cannot start conflicting writes;
+- a second Repository A window receives live progress;
+- opening a new Repository A window hydrates current progress;
+- closing the owner window does not terminate Git;
+- cancellation authority transfer is explicit;
+- Fetch cancellation clears its lock after refresh;
+- Clone cancellation removes only app-owned temporary data;
+- timeout emits a typed error and runs recovery;
+- recovery failure retains the write lock;
+- cancellation racing completion reports completed;
+- Push stop may report outcome unknown;
+- background Fetch remains non-modal;
+- terminal events refresh every matching window and no unrelated window.
+
+E2E remains Linux-container-only. Keep one product slice per spec file and no cross-file ordering.
+Use deterministic blocking helper processes or local repositories; never depend on real network
+latency to create a cancellation race.
+
+## Slice 20 — Documentation, QA and closure
+
+Before closing the work:
+
+1. Update `MIGRATION_PLAN.md` with landed slices and measured behavior.
+2. Update `MIGRATION_MAP.md` paths, deliberate departures and remaining unsupported cancellation.
+3. Update `COMPONENT_MIGRATION_PROCESS.md` with the final dialog/embedded presentation contract.
+4. Add Light/Dark, compact viewport, owner/observer, timeout and recovery rows to the QA checklist.
+5. Record platform evidence for process-tree termination on Linux and macOS; Windows remains governed
+   by the Phase 10 target but its seam must compile when introduced.
+6. Run the store-surface measurement when command additions/removals settle; copy numbers from the
+   script output, never by hand.
+
+Run the complete repository gate set before every commit:
+
+```sh
+nvm use
+pnpm test
+pnpm exec tsc --noEmit
+pnpm format:check
+pnpm lint
+pnpm test:e2e
+
+cd src-tauri
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --check
+```
+
+Run every command above even though some are grouped under one frontend or Rust gate in repository
+documentation. E2E always runs through the Linux container.
+
+## Agent stop conditions
+
+Stop the current slice and report the blocker rather than guessing when:
+
+- repository identity cannot distinguish same versus different repositories;
+- cancellation can kill only direct Git but not descendants;
+- recovery would require silently resetting user history or working-tree content;
+- a timeout would clear UI state while native work may still run;
+- same-repository coordination would require blocking unrelated repositories;
+- Push/Pull final state cannot be classified honestly;
+- a platform arm has no compiled/tested signature;
+- completing the slice requires changing a wire contract without regenerating its snapshot.
+
+Never ship a Cancel button as a frontend-only state reset. Never release a repository write lock
+until the native process has terminated and the operation has either completed safely, recovered, or
+entered an explicit recovery-required state.
