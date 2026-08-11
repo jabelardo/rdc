@@ -127,3 +127,14 @@ pub enum OperationEvent {
         error: Option<OperationError>,
     },
 }
+
+/// Registry event plus the routing metadata needed by every window.
+///
+/// A renderer can discard events for another repository without consulting a global busy flag. The
+/// record snapshot also lets an observer distinguish the owner window from a peer.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationEventEnvelope {
+    pub record: OperationRecord,
+    pub event: OperationEvent,
+}

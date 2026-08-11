@@ -375,6 +375,9 @@ its selected repository and replay the registry's latest retained event by opera
 queries resolve the same stable identity used by locks, including subdirectories and linked
 worktrees. Window event subscription, matching filters, owner-loss routing, and explicit observer
 cancellation authority remain.
+The registry now also broadcasts an envelope containing the event, operation snapshot, scope, and
+owner window; a two-repository test proves observers can filter without an application-global busy
+state.
 
 Do not rely solely on a Tauri Channel captured by the initiating command; it disappears with that
 webview. The native registry must retain the latest snapshot and broadcast lifecycle events.

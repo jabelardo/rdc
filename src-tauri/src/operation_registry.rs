@@ -14,8 +14,8 @@ use serde::Serialize;
 
 use crate::operation::{
     CancellationCapability, GitOperationKind, OperationError, OperationEvent,
-    OperationLifecycleState, OperationOutcome, OperationProgress, OperationRecord, OperationScope,
-    OperationState,
+    OperationEventEnvelope, OperationLifecycleState, OperationOutcome, OperationProgress,
+    OperationRecord, OperationScope, OperationState,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, thiserror::Error)]
@@ -30,10 +30,22 @@ pub enum OperationRegistryError {
     NotFound { operation_id: String },
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct OperationRegistry {
     inner: Arc<Mutex<RegistryInner>>,
     next_id: Arc<std::sync::atomic::AtomicU64>,
+    events: tokio::sync::broadcast::Sender<OperationEventEnvelope>,
+}
+
+impl Default for OperationRegistry {
+    fn default() -> Self {
+        let (events, _) = tokio::sync::broadcast::channel(64);
+        Self {
+            inner: Arc::new(Mutex::new(RegistryInner::default())),
+            next_id: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            events,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -157,6 +169,12 @@ impl OperationRegistry {
             inner
                 .records
                 .insert(operation_id.to_owned(), record.clone());
+            if let Some(event) = inner.latest_events.get(operation_id).cloned() {
+                let _ = self.events.send(OperationEventEnvelope {
+                    record: record.clone(),
+                    event,
+                });
+            }
         }
         Ok(record)
     }
@@ -297,6 +315,12 @@ impl OperationRegistry {
         inner
             .records
             .insert(operation_id.to_owned(), record.clone());
+        if let Some(event) = inner.latest_events.get(operation_id).cloned() {
+            let _ = self.events.send(OperationEventEnvelope {
+                record: record.clone(),
+                event,
+            });
+        }
         Ok(record)
     }
 
@@ -319,6 +343,12 @@ impl OperationRegistry {
 
     pub fn latest_event(&self, operation_id: &str) -> Option<OperationEvent> {
         self.lock_inner().latest_events.get(operation_id).cloned()
+    }
+
+    /// Subscribes to lifecycle events. Receivers must filter by the record scope before updating a
+    /// renderer; the registry intentionally broadcasts operations for every repository.
+    pub fn subscribe(&self) -> tokio::sync::broadcast::Receiver<OperationEventEnvelope> {
+        self.events.subscribe()
     }
 
     /// Returns the process control owned by an operation. The clone is the control handle used by
@@ -397,6 +427,12 @@ impl OperationRegistry {
         inner
             .records
             .insert(operation_id.to_owned(), record.clone());
+        if let Some(event) = inner.latest_events.get(operation_id).cloned() {
+            let _ = self.events.send(OperationEventEnvelope {
+                record: record.clone(),
+                event,
+            });
+        }
         Ok(record)
     }
 
@@ -501,6 +537,59 @@ mod tests {
 
         assert_ne!(first.id, second.id);
         assert_eq!(registry.list().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn broadcasts_scope_metadata_for_each_operation_event() {
+        let registry = registry();
+        let first = registry
+            .start(
+                repository_scope("repo-a"),
+                Some("window-a".to_owned()),
+                GitOperationKind::Fetch,
+                CancellationCapability::Unavailable,
+            )
+            .expect("first scope should reserve");
+        let second = registry
+            .start(
+                repository_scope("repo-b"),
+                Some("window-b".to_owned()),
+                GitOperationKind::Fetch,
+                CancellationCapability::Unavailable,
+            )
+            .expect("second scope should reserve");
+        let mut events = registry.subscribe();
+
+        registry
+            .publish_progress(
+                &first.id,
+                OperationProgress {
+                    value: 0.25,
+                    title: Some("Fetching".to_owned()),
+                    description: None,
+                },
+            )
+            .expect("first progress should publish");
+        let first_event = events.recv().await.expect("first event should arrive");
+        assert_eq!(first_event.record.scope, repository_scope("repo-a"));
+        assert_eq!(first_event.record.owner_window.as_deref(), Some("window-a"));
+
+        registry
+            .publish_progress(
+                &second.id,
+                OperationProgress {
+                    value: 0.75,
+                    title: Some("Fetching".to_owned()),
+                    description: None,
+                },
+            )
+            .expect("second progress should publish");
+        let second_event = events.recv().await.expect("second event should arrive");
+        assert_eq!(second_event.record.scope, repository_scope("repo-b"));
+        assert_eq!(
+            second_event.record.owner_window.as_deref(),
+            Some("window-b")
+        );
     }
 
     #[test]
