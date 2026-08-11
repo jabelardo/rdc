@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slices 1–6 complete; Slice 7 not started
+**Status:** Slices 1–7 complete; Slice 8 in progress
 **Recorded:** 2026-08-11  
 **Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
 history-changing operations.
@@ -436,6 +436,13 @@ Reject stale events by operation ID. Query the registry whenever repository sele
 
 **Exit:** unit tests prove hydration, event filtering, stale-event rejection, owner loss and
 different-repository isolation.
+
+**Progress:** in progress. `OperationStore` now hydrates the selected repository, subscribes through
+the native-scope router, rejects stale operation IDs, tracks progress/timeout/recovery/terminal
+state, exposes owner/observer/unowned presentation, and cleans up subscriptions on deselection or
+dispose. Focused tests cover hydration, stale-event rejection, scope filtering, and cleanup. The
+existing domain stores still own their operation-specific refresh behavior and have not been
+migrated yet.
 
 ## Slice 9 — Enforce repository-scoped operation locks
 
