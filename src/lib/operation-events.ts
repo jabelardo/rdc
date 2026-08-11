@@ -19,3 +19,24 @@ export function createOperationEventFilter(
 ): (event: OperationEventEnvelope) => boolean {
   return (event) => isOperationEventForScope(event, scope);
 }
+
+/** Routes the shared native stream for one window as its selected repository changes. */
+export class OperationEventRouter {
+  private filter: ((event: OperationEventEnvelope) => boolean) | null = null;
+
+  public constructor(private readonly onEvent: (event: OperationEventEnvelope) => void) {}
+
+  public selectScope(scope: OperationScope | null): void {
+    this.filter = scope === null ? null : createOperationEventFilter(scope);
+  }
+
+  public receive(event: OperationEventEnvelope): void {
+    if (this.filter?.(event) === true) {
+      this.onEvent(event);
+    }
+  }
+
+  public clear(): void {
+    this.filter = null;
+  }
+}
