@@ -57,7 +57,7 @@ git-ops = { path = "crates/git-ops" }
 trampoline = { path = "crates/trampoline" }
 # `sync` for the lazy-start mutexes and `process` to ask git its version without going through
 # `git-ops` (which would install the trampoline environment and recurse).
-tokio = { workspace = true, features = ["sync", "process", "io-util", "fs"] }
+tokio = { workspace = true, features = ["sync", "process", "io-util", "fs", "time"] }
 # Already in the tree via tauri; taken as a direct dependency for the blob tokens, which want an
 # unguessable id rather than a counter — see src/blob_protocol.rs.
 uuid = { version = "1", features = ["v4"] }

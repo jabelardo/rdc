@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slice 1 through Slice 4 complete; Slice 5 next
+**Status:** Slices 1–4 complete; Slices 5–6 in progress
 **Recorded:** 2026-08-11  
 **Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
 history-changing operations.
@@ -316,9 +316,10 @@ Git termination. Cover stdout/stderr pipe pressure so cancellation cannot deadlo
 transport-neutral cancellation seam; Unix starts Git in a dedicated process group and terminates
 the group with graceful-then-force escalation while stdout/stderr remain drained. A descendant
 process test covers the Unix path. `OperationRegistry` now owns one control per operation and its
-cancellation/timeout requests signal that control without holding the registry mutex. The remaining
-work is replacing the Windows direct-child seam with a Job Object implementation before this slice
-can close.
+cancellation/timeout requests signal that control without holding the registry mutex. Controlled LFS
+tailing, an operation-ID cancellation test, and large stdout/stderr pipe-pressure coverage now pass.
+The remaining work is replacing the Windows direct-child seam with a Job Object implementation
+before this slice can close.
 
 ## Slice 6 — Add native activity watchdogs
 
@@ -346,6 +347,12 @@ separate explicit user-wait policy.
 
 **Exit:** paused-time tests cover activity reset, soft warning, hard timeout, cancellation races and
 watchdog cleanup after completion.
+
+**Progress:** in progress. `WatchdogPolicy` and the native watchdog now reset their decision from
+the operation record's activity timestamp, emit `takingLongerThanExpected`, and request timeout
+termination without releasing the repository lock. Focused tests cover the soft warning, hard
+timeout request and lock retention. Activity producers, paused-time coverage and explicit
+credential/hook waiting policies remain to be added.
 
 ## Slice 7 — Route and replay events across windows
 

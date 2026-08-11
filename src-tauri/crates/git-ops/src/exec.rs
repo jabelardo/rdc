@@ -245,7 +245,25 @@ pub async fn git_with_stderr_and_lfs<E, L>(
     args: &[impl AsRef<std::ffi::OsStr>],
     path: impl AsRef<Path>,
     name: &str,
+    options: GitOptions,
+    on_stderr: E,
+    on_lfs_progress: L,
+) -> Result<GitOutput, GitError>
+where
+    E: FnMut(&[u8]) + Send,
+    L: FnMut(&str) + Send,
+{
+    git_with_stderr_and_lfs_controlled(args, path, name, options, None, on_stderr, on_lfs_progress)
+        .await
+}
+
+/// LFS-aware stderr streaming with operation cancellation.
+pub async fn git_with_stderr_and_lfs_controlled<E, L>(
+    args: &[impl AsRef<std::ffi::OsStr>],
+    path: impl AsRef<Path>,
+    name: &str,
     mut options: GitOptions,
+    control: Option<ExecutionControl>,
     on_stderr: E,
     on_lfs_progress: L,
 ) -> Result<GitOutput, GitError>
@@ -254,11 +272,13 @@ where
     L: FnMut(&str) + Send,
 {
     let Ok(progress_file) = tempfile::NamedTempFile::new() else {
-        return git_with_stderr(
+        return git_streaming_controlled(
             args,
             path,
             name,
             options.without_env("GIT_LFS_PROGRESS"),
+            control,
+            |_| {},
             on_stderr,
         )
         .await;
@@ -274,7 +294,8 @@ where
     let done = Arc::new(AtomicBool::new(false));
     let git_done = Arc::clone(&done);
     let git_future = async {
-        let result = git_with_stderr(args, path, name, options, on_stderr).await;
+        let result =
+            git_streaming_controlled(args, path, name, options, control, |_| {}, on_stderr).await;
         git_done.store(true, Ordering::Release);
         result
     };
@@ -1114,6 +1135,86 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[tokio::test]
+    async fn cancellation_finishes_lfs_progress_tailing() {
+        let repo = empty_repository().await;
+        let control = ExecutionControl::new();
+        let cancellation = control.clone();
+        let task = tokio::spawn(async move {
+            git_with_stderr_and_lfs_controlled(
+                &[
+                    "-c",
+                    "alias.wait-lfs=!printf 'download 1/2 1/2 file.bin\\n' >> \"$GIT_LFS_PROGRESS\"; sleep 30",
+                    "wait-lfs",
+                ],
+                repo.path(),
+                "cancellable-lfs-test",
+                GitOptions::default(),
+                Some(control),
+                |_| {},
+                |_| {},
+            )
+            .await
+        });
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        cancellation.cancel(TerminationReason::Cancelled);
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("LFS cancellation should finish")
+            .expect("test task should not panic");
+
+        assert!(matches!(
+            result,
+            Err(GitError::OperationTerminated {
+                reason: TerminationReason::Cancelled,
+                ..
+            })
+        ));
+    }
+
+    #[tokio::test]
+    async fn cancellation_drains_large_stdout_and_stderr_without_deadlock() {
+        let repo = empty_repository().await;
+        let control = ExecutionControl::new();
+        let cancellation = control.clone();
+        let stdout_bytes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let stderr_bytes = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let stdout_seen = Arc::clone(&stdout_bytes);
+        let stderr_seen = Arc::clone(&stderr_bytes);
+        let task = tokio::spawn(async move {
+            git_streaming_controlled(
+                &[
+                    "-c",
+                    "alias.pressure=!dd if=/dev/zero bs=1024 count=1024; dd if=/dev/zero bs=1024 count=1024 >&2; sleep 30",
+                    "pressure",
+                ],
+                repo.path(),
+                "pipe-pressure-test",
+                GitOptions::default(),
+                Some(control),
+                move |chunk| {
+                    stdout_seen.fetch_add(chunk.len(), Ordering::Relaxed);
+                },
+                move |chunk| {
+                    stderr_seen.fetch_add(chunk.len(), Ordering::Relaxed);
+                },
+            )
+            .await
+        });
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        cancellation.cancel(TerminationReason::Cancelled);
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("pipe-pressure cancellation should not deadlock")
+            .expect("test task should not panic");
+
+        assert!(matches!(result, Err(GitError::OperationTerminated { .. })));
+        assert!(stdout_bytes.load(Ordering::Relaxed) > 0);
+        assert!(stderr_bytes.load(Ordering::Relaxed) > 0);
     }
     // --- capped reads ---
 
