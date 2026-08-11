@@ -451,6 +451,7 @@ mod tests {
     use crate::protocol::CommandIdentifier;
     use crate::token::TokenStore;
     use std::collections::HashMap;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Mutex;
 
     fn host_prompt(key_type: &str, fingerprint: &str) -> AddSshHostPrompt {
@@ -897,6 +898,47 @@ mod tests {
         assert_eq!(handler(command).await, None);
     }
 
+    #[tokio::test]
+    async fn brackets_an_askpass_response_with_prompt_wait_hooks() {
+        let (sessions, _tokens, interactive, _background) = sessions_with_tokens();
+        let begins = Arc::new(AtomicUsize::new(0));
+        let ends = Arc::new(AtomicUsize::new(0));
+        let handler = askpass_handler_with_wait(
+            Arc::new(Recording {
+                passphrase: None,
+                password: Some("secret".to_owned()),
+                confirm: None,
+                asked: Arc::new(Mutex::new(Vec::new())),
+            }),
+            sessions,
+            Some(PromptWaitHooks {
+                begin: {
+                    let begins = Arc::clone(&begins);
+                    Arc::new(move || {
+                        begins.fetch_add(1, Ordering::SeqCst);
+                    })
+                },
+                end: {
+                    let ends = Arc::clone(&ends);
+                    Arc::new(move || {
+                        ends.fetch_add(1, Ordering::SeqCst);
+                    })
+                },
+            }),
+        );
+
+        assert_eq!(
+            handler(askpass_command(
+                interactive.token(),
+                "alice@example.com's password: ",
+            ))
+            .await,
+            Some("secret".to_owned())
+        );
+        assert_eq!(begins.load(Ordering::SeqCst), 1);
+        assert_eq!(ends.load(Ordering::SeqCst), 1);
+    }
+
     // --- credential helper handler ---
 
     #[derive(Default)]
@@ -976,6 +1018,47 @@ mod tests {
 
         assert_eq!(answer, None);
         assert!(interactive.has_rejected_endpoints());
+    }
+
+    #[tokio::test]
+    async fn brackets_a_credential_lookup_with_prompt_wait_hooks() {
+        let (sessions, _tokens, interactive, _background) = sessions_with_tokens();
+        let begins = Arc::new(AtomicUsize::new(0));
+        let ends = Arc::new(AtomicUsize::new(0));
+        let handler = credential_helper_handler_with_wait(
+            Arc::new(FakeProvider {
+                answer: Some(CredentialAnswer {
+                    username: "me".to_owned(),
+                    password: "token".to_owned(),
+                }),
+                ..FakeProvider::default()
+            }),
+            sessions,
+            Some(PromptWaitHooks {
+                begin: {
+                    let begins = Arc::clone(&begins);
+                    Arc::new(move || {
+                        begins.fetch_add(1, Ordering::SeqCst);
+                    })
+                },
+                end: {
+                    let ends = Arc::clone(&ends);
+                    Arc::new(move || {
+                        ends.fetch_add(1, Ordering::SeqCst);
+                    })
+                },
+            }),
+        );
+
+        assert!(handler(credential_command(
+            interactive.token(),
+            "get",
+            "protocol=https\nhost=github.com\n",
+        ))
+        .await
+        .is_some());
+        assert_eq!(begins.load(Ordering::SeqCst), 1);
+        assert_eq!(ends.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]

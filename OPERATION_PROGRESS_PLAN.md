@@ -358,6 +358,9 @@ decision with `HookDecision` begin/end events. The trampoline handlers also expo
 wait hooks around SSH/askpass and credential-provider awaits. The current app configuration
 deliberately declines credentials, so no credential UI prompt is active yet; operation-specific
 callback wiring remains pending when the credential provider/prompt surface lands.
+Focused handler tests now verify that both askpass responses and credential lookups bracket their
+awaits with the prompt wait hooks. The remaining Slice 6 work is wiring these hooks to a real
+operation-owned credential/prompt surface when that surface is introduced.
 
 ## Slice 7 — Route and replay events across windows
 

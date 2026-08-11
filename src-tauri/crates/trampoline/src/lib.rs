@@ -48,9 +48,10 @@ pub mod token;
 pub use client::{port_from_env, send, ClientError};
 pub use credential::{Credential, CredentialError, HelperCommand};
 pub use handlers::{
-    askpass_handler, classify_askpass, credential_helper_handler, parse_add_ssh_host_prompt,
-    AddSshHostPrompt, AskpassRequest, AskpassResponder, BoxFuture, CredentialAnswer,
-    CredentialProvider, Decline,
+    askpass_handler, askpass_handler_with_wait, classify_askpass, credential_helper_handler,
+    credential_helper_handler_with_wait, parse_add_ssh_host_prompt, AddSshHostPrompt,
+    AskpassRequest, AskpassResponder, BoxFuture, CredentialAnswer, CredentialProvider, Decline,
+    PromptWaitHooks,
 };
 pub use protocol::{
     decode, encode, Command, CommandIdentifier, ProtocolError, IDENTIFIER_ENV, PORT_ENV, TOKEN_ENV,
