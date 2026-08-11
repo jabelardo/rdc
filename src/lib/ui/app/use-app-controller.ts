@@ -208,14 +208,10 @@ export function useAppController() {
 
   useEffect(() => {
     let disposed = false;
-    void getCurrentWindow()
-      .label()
-      .then((label) => {
-        if (!disposed) {
-          operationStore.setWindowLabel(label);
-        }
-      })
-      .catch((error) => log.error("Failed to resolve the current window label", error));
+    const label = getCurrentWindow().label;
+    if (!disposed) {
+      operationStore.setWindowLabel(label);
+    }
     return () => {
       disposed = true;
       operationStore.dispose();
