@@ -464,7 +464,9 @@ outcome/error propagation, and subscription cleanup are covered by focused tests
 **Progress:** in progress. The commit command now acquires a stable repository-scoped operation
 lock before running Git, records its initiating window, rejects same-repository conflicts, permits
 different repositories to proceed, and releases the lock on both success and failure. Additional
-mutating command boundaries and multi-window product behavior remain.
+mutating command boundaries and multi-window product behavior remain. The local branch checkout
+command now uses the same lock lifecycle and records its initiating window; remote-branch, detached
+commit, path checkout, and remote/history boundaries remain.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

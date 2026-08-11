@@ -276,11 +276,20 @@ pub async fn create_merge_commit(
 /// ```
 #[tauri::command]
 pub async fn checkout_branch(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     name: String,
     on_progress: Channel<CheckoutProgress>,
 ) -> Result<(), CommandError> {
-    git_ops::checkout::checkout_branch_with_progress(
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await?;
+    let result = git_ops::checkout::checkout_branch_with_progress(
         &repository_path,
         CheckoutTarget::Local(&name),
         move |progress| {
@@ -289,8 +298,32 @@ pub async fn checkout_branch(
             let _ = on_progress.send(progress);
         },
     )
-    .await
-    .map_err(CommandError::from)
+    .await;
+    match result {
+        Ok(()) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Checks out a remote-tracking branch by creating a local branch from it.
