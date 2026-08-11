@@ -501,6 +501,8 @@ replay reports conflicts or outstanding files requiring recovery.
 Reset, path reset, and index-clearing commands now use the Checkout lock category and report
 terminal success or failure, preventing concurrent worktree/index writes in the same repository.
 Submodule path reset now uses the same Checkout lock and terminal lifecycle.
+Stash create, drop, pop, rename, and move now also serialize repository ref/worktree mutations
+through the Checkout lock without changing their return values.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

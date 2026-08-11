@@ -48,30 +48,47 @@ pub async fn get_stashes(repository_path: String) -> Result<StashResult, Command
 /// untracked files — they have to be staged first to be included.
 #[tauri::command]
 pub async fn create_stash_entry(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     branch_name: String,
     untracked_files_to_stage: Option<Vec<FileToStage>>,
     selected_files: Option<Vec<String>>,
 ) -> Result<bool, CommandError> {
-    git_ops::stash::create_stash_entry(
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
         &repository_path,
-        &branch_name,
-        &untracked_files_to_stage.unwrap_or_default(),
-        selected_files.as_deref(),
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
     )
-    .await
-    .map_err(CommandError::from)
+    .await?;
+    finish_stash_mutation(
+        &registry,
+        &operation.id,
+        git_ops::stash::create_stash_entry(
+            &repository_path,
+            &branch_name,
+            &untracked_files_to_stage.unwrap_or_default(),
+            selected_files.as_deref(),
+        )
+        .await,
+    )
 }
 
 /// Drops the app's stash entry with the given commit. Dropping an unknown one succeeds.
 #[tauri::command]
 pub async fn drop_stash_entry(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     stash_sha: String,
 ) -> Result<(), CommandError> {
-    git_ops::stash::drop_stash_entry(&repository_path, &stash_sha)
-        .await
-        .map_err(CommandError::from)
+    let operation = start_stash_operation(&window, &registry, &repository_path).await?;
+    finish_stash_mutation(
+        &registry,
+        &operation.id,
+        git_ops::stash::drop_stash_entry(&repository_path, &stash_sha).await,
+    )
 }
 
 /// Applies the stash entry with the given commit and removes it.
@@ -79,12 +96,17 @@ pub async fn drop_stash_entry(
 /// A pop that conflicts is not an error — the entry is still removed, and the caller drives resolution.
 #[tauri::command]
 pub async fn pop_stash_entry(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     stash_sha: String,
 ) -> Result<(), CommandError> {
-    git_ops::stash::pop_stash_entry(&repository_path, &stash_sha)
-        .await
-        .map_err(CommandError::from)
+    let operation = start_stash_operation(&window, &registry, &repository_path).await?;
+    finish_stash_mutation(
+        &registry,
+        &operation.id,
+        git_ops::stash::pop_stash_entry(&repository_path, &stash_sha).await,
+    )
 }
 
 /// The app's most recent stash for a branch, or `null`.
@@ -104,25 +126,35 @@ pub async fn get_last_stash_entry_for_branch(
 /// change its SHA and invalidate whatever the caller holds.
 #[tauri::command]
 pub async fn rename_stash_entry(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     entry: StashEntry,
     new_name: Option<String>,
 ) -> Result<Option<String>, CommandError> {
-    git_ops::stash::rename_stash_entry(&repository_path, &entry, new_name.as_deref())
-        .await
-        .map_err(CommandError::from)
+    let operation = start_stash_operation(&window, &registry, &repository_path).await?;
+    finish_stash_mutation(
+        &registry,
+        &operation.id,
+        git_ops::stash::rename_stash_entry(&repository_path, &entry, new_name.as_deref()).await,
+    )
 }
 
 /// Re-associates a stash entry with a different branch, resolving to its new SHA.
 #[tauri::command]
 pub async fn move_stash_entry(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     entry: StashEntry,
     branch_name: String,
 ) -> Result<String, CommandError> {
-    git_ops::stash::move_stash_entry(&repository_path, &entry, &branch_name)
-        .await
-        .map_err(CommandError::from)
+    let operation = start_stash_operation(&window, &registry, &repository_path).await?;
+    finish_stash_mutation(
+        &registry,
+        &operation.id,
+        git_ops::stash::move_stash_entry(&repository_path, &entry, &branch_name).await,
+    )
 }
 
 /// The files a stash entry touches.
@@ -267,20 +299,34 @@ pub async fn abort_cherry_pick(
     }
 }
 
-fn finish_stash_mutation(
+async fn start_stash_operation(
+    window: &WebviewWindow,
+    registry: &OperationRegistry,
+    repository_path: &str,
+) -> Result<crate::operation::OperationRecord, CommandError> {
+    crate::commands::operation::start_repository_operation(
+        registry,
+        repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await
+}
+
+fn finish_stash_mutation<T>(
     registry: &OperationRegistry,
     operation_id: &str,
-    result: Result<(), git_ops::GitError>,
-) -> Result<(), CommandError> {
+    result: Result<T, git_ops::GitError>,
+) -> Result<T, CommandError> {
     match result {
-        Ok(()) => {
+        Ok(value) => {
             let _ = registry.finish(
                 operation_id,
                 OperationState::Completed,
                 OperationOutcome::Completed,
                 None,
             );
-            Ok(())
+            Ok(value)
         }
         Err(error) => {
             let message = error.to_string();
