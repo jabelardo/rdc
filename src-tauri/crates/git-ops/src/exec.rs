@@ -16,7 +16,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -33,11 +33,23 @@ use crate::git_error_kind::GitErrorKind;
 pub const TERMINAL_OUTPUT_CAPACITY: usize = 256 * 1024;
 
 /// Cancellation signal shared by a native operation and its Git process.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ExecutionControl {
     cancelled: Arc<AtomicBool>,
     reason: Arc<std::sync::atomic::AtomicU8>,
     notify: Arc<Notify>,
+    last_activity_at: Arc<AtomicU64>,
+}
+
+impl Default for ExecutionControl {
+    fn default() -> Self {
+        Self {
+            cancelled: Arc::new(AtomicBool::new(false)),
+            reason: Arc::new(std::sync::atomic::AtomicU8::new(0)),
+            notify: Arc::new(Notify::new()),
+            last_activity_at: Arc::new(AtomicU64::new(now_millis())),
+        }
+    }
 }
 
 impl ExecutionControl {
@@ -59,6 +71,15 @@ impl ExecutionControl {
 
     pub fn is_cancelled(&self) -> bool {
         self.cancelled.load(Ordering::Acquire)
+    }
+
+    /// Records native activity without requiring a progress percentage or a UI callback.
+    pub fn touch(&self) {
+        self.last_activity_at.store(now_millis(), Ordering::Release);
+    }
+
+    pub fn last_activity_at(&self) -> u64 {
+        self.last_activity_at.load(Ordering::Acquire)
     }
 
     fn reason(&self) -> TerminationReason {
@@ -293,20 +314,25 @@ where
 
     let done = Arc::new(AtomicBool::new(false));
     let git_done = Arc::clone(&done);
+    let tail_control = control.clone();
     let git_future = async {
         let result =
             git_streaming_controlled(args, path, name, options, control, |_| {}, on_stderr).await;
         git_done.store(true, Ordering::Release);
         result
     };
-    let tail_future = tail_lfs_progress(&progress_path, done, on_lfs_progress);
+    let tail_future = tail_lfs_progress(&progress_path, done, tail_control, on_lfs_progress);
     let (result, ()) = tokio::join!(git_future, tail_future);
     drop(progress_file);
     result
 }
 
-async fn tail_lfs_progress<L>(path: &Path, done: Arc<AtomicBool>, mut on_line: L)
-where
+async fn tail_lfs_progress<L>(
+    path: &Path,
+    done: Arc<AtomicBool>,
+    control: Option<ExecutionControl>,
+    mut on_line: L,
+) where
     L: FnMut(&str),
 {
     let Ok(mut file) = tokio::fs::File::open(path).await else {
@@ -325,6 +351,9 @@ where
                 match file.read(&mut chunk).await {
                     Ok(0) => break,
                     Ok(count) => {
+                        if let Some(control) = &control {
+                            control.touch();
+                        }
                         pending.extend_from_slice(&chunk[..count]);
                         emit_complete_lines(&mut pending, &mut on_line);
                     }
@@ -332,6 +361,9 @@ where
                 }
             }
             Ok(count) => {
+                if let Some(control) = &control {
+                    control.touch();
+                }
                 pending.extend_from_slice(&chunk[..count]);
                 emit_complete_lines(&mut pending, &mut on_line);
             }
@@ -343,6 +375,13 @@ where
         let line = String::from_utf8_lossy(&pending);
         on_line(line.trim_end_matches('\r'));
     }
+}
+
+fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
 }
 
 fn emit_complete_lines<L>(pending: &mut Vec<u8>, on_line: &mut L)
@@ -597,6 +636,8 @@ where
         source: std::io::Error::other("git stderr pipe was not available"),
     })?;
 
+    let stdout_control = control.clone();
+    let stderr_control = control.clone();
     let read_stdout = async move {
         let mut stdout = Vec::new();
         let mut chunk = [0_u8; 8192];
@@ -606,6 +647,9 @@ where
                 break;
             }
             stdout.extend_from_slice(&chunk[..count]);
+            if let Some(control) = &stdout_control {
+                control.touch();
+            }
             on_stdout(&chunk[..count]);
         }
         std::io::Result::Ok(stdout)
@@ -619,6 +663,9 @@ where
                 break;
             }
             stderr.extend_from_slice(&chunk[..count]);
+            if let Some(control) = &stderr_control {
+                control.touch();
+            }
             on_stderr(&chunk[..count]);
         }
         std::io::Result::Ok(stderr)
@@ -1128,6 +1175,7 @@ mod tests {
         tail_lfs_progress(
             file.path(),
             Arc::new(AtomicBool::new(true)),
+            None,
             |line: &str| lines.push(line.to_owned()),
         )
         .await;

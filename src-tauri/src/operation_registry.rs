@@ -167,9 +167,12 @@ impl OperationRegistry {
         &self,
         operation_id: &str,
     ) -> Result<OperationRecord, OperationRegistryError> {
-        self.update(operation_id, |record, _| {
+        let control = self.control(operation_id)?;
+        let record = self.update(operation_id, |record, _| {
             record.last_activity_at = now_millis();
-        })
+        })?;
+        control.touch();
+        Ok(record)
     }
 
     /// Suspends inactivity timeout while the user is expected to answer an explicit prompt.
