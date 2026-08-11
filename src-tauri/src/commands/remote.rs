@@ -361,6 +361,8 @@ pub async fn fetch_refspec(
 // frontend sends — the wrong reason to change an interface.
 #[allow(clippy::too_many_arguments)]
 pub async fn pull(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     state: State<'_, TrampolineState>,
     hooks: State<'_, HookRegistry>,
     repository_path: String,
@@ -372,19 +374,56 @@ pub async fn pull(
     on_hook_progress: Channel<HookProgressUpdate>,
     on_hook_failure: Channel<HookFailurePrompt>,
 ) -> Result<(), CommandError> {
-    let remote = state
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Pull,
+    )
+    .await?;
+    let remote = match state
         .session_for(&repository_path, is_background_task.unwrap_or(false))
         .await
-        .map_err(bind_error)?;
-    let support = support_for(
+    {
+        Ok(remote) => remote,
+        Err(error) => {
+            let command_error = bind_error(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            return Err(command_error);
+        }
+    };
+    let support = match support_for(
         intercept_hooks.unwrap_or(false),
         &hooks,
         on_hook_progress,
         on_hook_failure,
-    )
-    .map_err(CommandError::message)?;
+    ) {
+        Ok(support) => support,
+        Err(message) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: message.clone(),
+                    recoverable: true,
+                }),
+            );
+            return Err(CommandError::message(message));
+        }
+    };
 
-    git_ops::pull::pull(
+    let result = git_ops::pull::pull(
         &repository_path,
         &remote_name,
         &remote.env,
@@ -394,10 +433,32 @@ pub async fn pull(
         }),
         support.as_ref(),
     )
-    .await
-    .map_err(|error| remote_error(&remote, error))?;
-
-    Ok(())
+    .await;
+    match result {
+        Ok(_) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let command_error = remote_error(&remote, error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Fast-forwards local branches to their upstreams without checking them out.

@@ -470,7 +470,8 @@ commit, and path checkout commands now use it as well. User/background Fetch now
 repository lock and releases it after credential setup and Git success/failure; Push, Pull, and
 remaining remote/history boundaries remain.
 Push now acquires and releases the repository lock across session setup, hook setup, and Git success
-or failure, while retaining its existing authentication error classification.
+or failure, while retaining its existing authentication error classification. Pull now uses the
+same lifecycle, including hook setup and remote error classification.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
