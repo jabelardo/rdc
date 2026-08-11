@@ -267,6 +267,39 @@ pub async fn abort_cherry_pick(
     }
 }
 
+fn finish_stash_mutation(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    result: Result<(), git_ops::GitError>,
+) -> Result<(), CommandError> {
+    match result {
+        Ok(()) => {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message,
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
+}
+
 fn finish_cherry_pick_result(
     registry: &OperationRegistry,
     operation_id: &str,
@@ -334,12 +367,23 @@ pub async fn list_submodules(
 /// **Discards whatever the submodule's working tree currently has.** An empty list is a no-op.
 #[tauri::command]
 pub async fn reset_submodule_paths(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     paths: Vec<String>,
 ) -> Result<(), CommandError> {
-    git_ops::submodule::reset_submodule_paths(&repository_path, &paths)
-        .await
-        .map_err(CommandError::from)
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await?;
+    finish_stash_mutation(
+        &registry,
+        &operation.id,
+        git_ops::submodule::reset_submodule_paths(&repository_path, &paths).await,
+    )
 }
 
 /// Squashes commits together.
