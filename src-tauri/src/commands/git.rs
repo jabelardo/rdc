@@ -604,12 +604,21 @@ pub async fn abort_merge(repository_path: String) -> Result<(), CommandError> {
 /// Rebases `targetBranch` onto `baseBranch`.
 #[tauri::command]
 pub async fn rebase_branch(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     base_branch: String,
     target_branch: String,
     on_progress: Channel<MultiCommitOperationProgress>,
 ) -> Result<RebaseResult, CommandError> {
-    git_ops::rebase::rebase_with_progress(
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Rebase,
+    )
+    .await?;
+    let result = git_ops::rebase::rebase_with_progress(
         &repository_path,
         &base_branch,
         &target_branch,
@@ -617,8 +626,32 @@ pub async fn rebase_branch(
             let _ = on_progress.send(progress);
         },
     )
-    .await
-    .map_err(CommandError::from)
+    .await;
+    match result {
+        Ok(result) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(result)
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Stages the selected resolutions and continues an in-progress rebase.

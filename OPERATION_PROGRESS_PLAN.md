@@ -480,6 +480,8 @@ and terminal cleanup rules. The initial remote-mutator lock set is complete; Sli
 work is lock coverage review and multi-window conflict/concurrency verification.
 The merge command is now the first history-changing boundary with the same repository lock and
 terminal lifecycle, including hook setup and merge-result/error handling.
+The initial Rebase command now acquires the repository lock, records its initiating window, and
+releases it on clean or failed replay results; rebase continuation/recovery remains separate.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
