@@ -143,6 +143,17 @@ impl OperationRegistry {
         })
     }
 
+    /// Records non-progress activity such as an output chunk, hook transition or credential
+    /// prompt. Activity resets the watchdog clock but does not manufacture a progress percentage.
+    pub fn record_activity(
+        &self,
+        operation_id: &str,
+    ) -> Result<OperationRecord, OperationRegistryError> {
+        self.update(operation_id, |record, _| {
+            record.last_activity_at = now_millis();
+        })
+    }
+
     pub fn request_cancellation(
         &self,
         operation_id: &str,
@@ -620,6 +631,50 @@ mod tests {
             .control(&record.id)
             .expect("control remains until finish")
             .is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn activity_resets_the_watchdog_clock() {
+        let registry = registry();
+        let record = registry
+            .start(
+                repository_scope("repo-activity"),
+                None,
+                GitOperationKind::Fetch,
+                CancellationCapability::Unavailable,
+            )
+            .expect("operation should reserve");
+        let watchdog = registry.spawn_watchdog(
+            record.id.clone(),
+            WatchdogPolicy {
+                soft_inactivity: Duration::from_millis(20),
+                hard_inactivity: Duration::from_millis(70),
+                poll_interval: Duration::from_millis(5),
+            },
+        );
+
+        tokio::time::sleep(Duration::from_millis(12)).await;
+        registry
+            .record_activity(&record.id)
+            .expect("activity should refresh the operation");
+        tokio::time::sleep(Duration::from_millis(15)).await;
+        assert_eq!(
+            registry.get(&record.id).expect("record remains").state,
+            OperationState::Running
+        );
+
+        registry
+            .finish(
+                &record.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            )
+            .expect("completion should stop watchdog work");
+        tokio::time::timeout(Duration::from_millis(100), watchdog)
+            .await
+            .expect("watchdog should clean up after completion")
+            .expect("watchdog should not panic");
     }
 
     #[test]

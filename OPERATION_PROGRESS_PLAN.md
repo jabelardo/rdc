@@ -348,9 +348,10 @@ watchdog cleanup after completion.
 
 **Progress:** in progress. `WatchdogPolicy` and the native watchdog now reset their decision from
 the operation record's activity timestamp, emit `takingLongerThanExpected`, and request timeout
-termination without releasing the repository lock. Focused tests cover the soft warning, hard
-timeout request and lock retention. Activity producers, paused-time coverage and explicit
-credential/hook waiting policies remain to be added.
+termination without releasing the repository lock. `record_activity` provides the native heartbeat
+for output chunks, hook transitions and credential events. Focused tests cover activity reset, soft
+warning, hard timeout request, lock retention and watchdog cleanup after completion. Paused-time
+coverage and explicit credential/hook waiting policies remain to be added.
 
 ## Slice 7 — Route and replay events across windows
 
