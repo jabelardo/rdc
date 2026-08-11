@@ -484,6 +484,9 @@ The initial Rebase command now acquires the repository lock, records its initiat
 releases it on clean or failed replay results. Conflict and outstanding-file results instead enter
 recovery while retaining the lock; Rebase Continue uses that retained operation and releases it only
 after a terminal result. Abort/recovery-failure handling remains separate.
+Merge `Failed` results now enter recovery without releasing the lock. Merge and Rebase Abort release
+retained locks only after a successful abort; an abort failure records `recoveryFailed` and retains
+the lock for truthful recovery handling.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

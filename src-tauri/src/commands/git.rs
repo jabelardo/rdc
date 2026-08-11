@@ -555,6 +555,10 @@ pub async fn merge_branch(
     )
     .await;
     match result {
+        Ok(MergeResult::Failed) => {
+            let _ = registry.enter_recovery(&operation.id);
+            Ok(MergeResult::Failed)
+        }
         Ok(result) => {
             let _ = registry.finish(
                 &operation.id,
@@ -595,10 +599,43 @@ pub async fn get_merge_base(
 
 /// Aborts an in-progress merge.
 #[tauri::command]
-pub async fn abort_merge(repository_path: String) -> Result<(), CommandError> {
-    git_ops::merge::abort_merge(&repository_path)
-        .await
-        .map_err(CommandError::from)
+pub async fn abort_merge(
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+) -> Result<(), CommandError> {
+    let operation =
+        crate::commands::operation::active_repository_operation(&registry, &repository_path)
+            .await?;
+    let result = git_ops::merge::abort_merge(&repository_path).await;
+    match result {
+        Ok(()) => {
+            if let Some(operation) = operation {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Cancelled,
+                    OperationOutcome::Recovered,
+                    None,
+                );
+            }
+            Ok(())
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            if let Some(operation) = operation {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Failed,
+                    OperationOutcome::Unknown,
+                    Some(OperationError {
+                        kind: OperationErrorKind::RecoveryFailed,
+                        message: command_error.message.clone(),
+                        recoverable: false,
+                    }),
+                );
+            }
+            Err(command_error)
+        }
+    }
 }
 
 /// Rebases `targetBranch` onto `baseBranch`.
@@ -721,10 +758,43 @@ pub async fn continue_rebase(
 
 /// Aborts an in-progress rebase.
 #[tauri::command]
-pub async fn abort_rebase(repository_path: String) -> Result<(), CommandError> {
-    git_ops::rebase::abort_rebase(&repository_path)
-        .await
-        .map_err(CommandError::from)
+pub async fn abort_rebase(
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+) -> Result<(), CommandError> {
+    let operation =
+        crate::commands::operation::active_repository_operation(&registry, &repository_path)
+            .await?;
+    let result = git_ops::rebase::abort_rebase(&repository_path).await;
+    match result {
+        Ok(()) => {
+            if let Some(operation) = operation {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Cancelled,
+                    OperationOutcome::Recovered,
+                    None,
+                );
+            }
+            Ok(())
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            if let Some(operation) = operation {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Failed,
+                    OperationOutcome::Unknown,
+                    Some(OperationError {
+                        kind: OperationErrorKind::RecoveryFailed,
+                        message: command_error.message.clone(),
+                        recoverable: false,
+                    }),
+                );
+            }
+            Err(command_error)
+        }
+    }
 }
 
 /// Returns recoverable progress for an in-progress rebase.
