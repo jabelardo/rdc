@@ -474,12 +474,44 @@ pub async fn pull(
 /// have diverged are left alone rather than failing the call.
 #[tauri::command]
 pub async fn fast_forward_branches(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     branches: Vec<(String, String)>,
 ) -> Result<(), CommandError> {
-    git_ops::fetch::fast_forward_branches(&repository_path, &branches)
-        .await
-        .map_err(CommandError::from)
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Fetch,
+    )
+    .await?;
+    let result = git_ops::fetch::fast_forward_branches(&repository_path, &branches).await;
+    match result {
+        Ok(()) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Clones a repository into `path`.

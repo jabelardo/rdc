@@ -472,6 +472,8 @@ remaining remote/history boundaries remain.
 Push now acquires and releases the repository lock across session setup, hook setup, and Git success
 or failure, while retaining its existing authentication error classification. Pull now uses the
 same lifecycle, including hook setup and remote error classification.
+The local `fast_forward_branches` ref update now also acquires the repository lock and records
+terminal success/failure; remote branch deletion and single-ref fetch remain.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
