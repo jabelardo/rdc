@@ -489,6 +489,8 @@ retained locks only after a successful abort; an abort failure records `recovery
 the lock for truthful recovery handling.
 The repository toolbar now disables Fetch, Pull, and Push while the selected repository has an
 active locked operation, including an operation observed from another window.
+Merge recovery completion now consumes the retained operation: a successful recovery commit ends
+it as recovered, while a recovery-commit failure records `recoveryFailed` and retains the lock.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

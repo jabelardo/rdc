@@ -258,13 +258,44 @@ pub fn resolve_hook_failure(
 /// `Object.prototype` members. The original used a `Map` for the same reason.
 #[tauri::command]
 pub async fn create_merge_commit(
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     files: Vec<FileToStage>,
     manual_resolutions: Vec<ManualResolution>,
 ) -> Result<String, CommandError> {
-    git_ops::commit::create_merge_commit(&repository_path, &files, &manual_resolutions)
-        .await
-        .map_err(CommandError::from)
+    let operation =
+        crate::commands::operation::active_repository_operation(&registry, &repository_path)
+            .await?
+            .ok_or_else(|| {
+                CommandError::message("no active merge operation owns this repository")
+            })?;
+    let result =
+        git_ops::commit::create_merge_commit(&repository_path, &files, &manual_resolutions).await;
+    match result {
+        Ok(sha) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Recovered,
+                None,
+            );
+            Ok(sha)
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::RecoveryFailed,
+                    message: command_error.message.clone(),
+                    recoverable: false,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Checks out a local branch.
