@@ -18,6 +18,8 @@ use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 use tokio::sync::oneshot;
 
+use crate::operation_registry::OperationWaitReason;
+
 /// The hooks currently running, so a cancel from the UI can reach one.
 ///
 /// Cheap to clone; clones share the same table. Entries are removed as each hook ends, so it holds only
@@ -139,6 +141,13 @@ pub struct HookFailurePrompt {
     pub terminal_output: String,
 }
 
+/// Optional watchdog boundary for a user decision opened by a hook.
+#[derive(Clone)]
+pub struct OperationWaitHooks {
+    pub begin: Arc<dyn Fn(OperationWaitReason) + Send + Sync>,
+    pub end: Arc<dyn Fn() + Send + Sync>,
+}
+
 /// Where the helper binaries live.
 ///
 /// Beside the running executable, which is where the dev build puts them (`target/debug`) and where the
@@ -173,12 +182,24 @@ pub fn support_for(
     on_progress: Channel<HookProgressUpdate>,
     on_failure: Channel<HookFailurePrompt>,
 ) -> Result<Option<HookSupport>, String> {
+    support_for_with_wait(intercept, registry, on_progress, on_failure, None)
+}
+
+/// Builds hook support with an optional operation watchdog boundary around Abort/Ignore.
+pub fn support_for_with_wait(
+    intercept: bool,
+    registry: &HookRegistry,
+    on_progress: Channel<HookProgressUpdate>,
+    on_failure: Channel<HookFailurePrompt>,
+    wait_hooks: Option<OperationWaitHooks>,
+) -> Result<Option<HookSupport>, String> {
     if !intercept {
         return Ok(None);
     }
 
     let progress_registry = registry.clone();
     let failure_registry = registry.clone();
+    let failure_wait_hooks = wait_hooks;
 
     Ok(Some(
         HookSupport::new(
@@ -208,8 +229,12 @@ pub fn support_for(
         .with_failure_prompt(move |hook, output| {
             let registry = failure_registry.clone();
             let on_failure = on_failure.clone();
+            let wait_hooks = failure_wait_hooks.clone();
             async move {
                 let (id, resolution) = registry.ask_about_failure();
+                if let Some(wait_hooks) = &wait_hooks {
+                    (wait_hooks.begin)(OperationWaitReason::HookDecision);
+                }
                 if on_failure
                     .send(HookFailurePrompt {
                         id,
@@ -219,10 +244,17 @@ pub fn support_for(
                     .is_err()
                 {
                     registry.cancel_failure(id);
+                    if let Some(wait_hooks) = &wait_hooks {
+                        (wait_hooks.end)();
+                    }
                     return FailureDecision::Fail;
                 }
 
-                resolution.await.unwrap_or(FailureDecision::Fail)
+                let decision = resolution.await.unwrap_or(FailureDecision::Fail);
+                if let Some(wait_hooks) = &wait_hooks {
+                    (wait_hooks.end)();
+                }
+                decision
             }
         }),
     ))
