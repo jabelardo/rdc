@@ -13,6 +13,11 @@ use git_ops::status::AppFileStatus;
 use git_ops::update_index::FileToStage;
 
 use super::CommandError;
+use crate::operation::{
+    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
+};
+use crate::operation_registry::OperationRegistry;
+use tauri::{State, WebviewWindow};
 
 /// Lists the app's stash entries and counts all of them.
 ///
@@ -145,19 +150,28 @@ pub async fn get_stashed_files(
 /// expected outcome the UI drives to resolution.
 #[tauri::command]
 pub async fn cherry_pick(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     commits: Vec<CommitOneLine>,
     on_progress: Channel<MultiCommitOperationProgress>,
 ) -> Result<CherryPickResult, CommandError> {
-    git_ops::cherry_pick::cherry_pick(
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::CherryPick,
+    )
+    .await?;
+    let result = git_ops::cherry_pick::cherry_pick(
         &repository_path,
         &commits,
         Some(|progress: MultiCommitOperationProgress| {
             let _ = on_progress.send(progress);
         }),
     )
-    .await
-    .map_err(CommandError::from)
+    .await;
+    finish_cherry_pick_result(&registry, &operation.id, result)
 }
 
 /// Reconstructs an interrupted cherry-pick, or `null` if none is in progress.
@@ -187,12 +201,19 @@ pub async fn get_cherry_pick_snapshot(
 /// are excluded automatically, so unrelated work isn't swept into the commit.
 #[tauri::command]
 pub async fn continue_cherry_pick(
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     files: Vec<(String, AppFileStatus)>,
     manual_resolutions: Option<Vec<(String, ManualConflictResolution)>>,
     on_progress: Channel<MultiCommitOperationProgress>,
 ) -> Result<CherryPickResult, CommandError> {
-    git_ops::cherry_pick::continue_cherry_pick(
+    let operation =
+        crate::commands::operation::active_repository_operation(&registry, &repository_path)
+            .await?
+            .ok_or_else(|| {
+                CommandError::message("no active cherry-pick operation owns this repository")
+            })?;
+    let result = git_ops::cherry_pick::continue_cherry_pick(
         &repository_path,
         &files,
         &manual_resolutions.unwrap_or_default(),
@@ -200,16 +221,90 @@ pub async fn continue_cherry_pick(
             let _ = on_progress.send(progress);
         }),
     )
-    .await
-    .map_err(CommandError::from)
+    .await;
+    finish_cherry_pick_result(&registry, &operation.id, result)
 }
 
 /// Abandons the cherry-pick, restoring the branch to where it started.
 #[tauri::command]
-pub async fn abort_cherry_pick(repository_path: String) -> Result<(), CommandError> {
-    git_ops::cherry_pick::abort_cherry_pick(&repository_path)
-        .await
-        .map_err(CommandError::from)
+pub async fn abort_cherry_pick(
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+) -> Result<(), CommandError> {
+    let operation =
+        crate::commands::operation::active_repository_operation(&registry, &repository_path)
+            .await?;
+    let result = git_ops::cherry_pick::abort_cherry_pick(&repository_path).await;
+    match result {
+        Ok(()) => {
+            if let Some(operation) = operation {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Cancelled,
+                    OperationOutcome::Recovered,
+                    None,
+                );
+            }
+            Ok(())
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            if let Some(operation) = operation {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Failed,
+                    OperationOutcome::Unknown,
+                    Some(OperationError {
+                        kind: OperationErrorKind::RecoveryFailed,
+                        message: message.clone(),
+                        recoverable: false,
+                    }),
+                );
+            }
+            Err(command_error)
+        }
+    }
+}
+
+fn finish_cherry_pick_result(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    result: Result<CherryPickResult, git_ops::GitError>,
+) -> Result<CherryPickResult, CommandError> {
+    match result {
+        Ok(
+            result @ (CherryPickResult::ConflictsEncountered
+            | CherryPickResult::OutstandingFilesNotStaged),
+        ) => {
+            let _ = registry.enter_recovery(operation_id);
+            Ok(result)
+        }
+        Ok(result) => {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(result)
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message,
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Lists the top-level submodules.

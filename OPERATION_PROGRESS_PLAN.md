@@ -493,6 +493,9 @@ Merge recovery completion now consumes the retained operation: a successful reco
 it as recovered, while a recovery-commit failure records `recoveryFailed` and retains the lock.
 The Revert command now acquires the repository lock before invoking Git and records terminal
 success or failure, preventing concurrent history mutations in the same repository.
+Cherry-pick now acquires the same lock, retains it across conflict and outstanding-file recovery,
+and releases it only after completion or successful abort. Failed aborts retain the lock as
+`recoveryFailed`.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
