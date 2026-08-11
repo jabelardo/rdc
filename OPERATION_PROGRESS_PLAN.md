@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slices 1–4 complete; Slices 5–6 in progress
+**Status:** Slices 1–5 complete; Slice 6 in progress
 **Recorded:** 2026-08-11  
 **Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
 history-changing operations.
@@ -312,14 +312,12 @@ Git termination. Cover stdout/stderr pipe pressure so cancellation cannot deadlo
 
 **Exit:** a native test cancels an operation ID and proves the process tree and pipes terminate.
 
-**Progress:** in progress. `git_streaming_controlled` and `ExecutionControl` now provide a
-transport-neutral cancellation seam; Unix starts Git in a dedicated process group and terminates
-the group with graceful-then-force escalation while stdout/stderr remain drained. A descendant
-process test covers the Unix path. `OperationRegistry` now owns one control per operation and its
-cancellation/timeout requests signal that control without holding the registry mutex. Controlled LFS
-tailing, an operation-ID cancellation test, and large stdout/stderr pipe-pressure coverage now pass.
-The remaining work is replacing the Windows direct-child seam with a Job Object implementation
-before this slice can close.
+**Status:** complete. `git_streaming_controlled` and `ExecutionControl` provide a transport-neutral
+cancellation seam; Unix starts Git in a dedicated process group and Windows assigns Git to a Job
+Object. Both paths terminate descendants with bounded escalation while stdout/stderr remain drained.
+Controlled LFS tailing, an operation-ID cancellation test, and large stdout/stderr pipe-pressure
+coverage pass. The Windows arm is cross-target compiled for `x86_64-pc-windows-msvc`; runtime
+Windows coverage remains part of the platform QA cycle.
 
 ## Slice 6 — Add native activity watchdogs
 

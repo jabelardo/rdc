@@ -5,6 +5,7 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use git_ops::exec::ExecutionControl;
@@ -33,6 +34,23 @@ pub enum OperationRegistryError {
 pub struct OperationRegistry {
     inner: Arc<Mutex<RegistryInner>>,
     next_id: Arc<std::sync::atomic::AtomicU64>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct WatchdogPolicy {
+    pub soft_inactivity: Duration,
+    pub hard_inactivity: Duration,
+    pub poll_interval: Duration,
+}
+
+impl Default for WatchdogPolicy {
+    fn default() -> Self {
+        Self {
+            soft_inactivity: Duration::from_secs(30),
+            hard_inactivity: Duration::from_secs(120),
+            poll_interval: Duration::from_millis(250),
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -101,6 +119,25 @@ impl OperationRegistry {
                 OperationEvent::Progress {
                     operation_id: operation_id.to_owned(),
                     progress,
+                },
+            );
+        })
+    }
+
+    pub fn mark_taking_longer(
+        &self,
+        operation_id: &str,
+    ) -> Result<OperationRecord, OperationRegistryError> {
+        self.update(operation_id, |record, inner| {
+            if record.state != OperationState::Running {
+                return;
+            }
+            record.state = OperationState::TakingLongerThanExpected;
+            inner.latest_events.insert(
+                operation_id.to_owned(),
+                OperationEvent::State {
+                    operation_id: operation_id.to_owned(),
+                    state: OperationLifecycleState::TakingLongerThanExpected,
                 },
             );
         })
@@ -251,6 +288,40 @@ impl OperationRegistry {
         }
     }
 
+    /// Starts a native inactivity watchdog. It only requests termination; the process future is
+    /// responsible for reaping the tree and publishing the final timeout/recovery result.
+    pub fn spawn_watchdog(
+        &self,
+        operation_id: impl Into<String>,
+        policy: WatchdogPolicy,
+    ) -> tokio::task::JoinHandle<()> {
+        let registry = self.clone();
+        let operation_id = operation_id.into();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(policy.poll_interval).await;
+                let Some(record) = registry.get(&operation_id) else {
+                    break;
+                };
+                if !matches!(
+                    record.state,
+                    OperationState::Running | OperationState::TakingLongerThanExpected
+                ) {
+                    break;
+                }
+                let inactive_for =
+                    Duration::from_millis(now_millis().saturating_sub(record.last_activity_at));
+                if inactive_for >= policy.hard_inactivity {
+                    let _ = registry.request_timeout(&operation_id);
+                    break;
+                }
+                if inactive_for >= policy.soft_inactivity {
+                    let _ = registry.mark_taking_longer(&operation_id);
+                }
+            }
+        })
+    }
+
     fn update(
         &self,
         operation_id: &str,
@@ -293,6 +364,7 @@ fn now_millis() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use git_ops::exec::git_streaming_controlled;
 
     fn repository_scope(key: &str) -> OperationScope {
         OperationScope::Repository {
@@ -438,6 +510,116 @@ mod tests {
             registry.get(&record.id).expect("record remains").state,
             OperationState::Cancelling
         );
+    }
+
+    #[tokio::test]
+    async fn operation_id_cancellation_reaps_the_controlled_git_process() {
+        let directory = tempfile::tempdir().expect("temporary directory should be created");
+        std::process::Command::new("git")
+            .args(["init", "-q"])
+            .current_dir(directory.path())
+            .status()
+            .expect("git init should start");
+        let registry = registry();
+        let record = registry
+            .start(
+                repository_scope("repo-process"),
+                Some("window-a".to_owned()),
+                GitOperationKind::Fetch,
+                CancellationCapability::Available {
+                    label: "Cancel fetch".to_owned(),
+                },
+            )
+            .expect("operation should reserve");
+        let control = registry
+            .control(&record.id)
+            .expect("operation should expose its control");
+        let path = directory.path().to_owned();
+        let task = tokio::spawn(async move {
+            git_streaming_controlled(
+                &["-c", "alias.wait=!sleep 30", "wait"],
+                path,
+                "registry-cancellable-test",
+                git_ops::exec::GitOptions::default(),
+                Some(control),
+                |_| {},
+                |_| {},
+            )
+            .await
+        });
+
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        registry
+            .request_cancellation(&record.id)
+            .expect("operation-id cancellation should signal Git");
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("operation-id cancellation should reap Git")
+            .expect("Git task should not panic");
+
+        assert!(matches!(
+            result,
+            Err(git_ops::GitError::OperationTerminated { .. })
+        ));
+        assert!(registry
+            .active_for_scope(&repository_scope("repo-process"))
+            .is_some());
+        registry
+            .finish(
+                &record.id,
+                OperationState::Cancelled,
+                OperationOutcome::Unchanged,
+                Some(OperationError {
+                    kind: crate::operation::OperationErrorKind::Cancelled,
+                    message: "cancelled by user".to_owned(),
+                    recoverable: false,
+                }),
+            )
+            .expect("terminal cancellation should finish the record");
+        assert!(registry
+            .active_for_scope(&repository_scope("repo-process"))
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn watchdog_warns_then_requests_timeout_without_releasing_the_lock() {
+        let registry = registry();
+        let record = registry
+            .start(
+                repository_scope("repo-watchdog"),
+                None,
+                GitOperationKind::Fetch,
+                CancellationCapability::Available {
+                    label: "Cancel fetch".to_owned(),
+                },
+            )
+            .expect("operation should reserve");
+        let watchdog = registry.spawn_watchdog(
+            record.id.clone(),
+            WatchdogPolicy {
+                soft_inactivity: Duration::from_millis(10),
+                hard_inactivity: Duration::from_millis(35),
+                poll_interval: Duration::from_millis(5),
+            },
+        );
+
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        assert_eq!(
+            registry.get(&record.id).expect("record remains").state,
+            OperationState::TakingLongerThanExpected
+        );
+        tokio::time::sleep(Duration::from_millis(30)).await;
+        watchdog.await.expect("watchdog should finish");
+
+        let timed_out = registry.get(&record.id).expect("record remains");
+        assert_eq!(timed_out.state, OperationState::Cancelling);
+        assert!(registry
+            .active_for_scope(&repository_scope("repo-watchdog"))
+            .is_some());
+        assert!(registry
+            .control(&record.id)
+            .expect("control remains until finish")
+            .is_cancelled());
     }
 
     #[test]

@@ -369,7 +369,7 @@ async fn spawn_git(
     path: &Path,
     name: &str,
     options: &GitOptions,
-) -> Result<tokio::process::Child, GitError> {
+) -> Result<SpawnedGit, GitError> {
     let mut command = Command::new("git");
     command
         .args(args)
@@ -425,25 +425,45 @@ async fn spawn_git(
         })?;
     }
 
-    Ok(child)
+    let process_tree = process_group::attach(&child).map_err(|source| GitError::Spawn {
+        name: name.to_owned(),
+        path: path.to_owned(),
+        source,
+    })?;
+
+    Ok(SpawnedGit {
+        child,
+        process_tree,
+    })
+}
+
+struct SpawnedGit {
+    child: tokio::process::Child,
+    process_tree: process_group::ProcessTree,
 }
 
 /// Platform seam for terminating the whole Git process tree.
 ///
-/// Unix starts Git as its own process group so hooks, SSH and LFS descendants receive the same
-/// signal. Windows currently uses the direct-child fallback behind the same API; the Job Object
-/// implementation is the next platform slice and must replace that arm before Windows support.
+/// Unix starts Git as its own process group; Windows assigns it to a Job Object. Both mechanisms
+/// ensure hooks, SSH and LFS descendants receive the same termination request.
 #[cfg(unix)]
 mod process_group {
     use std::io;
 
     use tokio::process::{Child, Command};
 
+    #[derive(Debug)]
+    pub struct ProcessTree;
+
     pub fn configure(command: &mut Command) {
         command.process_group(0);
     }
 
-    pub fn terminate(child: &mut Child, force: bool) -> io::Result<()> {
+    pub fn attach(_child: &Child) -> io::Result<ProcessTree> {
+        Ok(ProcessTree)
+    }
+
+    pub fn terminate(_tree: &ProcessTree, child: &mut Child, force: bool) -> io::Result<()> {
         let Some(pid) = child.id() else {
             return Ok(());
         };
@@ -462,16 +482,70 @@ mod process_group {
 #[cfg(windows)]
 mod process_group {
     use std::io;
-
     use tokio::process::{Child, Command};
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, TerminateJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
 
-    pub fn configure(_command: &mut Command) {
-        // Keep the platform-neutral seam compiled on Windows. The Job Object implementation is
-        // intentionally a follow-up before exposing cancellation there.
+    #[derive(Debug)]
+    pub struct ProcessTree {
+        job: HANDLE,
     }
 
-    pub fn terminate(child: &mut Child, _force: bool) -> io::Result<()> {
-        child.start_kill()
+    impl Drop for ProcessTree {
+        fn drop(&mut self) {
+            if !self.job.is_null() {
+                // SAFETY: this handle is owned by ProcessTree and is closed exactly once.
+                unsafe { CloseHandle(self.job) };
+            }
+        }
+    }
+
+    pub fn configure(_command: &mut Command) {
+        // Job assignment happens after spawn, when the process handle exists.
+    }
+
+    pub fn attach(child: &Child) -> io::Result<ProcessTree> {
+        let process_handle = child
+            .raw_handle()
+            .ok_or_else(|| io::Error::other("Git process handle was unavailable"))?;
+        // SAFETY: null security attributes/name request an unnamed job owned by this process.
+        let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
+        if job.is_null() {
+            return Err(io::Error::last_os_error());
+        }
+        let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+        let configured = unsafe {
+            SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                (&mut limits as *mut JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            ) != 0
+        };
+        let assigned =
+            configured && unsafe { AssignProcessToJobObject(job, process_handle as HANDLE) != 0 };
+        if !assigned {
+            // SAFETY: job was created above and is not returned on failure.
+            unsafe { CloseHandle(job) };
+            return Err(io::Error::last_os_error());
+        }
+        Ok(ProcessTree { job })
+    }
+
+    pub fn terminate(tree: &ProcessTree, child: &mut Child, _force: bool) -> io::Result<()> {
+        // TerminateJobObject is intentionally used for both phases: Windows has no portable
+        // signal equivalent, and the caller still supplies the bounded graceful window.
+        let terminated = unsafe { TerminateJobObject(tree.job, 1) != 0 };
+        if terminated {
+            Ok(())
+        } else {
+            child.start_kill()
+        }
     }
 }
 
@@ -508,7 +582,9 @@ where
     E: FnMut(&[u8]) + Send,
 {
     let path = path.as_ref();
-    let mut child = spawn_git(args, path, name, &options).await?;
+    let spawned = spawn_git(args, path, name, &options).await?;
+    let process_tree = spawned.process_tree;
+    let mut child = spawned.child;
 
     let mut stdout_pipe = child.stdout.take().ok_or_else(|| GitError::Spawn {
         name: name.to_owned(),
@@ -549,7 +625,7 @@ where
     };
 
     // Drain both pipes while the process runs. Waiting first can deadlock when either pipe fills.
-    let wait = wait_for_child(&mut child, control.clone());
+    let wait = wait_for_child(&mut child, &process_tree, control.clone());
     let (stdout, stderr_bytes, (status, termination)) =
         tokio::try_join!(read_stdout, read_stderr, wait).map_err(|source| GitError::Spawn {
             name: name.to_owned(),
@@ -571,6 +647,7 @@ where
 
 async fn wait_for_child(
     child: &mut tokio::process::Child,
+    process_tree: &process_group::ProcessTree,
     control: Option<ExecutionControl>,
 ) -> std::io::Result<(std::process::ExitStatus, Option<TerminationReason>)> {
     let Some(control) = control else {
@@ -581,11 +658,11 @@ async fn wait_for_child(
         status = child.wait() => status.map(|status| (status, None)),
         _ = control.cancelled() => {
             let reason = control.reason();
-            process_group::terminate(child, false)?;
+            process_group::terminate(process_tree, child, false)?;
             let status = tokio::select! {
                 status = child.wait() => status?,
                 _ = tokio::time::sleep(Duration::from_millis(250)) => {
-                    process_group::terminate(child, true)?;
+                    process_group::terminate(process_tree, child, true)?;
                     child.wait().await?
                 }
             };
@@ -685,7 +762,9 @@ pub async fn git_capped(
     limit: usize,
 ) -> Result<CappedOutput, GitError> {
     let path = path.as_ref();
-    let mut child = spawn_git(args, path, name, &options).await?;
+    let spawned = spawn_git(args, path, name, &options).await?;
+    let process_tree = spawned.process_tree;
+    let mut child = spawned.child;
 
     let mut stdout_pipe = child.stdout.take().ok_or_else(|| GitError::Spawn {
         name: name.to_owned(),
@@ -736,7 +815,7 @@ pub async fn git_capped(
 
     if truncated {
         // Nothing will read the rest, so git must not be left blocked on a full pipe.
-        let _ = child.start_kill();
+        let _ = process_group::terminate(&process_tree, &mut child, true);
     }
 
     let status = child.wait().await.map_err(|source| GitError::Spawn {
