@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum OperationState {
     Running,
@@ -13,7 +13,15 @@ pub enum OperationState {
     Failed,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OperationLifecycleState {
+    TakingLongerThanExpected,
+    Cancelling,
+    Recovering,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum OperationOutcome {
     Unchanged,
@@ -22,7 +30,7 @@ pub enum OperationOutcome {
     Unknown,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum GitOperationKind {
     Fetch,
@@ -37,7 +45,7 @@ pub enum GitOperationKind {
     Revert,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum OperationScope {
     Repository {
@@ -50,7 +58,7 @@ pub enum OperationScope {
     },
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum CancellationCapability {
     Unavailable,
@@ -58,7 +66,7 @@ pub enum CancellationCapability {
     Requested,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum OperationErrorKind {
     Cancelled,
@@ -68,7 +76,7 @@ pub enum OperationErrorKind {
     Failed,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationError {
     pub kind: OperationErrorKind,
@@ -76,7 +84,7 @@ pub struct OperationError {
     pub recoverable: bool,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationProgress {
     pub value: f64,
@@ -86,7 +94,7 @@ pub struct OperationProgress {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationRecord {
     pub id: String,
@@ -99,4 +107,23 @@ pub struct OperationRecord {
     pub last_activity_at: u64,
     pub outcome: Option<OperationOutcome>,
     pub error: Option<OperationError>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum OperationEvent {
+    Progress {
+        operation_id: String,
+        progress: OperationProgress,
+    },
+    State {
+        operation_id: String,
+        state: OperationLifecycleState,
+    },
+    Finished {
+        operation_id: String,
+        state: OperationState,
+        outcome: OperationOutcome,
+        error: Option<OperationError>,
+    },
 }

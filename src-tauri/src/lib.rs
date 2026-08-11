@@ -5,6 +5,8 @@ use tauri::{webview::PageLoadEvent, Emitter, Manager};
 mod blob_protocol;
 mod config;
 mod hook_state;
+pub mod operation;
+pub mod operation_registry;
 mod platform;
 #[cfg(debug_assertions)]
 mod qa_driver;
@@ -88,6 +90,7 @@ pub fn run() {
         )
         .manage(trampoline_state::TrampolineState::new())
         .manage(hook_state::HookRegistry::new())
+        .manage(operation_registry::OperationRegistry::new())
         .manage(commands::keybindings::KeybindingState::new())
         .manage(commands::config::MainProcessConfigState::new())
         .manage(commands::credential_store::CredentialStoreState::new())

@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slice 1, Slice 2 and Slice 3 complete; Slice 4 next
+**Status:** Slice 1 through Slice 4 complete; Slice 5 next
 **Recorded:** 2026-08-11  
 **Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
 history-changing operations.
@@ -278,6 +278,13 @@ Tests:
 - failed recovery retains a blocked/recovery-required record.
 
 **Exit:** repository-level concurrency is proven without running Git cancellation yet.
+
+**Status:** complete. `OperationRegistry` is application-owned native state with repository and
+clone-destination reservations, structured conflicts, progress/lifecycle updates, cancellation
+requests, recovery state, bounded latest-event replay, owner-window clearing, and terminal records.
+Successful finishes release their lock; recovery failures retain it. Registry tests prove same-scope
+exclusion, different-scope concurrency, independent clone destinations, owner loss, and recovery
+lock retention. Git process cancellation is deliberately not part of this slice.
 
 ## Slice 5 — Add cancellable process-tree execution
 
