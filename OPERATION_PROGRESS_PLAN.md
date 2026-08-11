@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** approved plan, not started  
+**Status:** Slice 1 and Slice 2 complete; Slice 3 next
 **Recorded:** 2026-08-11  
 **Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
 history-changing operations.
@@ -180,6 +180,10 @@ acceptable.
 **Exit:** the docs no longer state an unconditional “no abort inside” rule and explicitly prohibit
 application-wide locking.
 
+**Status:** complete. The migration process, deliberate-deviation map, Phase 8b status and QA
+checklist now describe capability-driven cancellation, repository-scoped locking and window-local
+presentation.
+
 ## Slice 2 — Define and pin the wire contracts
 
 **Goal:** establish typed operation lifecycle data before implementing transport.
@@ -200,6 +204,12 @@ Tasks:
 5. Test unknown/optional fields according to the repository's existing wire compatibility policy.
 
 **Exit:** Rust serialization and TypeScript fixtures agree, and no UI uses ad-hoc string states.
+
+**Status:** complete. `src/models/operation.ts` defines the lifecycle vocabulary and
+`src-tauri/src/operation.rs` pins the serialized record shape. The generated wire snapshot and
+typed `git-ipc` fixture cover a repository-scoped Fetch record, including optional progress fields,
+capability-driven cancellation and lifecycle outcome. Operation events use the same vocabulary and
+are ready for the registry transport.
 
 ## Slice 3 — Resolve stable repository identity
 

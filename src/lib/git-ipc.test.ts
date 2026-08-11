@@ -11,6 +11,7 @@ import { mapStatus } from "./status";
 import { MergeResult, RebaseResult, type IRebaseSnapshot, type IStatusResult } from "./git-ipc";
 import snapshot from "./__generated__/wire-snapshot.json";
 import type { ICheckoutProgress, IMultiCommitOperationProgress } from "../models/progress";
+import type { OperationRecord } from "../models/operation";
 
 /**
  * Proves the Rust wire shape is usable by the ported domain model.
@@ -43,6 +44,23 @@ import type { ICheckoutProgress, IMultiCommitOperationProgress } from "../models
 
 const modified: AppFileStatus = {
   kind: AppFileStatusKind.Modified,
+};
+
+const operationRecord: OperationRecord = {
+  id: "operation-1",
+  scope: {
+    kind: "repository",
+    lockKey: "/repo/.git",
+    repositoryPath: "/repo",
+  },
+  ownerWindow: "repository-1",
+  operation: "fetch",
+  state: "running",
+  cancellation: { kind: "available", label: "Cancel fetch" },
+  progress: { value: 0.45, title: "Fetching origin" },
+  lastActivityAt: 1_723_379_200_000,
+  outcome: "unchanged",
+  error: null,
 };
 
 const modifiedSubmodule: AppFileStatus = {
@@ -163,6 +181,7 @@ describe("the git IPC wire shape", () => {
       ["emptyStatusResult", emptyStatusResult],
       ["checkoutProgress", checkoutProgress],
       ["multiCommitOperationProgress", multiCommitOperationProgress],
+      ["operationRecord", operationRecord],
       ["rebaseSnapshot", rebaseSnapshot],
       ["mergeResult", mergeResult],
       ["rebaseResult", rebaseResult],
@@ -218,6 +237,7 @@ describe("the git IPC wire shape", () => {
       "modified",
       "modifiedSubmodule",
       "multiCommitOperationProgress",
+      "operationRecord",
       // Covered by diff-ipc.test.ts (hydrated into the models/diff classes).
       "parsedDiff",
       "pullProgress",

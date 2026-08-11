@@ -545,15 +545,16 @@ of the app truthful, so they ride in the control you pressed.
 
 | rdc category | Operations (desktop-plus link preserved) | Presentation in rdc | Radix primitive |
 |---|---|---|---|
-| **1. Blocking progress** | Rebase, cherry-pick, squash, reorder (history moves) · merge and revert while they run · **clone** · **commit** | A **dedicated, separate progress dialog** that replaces the action dialog the moment the operation starts (desktop-plus's step swap: `ChooseBranch` → `ShowProgress`, exactly its `multi-commit-operation/dialog/progress-dialog.tsx`). Title "X in progress"; a bar — "commit N of M" + current summary for the history moves, title + bar + description for clone, title + terminal/hook output for commit. **Not an embedded bar inside the action dialog.** Undismissable; **no abort inside** — abort appears only once there is something to act on (the conflict step / abort-confirmation) | **AlertDialog** — Radix's nondismissable primitive, mirroring desktop-plus's `dismissDisabled`. The action dialog that precedes it stays a `Dialog` (it needs a picker); the progress dialog replaces it; the abort decision is rdc's `ConfirmDialog` (an `AlertDialog`) |
+| **1. Blocking progress** | Rebase, cherry-pick, squash, reorder (history moves) · merge and revert while they run · **clone** · **commit** | A **dedicated, separate progress dialog** that replaces the action dialog the moment the operation starts (desktop-plus's step swap: `ChooseBranch` → `ShowProgress`, exactly its `multi-commit-operation/dialog/progress-dialog.tsx`). Title "X in progress"; a bar — "commit N of M" + current summary for the history moves, title + bar + description for clone, title + terminal/hook output for commit. **Not an embedded bar inside the action dialog.** The current implementation is undismissable. An optional Cancel/Stop control is permitted only when the native operation record declares that capability and the operation-specific cancellation and recovery path has been proven. The modal belongs to the initiating window; same-repository windows mirror its state, while windows for other repositories remain usable | **AlertDialog** — Radix's nondismissable primitive, mirroring desktop-plus's `dismissDisabled`. The action dialog that precedes it stays a `Dialog` (it needs a picker); the progress dialog replaces it; any cancel, abort, or recovery decision is capability-driven |
 | **2. Embedded background progress** | Fetch, push, pull, checkout | Non-modal bar/percent **in the control that was pressed** — toolbar remote status, sidebar checkout row. The app stays usable | None needed (plain markup) |
 
 **What this means for existing and planned rdc surfaces:**
 
 - **The first step is creating the shared progress dialog itself** — the single component every
   category-1 operation mounts (rdc's translation of desktop-plus's `dialog/progress-dialog.tsx`):
-  an undismissable `AlertDialog` with a themed bar and a per-operation content slot. Nothing else
-  in category 1 lands before it exists.
+  an undismissable `AlertDialog` with a themed bar and a per-operation content slot. The current
+  implementation remains nondismissible; future cancellation is governed by the native operation
+  contract and `OPERATION_PROGRESS_PLAN.md`, not by a button added ad hoc to an individual dialog.
 - **Clone is category 1.** When cloning starts, the clone dialog gives way to the dedicated
   progress dialog ("Cloning in progress": title, bar, description, destination) — not a bar
   embedded in the form.
@@ -569,7 +570,9 @@ of the app truthful, so they ride in the control you pressed.
   dialog; abort lives in the conflict step — the desktop-plus pattern.
 - One shared themed progress bar (the shadcn/Radix `Progress` primitive) serves both categories;
   what differs per category is *where* it is mounted (the dedicated progress dialog / toolbar /
-  sidebar), not the element.
+  sidebar), not the element. User-initiated operations may eventually use the unified progress
+  dialog, while scheduled/background work remains embedded so unrelated repository windows are not
+  blocked.
 
 **Landed:** the shared progress dialog is `src/lib/ui/dialogs/operation-progress-dialog.tsx`
 (undismissable `AlertDialog`, themed `Progress` from `src/components/ui/progress.tsx`, a

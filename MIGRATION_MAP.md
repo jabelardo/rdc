@@ -841,6 +841,22 @@ shape of everything it carries is pinned by a wire-contract test on the Rust sid
 
 ## 8. Deliberate deviations from a verbatim port
 
+### Repository-scoped operation lifecycle, cancellation and timeout recovery
+
+desktop-plus does not provide a general Git operation registry, user cancellation API, or native
+watchdog for operations that stop producing output. rdc will add these as a deliberate architectural
+departure: native operation records own the lifetime, progress, cancellation capability, timeout and
+recovery state; locks are scoped to the affected repository rather than the application; and
+operation events are routed to the initiating window while same-repository windows mirror the state.
+Windows showing other repositories remain usable. User-initiated operations can use the unified
+progress dialog, while scheduled/background work remains embedded.
+
+Cancellation is not exposed merely because a process can be killed. Each operation must first prove
+its cancellation and recovery boundary, including process-tree termination, post-cancel inspection,
+and a recoverable error event. A frontend timeout never pretends that native work ended: it reports a
+typed timeout and leaves native recovery/lock ownership explicit. This is tracked and implemented in
+[`OPERATION_PROGRESS_PLAN.md`](./OPERATION_PROGRESS_PLAN.md).
+
 ### xterm.js is not ported for the MVP — a styled `<pre>` renders terminal output
 
 desktop-plus wraps `@xterm/xterm` in one 78-line component (`app/src/ui/terminal.tsx`) used by four

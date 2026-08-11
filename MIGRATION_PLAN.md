@@ -3595,6 +3595,13 @@ the remaining progress work is the embedded bar for Fetch/Push/Pull/Checkout and
 history-operation consumers. The code-organization pass (`CODE_ORGANIZATION_PLAN.md`) remains
 scheduled immediately after so it moves settled code rather than code in flight.
 
+Repository-scoped operation progress, cancellation and timeout recovery are tracked in
+[`OPERATION_PROGRESS_PLAN.md`](./OPERATION_PROGRESS_PLAN.md). Its architecture slice is recorded
+before implementation: native operation contracts and registry work come first, and Fetch is the
+first cancellation milestone. This plan supersedes the old assumption that blocking progress can
+never offer an abort control, while preserving the multi-window rule that operations in one local
+repository must not block windows showing another.
+
 ## Weak points in the current codebase worth calling out (summary)
 
 | Area | Issue | Fix during migration |

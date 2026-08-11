@@ -72,6 +72,14 @@ use git_ops::update_index::FileToStage;
 use git_ops::worktree::{WorktreeEntry, WorktreeType};
 use serde_json::json;
 
+#[path = "../../../src/operation.rs"]
+#[allow(dead_code)]
+mod operation;
+use operation::{
+    CancellationCapability, GitOperationKind, OperationOutcome, OperationProgress, OperationRecord,
+    OperationScope, OperationState,
+};
+
 // Platform commands live in the Tauri app rather than git-ops. Include the shared wire model from
 // its source so this remains the one generated snapshot consumed by TypeScript.
 #[path = "../../../src/platform/editor_model.rs"]
@@ -1042,6 +1050,31 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
             value: 0.0,
             title: String::new(),
             description: Some("Auto-merging a.txt".to_owned()),
+        }),
+    );
+
+    cases.insert(
+        "operationRecord",
+        to_value(OperationRecord {
+            id: "operation-1".to_owned(),
+            scope: OperationScope::Repository {
+                lock_key: "/repo/.git".to_owned(),
+                repository_path: "/repo".to_owned(),
+            },
+            owner_window: Some("repository-1".to_owned()),
+            operation: GitOperationKind::Fetch,
+            state: OperationState::Running,
+            cancellation: CancellationCapability::Available {
+                label: "Cancel fetch".to_owned(),
+            },
+            progress: Some(OperationProgress {
+                value: 0.45,
+                title: Some("Fetching origin".to_owned()),
+                description: None,
+            }),
+            last_activity_at: 1_723_379_200_000,
+            outcome: Some(OperationOutcome::Unchanged),
+            error: None,
         }),
     );
 

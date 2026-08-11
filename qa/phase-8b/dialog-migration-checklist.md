@@ -12,6 +12,23 @@ progress dialog. Fetch, Push, Pull and Checkout show operation text/percentages 
 controls; their compact progress bars are still pending. Cherry-pick and Revert are planned
 category-1 consumers, while interactive squash/reorder remains deferred with interactive rebase.
 
+## Multi-window and operation progress
+
+Validate these behaviors as operation progress moves from the current dialog-only implementation to
+the repository-scoped lifecycle in [`OPERATION_PROGRESS_PLAN.md`](../../OPERATION_PROGRESS_PLAN.md):
+
+- [ ] An operation in repository A leaves a window showing repository B usable.
+- [ ] Windows showing the same repository mirror the operation state and cannot start conflicting
+      work behind the owner window's progress state.
+- [ ] The initiating window owns progress controls; peer windows do not show a second competing
+      Cancel control.
+- [ ] Closing or losing the initiating window leaves native operation ownership and recovery state
+      explicit; it does not silently clear a running operation.
+- [ ] A stalled operation produces a visible timeout/error event and never remains indefinitely in a
+      generic “in progress” state.
+- [ ] Cancel is shown only when the native operation contract declares it and its recovery path has
+      been tested; otherwise the dialog remains progress-only with honest failure/recovery messaging.
+
 ---
 
 ## Sub-slice 2.0 — Pilot Dialogs (visual sign-off required before 2.1)

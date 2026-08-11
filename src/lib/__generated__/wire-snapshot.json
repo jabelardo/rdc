@@ -268,6 +268,28 @@
     "totalCommitCount": 2,
     "value": 0.5
   },
+  "operationRecord": {
+    "cancellation": {
+      "kind": "available",
+      "label": "Cancel fetch"
+    },
+    "error": null,
+    "id": "operation-1",
+    "lastActivityAt": 1723379200000,
+    "operation": "fetch",
+    "outcome": "unchanged",
+    "ownerWindow": "repository-1",
+    "progress": {
+      "title": "Fetching origin",
+      "value": 0.45
+    },
+    "scope": {
+      "kind": "repository",
+      "lock_key": "/repo/.git",
+      "repository_path": "/repo"
+    },
+    "state": "running"
+  },
   "parsedDiff": {
     "contents": "@@ -10,2 +10,2 @@ fn context()\n unchanged\n-before\n+after\n@@ -100,1 +100,1 @@\n-last\n+last line",
     "hasHiddenBidiChars": false,
