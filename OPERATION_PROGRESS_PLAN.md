@@ -443,6 +443,9 @@ state, exposes owner/observer/unowned presentation, and cleans up subscriptions 
 dispose. Focused tests cover hydration, stale-event rejection, scope filtering, and cleanup. The
 existing domain stores still own their operation-specific refresh behavior and have not been
 migrated yet.
+The app controller now consumes this store directly, resolves the current window label for role
+presentation, and owns the store lifecycle per webview instead of maintaining a parallel operation
+router state.
 
 ## Slice 9 — Enforce repository-scoped operation locks
 

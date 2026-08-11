@@ -63,7 +63,7 @@ export class OperationStore {
   private currentState = emptyState;
   private readonly listeners = new Set<(state: OperationStoreState) => void>();
   private readonly dependencies: OperationStoreDependencies;
-  private readonly windowLabel: string;
+  private windowLabel: string;
   private requestID = 0;
   private unlisten: (() => void) | undefined;
 
@@ -82,6 +82,14 @@ export class OperationStore {
   public onDidUpdate(listener: (state: OperationStoreState) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  public setWindowLabel(windowLabel: string): void {
+    if (this.windowLabel === windowLabel || this.state.operation === null) {
+      return;
+    }
+    this.windowLabel = windowLabel;
+    this.applyRecord(this.state.operation);
   }
 
   public async selectRepository(repositoryPath: string | null): Promise<void> {

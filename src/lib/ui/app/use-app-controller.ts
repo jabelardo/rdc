@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { join } from "@tauri-apps/api/path";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { BranchType, type Branch } from "../../../models/branch";
 import type { Repository } from "../../../models/repository";
 import { getCloneDirectoryName } from "../../clone-destination";
@@ -57,13 +58,7 @@ import { ComputedAction } from "../../../models/computed-action";
 import type { MergeTreeResult } from "../../../models/merge";
 import type { MergeStrategy } from "../../../models/merge-strategy";
 import type { RebasePreview } from "../../../models/rebase-preview";
-import type { OperationRecord } from "../../../models/operation";
-import {
-  getActiveOperationForRepository,
-  getOperationScopeForRepository,
-  listenToOperationEvents,
-} from "../../operation-ipc";
-import { OperationEventRouter } from "../../operation-events";
+import { OperationStore } from "../../stores/operation-store";
 
 const rendererStartTime = performance.now();
 const rendererPlatform = currentMenuPlatform();
@@ -80,7 +75,8 @@ export function useAppController() {
   const [remoteStore] = useState(getDefaultRemoteStore);
   const [workingTreeStore] = useState(getDefaultWorkingTreeStore);
   const [appState, setAppState] = useState<AppStoreState>(appStore.state);
-  const [activeOperation, setActiveOperation] = useState<OperationRecord | null>(null);
+  const [operationStore] = useState(() => new OperationStore(""));
+  const [operationState, setOperationState] = useState(operationStore.state);
   const [workingTreeState, setWorkingTreeState] = useState<WorkingTreeState>(
     workingTreeStore.state,
   );
@@ -208,46 +204,29 @@ export function useAppController() {
     });
   }, [appState.selectedRepository, branchState.currentBranch]);
 
+  useEffect(() => operationStore.onDidUpdate(setOperationState), [operationStore]);
+
   useEffect(() => {
-    const repositoryPath = appState.selectedRepository?.path;
-    const router = new OperationEventRouter(setActiveOperation);
     let disposed = false;
-    let unlisten: (() => void) | undefined;
-
-    setActiveOperation(null);
-    if (repositoryPath === undefined) {
-      return () => router.clear();
-    }
-
-    void Promise.all([
-      getOperationScopeForRepository(repositoryPath),
-      getActiveOperationForRepository(repositoryPath),
-    ])
-      .then(async ([scope, active]) => {
-        if (disposed) {
-          return;
-        }
-        router.selectScope(scope);
-        setActiveOperation(active);
-        const cleanup = await listenToOperationEvents((event) => router.receive(event));
-        if (disposed) {
-          cleanup();
-        } else {
-          unlisten = cleanup;
+    void getCurrentWindow()
+      .label()
+      .then((label) => {
+        if (!disposed) {
+          operationStore.setWindowLabel(label);
         }
       })
-      .catch((error) => {
-        if (!disposed) {
-          log.error("Failed to subscribe to repository operation events", error);
-        }
-      });
-
+      .catch((error) => log.error("Failed to resolve the current window label", error));
     return () => {
       disposed = true;
-      unlisten?.();
-      router.clear();
+      operationStore.dispose();
     };
-  }, [appState.selectedRepository?.path]);
+  }, [operationStore]);
+
+  useEffect(() => {
+    void operationStore.selectRepository(appState.selectedRepository?.path ?? null).catch((error) => {
+      log.error("Failed to select the repository operation", error);
+    });
+  }, [appState.selectedRepository?.path, operationStore]);
 
   useEffect(() => {
     let disposed = false;
@@ -1580,7 +1559,8 @@ export function useAppController() {
 
   return {
     appState,
-    activeOperation,
+    operationState,
+    operationStore,
     branchState,
     branchStore,
     cloneState,
