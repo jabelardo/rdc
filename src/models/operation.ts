@@ -71,4 +71,9 @@ export type OperationEvent =
       readonly state: "completed" | "cancelled" | "timedOut" | "failed";
       readonly outcome: OperationOutcome;
       readonly error: OperationError | null;
-    };
+  };
+
+export type OperationEventEnvelope = {
+  readonly record: OperationRecord;
+  readonly event: OperationEvent;
+};

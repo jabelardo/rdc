@@ -1,12 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import type { OperationEvent, OperationRecord } from "../models/operation";
+import type {
+  OperationEvent,
+  OperationEventEnvelope,
+  OperationRecord,
+} from "../models/operation";
 
-export type OperationEventEnvelope = {
-  readonly record: OperationRecord;
-  readonly event: OperationEvent;
-};
+export type { OperationEventEnvelope } from "../models/operation";
 
 export function getActiveOperationForRepository(
   repositoryPath: string,

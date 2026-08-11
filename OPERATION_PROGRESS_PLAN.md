@@ -381,6 +381,8 @@ state.
 The application now forwards that broadcast as the `operation-event` Tauri event to every window,
 and the frontend has typed query, replay, and subscription helpers. Destroyed windows clear their
 owner assignment without cancelling the native operation.
+The frontend now exposes a pure scope filter keyed by the native `lockKey`, with tests proving a
+window accepts its repository's events and ignores a different repository's events.
 
 Do not rely solely on a Tauri Channel captured by the initiating command; it disappears with that
 webview. The native registry must retain the latest snapshot and broadcast lifecycle events.
