@@ -37,6 +37,7 @@ export function AppShell({ controller }: AppShellProps) {
     workingTreeState,
     workingTreeStore,
     repositoryView,
+    operationState,
     setRepositoryView,
     sidebarCollapsed,
     setSidebarCollapsed,
@@ -155,6 +156,8 @@ export function AppShell({ controller }: AppShellProps) {
     selectedRepositoryPath: appState.selectedRepository?.path ?? null,
     remoteState,
   });
+  const operationLockActive = operationState.operation !== null &&
+    !["completed", "cancelled", "timedOut", "failed"].includes(operationState.operation.state);
 
   return (
     <main
@@ -249,6 +252,7 @@ export function AppShell({ controller }: AppShellProps) {
               canFetch={canFetch}
               canPush={canPush}
               canPull={canPull}
+              operationLockActive={operationLockActive}
               hasEditor={preferencesStore.selectedEditor !== null}
               hasShell={preferencesStore.selectedShell !== null}
               repositoryView={repositoryView}

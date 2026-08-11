@@ -487,6 +487,8 @@ after a terminal result. Abort/recovery-failure handling remains separate.
 Merge `Failed` results now enter recovery without releasing the lock. Merge and Rebase Abort release
 retained locks only after a successful abort; an abort failure records `recoveryFailed` and retains
 the lock for truthful recovery handling.
+The repository toolbar now disables Fetch, Pull, and Push while the selected repository has an
+active locked operation, including an operation observed from another window.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

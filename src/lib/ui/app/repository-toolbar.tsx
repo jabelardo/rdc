@@ -19,6 +19,8 @@ type RepositoryToolbarProps = {
   readonly canFetch: boolean;
   readonly canPush: boolean;
   readonly canPull: boolean;
+  /** A repository-scoped operation is active in this window or a peer window. */
+  readonly operationLockActive?: boolean;
   readonly hasEditor: boolean;
   readonly hasShell: boolean;
   readonly repositoryView: "changes" | "history";
@@ -40,6 +42,7 @@ export function RepositoryToolbar({
   canFetch,
   canPush,
   canPull,
+  operationLockActive = false,
   hasEditor,
   hasShell,
   repositoryView,
@@ -149,7 +152,12 @@ export function RepositoryToolbar({
       >
         <div className="remote-actions flex items-center gap-1.5">
           <Tooltip label="Fetch from remote">
-            <button type="button" aria-label="Fetch" disabled={!canFetch} onClick={onFetch}>
+            <button
+              type="button"
+              aria-label="Fetch"
+              disabled={!canFetch || operationLockActive}
+              onClick={onFetch}
+            >
               <ArrowDownToLine
                 className={remoteState.operation === "fetch" ? "animate-spin" : undefined}
                 aria-hidden="true"
@@ -160,7 +168,12 @@ export function RepositoryToolbar({
             </button>
           </Tooltip>
           <Tooltip label="Pull from remote">
-            <button type="button" aria-label="Pull" disabled={!canPull} onClick={onPull}>
+            <button
+              type="button"
+              aria-label="Pull"
+              disabled={!canPull || operationLockActive}
+              onClick={onPull}
+            >
               <CloudDownload
                 className={remoteState.operation === "pull" ? "animate-bounce" : undefined}
                 aria-hidden="true"
@@ -171,7 +184,12 @@ export function RepositoryToolbar({
             </button>
           </Tooltip>
           <Tooltip label="Push to remote">
-            <button type="button" aria-label="Push" disabled={!canPush} onClick={onPush}>
+            <button
+              type="button"
+              aria-label="Push"
+              disabled={!canPush || operationLockActive}
+              onClick={onPush}
+            >
               <CloudUpload
                 className={remoteState.operation === "push" ? "animate-bounce" : undefined}
                 aria-hidden="true"
