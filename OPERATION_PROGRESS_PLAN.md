@@ -475,8 +475,9 @@ same lifecycle, including hook setup and remote error classification.
 The local `fast_forward_branches` ref update now also acquires the repository lock and records
 terminal success/failure; remote branch deletion and single-ref fetch remain.
 Single-ref Fetch now also participates in the repository lock, including trampoline bind failure and
-remote error cleanup. Remote branch deletion is the remaining remote mutator before Slice 9's lock
-coverage review.
+remote error cleanup. Remote branch deletion now uses the Push lock category and the same session
+and terminal cleanup rules. The initial remote-mutator lock set is complete; Slice 9's remaining
+work is lock coverage review and multi-window conflict/concurrency verification.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
