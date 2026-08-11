@@ -7,6 +7,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use git_ops::exec::ExecutionControl;
+use git_ops::TerminationReason;
 use serde::Serialize;
 
 use crate::operation::{
@@ -38,6 +40,7 @@ struct RegistryInner {
     locks: HashMap<String, String>,
     records: HashMap<String, OperationRecord>,
     latest_events: HashMap<String, OperationEvent>,
+    controls: HashMap<String, ExecutionControl>,
 }
 
 impl OperationRegistry {
@@ -80,6 +83,7 @@ impl OperationRegistry {
             error: None,
         };
         inner.locks.insert(lock_key, id.clone());
+        inner.controls.insert(id.clone(), ExecutionControl::new());
         inner.records.insert(id, record.clone());
         Ok(record)
     }
@@ -106,7 +110,8 @@ impl OperationRegistry {
         &self,
         operation_id: &str,
     ) -> Result<OperationRecord, OperationRegistryError> {
-        self.update(operation_id, |record, inner| {
+        let control = self.control(operation_id)?;
+        let record = self.update(operation_id, |record, inner| {
             record.cancellation = CancellationCapability::Requested;
             record.state = OperationState::Cancelling;
             record.last_activity_at = now_millis();
@@ -117,7 +122,29 @@ impl OperationRegistry {
                     state: OperationLifecycleState::Cancelling,
                 },
             );
-        })
+        })?;
+        control.cancel(TerminationReason::Cancelled);
+        Ok(record)
+    }
+
+    pub fn request_timeout(
+        &self,
+        operation_id: &str,
+    ) -> Result<OperationRecord, OperationRegistryError> {
+        let control = self.control(operation_id)?;
+        let record = self.update(operation_id, |record, inner| {
+            record.state = OperationState::Cancelling;
+            record.last_activity_at = now_millis();
+            inner.latest_events.insert(
+                operation_id.to_owned(),
+                OperationEvent::State {
+                    operation_id: operation_id.to_owned(),
+                    state: OperationLifecycleState::Cancelling,
+                },
+            );
+        })?;
+        control.cancel(TerminationReason::TimedOut);
+        Ok(record)
     }
 
     pub fn enter_recovery(
@@ -164,6 +191,7 @@ impl OperationRegistry {
         });
         if !retains_lock {
             inner.locks.remove(&scope_lock_key(&record.scope));
+            inner.controls.remove(operation_id);
         }
         inner.latest_events.insert(
             operation_id.to_owned(),
@@ -199,6 +227,18 @@ impl OperationRegistry {
 
     pub fn latest_event(&self, operation_id: &str) -> Option<OperationEvent> {
         self.lock_inner().latest_events.get(operation_id).cloned()
+    }
+
+    /// Returns the process control owned by an operation. The clone is the control handle used by
+    /// the Git future; no registry lock is held while the process runs.
+    pub fn control(&self, operation_id: &str) -> Result<ExecutionControl, OperationRegistryError> {
+        self.lock_inner()
+            .controls
+            .get(operation_id)
+            .cloned()
+            .ok_or_else(|| OperationRegistryError::NotFound {
+                operation_id: operation_id.to_owned(),
+            })
     }
 
     /// Losing a window changes presentation ownership only; it never cancels the operation.
@@ -370,6 +410,34 @@ mod tests {
         assert!(registry
             .active_for_scope(&repository_scope("repo-a"))
             .is_some());
+    }
+
+    #[test]
+    fn cancellation_request_signals_the_operation_process_control() {
+        let registry = registry();
+        let record = registry
+            .start(
+                repository_scope("repo-a"),
+                None,
+                GitOperationKind::Fetch,
+                CancellationCapability::Available {
+                    label: "Cancel fetch".to_owned(),
+                },
+            )
+            .expect("operation should reserve");
+        let control = registry
+            .control(&record.id)
+            .expect("running operation should expose its control");
+
+        registry
+            .request_cancellation(&record.id)
+            .expect("cancellation should update the operation");
+
+        assert!(control.is_cancelled());
+        assert_eq!(
+            registry.get(&record.id).expect("record remains").state,
+            OperationState::Cancelling
+        );
     }
 
     #[test]
