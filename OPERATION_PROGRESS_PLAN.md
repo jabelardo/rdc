@@ -354,9 +354,10 @@ touches its native control on every output/progress read. Explicit credential an
 timeout decisions until the user responds. Focused tests cover activity reset, paused-time soft
 warning, hard timeout request, lock retention, wait suspension and watchdog cleanup after completion.
 Hook support now exposes a backward-compatible wait-hook adapter that brackets the Abort/Ignore
-decision with `HookDecision` begin/end events. The current trampoline configuration deliberately
-declines credentials, so there is no active credential UI prompt to bracket yet; credential wait
-integration remains pending when the credential provider/prompt surface lands.
+decision with `HookDecision` begin/end events. The trampoline handlers also expose optional prompt
+wait hooks around SSH/askpass and credential-provider awaits. The current app configuration
+deliberately declines credentials, so no credential UI prompt is active yet; operation-specific
+callback wiring remains pending when the credential provider/prompt surface lands.
 
 ## Slice 7 — Route and replay events across windows
 

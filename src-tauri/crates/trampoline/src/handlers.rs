@@ -76,6 +76,13 @@ pub trait AskpassResponder: Send + Sync + 'static {
     fn confirm_ssh_host(&self, prompt: AddSshHostPrompt) -> BoxFuture<Option<bool>>;
 }
 
+/// Optional watchdog boundary around a prompt that may wait for user input.
+#[derive(Clone)]
+pub struct PromptWaitHooks {
+    pub begin: Arc<dyn Fn() + Send + Sync>,
+    pub end: Arc<dyn Fn() + Send + Sync>,
+}
+
 /// Declines everything.
 ///
 /// The default until the accounts store and UI exist. Declining is *correct*, not a placeholder: git
@@ -264,9 +271,18 @@ pub fn classify_askpass(prompt: &str) -> Option<AskpassRequest> {
 /// failing. That rule is enforced here rather than inside the responder, so an implementation cannot
 /// forget it.
 pub fn askpass_handler(responder: Arc<dyn AskpassResponder>, sessions: SessionStore) -> Handler {
+    askpass_handler_with_wait(responder, sessions, None)
+}
+
+pub fn askpass_handler_with_wait(
+    responder: Arc<dyn AskpassResponder>,
+    sessions: SessionStore,
+    wait_hooks: Option<PromptWaitHooks>,
+) -> Handler {
     handler(move |command: Command| {
         let responder = Arc::clone(&responder);
         let sessions = sessions.clone();
+        let wait_hooks = wait_hooks.clone();
 
         async move {
             // The original required exactly one parameter and answered nothing otherwise.
@@ -289,14 +305,24 @@ pub fn askpass_handler(responder: Arc<dyn AskpassResponder>, sessions: SessionSt
                         return None;
                     }
 
-                    responder
-                        .confirm_ssh_host(prompt)
-                        .await
-                        .map(|trust| if trust { "yes" } else { "no" }.to_owned())
+                    if let Some(wait_hooks) = &wait_hooks {
+                        (wait_hooks.begin)();
+                    }
+                    let answer = responder.confirm_ssh_host(prompt).await;
+                    if let Some(wait_hooks) = &wait_hooks {
+                        (wait_hooks.end)();
+                    }
+                    answer.map(|trust| if trust { "yes" } else { "no" }.to_owned())
                 }
 
                 AskpassRequest::KeyPassphrase { key_path } => {
+                    if let Some(wait_hooks) = &wait_hooks {
+                        (wait_hooks.begin)();
+                    }
                     let stored = responder.ssh_key_passphrase(key_path).await;
+                    if let Some(wait_hooks) = &wait_hooks {
+                        (wait_hooks.end)();
+                    }
                     if stored.is_some() || is_background {
                         return stored;
                     }
@@ -306,7 +332,13 @@ pub fn askpass_handler(responder: Arc<dyn AskpassResponder>, sessions: SessionSt
                 }
 
                 AskpassRequest::UserPassword { username } => {
+                    if let Some(wait_hooks) = &wait_hooks {
+                        (wait_hooks.begin)();
+                    }
                     let stored = responder.ssh_user_password(username).await;
+                    if let Some(wait_hooks) = &wait_hooks {
+                        (wait_hooks.end)();
+                    }
                     if stored.is_some() || is_background {
                         return stored;
                     }
@@ -329,9 +361,18 @@ pub fn credential_helper_handler(
     provider: Arc<dyn CredentialProvider>,
     sessions: SessionStore,
 ) -> Handler {
+    credential_helper_handler_with_wait(provider, sessions, None)
+}
+
+pub fn credential_helper_handler_with_wait(
+    provider: Arc<dyn CredentialProvider>,
+    sessions: SessionStore,
+    wait_hooks: Option<PromptWaitHooks>,
+) -> Handler {
     handler(move |command: Command| {
         let provider = Arc::clone(&provider);
         let sessions = sessions.clone();
+        let wait_hooks = wait_hooks.clone();
 
         async move {
             let operation = command.parameters.first()?.clone();
@@ -346,7 +387,14 @@ pub fn credential_helper_handler(
                         .filter(|value| !value.is_empty())
                         .map(str::to_owned);
 
-                    match provider.lookup(endpoint.clone(), username).await {
+                    if let Some(wait_hooks) = &wait_hooks {
+                        (wait_hooks.begin)();
+                    }
+                    let lookup = provider.lookup(endpoint.clone(), username).await;
+                    if let Some(wait_hooks) = &wait_hooks {
+                        (wait_hooks.end)();
+                    }
+                    match lookup {
                         Some(answer) => {
                             // Built on top of what git sent, so fields it supplied (protocol, host,
                             // path, wwwauth) survive into the reply.
