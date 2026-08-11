@@ -291,6 +291,8 @@ pub fn run() {
             commands::misc::get_repository_type,
             commands::misc::is_cherry_pick_head_found,
             commands::misc::get_rebase_internal_state,
+            commands::operation::get_active_operation_for_repository,
+            commands::operation::get_latest_operation_event,
             commands::misc::checkout_index,
             commands::misc::get_trailer_separator_characters,
             commands::misc::parse_trailers,

@@ -29,6 +29,7 @@ pub mod log;
 pub mod menu;
 pub mod misc;
 pub mod notification;
+pub mod operation;
 pub mod remote;
 pub mod shell;
 pub mod stash;

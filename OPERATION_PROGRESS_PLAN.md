@@ -370,6 +370,12 @@ Slice 6 is complete against the current architecture and its exit criteria.
 
 **Goal:** make operation state observable independently of the initiating `invoke()` Channel.
 
+**Progress:** in progress. Native query commands now hydrate a window from the active operation for
+its selected repository and replay the registry's latest retained event by operation ID. Repository
+queries resolve the same stable identity used by locks, including subdirectories and linked
+worktrees. Window event subscription, matching filters, owner-loss routing, and explicit observer
+cancellation authority remain.
+
 Do not rely solely on a Tauri Channel captured by the initiating command; it disappears with that
 webview. The native registry must retain the latest snapshot and broadcast lifecycle events.
 
