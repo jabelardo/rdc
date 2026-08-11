@@ -461,6 +461,11 @@ outcome/error propagation, and subscription cleanup are covered by focused tests
 
 **Goal:** prevent same-repository corruption without affecting other repositories.
 
+**Progress:** in progress. The commit command now acquires a stable repository-scoped operation
+lock before running Git, records its initiating window, rejects same-repository conflicts, permits
+different repositories to proceed, and releases the lock on both success and failure. Additional
+mutating command boundaries and multi-window product behavior remain.
+
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
 - repository metadata/ref writes: Fetch, Push and related refresh/fast-forward stages;

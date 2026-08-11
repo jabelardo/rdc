@@ -57,6 +57,28 @@ pub async fn get_operation_scope_for_repository(
     repository_scope(&repository_path).await
 }
 
+/// Acquires the native repository lock for a mutating command.
+pub async fn start_repository_operation(
+    registry: &OperationRegistry,
+    repository_path: &str,
+    owner_window: Option<String>,
+    operation: crate::operation::GitOperationKind,
+) -> Result<OperationRecord, CommandError> {
+    let Some(scope) = repository_scope(repository_path).await? else {
+        return Err(CommandError::message(format!(
+            "cannot start an operation outside a Git repository: {repository_path}"
+        )));
+    };
+    registry
+        .start(
+            scope,
+            owner_window,
+            operation,
+            crate::operation::CancellationCapability::Unavailable,
+        )
+        .map_err(|error| CommandError::message(error.to_string()))
+}
+
 /// Replays the latest retained event for an operation after a renderer joins it.
 #[tauri::command]
 pub fn get_latest_operation_event(

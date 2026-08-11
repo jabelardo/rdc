@@ -24,10 +24,14 @@ use git_ops::update_index::FileToStage;
 use super::CommandError;
 use crate::blob_protocol::BlobRegistry;
 use crate::hook_state::{support_for, HookFailurePrompt, HookFailureResolution, HookRegistry};
+use crate::operation::{
+    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
+};
+use crate::operation_registry::OperationRegistry;
 use git_ops::hooks::runner::HookProgressUpdate;
 use git_ops::MultiOperationTerminalOutput;
 use tauri::ipc::Channel;
-use tauri::State;
+use tauri::{State, WebviewWindow};
 
 /// Initializes a repository at a new or existing directory.
 #[tauri::command]
@@ -131,6 +135,8 @@ pub async fn get_status(
 #[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn create_commit(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     hooks: State<'_, HookRegistry>,
     repository_path: String,
     message: String,
@@ -141,13 +147,34 @@ pub async fn create_commit(
     on_hook_failure: Channel<HookFailurePrompt>,
     on_terminal_output: Channel<String>,
 ) -> Result<String, CommandError> {
-    let support = support_for(
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Commit,
+    )
+    .await?;
+    let support = match support_for(
         intercept_hooks.unwrap_or(false),
         &hooks,
         on_hook_progress,
         on_hook_failure,
-    )
-    .map_err(CommandError::message)?;
+    ) {
+        Ok(support) => support,
+        Err(error) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: error.clone(),
+                    recoverable: true,
+                }),
+            );
+            return Err(CommandError::message(error));
+        }
+    };
     let terminal_output = MultiOperationTerminalOutput::default();
     let _terminal_subscription = terminal_output.subscribe(move |chunk| {
         // Losing the webview must not cancel a commit and leave the index in an unexpected state.
@@ -156,7 +183,7 @@ pub async fn create_commit(
 
     // `options` is optional so the frontend can omit it entirely, matching the original's
     // `options?: { … }`. Absent means every flag off.
-    git_ops::commit::create_commit_with_terminal_output(
+    let result = git_ops::commit::create_commit_with_terminal_output(
         &repository_path,
         &message,
         &files,
@@ -164,8 +191,32 @@ pub async fn create_commit(
         support.as_ref(),
         &terminal_output,
     )
-    .await
-    .map_err(CommandError::from)
+    .await;
+    match result {
+        Ok(sha) => {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(sha)
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Stops a hook that is still running.
