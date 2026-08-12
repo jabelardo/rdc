@@ -494,12 +494,17 @@ pub async fn get_rebase_internal_state(
 /// An empty `paths` is a no-op rather than "check out everything", which is what the bare command would do.
 #[tauri::command]
 pub async fn checkout_index(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     paths: Vec<String>,
 ) -> Result<(), CommandError> {
-    git_ops::checkout_index::checkout_index(&repository_path, &paths)
-        .await
-        .map_err(CommandError::from)
+    let operation = start_misc_operation(&window, &registry, &repository_path).await?;
+    finish_misc_mutation(
+        &registry,
+        &operation.id,
+        git_ops::checkout_index::checkout_index(&repository_path, &paths).await,
+    )
 }
 
 // --- commit message trailers ---
