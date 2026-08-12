@@ -8,6 +8,7 @@ import {
   commitWorkingTreeBaseline,
   createFixtureRoot,
   expandSidebarSection,
+  git,
   initCanonicalRepository,
   initSimpleRepository,
   openRepositoryWindow,
@@ -135,6 +136,40 @@ describe("operation windows", () => {
       ),
       15_000,
       "the owner commit did not finish",
+    );
+  });
+
+  it("keeps the commit running when its owner window closes", async () => {
+    const hook = path.join(fixture.canonical, ".git", "hooks", "pre-commit");
+    writeFileSync(hook, "#!/bin/sh\nsleep 5\n");
+    chmodSync(hook, 0o755);
+    writeFileSync(path.join(fixture.canonical, "owner-loss.txt"), "owner loss\n");
+
+    await driver.switchTo().window(mainWindow);
+    await driver.navigate().refresh();
+    await driver.wait(until.elementLocated(By.css("#commit-message")), 10_000);
+    await driver.findElement(By.css("#commit-message")).sendKeys("Owner loss coverage");
+    await driver.findElement(By.css('.commit-form button[type="submit"]')).click();
+    await driver.wait(
+      until.elementTextIs(
+        await driver.findElement(By.css('.commit-form button[type="submit"]')),
+        "Committing…",
+      ),
+      5_000,
+    );
+
+    await driver.close();
+    mainWindow = sameRepositoryWindow;
+    await driver.switchTo().window(sameRepositoryWindow);
+    await driver.wait(
+      until.elementLocated(By.css('[aria-label="Repository views"]')),
+      10_000,
+      "the peer window closed with the owner window",
+    );
+    await driver.wait(
+      () => git(fixture.canonical, "log", "-1", "--pretty=%s") === "Owner loss coverage",
+      15_000,
+      "the commit did not finish after its owner window closed",
     );
   });
 });

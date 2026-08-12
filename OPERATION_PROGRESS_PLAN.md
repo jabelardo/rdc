@@ -565,6 +565,8 @@ The same spec also opens a different repository in a third native window and ver
 selection hydration, covering the basic cross-repository window boundary.
 It now also uses a deterministic sleeping pre-commit hook to prove a same-repository peer's Fetch
 action is disabled while the owner commit is active.
+The E2E foundation also verifies that the commit reaches `HEAD` after its owner window closes,
+while the same-repository peer remains usable.
 
 ## Slice 10 — Prove the architecture with cancellable Fetch
 
