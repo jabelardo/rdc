@@ -514,6 +514,8 @@ with terminal lifecycle reporting.
 Cleanup and `.gitignore` writes now use the Checkout lock and terminal lifecycle reporting.
 Index-to-worktree checkout now uses the Checkout lock and terminal lifecycle reporting.
 Repository-local LFS hook installation now uses the Checkout lock and terminal lifecycle reporting.
+Remote HEAD refresh now uses the Fetch lock across credential setup and local metadata update,
+including bind and remote-error cleanup.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
