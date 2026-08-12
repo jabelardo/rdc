@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OperationRecord } from "../models/operation";
-import { operationPresentationRole } from "./operation-presentation";
+import { isHistoryMovingOperation, operationPresentationRole } from "./operation-presentation";
 
 const record = (ownerWindow: string | null): OperationRecord => ({
   id: "operation-1",
@@ -26,5 +26,20 @@ describe("operation presentation role", () => {
 
   it("identifies an operation whose owner was destroyed", () => {
     expect(operationPresentationRole(record(null), "window-b")).toBe("unowned");
+  });
+});
+
+describe("history operation presentation policy", () => {
+  it("suppresses stale history for ref-moving history operations", () => {
+    expect(isHistoryMovingOperation("merge")).toBe(true);
+    expect(isHistoryMovingOperation("rebase")).toBe(true);
+    expect(isHistoryMovingOperation("cherryPick")).toBe(true);
+    expect(isHistoryMovingOperation("revert")).toBe(true);
+  });
+
+  it("leaves non-history operations available", () => {
+    expect(isHistoryMovingOperation("fetch")).toBe(false);
+    expect(isHistoryMovingOperation("checkout")).toBe(false);
+    expect(isHistoryMovingOperation("commit")).toBe(false);
   });
 });

@@ -12,6 +12,7 @@ import { RepositoryToolbar } from "./repository-toolbar";
 import type { AppController } from "./use-app-controller";
 import { WindowDragStrip } from "./window-drag-strip";
 import { remoteEnablement } from "../../remote-enablement";
+import { isHistoryMovingOperation } from "../../operation-presentation";
 
 type AppShellProps = {
   readonly controller: AppController;
@@ -161,12 +162,8 @@ export function AppShell({ controller }: AppShellProps) {
   const operationPeerMessage = operationLockActive && operationState.role === "observer"
     ? `${operationState.operation!.operation} in progress — Started in another window`
     : undefined;
-  const historyOperationActive = operationLockActive && [
-    "merge",
-    "rebase",
-    "cherryPick",
-    "revert",
-  ].includes(operationState.operation!.operation);
+  const historyOperationActive = operationLockActive &&
+    isHistoryMovingOperation(operationState.operation!.operation);
 
   return (
     <main

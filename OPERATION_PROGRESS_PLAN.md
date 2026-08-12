@@ -523,6 +523,8 @@ Peer windows now show the active operation summary and `Started in another windo
 toolbar while the matching repository is locked; unrelated repository windows remain unchanged.
 The History toolbar action is disabled during active merge, rebase, cherry-pick, and revert
 operations so peer or owner windows cannot present stale history while refs are moving.
+The history suppression policy is now centralized and covered by focused tests for history-moving
+versus non-history operations.
 Each matching window now refreshes branch, remote, worktree, conflict, and loaded history stores
 once when the scoped operation reaches a terminal state; unrelated repositories are not refreshed.
 
