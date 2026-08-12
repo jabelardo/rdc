@@ -1,5 +1,6 @@
 // Multi-window operation foundation: a second native window can hydrate the same repository.
 import assert from "node:assert/strict";
+import { chmodSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { By, until } from "selenium-webdriver";
@@ -91,6 +92,49 @@ describe("operation windows", () => {
     assert.equal(
       await driver.findElement(repositorySelector(secondRepository, true)).isDisplayed(),
       true,
+    );
+  });
+
+  it("disables peer remote writes while the owner commits", async () => {
+    const hook = path.join(fixture.canonical, ".git", "hooks", "pre-commit");
+    writeFileSync(hook, "#!/bin/sh\nsleep 5\n");
+    chmodSync(hook, 0o755);
+    writeFileSync(path.join(fixture.canonical, "peer-lock.txt"), "lock coverage\n");
+
+    await driver.switchTo().window(mainWindow);
+    await driver.navigate().refresh();
+    await driver.wait(until.elementLocated(By.css("#commit-message")), 10_000);
+    await driver.findElement(By.css("#commit-message")).sendKeys("Peer lock coverage");
+    await driver.findElement(By.css('.commit-form button[type="submit"]')).click();
+    await driver.wait(
+      until.elementTextIs(
+        await driver.findElement(By.css('.commit-form button[type="submit"]')),
+        "Committing…",
+      ),
+      5_000,
+    );
+
+    await driver.switchTo().window(sameRepositoryWindow);
+    const fetchButton = await driver.wait(
+      until.elementLocated(
+        By.xpath("//section[@aria-label='Remote synchronization']//button[normalize-space()='Fetch']"),
+      ),
+      10_000,
+    );
+    await driver.wait(
+      async () => (await fetchButton.isEnabled()) === false,
+      5_000,
+      "the peer Fetch action remained enabled during the owner commit",
+    );
+
+    await driver.switchTo().window(mainWindow);
+    await driver.wait(
+      until.elementTextIs(
+        await driver.findElement(By.css('.commit-form button[type="submit"]')),
+        "Commit changes",
+      ),
+      15_000,
+      "the owner commit did not finish",
     );
   });
 });

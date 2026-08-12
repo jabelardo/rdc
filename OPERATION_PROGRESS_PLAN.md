@@ -563,6 +563,8 @@ same selected repository. Conflict-control, terminal-refresh, and owner-loss cas
 the deterministic blocking Git fixture described above.
 The same spec also opens a different repository in a third native window and verifies independent
 selection hydration, covering the basic cross-repository window boundary.
+It now also uses a deterministic sleeping pre-commit hook to prove a same-repository peer's Fetch
+action is disabled while the owner commit is active.
 
 ## Slice 10 — Prove the architecture with cancellable Fetch
 
