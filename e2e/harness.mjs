@@ -257,6 +257,16 @@ export async function startApplication() {
   return applicationDriver;
 }
 
+/** Opens another native repository window through the same command used by the repository menu. */
+export async function openRepositoryWindow(driver, repositoryPath) {
+  await driver.executeAsyncScript((path, done) => {
+    window.__TAURI_INTERNALS__.invoke("open_repository_in_new_window", { repositoryPath: path }).then(
+      () => done(true),
+      (error) => done({ error: String(error) }),
+    );
+  }, repositoryPath);
+}
+
 /**
  * Forces the webview to 100% zoom for the duration of a spec.
  *

@@ -558,6 +558,9 @@ Slice 9 implementation coverage is complete. Its remaining exit evidence is the 
 multi-window integration matrix: same-repository peer controls, different-repository independence,
 terminal refresh in both windows, and owner-window loss. That matrix is intentionally executed in
 the Linux-container E2E harness and is also tracked in Slice 19.
+The E2E harness now has a multi-window foundation spec proving a second native window hydrates the
+same selected repository. Conflict-control, terminal-refresh, and owner-loss cases still require
+the deterministic blocking Git fixture described above.
 
 ## Slice 10 — Prove the architecture with cancellable Fetch
 
