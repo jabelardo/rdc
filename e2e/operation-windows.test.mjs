@@ -25,6 +25,7 @@ describe("operation windows", () => {
   let secondRepository;
   let mainWindow;
   let sameRepositoryWindow;
+  let differentRepositoryWindow;
 
   before(async () => {
     fixture = createFixtureRoot();
@@ -79,7 +80,7 @@ describe("operation windows", () => {
       "the different-repository window did not open",
     );
     const handles = await driver.getAllWindowHandles();
-    const differentRepositoryWindow = handles.find(
+    differentRepositoryWindow = handles.find(
       (handle) => handle !== mainWindow && handle !== sameRepositoryWindow,
     );
     assert.ok(differentRepositoryWindow, "the different-repository window should be distinct");
@@ -126,6 +127,19 @@ describe("operation windows", () => {
       async () => (await fetchButton.isEnabled()) === false,
       5_000,
       "the peer Fetch action remained enabled during the owner commit",
+    );
+
+    await driver.switchTo().window(differentRepositoryWindow);
+    const independentFetchButton = await driver.wait(
+      until.elementLocated(
+        By.xpath("//section[@aria-label='Remote synchronization']//button[normalize-space()='Fetch']"),
+      ),
+      10_000,
+    );
+    assert.equal(
+      await independentFetchButton.isEnabled(),
+      true,
+      "a different repository must not be disabled by the owner commit",
     );
 
     await driver.switchTo().window(mainWindow);
