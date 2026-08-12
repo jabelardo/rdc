@@ -561,6 +561,8 @@ the Linux-container E2E harness and is also tracked in Slice 19.
 The E2E harness now has a multi-window foundation spec proving a second native window hydrates the
 same selected repository. Conflict-control, terminal-refresh, and owner-loss cases still require
 the deterministic blocking Git fixture described above.
+The same spec also opens a different repository in a third native window and verifies independent
+selection hydration, covering the basic cross-repository window boundary.
 
 ## Slice 10 — Prove the architecture with cancellable Fetch
 
