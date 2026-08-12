@@ -55,4 +55,4 @@ echo "==> Running the real Tauri WebDriver specs..."
 # default; these specs each start their own application through the single `tauri-driver` on
 # port 4444, and restart.test.mjs terminates the app with a process-wide `pkill -x rdc`.
 # Run them in parallel and they destroy each other's sessions.
-node --test --test-concurrency=1 --test-timeout=30000 e2e/*.test.mjs
+node --test --test-concurrency=1 --test-timeout=30000 ${E2E_TEST_PATTERN:-e2e/*.test.mjs}
