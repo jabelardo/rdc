@@ -409,12 +409,17 @@ pub async fn install_global_lfs_filters(force: Option<bool>) -> Result<(), Comma
 /// Installs LFS's hooks in one repository.
 #[tauri::command]
 pub async fn install_lfs_hooks(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     force: Option<bool>,
 ) -> Result<(), CommandError> {
-    git_ops::lfs::install_lfs_hooks(&repository_path, force.unwrap_or(false))
-        .await
-        .map_err(CommandError::from)
+    let operation = start_misc_operation(&window, &registry, &repository_path).await?;
+    finish_misc_mutation(
+        &registry,
+        &operation.id,
+        git_ops::lfs::install_lfs_hooks(&repository_path, force.unwrap_or(false)).await,
+    )
 }
 
 /// Whether the repository has any LFS-tracked patterns configured.
