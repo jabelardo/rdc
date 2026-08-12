@@ -1,5 +1,6 @@
 // Multi-window operation foundation: a second native window can hydrate the same repository.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { chmodSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
@@ -33,6 +34,11 @@ describe("operation windows", () => {
     commitWorkingTreeBaseline(fixture);
     secondRepository = path.join(fixture.root, "second");
     initSimpleRepository(secondRepository);
+    const secondRemote = path.join(fixture.root, "second-remote.git");
+    execFileSync("git", ["init", "--bare", "--quiet", secondRemote]);
+    git(secondRepository, "remote", "add", "origin", secondRemote);
+    const secondBranch = git(secondRepository, "branch", "--show-current");
+    git(secondRepository, "push", "--quiet", "--set-upstream", "origin", secondBranch);
     driver = await startApplication();
     await openSeededRepository(driver, fixture.canonical);
     mainWindow = await driver.getWindowHandle();
