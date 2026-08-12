@@ -521,6 +521,8 @@ rejection, different-repository concurrency, and reuse after terminal lock relea
 multi-window coverage remains tracked in Slice 19.
 Peer windows now show the active operation summary and `Started in another window` in the repository
 toolbar while the matching repository is locked; unrelated repository windows remain unchanged.
+The History toolbar action is disabled during active merge, rebase, cherry-pick, and revert
+operations so peer or owner windows cannot present stale history while refs are moving.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

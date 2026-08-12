@@ -161,6 +161,12 @@ export function AppShell({ controller }: AppShellProps) {
   const operationPeerMessage = operationLockActive && operationState.role === "observer"
     ? `${operationState.operation!.operation} in progress — Started in another window`
     : undefined;
+  const historyOperationActive = operationLockActive && [
+    "merge",
+    "rebase",
+    "cherryPick",
+    "revert",
+  ].includes(operationState.operation!.operation);
 
   return (
     <main
@@ -257,6 +263,7 @@ export function AppShell({ controller }: AppShellProps) {
               canPull={canPull}
               operationLockActive={operationLockActive}
               operationPeerMessage={operationPeerMessage}
+              historyOperationActive={historyOperationActive}
               hasEditor={preferencesStore.selectedEditor !== null}
               hasShell={preferencesStore.selectedShell !== null}
               repositoryView={repositoryView}

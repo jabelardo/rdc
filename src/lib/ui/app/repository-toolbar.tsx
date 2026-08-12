@@ -23,6 +23,8 @@ type RepositoryToolbarProps = {
   readonly operationLockActive?: boolean;
   /** Summary shown when this window is observing a peer operation. */
   readonly operationPeerMessage?: string;
+  /** Prevents switching to stale history while a history-moving operation owns the repository. */
+  readonly historyOperationActive?: boolean;
   readonly hasEditor: boolean;
   readonly hasShell: boolean;
   readonly repositoryView: "changes" | "history";
@@ -46,6 +48,7 @@ export function RepositoryToolbar({
   canPull,
   operationLockActive = false,
   operationPeerMessage,
+  historyOperationActive = false,
   hasEditor,
   hasShell,
   repositoryView,
@@ -229,6 +232,7 @@ export function RepositoryToolbar({
             type="button"
             aria-current={repositoryView === "history" ? "page" : undefined}
             aria-label="History"
+            disabled={historyOperationActive}
             onClick={() => onSelectView("history")}
           >
             <History aria-hidden="true" />
