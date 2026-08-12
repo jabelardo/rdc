@@ -503,6 +503,8 @@ terminal success or failure, preventing concurrent worktree/index writes in the 
 Submodule path reset now uses the same Checkout lock and terminal lifecycle.
 Stash create, drop, pop, rename, and move now also serialize repository ref/worktree mutations
 through the Checkout lock without changing their return values.
+Branch create, rename, local deletion, and generic ref deletion now use the same Checkout lock
+and terminal lifecycle; read-only branch queries remain independent.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

@@ -11,6 +11,11 @@
 use std::collections::HashMap;
 
 use super::CommandError;
+use crate::operation::{
+    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
+};
+use crate::operation_registry::OperationRegistry;
+use tauri::{State, WebviewWindow};
 
 /// Creates a branch, without checking it out.
 ///
@@ -23,19 +28,25 @@ use super::CommandError;
 /// — likely a fork's upstream rather than the user's own.
 #[tauri::command]
 pub async fn create_branch(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     name: String,
     start_point: Option<String>,
     no_track: Option<bool>,
 ) -> Result<(), CommandError> {
-    git_ops::branch::create_branch(
-        &repository_path,
-        &name,
-        start_point.as_deref(),
-        no_track.unwrap_or(false),
+    let operation = start_branch_operation(&window, &registry, &repository_path).await?;
+    finish_branch_mutation(
+        &registry,
+        &operation.id,
+        git_ops::branch::create_branch(
+            &repository_path,
+            &name,
+            start_point.as_deref(),
+            no_track.unwrap_or(false),
+        )
+        .await,
     )
-    .await
-    .map_err(CommandError::from)
 }
 
 /// Renames a branch.
@@ -49,14 +60,19 @@ pub async fn create_branch(
 /// Passing `false` refuses any collision, and `true` forces every one — see `git_ops::branch`.
 #[tauri::command]
 pub async fn rename_branch(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     current_name: String,
     new_name: String,
     force: Option<bool>,
 ) -> Result<(), CommandError> {
-    git_ops::branch::rename_branch(&repository_path, &current_name, &new_name, force)
-        .await
-        .map_err(CommandError::from)
+    let operation = start_branch_operation(&window, &registry, &repository_path).await?;
+    finish_branch_mutation(
+        &registry,
+        &operation.id,
+        git_ops::branch::rename_branch(&repository_path, &current_name, &new_name, force).await,
+    )
 }
 
 /// Deletes a local branch, whether or not it has been merged.
@@ -69,12 +85,17 @@ pub async fn rename_branch(
 /// as a failure the UI has already ruled out.
 #[tauri::command]
 pub async fn delete_local_branch(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     branch_name: String,
 ) -> Result<(), CommandError> {
-    git_ops::branch::delete_local_branch(&repository_path, &branch_name)
-        .await
-        .map_err(CommandError::from)
+    let operation = start_branch_operation(&window, &registry, &repository_path).await?;
+    finish_branch_mutation(
+        &registry,
+        &operation.id,
+        git_ops::branch::delete_local_branch(&repository_path, &branch_name).await,
+    )
 }
 
 /// Branch names whose tip is `committish`.
@@ -137,13 +158,65 @@ pub async fn get_merged_branches(
 /// no observable effect and exists only because the original passed one; see `git_ops::update_ref`.
 #[tauri::command]
 pub async fn delete_ref(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     ref_name: String,
     reason: Option<String>,
 ) -> Result<(), CommandError> {
-    git_ops::update_ref::delete_ref(&repository_path, &ref_name, reason.as_deref())
-        .await
-        .map_err(CommandError::from)
+    let operation = start_branch_operation(&window, &registry, &repository_path).await?;
+    finish_branch_mutation(
+        &registry,
+        &operation.id,
+        git_ops::update_ref::delete_ref(&repository_path, &ref_name, reason.as_deref()).await,
+    )
+}
+
+async fn start_branch_operation(
+    window: &WebviewWindow,
+    registry: &OperationRegistry,
+    repository_path: &str,
+) -> Result<crate::operation::OperationRecord, CommandError> {
+    crate::commands::operation::start_repository_operation(
+        registry,
+        repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await
+}
+
+fn finish_branch_mutation(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    result: Result<(), git_ops::GitError>,
+) -> Result<(), CommandError> {
+    match result {
+        Ok(()) => {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message,
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// What a symbolic ref points at, or `null` if it isn't one.
