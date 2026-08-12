@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { OperationRecord } from "../models/operation";
-import { isHistoryMovingOperation, operationPresentationRole } from "./operation-presentation";
+import {
+  isHistoryMovingOperation,
+  isTerminalOperation,
+  operationPresentationRole,
+} from "./operation-presentation";
 
 const record = (ownerWindow: string | null): OperationRecord => ({
   id: "operation-1",
@@ -41,5 +45,16 @@ describe("history operation presentation policy", () => {
     expect(isHistoryMovingOperation("fetch")).toBe(false);
     expect(isHistoryMovingOperation("checkout")).toBe(false);
     expect(isHistoryMovingOperation("commit")).toBe(false);
+  });
+});
+
+describe("terminal operation presentation policy", () => {
+  it("refreshes only after terminal lifecycle states", () => {
+    expect(isTerminalOperation("completed")).toBe(true);
+    expect(isTerminalOperation("cancelled")).toBe(true);
+    expect(isTerminalOperation("timedOut")).toBe(true);
+    expect(isTerminalOperation("failed")).toBe(true);
+    expect(isTerminalOperation("running")).toBe(false);
+    expect(isTerminalOperation("recovering")).toBe(false);
   });
 });

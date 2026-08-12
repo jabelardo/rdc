@@ -18,3 +18,7 @@ export function operationPresentationRole(
 export function isHistoryMovingOperation(operation: GitOperationKind): boolean {
   return ["merge", "rebase", "cherryPick", "revert"].includes(operation);
 }
+
+export function isTerminalOperation(state: OperationRecord["state"]): boolean {
+  return ["completed", "cancelled", "timedOut", "failed"].includes(state);
+}

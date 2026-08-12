@@ -527,6 +527,8 @@ The history suppression policy is now centralized and covered by focused tests f
 versus non-history operations.
 Each matching window now refreshes branch, remote, worktree, conflict, and loaded history stores
 once when the scoped operation reaches a terminal state; unrelated repositories are not refreshed.
+Terminal-state eligibility is centralized and covered by focused tests, keeping refreshes out of
+running, waiting, and recovery phases.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

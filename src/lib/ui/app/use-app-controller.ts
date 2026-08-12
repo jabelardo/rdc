@@ -59,6 +59,7 @@ import type { MergeTreeResult } from "../../../models/merge";
 import type { MergeStrategy } from "../../../models/merge-strategy";
 import type { RebasePreview } from "../../../models/rebase-preview";
 import { OperationStore } from "../../stores/operation-store";
+import { isTerminalOperation } from "../../operation-presentation";
 
 const rendererStartTime = performance.now();
 const rendererPlatform = currentMenuPlatform();
@@ -231,7 +232,7 @@ export function useAppController() {
     if (
       operation === null ||
       repository === null ||
-      !["completed", "cancelled", "timedOut", "failed"].includes(operation.state) ||
+      !isTerminalOperation(operation.state) ||
       refreshedTerminalOperationID.current === operation.id
     ) {
       return;
