@@ -195,10 +195,17 @@ pub async fn get_author_identity(
 ///
 /// **Irreversible** — these files are not in git. Ignored files are left alone.
 #[tauri::command]
-pub async fn clean_untracked_files(repository_path: String) -> Result<(), CommandError> {
-    git_ops::clean::clean_untracked_files(&repository_path)
-        .await
-        .map_err(CommandError::from)
+pub async fn clean_untracked_files(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+) -> Result<(), CommandError> {
+    let operation = start_misc_operation(&window, &registry, &repository_path).await?;
+    finish_misc_mutation(
+        &registry,
+        &operation.id,
+        git_ops::clean::clean_untracked_files(&repository_path).await,
+    )
 }
 
 async fn start_misc_operation(
@@ -323,10 +330,18 @@ pub async fn read_gitignore_at_root(
 /// The line endings written follow `core.autocrlf` and `core.safecrlf`, so the file matches what the rest of
 /// the repository uses.
 #[tauri::command]
-pub async fn save_gitignore(repository_path: String, text: String) -> Result<(), CommandError> {
-    git_ops::gitignore::save_gitignore(&repository_path, &text)
-        .await
-        .map_err(CommandError::from)
+pub async fn save_gitignore(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+    text: String,
+) -> Result<(), CommandError> {
+    let operation = start_misc_operation(&window, &registry, &repository_path).await?;
+    finish_misc_mutation(
+        &registry,
+        &operation.id,
+        git_ops::gitignore::save_gitignore(&repository_path, &text).await,
+    )
 }
 
 /// Appends ignore patterns to the root `.gitignore`, as written.
@@ -338,12 +353,17 @@ pub async fn save_gitignore(repository_path: String, text: String) -> Result<(),
 /// For patterns the user typed, so nothing is escaped: `*` and `?` are what make a pattern a pattern.
 #[tauri::command]
 pub async fn append_ignore_rules(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     patterns: Vec<String>,
 ) -> Result<(), CommandError> {
-    git_ops::gitignore::append_ignore_rules(&repository_path, &patterns)
-        .await
-        .map_err(CommandError::from)
+    let operation = start_misc_operation(&window, &registry, &repository_path).await?;
+    finish_misc_mutation(
+        &registry,
+        &operation.id,
+        git_ops::gitignore::append_ignore_rules(&repository_path, &patterns).await,
+    )
 }
 
 /// Appends *file names* to the root `.gitignore`, escaping them.
@@ -356,12 +376,17 @@ pub async fn append_ignore_rules(
 /// escaped — otherwise ignoring `weird[1].txt` would quietly ignore something else.
 #[tauri::command]
 pub async fn append_ignore_files(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     paths: Vec<String>,
 ) -> Result<(), CommandError> {
-    git_ops::gitignore::append_ignore_files(&repository_path, &paths)
-        .await
-        .map_err(CommandError::from)
+    let operation = start_misc_operation(&window, &registry, &repository_path).await?;
+    finish_misc_mutation(
+        &registry,
+        &operation.id,
+        git_ops::gitignore::append_ignore_files(&repository_path, &paths).await,
+    )
 }
 
 // --- Git LFS ---

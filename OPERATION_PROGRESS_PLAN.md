@@ -511,6 +511,7 @@ Tag creation and deletion now use the Checkout lock and terminal lifecycle as re
 mutations.
 Remote add/remove/URL updates and repository description writes now use repository-scoped locks
 with terminal lifecycle reporting.
+Cleanup and `.gitignore` writes now use the Checkout lock and terminal lifecycle reporting.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
