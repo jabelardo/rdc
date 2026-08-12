@@ -539,6 +539,74 @@ mod tests {
         assert_eq!(registry.list().len(), 2);
     }
 
+    #[test]
+    fn two_windows_are_isolated_by_repository_and_reuse_a_released_lock() {
+        let registry = registry();
+        let repository_a = registry
+            .start(
+                repository_scope("repo-a"),
+                Some("window-a".to_owned()),
+                GitOperationKind::Checkout,
+                CancellationCapability::Unavailable,
+            )
+            .expect("the first window should reserve repository A");
+
+        let peer_error = registry
+            .start(
+                repository_scope("repo-a"),
+                Some("window-b".to_owned()),
+                GitOperationKind::Commit,
+                CancellationCapability::Unavailable,
+            )
+            .expect_err("a peer window must not mutate the same repository");
+        assert!(matches!(
+            peer_error,
+            OperationRegistryError::Conflict { .. }
+        ));
+
+        let repository_b = registry
+            .start(
+                repository_scope("repo-b"),
+                Some("window-b".to_owned()),
+                GitOperationKind::Commit,
+                CancellationCapability::Unavailable,
+            )
+            .expect("the same window should be able to mutate another repository");
+        assert_eq!(registry.list().len(), 2);
+
+        registry
+            .finish(
+                &repository_a.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            )
+            .expect("repository A should finish");
+        registry
+            .start(
+                repository_scope("repo-a"),
+                Some("window-b".to_owned()),
+                GitOperationKind::Commit,
+                CancellationCapability::Unavailable,
+            )
+            .expect("a released repository lock should be reusable");
+        assert!(registry
+            .active_for_scope(&repository_scope("repo-b"))
+            .is_some());
+        assert!(registry
+            .active_for_scope(&repository_scope("repo-a"))
+            .is_some());
+
+        registry
+            .finish(
+                &repository_b.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            )
+            .expect("repository B should finish");
+    }
+
     #[tokio::test]
     async fn broadcasts_scope_metadata_for_each_operation_event() {
         let registry = registry();

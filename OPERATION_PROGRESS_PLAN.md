@@ -516,6 +516,9 @@ Index-to-worktree checkout now uses the Checkout lock and terminal lifecycle rep
 Repository-local LFS hook installation now uses the Checkout lock and terminal lifecycle reporting.
 Remote HEAD refresh now uses the Fetch lock across credential setup and local metadata update,
 including bind and remote-error cleanup.
+The native lock matrix now has a focused two-window lifecycle test proving same-repository peer
+rejection, different-repository concurrency, and reuse after terminal lock release. Real GUI
+multi-window coverage remains tracked in Slice 19.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
