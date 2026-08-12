@@ -171,5 +171,19 @@ describe("operation windows", () => {
       15_000,
       "the commit did not finish after its owner window closed",
     );
+    const ownerLossHead = git(fixture.canonical, "rev-parse", "HEAD");
+    const historyView = await driver.findElement(
+      By.xpath("//nav[@aria-label='Repository views']//button[normalize-space()='History']"),
+    );
+    await driver.executeScript((element) => element.click(), historyView);
+    const refreshedCommit = await driver.wait(
+      until.elementLocated(By.css(`[data-commit-sha="${ownerLossHead}"]`)),
+      10_000,
+      "the peer history did not refresh after the owner operation finished",
+    );
+    assert.match(
+      await driver.executeScript((element) => element.textContent, refreshedCommit),
+      /Owner loss coverage/,
+    );
   });
 });

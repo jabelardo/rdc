@@ -567,6 +567,8 @@ It now also uses a deterministic sleeping pre-commit hook to prove a same-reposi
 action is disabled while the owner commit is active.
 The E2E foundation also verifies that the commit reaches `HEAD` after its owner window closes,
 while the same-repository peer remains usable.
+After completion, the peer now switches to History and verifies the new commit is visible, covering
+terminal-event refresh in the matching window.
 
 ## Slice 10 — Prove the architecture with cancellable Fetch
 
