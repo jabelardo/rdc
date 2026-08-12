@@ -21,6 +21,8 @@ type RepositoryToolbarProps = {
   readonly canPull: boolean;
   /** A repository-scoped operation is active in this window or a peer window. */
   readonly operationLockActive?: boolean;
+  /** Summary shown when this window is observing a peer operation. */
+  readonly operationPeerMessage?: string;
   readonly hasEditor: boolean;
   readonly hasShell: boolean;
   readonly repositoryView: "changes" | "history";
@@ -43,6 +45,7 @@ export function RepositoryToolbar({
   canPush,
   canPull,
   operationLockActive = false,
+  operationPeerMessage,
   hasEditor,
   hasShell,
   repositoryView,
@@ -200,6 +203,11 @@ export function RepositoryToolbar({
             </button>
           </Tooltip>
         </div>
+        {operationPeerMessage !== undefined && (
+          <p className="repository-toolbar-status" role="status">
+            {operationPeerMessage}
+          </p>
+        )}
       </section>
       <nav
         className="repository-view-navigation flex items-center gap-1.5"

@@ -158,6 +158,9 @@ export function AppShell({ controller }: AppShellProps) {
   });
   const operationLockActive = operationState.operation !== null &&
     !["completed", "cancelled", "timedOut", "failed"].includes(operationState.operation.state);
+  const operationPeerMessage = operationLockActive && operationState.role === "observer"
+    ? `${operationState.operation!.operation} in progress — Started in another window`
+    : undefined;
 
   return (
     <main
@@ -253,6 +256,7 @@ export function AppShell({ controller }: AppShellProps) {
               canPush={canPush}
               canPull={canPull}
               operationLockActive={operationLockActive}
+              operationPeerMessage={operationPeerMessage}
               hasEditor={preferencesStore.selectedEditor !== null}
               hasShell={preferencesStore.selectedShell !== null}
               repositoryView={repositoryView}

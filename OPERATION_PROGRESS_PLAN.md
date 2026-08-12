@@ -519,6 +519,8 @@ including bind and remote-error cleanup.
 The native lock matrix now has a focused two-window lifecycle test proving same-repository peer
 rejection, different-repository concurrency, and reuse after terminal lock release. Real GUI
 multi-window coverage remains tracked in Slice 19.
+Peer windows now show the active operation summary and `Started in another window` in the repository
+toolbar while the matching repository is locked; unrelated repository windows remain unchanged.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
