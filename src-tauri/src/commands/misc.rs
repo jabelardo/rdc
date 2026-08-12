@@ -22,21 +22,34 @@ use tauri::{State, WebviewWindow};
 /// Creates an annotated tag on a commit.
 #[tauri::command]
 pub async fn create_tag(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     name: String,
     target_commit: String,
 ) -> Result<(), CommandError> {
-    git_ops::tag::create_tag(&repository_path, &name, &target_commit)
-        .await
-        .map_err(CommandError::from)
+    let operation = start_misc_operation(&window, &registry, &repository_path).await?;
+    finish_misc_mutation(
+        &registry,
+        &operation.id,
+        git_ops::tag::create_tag(&repository_path, &name, &target_commit).await,
+    )
 }
 
 /// Deletes a local tag.
 #[tauri::command]
-pub async fn delete_tag(repository_path: String, name: String) -> Result<(), CommandError> {
-    git_ops::tag::delete_tag(&repository_path, &name)
-        .await
-        .map_err(CommandError::from)
+pub async fn delete_tag(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+    name: String,
+) -> Result<(), CommandError> {
+    let operation = start_misc_operation(&window, &registry, &repository_path).await?;
+    finish_misc_mutation(
+        &registry,
+        &operation.id,
+        git_ops::tag::delete_tag(&repository_path, &name).await,
+    )
 }
 
 /// Every local tag, as `[name, commit]` pairs.
@@ -181,6 +194,53 @@ pub async fn clean_untracked_files(repository_path: String) -> Result<(), Comman
     git_ops::clean::clean_untracked_files(&repository_path)
         .await
         .map_err(CommandError::from)
+}
+
+async fn start_misc_operation(
+    window: &WebviewWindow,
+    registry: &OperationRegistry,
+    repository_path: &str,
+) -> Result<crate::operation::OperationRecord, CommandError> {
+    crate::commands::operation::start_repository_operation(
+        registry,
+        repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await
+}
+
+fn finish_misc_mutation(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    result: Result<(), git_ops::GitError>,
+) -> Result<(), CommandError> {
+    match result {
+        Ok(()) => {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(())
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message,
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// Vouches for a repository git refuses as owned by someone else.

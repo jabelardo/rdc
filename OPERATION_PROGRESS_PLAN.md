@@ -507,6 +507,8 @@ Branch create, rename, local deletion, and generic ref deletion now use the same
 and terminal lifecycle; read-only branch queries remain independent.
 Resolved-conflict staging and selected-change discard now use the Checkout lock and terminal
 lifecycle, covering additional index/worktree writes.
+Tag creation and deletion now use the Checkout lock and terminal lifecycle as repository ref
+mutations.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
