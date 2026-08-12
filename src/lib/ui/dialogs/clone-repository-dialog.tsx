@@ -97,7 +97,9 @@ export function CloneRepositoryDialog({
           <Label htmlFor="clone-url">Repository URL</Label>
           <Input
             id="clone-url"
-            type="url"
+            // Clone accepts local paths and SSH-style Git URLs as well as https URLs, so browser
+            // URL constraint validation would incorrectly reject valid local bare remotes.
+            type="text"
             placeholder="https://github.com/user/repository.git"
             value={url}
             autoFocus

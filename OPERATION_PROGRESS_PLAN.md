@@ -568,9 +568,10 @@ action is disabled while the owner commit is active.
 The same active-commit check confirms a different repository's Fetch action remains enabled.
 The container build now passes TypeScript compilation, frontend bundling, and native linking with
 the E2E harness's constrained-memory settings (`CARGO_BUILD_JOBS=1` and Rust debuginfo disabled).
-The first complete execution reached WebDriver and reported 29 passing tests and three failures:
-the clone progress-state wait, a stale element in the new peer-control test, and the existing
-preferences dialog timeout. These are now the active Slice 9 verification defects.
+The next complete execution reached WebDriver and reported 28 passing tests and four failures:
+clone persistence, peer lock visibility, the branch dialog, and the existing preferences dialog
+timeout. The clone form now submits and reaches its repository-persistence assertion; the remaining
+failures are the active Slice 9 verification defects and adjacent E2E regressions.
 The E2E foundation also verifies that the commit reaches `HEAD` after its owner window closes,
 while the same-repository peer remains usable.
 After completion, the peer now switches to History and verifies the new commit is visible, covering

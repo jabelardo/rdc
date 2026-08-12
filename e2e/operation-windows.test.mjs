@@ -117,14 +117,15 @@ describe("operation windows", () => {
     );
 
     await driver.switchTo().window(sameRepositoryWindow);
-    const fetchButton = await driver.wait(
-      until.elementLocated(
-        By.xpath("//section[@aria-label='Remote synchronization']//button[normalize-space()='Fetch']"),
-      ),
-      10_000,
-    );
     await driver.wait(
-      async () => (await fetchButton.isEnabled()) === false,
+      async () => {
+        const buttons = await driver.findElements(
+          By.xpath(
+            "//section[@aria-label='Remote synchronization']//button[normalize-space()='Fetch']",
+          ),
+        );
+        return buttons.length === 1 && !(await buttons[0].isEnabled());
+      },
       5_000,
       "the peer Fetch action remained enabled during the owner commit",
     );
