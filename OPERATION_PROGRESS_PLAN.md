@@ -566,6 +566,12 @@ selection hydration, covering the basic cross-repository window boundary.
 It now also uses a deterministic sleeping pre-commit hook to prove a same-repository peer's Fetch
 action is disabled while the owner commit is active.
 The same active-commit check confirms a different repository's Fetch action remains enabled.
+Observer windows now subscribe before reading the active-operation snapshot and reconcile against
+the native registry when focused and at a low frequency while visible, closing event gaps during
+window creation or WebKit suspension. Focused multi-window E2E covers same-repository peer locking,
+different-repository independence, and linked worktrees sharing a canonical repository lock while
+retaining distinct selected paths. That coverage also found and fixed the operation-scope wire fields
+being serialized as snake_case instead of the frontend's camelCase contract.
 The container build now passes TypeScript compilation, frontend bundling, and native linking with
 the E2E harness's constrained-memory settings (`CARGO_BUILD_JOBS=1` and Rust debuginfo disabled).
 The next complete execution reached WebDriver and reported 28 passing tests and four failures:

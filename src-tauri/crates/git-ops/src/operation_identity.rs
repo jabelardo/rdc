@@ -135,7 +135,8 @@ mod tests {
     async fn linked_worktrees_share_the_common_lock_but_keep_distinct_git_directories() {
         let repository = empty_repository().await;
         commit_file(&repository.path(), "file", "contents", "initial");
-        let linked = repository.path().with_file_name("linked-worktree");
+        let linked_parent = tempfile::tempdir().expect("linked-worktree parent should be created");
+        let linked = linked_parent.path().join("linked-worktree");
         git(
             &[
                 "worktree",
@@ -199,7 +200,8 @@ mod tests {
 
         let repository = empty_repository().await;
         commit_file(&repository.path(), "file", "contents", "initial");
-        let link = repository.path().with_file_name("repository-link");
+        let link_parent = tempfile::tempdir().expect("symlink parent should be created");
+        let link = link_parent.path().join("repository-link");
         symlink(repository.path(), &link).expect("repository symlink should be created");
 
         let real = resolve_repository_identity(repository.path())

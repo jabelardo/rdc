@@ -28,7 +28,12 @@ import { installDefaultCloseRequestHandler } from "../../platform/lifetime";
 import { launchShell } from "../../platform/shells";
 import { onNativeThemeUpdated } from "../../platform/theme";
 import { useQaStateDriver } from "./use-qa-state-driver";
-import { openRepositoryInNewWindow, sendReady, setWindowTitle } from "../../platform/window";
+import {
+  onWindowFocusChanged,
+  openRepositoryInNewWindow,
+  sendReady,
+  setWindowTitle,
+} from "../../platform/window";
 import { shouldShowWindowDragRegion } from "../../platform/window-drag-region";
 import { setWindowZoomFactor } from "../../platform/window";
 import type { AppStoreState } from "../../stores/app-store";
@@ -221,10 +226,48 @@ export function useAppController() {
   }, [operationStore]);
 
   useEffect(() => {
-    void operationStore.selectRepository(appState.selectedRepository?.path ?? null).catch((error) => {
-      log.error("Failed to select the repository operation", error);
-    });
+    if (appState.selectedRepository === null) {
+      return;
+    }
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void operationStore.refreshActiveOperation().catch((error) => {
+          log.error("Failed to reconcile the repository operation", error);
+        });
+      }
+    }, 1_000);
+    return () => window.clearInterval(interval);
+  }, [appState.selectedRepository, operationStore]);
+
+  useEffect(() => {
+    void operationStore
+      .selectRepository(appState.selectedRepository?.path ?? null)
+      .catch((error) => {
+        log.error("Failed to select the repository operation", error);
+      });
   }, [appState.selectedRepository?.path, operationStore]);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+    void onWindowFocusChanged((focused) => {
+      if (focused) {
+        void operationStore.refreshActiveOperation().catch((error) => {
+          log.error("Failed to refresh the focused repository operation", error);
+        });
+      }
+    }).then((cleanup) => {
+      if (disposed) {
+        cleanup();
+      } else {
+        unlisten = cleanup;
+      }
+    });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [operationStore]);
 
   useEffect(() => {
     const operation = operationState.operation;

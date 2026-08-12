@@ -285,8 +285,8 @@
     },
     "scope": {
       "kind": "repository",
-      "lock_key": "/repo/.git",
-      "repository_path": "/repo"
+      "lockKey": "/repo/.git",
+      "repositoryPath": "/repo"
     },
     "state": "running"
   },

@@ -66,10 +66,7 @@ export class OperationStore {
   private requestID = 0;
   private unlisten: (() => void) | undefined;
 
-  public constructor(
-    windowLabel: string,
-    dependencies: Partial<OperationStoreDependencies> = {},
-  ) {
+  public constructor(windowLabel: string, dependencies: Partial<OperationStoreDependencies> = {}) {
     this.windowLabel = windowLabel;
     this.dependencies = { ...defaultDependencies, ...dependencies };
   }
@@ -84,11 +81,13 @@ export class OperationStore {
   }
 
   public setWindowLabel(windowLabel: string): void {
-    if (this.windowLabel === windowLabel || this.state.operation === null) {
+    if (this.windowLabel === windowLabel) {
       return;
     }
     this.windowLabel = windowLabel;
-    this.applyRecord(this.state.operation);
+    if (this.state.operation !== null) {
+      this.applyRecord(this.state.operation);
+    }
   }
 
   public async selectRepository(repositoryPath: string | null): Promise<void> {
@@ -100,25 +99,33 @@ export class OperationStore {
       return;
     }
 
-    const [scope, active] = await Promise.all([
-      this.dependencies.getScope(repositoryPath),
-      this.dependencies.getActive(repositoryPath),
-    ]);
+    const scope = await this.dependencies.getScope(repositoryPath);
     if (requestID !== this.requestID) {
       return;
     }
 
-    const router = new OperationEventRouter((event) => this.receive(event, requestID));
+    let receivedEvent = false;
+    const router = new OperationEventRouter((event) => {
+      receivedEvent = true;
+      this.receive(event, requestID);
+    });
     router.selectScope(scope);
-    this.applyRecord(active);
     const cleanup = await this.dependencies.listen((event) => router.receive(event));
     if (requestID !== this.requestID) {
       cleanup();
-    } else {
-      this.unlisten = () => {
-        router.clear();
-        cleanup();
-      };
+      return;
+    }
+    this.unlisten = () => {
+      router.clear();
+      cleanup();
+    };
+
+    // Subscribe before reading the snapshot so an operation that starts while a new window is
+    // hydrating cannot fall into the gap between those two native calls. If the stream already
+    // delivered a record, it is newer than the snapshot and must win.
+    const active = await this.dependencies.getActive(repositoryPath);
+    if (requestID === this.requestID && !receivedEvent) {
+      this.applyRecord(active);
     }
   }
 
@@ -130,7 +137,33 @@ export class OperationStore {
     try {
       this.applyRecord(await this.dependencies.cancel(operation.id, confirmObserver));
     } catch (error) {
-      this.update({ ...this.state, error: { kind: "failed", message: String(error), recoverable: true } });
+      this.update({
+        ...this.state,
+        error: { kind: "failed", message: String(error), recoverable: true },
+      });
+    }
+  }
+
+  /** Reconcile a window that may have missed native events while opening or unfocused. */
+  public async refreshActiveOperation(): Promise<void> {
+    const repositoryPath = this.state.repositoryPath;
+    const requestID = this.requestID;
+    const operationID = this.state.operation?.id;
+    if (repositoryPath === null) {
+      return;
+    }
+    const active = await this.dependencies.getActive(repositoryPath);
+    if (requestID !== this.requestID) {
+      return;
+    }
+    if (active !== null) {
+      this.applyRecord(active);
+    } else if (
+      operationID !== undefined &&
+      this.state.operation?.id === operationID &&
+      !isTerminal(this.state.operation)
+    ) {
+      this.update({ ...emptyState, repositoryPath });
     }
   }
 
@@ -162,7 +195,8 @@ export class OperationStore {
       progress: record.progress,
       role: operationPresentationRole(record, this.windowLabel),
       takingLonger: record.state === "takingLongerThanExpected",
-      cancellationRequested: record.state === "cancelling" || record.cancellation.kind === "requested",
+      cancellationRequested:
+        record.state === "cancelling" || record.cancellation.kind === "requested",
       recovering: record.state === "recovering",
       outcome: record.outcome,
       error: record.error,

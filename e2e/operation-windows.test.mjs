@@ -27,6 +27,8 @@ describe("operation windows", () => {
   let mainWindow;
   let sameRepositoryWindow;
   let differentRepositoryWindow;
+  let linkedWorktree;
+  let linkedWorktreeWindow;
 
   before(async () => {
     fixture = createFixtureRoot();
@@ -39,6 +41,8 @@ describe("operation windows", () => {
     git(secondRepository, "remote", "add", "origin", secondRemote);
     const secondBranch = git(secondRepository, "branch", "--show-current");
     git(secondRepository, "push", "--quiet", "--set-upstream", "origin", secondBranch);
+    linkedWorktree = path.join(fixture.root, "linked-worktree");
+    git(fixture.canonical, "worktree", "add", "--quiet", "-b", "linked-window", linkedWorktree);
     driver = await startApplication();
     await openSeededRepository(driver, fixture.canonical);
     mainWindow = await driver.getWindowHandle();
@@ -103,6 +107,45 @@ describe("operation windows", () => {
     );
   });
 
+  it("opens a linked worktree with a distinct path and the shared repository lock", async () => {
+    await driver.switchTo().window(mainWindow);
+    const scopes = await driver.executeAsyncScript(
+      (mainPath, linkedPath, done) => {
+        Promise.all(
+          [mainPath, linkedPath].map((repositoryPath) =>
+            window.__TAURI_INTERNALS__.invoke("get_operation_scope_for_repository", {
+              repositoryPath,
+            }),
+          ),
+        ).then(done, (error) => done({ error: String(error) }));
+      },
+      fixture.canonical,
+      linkedWorktree,
+    );
+    assert.equal(scopes[0].lockKey, scopes[1].lockKey);
+    assert.notEqual(scopes[0].repositoryPath, scopes[1].repositoryPath);
+
+    await openRepositoryWindow(driver, linkedWorktree);
+    await driver.wait(
+      async () => (await driver.getAllWindowHandles()).length >= 4,
+      10_000,
+      "the linked-worktree window did not open",
+    );
+    linkedWorktreeWindow = (await driver.getAllWindowHandles()).find(
+      (handle) =>
+        handle !== mainWindow &&
+        handle !== sameRepositoryWindow &&
+        handle !== differentRepositoryWindow,
+    );
+    assert.ok(linkedWorktreeWindow, "the linked worktree should have a distinct window");
+    await driver.switchTo().window(linkedWorktreeWindow);
+    await driver.wait(
+      until.elementLocated(By.css('[aria-label="Repository views"]')),
+      10_000,
+      "the linked-worktree window did not hydrate its selection",
+    );
+  });
+
   it("disables peer remote writes while the owner commits", async () => {
     const hook = path.join(fixture.canonical, ".git", "hooks", "pre-commit");
     writeFileSync(hook, "#!/bin/sh\nsleep 5\n");
@@ -115,14 +158,29 @@ describe("operation windows", () => {
     await driver.findElement(By.css("#commit-message")).sendKeys("Peer lock coverage");
     await driver.findElement(By.css('.commit-form button[type="submit"]')).click();
     await driver.wait(
-      until.elementTextIs(
-        await driver.findElement(By.css('.commit-form button[type="submit"]')),
-        "Committing…",
-      ),
+      async () => {
+        const active = await driver.executeAsyncScript((repositoryPath, done) => {
+          window.__TAURI_INTERNALS__
+            .invoke("get_active_operation_for_repository", { repositoryPath })
+            .then(done, (error) => done({ error: String(error) }));
+        }, fixture.canonical);
+        return active?.operation === "commit";
+      },
       5_000,
+      "the owner commit did not acquire its repository lock",
     );
 
     await driver.switchTo().window(sameRepositoryWindow);
+    const peerNativeOperation = await driver.executeAsyncScript((repositoryPath, done) => {
+      window.__TAURI_INTERNALS__
+        .invoke("get_active_operation_for_repository", { repositoryPath })
+        .then(done, (error) => done({ error: String(error) }));
+    }, fixture.canonical);
+    assert.equal(
+      peerNativeOperation?.operation,
+      "commit",
+      "the native registry must expose the owner commit to the peer window",
+    );
     await driver.wait(
       async () => {
         const buttons = await driver.findElements(
@@ -136,10 +194,26 @@ describe("operation windows", () => {
       "the peer Fetch action remained enabled during the owner commit",
     );
 
+    await driver.switchTo().window(linkedWorktreeWindow);
+    await driver.wait(
+      async () => {
+        const buttons = await driver.findElements(
+          By.xpath(
+            "//section[@aria-label='Remote synchronization']//button[normalize-space()='Fetch']",
+          ),
+        );
+        return buttons.length === 1 && !(await buttons[0].isEnabled());
+      },
+      5_000,
+      "the linked-worktree Fetch action remained enabled during the owner commit",
+    );
+
     await driver.switchTo().window(differentRepositoryWindow);
     const independentFetchButton = await driver.wait(
       until.elementLocated(
-        By.xpath("//section[@aria-label='Remote synchronization']//button[normalize-space()='Fetch']"),
+        By.xpath(
+          "//section[@aria-label='Remote synchronization']//button[normalize-space()='Fetch']",
+        ),
       ),
       10_000,
     );
@@ -151,10 +225,14 @@ describe("operation windows", () => {
 
     await driver.switchTo().window(mainWindow);
     await driver.wait(
-      until.elementTextIs(
-        await driver.findElement(By.css('.commit-form button[type="submit"]')),
-        "Commit changes",
-      ),
+      async () => {
+        const active = await driver.executeAsyncScript((repositoryPath, done) => {
+          window.__TAURI_INTERNALS__
+            .invoke("get_active_operation_for_repository", { repositoryPath })
+            .then(done, (error) => done({ error: String(error) }));
+        }, fixture.canonical);
+        return active === null;
+      },
       15_000,
       "the owner commit did not finish",
     );
@@ -172,11 +250,16 @@ describe("operation windows", () => {
     await driver.findElement(By.css("#commit-message")).sendKeys("Owner loss coverage");
     await driver.findElement(By.css('.commit-form button[type="submit"]')).click();
     await driver.wait(
-      until.elementTextIs(
-        await driver.findElement(By.css('.commit-form button[type="submit"]')),
-        "Committing…",
-      ),
+      async () => {
+        const active = await driver.executeAsyncScript((repositoryPath, done) => {
+          window.__TAURI_INTERNALS__
+            .invoke("get_active_operation_for_repository", { repositoryPath })
+            .then(done, (error) => done({ error: String(error) }));
+        }, fixture.canonical);
+        return active?.operation === "commit";
+      },
       5_000,
+      "the owner-loss commit did not acquire its repository lock",
     );
 
     await driver.close();
