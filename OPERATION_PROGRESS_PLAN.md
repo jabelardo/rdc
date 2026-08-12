@@ -566,6 +566,9 @@ selection hydration, covering the basic cross-repository window boundary.
 It now also uses a deterministic sleeping pre-commit hook to prove a same-repository peer's Fetch
 action is disabled while the owner commit is active.
 The same active-commit check confirms a different repository's Fetch action remains enabled.
+The container build now passes TypeScript compilation and frontend bundling after correcting stale
+operation-event test and unused-import errors; the E2E binary build is currently blocked by the
+container linker being killed for memory before WebDriver execution begins.
 The E2E foundation also verifies that the commit reaches `HEAD` after its owner window closes,
 while the same-repository peer remains usable.
 After completion, the peer now switches to History and verifies the new commit is visible, covering

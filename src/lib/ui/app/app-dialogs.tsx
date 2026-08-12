@@ -41,12 +41,8 @@ import { OperationProgressDialog } from "../dialogs/operation-progress-dialog";
 import { PreferencesDialog } from "../dialogs/preferences-dialog";
 import { TerminalOutput } from "../terminal-output";
 import type { MergeTreeResult } from "../../../models/merge";
-import { MergeStrategyLabel, type MergeStrategy } from "../../../models/merge-strategy";
+import type { MergeStrategy } from "../../../models/merge-strategy";
 import type { RebasePreview } from "../../../models/rebase-preview";
-
-const confirmationDialogClassName =
-  "confirmation-dialog box-border w-[min(390px,calc(100vw-26px))] rounded-[var(--radius-medium)] border border-[var(--border)] bg-[var(--popover)] p-6 shadow-[var(--shadow-dialog)]";
-const dialogActionsClassName = "confirmation-dialog-actions mt-6 flex justify-end gap-3";
 
 type AppDialogsProps = {
   readonly discardFile: WorkingDirectoryFileChange | null;

@@ -3,7 +3,6 @@ import type {
   OperationPresentationRole,
   OperationProgress,
   OperationRecord,
-  OperationScope,
 } from "../../models/operation";
 import {
   getActiveOperationForRepository,

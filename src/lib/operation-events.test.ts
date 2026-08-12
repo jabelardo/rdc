@@ -37,7 +37,7 @@ describe("operation event routing", () => {
   it("filters events for a window without changing the operation record", () => {
     const filter = createOperationEventFilter(scope("repo-a"));
     expect([event("repo-a"), event("repo-b")].filter(filter)).toHaveLength(1);
-    expect(filter(event("repo-a")).record.ownerWindow).toBe("repository-1");
+    expect(event("repo-a").record.ownerWindow).toBe("repository-1");
   });
 
   it("routes only the currently selected scope after a selection change", () => {
