@@ -6,6 +6,12 @@ set -euo pipefail
 export DISPLAY=:99
 export XDG_CONFIG_HOME=/tmp/rdc-e2e-config
 export XDG_DATA_HOME=/tmp/rdc-e2e-data
+# Keep the native debug link within the memory budget of the CI container. Callers can
+# override this for larger runners when parallel compilation is useful.
+export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}"
+# The E2E binary is exercised through WebDriver, not a debugger; stripping Rust debuginfo keeps
+# the Tauri/WebKit link below the constrained container memory limit.
+export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C debuginfo=0"
 mkdir -p "${XDG_CONFIG_HOME}" "${XDG_DATA_HOME}"
 Xvfb "${DISPLAY}" -screen 0 1280x1024x24 -nolisten tcp &
 XVFB_PID=$!
