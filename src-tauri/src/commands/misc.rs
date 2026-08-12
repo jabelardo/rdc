@@ -166,12 +166,17 @@ pub async fn get_description(repository_path: String) -> Result<String, CommandE
 /// Writes the repository's description.
 #[tauri::command]
 pub async fn write_description(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     description: String,
 ) -> Result<(), CommandError> {
-    git_ops::description::write_description(&repository_path, &description)
-        .await
-        .map_err(CommandError::from)
+    let operation = start_misc_operation(&window, &registry, &repository_path).await?;
+    finish_misc_mutation(
+        &registry,
+        &operation.id,
+        git_ops::description::write_description(&repository_path, &description).await,
+    )
 }
 
 /// The identity a commit made now would carry, or `null` if git would refuse to invent one.

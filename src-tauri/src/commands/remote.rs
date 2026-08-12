@@ -666,33 +666,98 @@ pub async fn get_remotes(repository_path: String) -> Result<Vec<Remote>, Command
 /// Adds a remote and returns it. Fails if one of that name already exists.
 #[tauri::command]
 pub async fn add_remote(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     name: String,
     url: String,
 ) -> Result<Remote, CommandError> {
-    git_ops::remote::add_remote(&repository_path, &name, &url)
-        .await
-        .map_err(CommandError::from)
+    let operation = start_remote_config_operation(&window, &registry, &repository_path).await?;
+    finish_remote_config_mutation(
+        &registry,
+        &operation.id,
+        git_ops::remote::add_remote(&repository_path, &name, &url).await,
+    )
 }
 
 /// Removes a remote. Removing one that doesn't exist succeeds.
 #[tauri::command]
-pub async fn remove_remote(repository_path: String, name: String) -> Result<(), CommandError> {
-    git_ops::remote::remove_remote(&repository_path, &name)
-        .await
-        .map_err(CommandError::from)
+pub async fn remove_remote(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+    name: String,
+) -> Result<(), CommandError> {
+    let operation = start_remote_config_operation(&window, &registry, &repository_path).await?;
+    finish_remote_config_mutation(
+        &registry,
+        &operation.id,
+        git_ops::remote::remove_remote(&repository_path, &name).await,
+    )
 }
 
 /// Points an existing remote at a different URL.
 #[tauri::command]
 pub async fn set_remote_url(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     name: String,
     url: String,
 ) -> Result<(), CommandError> {
-    git_ops::remote::set_remote_url(&repository_path, &name, &url)
-        .await
-        .map_err(CommandError::from)
+    let operation = start_remote_config_operation(&window, &registry, &repository_path).await?;
+    finish_remote_config_mutation(
+        &registry,
+        &operation.id,
+        git_ops::remote::set_remote_url(&repository_path, &name, &url).await,
+    )
+}
+
+async fn start_remote_config_operation(
+    window: &WebviewWindow,
+    registry: &OperationRegistry,
+    repository_path: &str,
+) -> Result<crate::operation::OperationRecord, CommandError> {
+    crate::commands::operation::start_repository_operation(
+        registry,
+        repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await
+}
+
+fn finish_remote_config_mutation<T>(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    result: Result<T, git_ops::GitError>,
+) -> Result<T, CommandError> {
+    match result {
+        Ok(value) => {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(value)
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message,
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
 }
 
 /// The fetch URL of a remote, or `null` if there is no such remote.

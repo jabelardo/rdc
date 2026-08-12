@@ -509,6 +509,8 @@ Resolved-conflict staging and selected-change discard now use the Checkout lock 
 lifecycle, covering additional index/worktree writes.
 Tag creation and deletion now use the Checkout lock and terminal lifecycle as repository ref
 mutations.
+Remote add/remove/URL updates and repository description writes now use repository-scoped locks
+with terminal lifecycle reporting.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
