@@ -17,6 +17,8 @@ const getMainProcessConfig = vi.hoisted(() => vi.fn());
 const launchExternalEditor = vi.hoisted(() => vi.fn());
 const launchShell = vi.hoisted(() => vi.fn());
 const onNativeThemeUpdated = vi.hoisted(() => vi.fn());
+const getCurrentWindowLabel = vi.hoisted(() => vi.fn());
+const onWindowFocusChanged = vi.hoisted(() => vi.fn());
 const sendReady = vi.hoisted(() => vi.fn());
 const setWindowTitle = vi.hoisted(() => vi.fn());
 const openRepositoryInNewWindow = vi.hoisted(() => vi.fn());
@@ -252,6 +254,8 @@ vi.mock("./lib/platform/lifetime", () => ({
   installDefaultCloseRequestHandler,
 }));
 vi.mock("./lib/platform/window", () => ({
+  getCurrentWindowLabel,
+  onWindowFocusChanged,
   openRepositoryInNewWindow,
   sendReady,
   setWindowTitle,
@@ -317,6 +321,10 @@ describe("App", () => {
     launchShell.mockResolvedValue(undefined);
     onNativeThemeUpdated.mockReset();
     onNativeThemeUpdated.mockResolvedValue(vi.fn());
+    getCurrentWindowLabel.mockReset();
+    getCurrentWindowLabel.mockReturnValue("repository-1");
+    onWindowFocusChanged.mockReset();
+    onWindowFocusChanged.mockResolvedValue(vi.fn());
     sendReady.mockReset();
     sendReady.mockResolvedValue(null);
     setWindowTitle.mockReset();

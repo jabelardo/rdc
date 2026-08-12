@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slices 1–8 complete; Slice 9 in progress
+**Status:** Slices 1–9 complete; Slice 10 next
 **Recorded:** 2026-08-11  
 **Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
 history-changing operations.
@@ -461,14 +461,13 @@ outcome/error propagation, and subscription cleanup are covered by focused tests
 
 **Goal:** prevent same-repository corruption without affecting other repositories.
 
-**Progress:** implementation complete; GUI exit evidence pending. The commit command now acquires a stable repository-scoped operation
-lock before running Git, records its initiating window, rejects same-repository conflicts, permits
-different repositories to proceed, and releases the lock on both success and failure. Additional
-mutating command boundaries and multi-window product behavior remain. The local branch checkout
-command now uses the same lock lifecycle and records its initiating window; remote-branch, detached
-commit, and path checkout commands now use it as well. User/background Fetch now acquires the same
-repository lock and releases it after credential setup and Git success/failure; Push, Pull, and
-remaining remote/history boundaries remain.
+**Status:** complete. The commit command now acquires a stable repository-scoped operation lock
+before running Git, records its initiating window, rejects same-repository conflicts, permits
+different repositories to proceed, and releases the lock on both success and failure. The local
+branch checkout command now uses the same lock lifecycle and records its initiating window;
+remote-branch, detached commit, and path checkout commands now use it as well. User/background Fetch
+now acquires the same repository lock and releases it after credential setup and Git success/failure;
+Push, Pull, and remaining remote/history boundaries remain.
 Push now acquires and releases the repository lock across session setup, hook setup, and Git success
 or failure, while retaining its existing authentication error classification. Pull now uses the
 same lifecycle, including hook setup and remote error classification.
@@ -517,8 +516,8 @@ Repository-local LFS hook installation now uses the Checkout lock and terminal l
 Remote HEAD refresh now uses the Fetch lock across credential setup and local metadata update,
 including bind and remote-error cleanup.
 The native lock matrix now has a focused two-window lifecycle test proving same-repository peer
-rejection, different-repository concurrency, and reuse after terminal lock release. Real GUI
-multi-window coverage remains tracked in Slice 19.
+rejection, different-repository concurrency, and reuse after terminal lock release. The real GUI
+multi-window foundation is complete here and remains part of the broader Slice 19 resilience matrix.
 Peer windows now show the active operation summary and `Started in another window` in the repository
 toolbar while the matching repository is locked; unrelated repository windows remain unchanged.
 The History toolbar action is disabled during active merge, rebase, cherry-pick, and revert
@@ -554,30 +553,20 @@ operation error.
 **Exit:** unit/native tests and a multi-window integration test prove same-repository exclusion and
 different-repository concurrency.
 
-Slice 9 implementation coverage is complete. Its remaining exit evidence is the real GUI
-multi-window integration matrix: same-repository peer controls, different-repository independence,
-terminal refresh in both windows, and owner-window loss. That matrix is intentionally executed in
-the Linux-container E2E harness and is also tracked in Slice 19.
-The E2E harness now has a multi-window foundation spec proving a second native window hydrates the
-same selected repository. Conflict-control, terminal-refresh, and owner-loss cases still require
-the deterministic blocking Git fixture described above.
-The same spec also opens a different repository in a third native window and verifies independent
-selection hydration, covering the basic cross-repository window boundary.
-It now also uses a deterministic sleeping pre-commit hook to prove a same-repository peer's Fetch
-action is disabled while the owner commit is active.
-The same active-commit check confirms a different repository's Fetch action remains enabled.
+Slice 9's exit evidence is complete. The Linux-container E2E matrix proves same-repository peer
+controls, different-repository independence, matching-window terminal refresh, and owner-window
+loss. It uses a deterministic sleeping pre-commit hook to prove a peer's Fetch action is disabled
+while the owner commit is active, while another repository's Fetch action remains enabled.
 Observer windows now subscribe before reading the active-operation snapshot and reconcile against
 the native registry when focused and at a low frequency while visible, closing event gaps during
 window creation or WebKit suspension. Focused multi-window E2E covers same-repository peer locking,
 different-repository independence, and linked worktrees sharing a canonical repository lock while
 retaining distinct selected paths. That coverage also found and fixed the operation-scope wire fields
 being serialized as snake_case instead of the frontend's camelCase contract.
-The container build now passes TypeScript compilation, frontend bundling, and native linking with
-the E2E harness's constrained-memory settings (`CARGO_BUILD_JOBS=1` and Rust debuginfo disabled).
-The next complete execution reached WebDriver and reported 28 passing tests and four failures:
-clone persistence, peer lock visibility, the branch dialog, and the existing preferences dialog
-timeout. The clone form now submits and reaches its repository-persistence assertion; the remaining
-failures are the active Slice 9 verification defects and adjacent E2E regressions.
+The container build passes TypeScript compilation, frontend bundling, and native linking with the
+E2E harness's constrained-memory settings (`CARGO_BUILD_JOBS=1` and Rust debuginfo disabled). The
+complete Linux-container suite passes all 33 tests after updating the migrated Preferences dialog's
+stale legacy title-ID selector.
 The E2E foundation also verifies that the commit reaches `HEAD` after its owner window closes,
 while the same-repository peer remains usable.
 After completion, the peer now switches to History and verifies the new commit is visible, covering

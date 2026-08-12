@@ -61,6 +61,11 @@ export function setWindowTitle(title: string): Promise<void> {
   return getCurrentWindow().setTitle(title);
 }
 
+/** Return the stable native label used to identify this operation-owning webview. */
+export function getCurrentWindowLabel(): string {
+  return getCurrentWindow().label;
+}
+
 /** Match native modal behavior without notifying an already-focused app. */
 export async function sendDialogDidOpen(): Promise<void> {
   const window = getCurrentWindow();

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { join } from "@tauri-apps/api/path";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { BranchType, type Branch } from "../../../models/branch";
 import type { Repository } from "../../../models/repository";
 import { getCloneDirectoryName } from "../../clone-destination";
@@ -29,6 +28,7 @@ import { launchShell } from "../../platform/shells";
 import { onNativeThemeUpdated } from "../../platform/theme";
 import { useQaStateDriver } from "./use-qa-state-driver";
 import {
+  getCurrentWindowLabel,
   onWindowFocusChanged,
   openRepositoryInNewWindow,
   sendReady,
@@ -215,7 +215,7 @@ export function useAppController() {
 
   useEffect(() => {
     let disposed = false;
-    const label = getCurrentWindow().label;
+    const label = getCurrentWindowLabel();
     if (!disposed) {
       operationStore.setWindowLabel(label);
     }

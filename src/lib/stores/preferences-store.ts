@@ -251,7 +251,9 @@ export class PreferencesStore {
     }
     try {
       const resolvedTheme = await this.dependencies.resolveSystemTheme();
-      this.update({ ...this.currentState, resolvedTheme });
+      if (resolvedTheme !== this.currentState.resolvedTheme) {
+        this.update({ ...this.currentState, resolvedTheme });
+      }
     } catch (error) {
       this.update({ ...this.currentState, error: String(error) });
     }

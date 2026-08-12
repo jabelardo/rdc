@@ -190,10 +190,21 @@ describe("application shell", () => {
   });
 
   it("opens MVP preferences from the native menu and applies theme changes", async () => {
-    sendNativeKeys("ctrl+comma");
-    const preferences = await driver.wait(
-      until.elementLocated(By.css('[role="dialog"][aria-labelledby="preferences-dialog-title"]')),
+    // GTK can leave X11 focus on the native file chooser briefly after Escape dismisses it in the
+    // preceding test. Put focus back in the application before exercising the native accelerator;
+    // otherwise xdotool correctly sends Ctrl+, to a window that no longer exists.
+    await driver.findElement(By.css('main.application-shell [aria-label="Navigation"]')).click();
+    await driver.wait(
+      () => driver.executeScript(() => document.hasFocus()),
       5_000,
+      "application focus did not return after dismissing the native file chooser",
+    );
+    sendNativeKeys("ctrl+comma");
+    const preferences = await driver.wait(until.elementLocated(By.css('[role="dialog"]')), 5_000);
+    assert.equal(
+      await preferences.findElement(By.css("h2")).getText(),
+      "Preferences",
+      "the native Preferences action opened a different dialog",
     );
     const theme = await preferences.findElement(By.css("#theme-preference"));
     await driver.wait(

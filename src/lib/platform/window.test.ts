@@ -4,6 +4,7 @@ import type { CLIAction } from "../../models/cli-action";
 import type { WindowState } from "../../models/window-state";
 
 const currentWindow = vi.hoisted(() => ({
+  label: "repository-1",
   close: vi.fn(),
   isFocused: vi.fn(),
   isFullscreen: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 const {
   closeWindow,
   focusWindow,
+  getCurrentWindowLabel,
   getCurrentWindowState,
   getCurrentWindowZoomFactor,
   isWindowFocused,
@@ -57,6 +59,9 @@ describe("current window controls", () => {
   beforeEach(() => {
     getCurrentWindow.mockClear();
     for (const method of Object.values(currentWindow)) {
+      if (typeof method === "string") {
+        continue;
+      }
       method.mockReset();
       method.mockResolvedValue(undefined);
     }
@@ -80,6 +85,10 @@ describe("current window controls", () => {
 
     expect(getCurrentWindow).toHaveBeenCalledOnce();
     expect(currentWindow[method]).toHaveBeenCalledOnce();
+  });
+
+  it("returns the stable label of the current native window", () => {
+    expect(getCurrentWindowLabel()).toBe("repository-1");
   });
 
   it("preserves the upstream restore meaning of unmaximizing", async () => {

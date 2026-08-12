@@ -180,6 +180,22 @@ describe("PreferencesStore", () => {
     expect(store.state.resolvedTheme).toBe("dark");
   });
 
+  it("does not publish a system-theme refresh when the resolved theme is unchanged", async () => {
+    const store = new PreferencesStore({
+      getAvailableEditors: vi.fn(async () => editors),
+      getAvailableShells: vi.fn(async () => shells),
+      setTheme: vi.fn(async () => "light" as const),
+      resolveSystemTheme: vi.fn(async () => "light" as const),
+    });
+    await store.load();
+    const update = vi.fn();
+    store.onDidUpdate(update);
+
+    await store.refreshTheme();
+
+    expect(update).not.toHaveBeenCalled();
+  });
+
   it("does not refresh resolvedTheme when the source is an explicit light or dark", async () => {
     localStorage.setItem(PreferencesStorageKey, JSON.stringify({ theme: "light" }));
     const resolveSystemTheme = vi.fn(async () => "dark" as const);
