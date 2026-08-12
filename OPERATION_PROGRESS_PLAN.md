@@ -505,6 +505,8 @@ Stash create, drop, pop, rename, and move now also serialize repository ref/work
 through the Checkout lock without changing their return values.
 Branch create, rename, local deletion, and generic ref deletion now use the same Checkout lock
 and terminal lifecycle; read-only branch queries remain independent.
+Resolved-conflict staging and selected-change discard now use the Checkout lock and terminal
+lifecycle, covering additional index/worktree writes.
 
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 

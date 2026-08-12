@@ -1051,12 +1051,23 @@ fn finish_checkout_mutation(
 /// commit them.
 #[tauri::command]
 pub async fn stage_resolved_conflict_files(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     files: Vec<ResolvedConflict>,
 ) -> Result<(), CommandError> {
-    git_ops::stage::stage_resolved_conflict_files(&repository_path, &files)
-        .await
-        .map_err(CommandError::from)
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
+    )
+    .await?;
+    finish_checkout_mutation(
+        &registry,
+        &operation.id,
+        git_ops::stage::stage_resolved_conflict_files(&repository_path, &files).await,
+    )
 }
 
 /// How many commits each side of `range` has that the other does not.
@@ -1271,19 +1282,31 @@ pub async fn get_commit_diff(
 /// An empty `selectedLines` is a no-op, not an error — nothing was asked for.
 #[tauri::command]
 pub async fn discard_changes_from_selection(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     repository_path: String,
     file_path: String,
     diff: TextDiffData,
     selected_lines: Vec<u32>,
 ) -> Result<(), CommandError> {
-    git_ops::apply::discard_changes_from_selection(
+    let operation = crate::commands::operation::start_repository_operation(
+        &registry,
         &repository_path,
-        &file_path,
-        &diff,
-        &LineSelection::new(selected_lines),
+        Some(window.label().to_owned()),
+        GitOperationKind::Checkout,
     )
-    .await
-    .map_err(CommandError::from)
+    .await?;
+    finish_checkout_mutation(
+        &registry,
+        &operation.id,
+        git_ops::apply::discard_changes_from_selection(
+            &repository_path,
+            &file_path,
+            &diff,
+            &LineSelection::new(selected_lines),
+        )
+        .await,
+    )
 }
 
 /// Diffs a file across a range of commits.
