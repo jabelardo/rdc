@@ -93,6 +93,7 @@ export function useAppController() {
   const activeRepositoryView = useRef<RepositoryView>("changes");
   const pendingRepositoryView = useRef<RepositoryView | null>(null);
   const repositoryViewTransitionID = useRef(0);
+  const refreshedTerminalOperationID = useRef<string | null>(null);
   // The debug clone preview's frame timer, cleared on teardown so it never fires against an
   // unmounted controller.
   const clonePreviewTimer = useRef<number | undefined>(undefined);
@@ -223,6 +224,39 @@ export function useAppController() {
       log.error("Failed to select the repository operation", error);
     });
   }, [appState.selectedRepository?.path, operationStore]);
+
+  useEffect(() => {
+    const operation = operationState.operation;
+    const repository = appState.selectedRepository;
+    if (
+      operation === null ||
+      repository === null ||
+      !["completed", "cancelled", "timedOut", "failed"].includes(operation.state) ||
+      refreshedTerminalOperationID.current === operation.id
+    ) {
+      return;
+    }
+    refreshedTerminalOperationID.current = operation.id;
+    void Promise.all([
+      branchStore.load(repository.path),
+      remoteStore.load(repository.path),
+      workingTreeStore.load(repository.path),
+      conflictStore.load(repository.path),
+      historyStore.state.repositoryPath === repository.path
+        ? historyStore.load(repository.path)
+        : Promise.resolve(),
+    ]).catch((error) => {
+      log.error("Failed to refresh after a terminal repository operation", error);
+    });
+  }, [
+    appState.selectedRepository,
+    branchStore,
+    conflictStore,
+    historyStore,
+    operationState.operation,
+    remoteStore,
+    workingTreeStore,
+  ]);
 
   useEffect(() => {
     let disposed = false;
