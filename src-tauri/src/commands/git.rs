@@ -1581,6 +1581,10 @@ mod rebase_recovery_tests {
                 .expect("worktree file should be readable"),
             "feature\n"
         );
+        assert_eq!(
+            run_git(directory.path(), &["diff", "--cached", "--quiet"]),
+            ""
+        );
         assert!(registry
             .active_for_scope(&OperationScope::Repository {
                 lock_key: repository_path.clone(),

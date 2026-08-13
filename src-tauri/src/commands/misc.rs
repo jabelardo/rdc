@@ -801,6 +801,10 @@ mod revert_recovery_tests {
                 .expect("worktree file should be readable"),
             "three\n"
         );
+        assert_eq!(
+            run_git(directory.path(), &["diff", "--cached", "--quiet"]),
+            ""
+        );
         assert!(registry
             .active_for_scope(&OperationScope::Repository {
                 lock_key: repository_path.clone(),

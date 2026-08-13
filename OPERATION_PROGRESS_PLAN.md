@@ -719,9 +719,9 @@ recovery boundary. Real controlled-cancellation tests for Rebase, Revert, Squash
 `HEAD` remains unchanged; Revert also has paused-abort restoration coverage. These tests, the
 focused Cherry-pick coverage, and strict native checks pass. The five operation-specific recovery
 policies are now explicit; process-level cancellation, restoration, and completion-race journeys
-through the command registry remain as the final evidence gate. Real command-layer Rebase,
-Cherry-pick, and Revert recovery tests now prove conflict abort restores the branch/worktree and
-releases the registry lock. Cherry-pick recovery explicitly handles the marker-only state used by
+through the command registry remain as the final evidence gate. Real command-layer abort tests now
+assert branch, worktree, index, and registry lock restoration for Rebase, Cherry-pick, and Revert.
+Cherry-pick recovery explicitly handles the marker-only state used by
 a single conflicted pick, which has `CHERRY_PICK_HEAD` without a sequencer snapshot. A real command-
 layer Rebase, Cherry-pick, and Revert completion-race tests now prove an advanced `HEAD` is
 classified as completed and the lock is released without aborting. The shared command recovery
