@@ -238,7 +238,10 @@ async fn finish_cherry_pick_termination(
     let snapshot = git_ops::cherry_pick::get_cherry_pick_snapshot(repository_path)
         .await
         .map_err(|error| finish_cherry_pick_recovery_failure(registry, operation_id, error))?;
-    if snapshot.is_none() {
+    let marker_present = git_ops::cherry_pick::is_cherry_pick_in_progress(repository_path)
+        .await
+        .map_err(|error| finish_cherry_pick_recovery_failure(registry, operation_id, error))?;
+    if snapshot.is_none() && !marker_present {
         let current_head = git_ops::get_head_sha(repository_path)
             .await
             .map_err(|error| finish_cherry_pick_recovery_failure(registry, operation_id, error))?;
@@ -741,5 +744,107 @@ mod termination_tests {
                 "timed out"
             )
         );
+    }
+}
+
+#[cfg(test)]
+mod cherry_pick_recovery_tests {
+    use super::*;
+    use crate::operation::{CancellationCapability, OperationScope};
+    use std::path::Path;
+    use std::process::Command;
+
+    fn run_git(repository: &Path, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(repository)
+            .output()
+            .expect("git should start");
+        assert!(
+            output.status.success(),
+            "git {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_owned()
+    }
+
+    #[tokio::test]
+    async fn command_recovery_aborts_a_conflicted_cherry_pick_and_releases_the_lock() {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        run_git(directory.path(), &["init", "-q", "-b", "main"]);
+        run_git(directory.path(), &["config", "user.name", "Slice 13 Test"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "slice13@example.test"],
+        );
+        std::fs::write(directory.path().join("conflict.txt"), "base\n")
+            .expect("base file should be written");
+        run_git(directory.path(), &["add", "."]);
+        run_git(directory.path(), &["commit", "-qm", "base"]);
+        run_git(directory.path(), &["checkout", "-qb", "feature"]);
+        std::fs::write(directory.path().join("conflict.txt"), "feature\n")
+            .expect("feature file should be written");
+        run_git(directory.path(), &["commit", "-qam", "feature change"]);
+        let feature_head = run_git(directory.path(), &["rev-parse", "HEAD"]);
+        run_git(directory.path(), &["checkout", "-q", "main"]);
+        std::fs::write(directory.path().join("conflict.txt"), "main\n")
+            .expect("main file should be written");
+        run_git(directory.path(), &["commit", "-qam", "main change"]);
+        let original_head = run_git(directory.path(), &["rev-parse", "HEAD"]);
+        let cherry_pick = Command::new("git")
+            .args(["cherry-pick", &feature_head])
+            .current_dir(directory.path())
+            .output()
+            .expect("cherry-pick should start");
+        assert!(
+            !cherry_pick.status.success(),
+            "cherry-pick should stop with a conflict"
+        );
+
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation = registry
+            .start(
+                OperationScope::Repository {
+                    lock_key: repository_path.clone(),
+                    repository_path: repository_path.clone(),
+                },
+                Some("test-window".to_owned()),
+                GitOperationKind::CherryPick,
+                CancellationCapability::Available {
+                    label: "Cancel cherry-pick".to_owned(),
+                },
+            )
+            .expect("operation should reserve the repository");
+
+        let result = finish_cherry_pick_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &original_head,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "cancellation should be reported to the caller"
+        );
+        assert_eq!(
+            run_git(directory.path(), &["rev-parse", "HEAD"]),
+            original_head
+        );
+        assert_eq!(
+            std::fs::read_to_string(directory.path().join("conflict.txt"))
+                .expect("worktree file should be readable"),
+            "main\n"
+        );
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path: repository_path.clone(),
+            })
+            .is_none());
     }
 }

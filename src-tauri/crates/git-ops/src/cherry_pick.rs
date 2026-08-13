@@ -337,6 +337,18 @@ pub async fn get_cherry_pick_snapshot(
     }))
 }
 
+/// Returns whether Git has left any cherry-pick recovery marker behind.
+///
+/// A single-commit conflicted cherry-pick has `CHERRY_PICK_HEAD` but no sequencer directory, so it
+/// cannot produce a [`CherryPickSnapshot`] and must be checked separately before deciding whether
+/// `cherry-pick --abort` is safe.
+pub async fn is_cherry_pick_in_progress(
+    repository: impl AsRef<Path>,
+) -> Result<bool, GitError> {
+    let git_dir = resolve_git_dir(repository).await?;
+    Ok(is_cherry_pick_head_found(&git_dir).await)
+}
+
 /// Reads a sequencer file, or `None` if it is missing or empty.
 fn read_trimmed(path: &Path) -> Option<String> {
     let contents = std::fs::read_to_string(path).ok()?;
