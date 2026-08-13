@@ -719,7 +719,9 @@ recovery boundary. Real controlled-cancellation tests for Rebase, Revert, Squash
 `HEAD` remains unchanged; Revert also has paused-abort restoration coverage. These tests, the
 focused Cherry-pick coverage, and strict native checks pass. The five operation-specific recovery
 policies are now explicit; process-level cancellation, restoration, and completion-race journeys
-through the command registry remain as the final evidence gate. Fixture
+through the command registry remain as the final evidence gate. A real command-layer Rebase
+recovery test now proves conflict abort restores the branch/worktree and releases the registry lock.
+Fixture
 investigation confirmed that a normal Cherry-pick can advance `HEAD` before a late stop request is
 observed; the new guards prevent that completed pick from being unconditionally aborted. The next
 evidence increment should exercise the command handlers themselves against real repositories,

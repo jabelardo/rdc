@@ -1482,3 +1482,110 @@ mod termination_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod rebase_recovery_tests {
+    use super::*;
+    use crate::operation::{CancellationCapability, OperationScope};
+    use crate::operation_registry::OperationRegistry;
+    use std::path::Path;
+    use std::process::Command;
+
+    fn run_git(repository: &Path, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(repository)
+            .output()
+            .expect("git should start");
+        assert!(
+            output.status.success(),
+            "git {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_owned()
+    }
+
+    fn conflicted_rebase_repository() -> (tempfile::TempDir, String) {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        run_git(directory.path(), &["init", "-q", "-b", "main"]);
+        run_git(directory.path(), &["config", "user.name", "Slice 13 Test"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "slice13@example.test"],
+        );
+        std::fs::write(directory.path().join("conflict.txt"), "base\n")
+            .expect("base file should be written");
+        run_git(directory.path(), &["add", "."]);
+        run_git(directory.path(), &["commit", "-qm", "base"]);
+        run_git(directory.path(), &["branch", "feature"]);
+        run_git(directory.path(), &["checkout", "-q", "feature"]);
+        std::fs::write(directory.path().join("conflict.txt"), "feature\n")
+            .expect("feature file should be written");
+        run_git(directory.path(), &["commit", "-qam", "feature change"]);
+        run_git(directory.path(), &["checkout", "-q", "main"]);
+        std::fs::write(directory.path().join("conflict.txt"), "main\n")
+            .expect("main file should be written");
+        run_git(directory.path(), &["commit", "-qam", "main change"]);
+        let feature_head = run_git(directory.path(), &["rev-parse", "feature"]);
+        let rebase = Command::new("git")
+            .args(["rebase", "main", "feature"])
+            .current_dir(directory.path())
+            .output()
+            .expect("rebase should start");
+        assert!(
+            !rebase.status.success(),
+            "rebase should stop with a conflict"
+        );
+        (directory, feature_head)
+    }
+
+    #[tokio::test]
+    async fn command_recovery_aborts_a_conflicted_rebase_and_releases_the_lock() {
+        let (directory, original_head) = conflicted_rebase_repository();
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation = registry
+            .start(
+                OperationScope::Repository {
+                    lock_key: repository_path.clone(),
+                    repository_path: repository_path.clone(),
+                },
+                Some("test-window".to_owned()),
+                GitOperationKind::Rebase,
+                CancellationCapability::Available {
+                    label: "Cancel rebase".to_owned(),
+                },
+            )
+            .expect("operation should reserve the repository");
+
+        let result = recover_rebase_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &original_head,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "cancellation should be reported to the caller"
+        );
+        assert_eq!(
+            run_git(directory.path(), &["rev-parse", "HEAD"]),
+            original_head
+        );
+        assert_eq!(
+            std::fs::read_to_string(directory.path().join("conflict.txt"))
+                .expect("worktree file should be readable"),
+            "feature\n"
+        );
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path: repository_path.clone(),
+            })
+            .is_none());
+    }
+}
