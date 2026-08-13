@@ -115,6 +115,18 @@ where
     Ok(())
 }
 
+/// Abandons an interrupted revert and restores the pre-revert index and worktree state.
+pub async fn abort_revert(repository: impl AsRef<Path>) -> Result<(), GitError> {
+    git(
+        &["revert".to_owned(), "--abort".to_owned()],
+        repository,
+        "revert abort",
+        GitOptions::default(),
+    )
+    .await
+    .map(|_| ())
+}
+
 fn with_progress_callback<F, R>(callback: &Mutex<F>, invoke: impl FnOnce(&mut F) -> R) -> R {
     let mut callback = callback
         .lock()

@@ -131,6 +131,14 @@ pub async fn revert_commit(
     }
 }
 
+/// Aborts an interrupted revert, restoring the branch, index and worktree when Git has revert state.
+#[tauri::command]
+pub async fn abort_revert(repository_path: String) -> Result<(), CommandError> {
+    git_ops::revert::abort_revert(&repository_path)
+        .await
+        .map_err(CommandError::from)
+}
+
 /// The most recently checked-out branches, newest first.
 #[tauri::command]
 pub async fn get_recent_branches(

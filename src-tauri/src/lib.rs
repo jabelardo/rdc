@@ -298,6 +298,7 @@ pub fn run() {
             commands::misc::delete_tag,
             commands::misc::get_all_tags,
             commands::misc::revert_commit,
+            commands::misc::abort_revert,
             commands::misc::get_recent_branches,
             commands::misc::get_branch_checkouts,
             commands::misc::get_description,

@@ -69,6 +69,11 @@ export async function revertCommit(
   });
 }
 
+/** Aborts an interrupted revert and restores Git's pre-revert state. */
+export async function abortRevert(repositoryPath: string): Promise<void> {
+  return invoke<void>("abort_revert", { repositoryPath });
+}
+
 /**
  * The most recently checked-out branches, newest first.
  *

@@ -33,6 +33,7 @@ const {
   deleteTag,
   getAllTags,
   revertCommit,
+  abortRevert,
   getRecentBranches,
   getBranchCheckouts,
   getDescription,
@@ -136,6 +137,12 @@ describe("the smaller commands", () => {
       onProgress: expect.anything(),
     });
     expect(channelInstances).toHaveLength(1);
+  });
+
+  it("abortRevert sends the repository path", async () => {
+    await abortRevert(REPO);
+
+    expect(invoke).toHaveBeenCalledWith("abort_revert", { repositoryPath: REPO });
   });
 
   // --- reflog ---

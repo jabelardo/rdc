@@ -1072,6 +1072,7 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
                 title: Some("Fetching origin".to_owned()),
                 description: None,
             }),
+            hook: None,
             last_activity_at: 1_723_379_200_000,
             outcome: Some(OperationOutcome::Unchanged),
             error: None,

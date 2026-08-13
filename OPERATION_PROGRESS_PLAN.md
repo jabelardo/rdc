@@ -699,7 +699,8 @@ Apply the pattern to Rebase, Cherry-pick, Revert, Squash and Reorder:
 7. classify race outcomes as `completed`, `recovered`, `unchanged` or `unknown`.
 
 Existing `abort_rebase` and `abort_cherry_pick` recover paused operations; they are not concurrent
-process cancellation. Add `revert --abort` support before claiming Revert is cancellable.
+process cancellation. Revert now has an explicit native `revert --abort` command and frontend IPC;
+it is recovery infrastructure only and is not exposed as concurrent process cancellation yet.
 
 **Exit:** real-repository tests prove branch/worktree restoration and completion races for each
 operation family.
