@@ -713,6 +713,9 @@ ordinary conflicts remain in the existing paused recovery flow. Revert now uses 
 and invokes `revert --abort` after termination. Focused Rebase, Cherry-pick, and Revert tests and
 strict native checks pass. The three operation-specific recovery policies are now explicit; real
 repository cancellation, restoration, and completion-race journeys remain as the final evidence gate.
+Fixture investigation also confirmed that a normal Cherry-pick can advance `HEAD` before a late stop
+request is observed; cancellation recovery must therefore inspect `HEAD` and sequencer state before
+running `cherry-pick --abort`, never unconditionally resetting a completed pick.
 
 ## Slice 14 — Add Merge cancellation and recovery
 
