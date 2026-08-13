@@ -118,7 +118,9 @@ pub use error::{GitError, TerminationReason};
 pub use exec::{
     git, git_capped, git_with_stderr, CappedOutput, GitOptions, GitOutput, TERMINAL_OUTPUT_CAPACITY,
 };
-pub use fetch::{fast_forward_branches, fetch, fetch_refspec, FetchProgress, FetchProgressKind};
+pub use fetch::{
+    fast_forward_branches, fetch, fetch_controlled, fetch_refspec, FetchProgress, FetchProgressKind,
+};
 pub use format_patch::format_commit_range_patch;
 pub use git_delimiter_parser::ForEachRefParser;
 pub use git_error_kind::{parse_bad_config_value, parse_error, BadConfigValue, GitErrorKind};

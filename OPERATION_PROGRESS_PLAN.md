@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slices 1–9 complete; Slice 10 next
+**Status:** Slices 1–9 complete; Slice 10 in progress
 **Recorded:** 2026-08-11  
 **Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
 history-changing operations.
@@ -575,6 +575,18 @@ terminal-event refresh in the matching window.
 ## Slice 10 — Prove the architecture with cancellable Fetch
 
 **Goal:** ship the first safe end-to-end cancellation path before touching history.
+
+**Progress:** the first native Fetch increment is implemented. Foreground and background Fetch now
+reserve a cancellable repository-scoped operation, publish their existing progress into the shared
+registry, and run under the inactivity watchdog. User cancellation and hard timeout terminate the
+Git process tree through the shared execution control. Once Git has stopped, the command re-reads
+remotes and status before reporting `cancelled/unchanged` or `timedOut/unchanged` and releasing the
+repository lock; failed recovery reports `recoveryFailed/unknown` and deliberately retains the lock.
+The controlled `git-ops` boundary and both recovery lock outcomes have focused native tests.
+
+Still required to close the slice: add the deterministic blocking Git/SSH fixture and prove user
+cancellation, short-policy hard timeout, successful-completion race, owner-window closure, peer
+observation and different-repository isolation through command/frontend/E2E coverage.
 
 Fetch policy:
 

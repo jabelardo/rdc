@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::authentication::AUTHENTICATION_ERRORS;
 use crate::error::GitError;
-use crate::exec::{git, GitOptions, GitOutput};
+use crate::exec::{git, ExecutionControl, GitOptions, GitOutput};
 use crate::progress::GitProgressParser;
-use crate::remote_progress::{remote_env, run_with_progress, ContextLines, RemoteRun};
+use crate::remote_progress::{remote_env, run_with_progress_controlled, ContextLines, RemoteRun};
 
 /// A fetch progress update.
 ///
@@ -50,6 +50,23 @@ pub async fn fetch<F>(
 where
     F: FnMut(FetchProgress) + Send,
 {
+    fetch_controlled(repository, remote_name, env, on_progress, None).await
+}
+
+/// Fetches with an operation-owned cancellation signal.
+///
+/// Keeping this as a sibling preserves every existing caller while Slice 10 migrates only the
+/// user/background Fetch command whose recovery policy is defined.
+pub async fn fetch_controlled<F>(
+    repository: impl AsRef<Path>,
+    remote_name: &str,
+    env: &HashMap<String, String>,
+    on_progress: Option<F>,
+    control: Option<ExecutionControl>,
+) -> Result<GitOutput, GitError>
+where
+    F: FnMut(FetchProgress) + Send,
+{
     let mut args = vec!["fetch".to_owned()];
     let title = format!("Fetching {remote_name}");
 
@@ -60,7 +77,7 @@ where
             remote_name.to_owned(),
         ]);
 
-        return run_with_progress(
+        return run_with_progress_controlled(
             repository,
             RemoteRun {
                 args: &args,
@@ -70,6 +87,7 @@ where
                 parser: GitProgressParser::fetch(),
                 context: ContextLines::OnlyCountingObjects,
             },
+            control,
             |_, _| {},
         )
         .await;
@@ -90,7 +108,7 @@ where
         remote: remote_name.to_owned(),
     });
 
-    run_with_progress(
+    run_with_progress_controlled(
         repository,
         RemoteRun {
             args: &args,
@@ -100,6 +118,7 @@ where
             parser: GitProgressParser::fetch(),
             context: ContextLines::OnlyCountingObjects,
         },
+        control,
         |value, description| {
             on_progress(FetchProgress {
                 kind: FetchProgressKind::Fetch,
@@ -253,6 +272,30 @@ mod tests {
         // shortens to a bare "origin".
         let refs = refs_matching(&clone.path(), "refs/remotes/origin").await;
         assert!(refs.contains(&"origin/main".to_owned()), "got {refs:?}");
+    }
+
+    #[tokio::test]
+    async fn controlled_fetch_honours_operation_cancellation() {
+        let (_upstream, clone) = upstream_and_clone().await;
+        let control = ExecutionControl::new();
+        control.cancel(crate::TerminationReason::Cancelled);
+
+        let result = fetch_controlled(
+            clone.path(),
+            "origin",
+            &HashMap::new(),
+            None::<fn(FetchProgress)>,
+            Some(control),
+        )
+        .await;
+
+        assert!(matches!(
+            result,
+            Err(GitError::OperationTerminated {
+                reason: crate::TerminationReason::Cancelled,
+                ..
+            })
+        ));
     }
 
     #[tokio::test]

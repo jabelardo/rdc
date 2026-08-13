@@ -79,6 +79,31 @@ pub async fn start_repository_operation(
         .map_err(|error| CommandError::message(error.to_string()))
 }
 
+/// Acquires a repository lock whose process may be cancelled by its operation ID.
+pub async fn start_cancellable_repository_operation(
+    registry: &OperationRegistry,
+    repository_path: &str,
+    owner_window: Option<String>,
+    operation: crate::operation::GitOperationKind,
+    label: impl Into<String>,
+) -> Result<OperationRecord, CommandError> {
+    let Some(scope) = repository_scope(repository_path).await? else {
+        return Err(CommandError::message(format!(
+            "cannot start an operation outside a Git repository: {repository_path}"
+        )));
+    };
+    registry
+        .start(
+            scope,
+            owner_window,
+            operation,
+            crate::operation::CancellationCapability::Available {
+                label: label.into(),
+            },
+        )
+        .map_err(|error| CommandError::message(error.to_string()))
+}
+
 /// Finds the active operation owning a repository, including an operation retained for recovery.
 pub async fn active_repository_operation(
     registry: &OperationRegistry,

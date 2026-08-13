@@ -20,7 +20,8 @@ use git_ops::remote::Remote;
 use super::CommandError;
 use crate::hook_state::{support_for, HookFailurePrompt, HookRegistry};
 use crate::operation::{
-    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
+    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationProgress,
+    OperationState,
 };
 use crate::operation_registry::OperationRegistry;
 use crate::trampoline_state::{RemoteSession, TrampolineState};
@@ -63,6 +64,81 @@ fn remote_error(remote: &RemoteSession, error: git_ops::GitError) -> CommandErro
     }
 
     CommandError::from(error)
+}
+
+fn fetch_termination(
+    reason: git_ops::TerminationReason,
+) -> (OperationState, OperationErrorKind, &'static str) {
+    match reason {
+        git_ops::TerminationReason::Cancelled => (
+            OperationState::Cancelled,
+            OperationErrorKind::Cancelled,
+            "Fetch was cancelled",
+        ),
+        git_ops::TerminationReason::TimedOut => (
+            OperationState::TimedOut,
+            OperationErrorKind::TimedOut,
+            "Fetch timed out after becoming inactive",
+        ),
+    }
+}
+
+/// Re-read repository facts after Fetch has stopped before releasing its write lock.
+async fn recover_terminated_fetch(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    repository_path: &str,
+    reason: git_ops::TerminationReason,
+) -> CommandError {
+    let _ = registry.enter_recovery(operation_id);
+    let recovery = tokio::try_join!(
+        git_ops::remote::get_remotes(repository_path),
+        git_ops::status::get_status(repository_path, true),
+    );
+    let (state, kind, message) = fetch_termination(reason);
+    match recovery {
+        Ok((_, Some(_))) => {
+            let _ = registry.finish(
+                operation_id,
+                state,
+                OperationOutcome::Unchanged,
+                Some(OperationError {
+                    kind,
+                    message: message.to_owned(),
+                    recoverable: true,
+                }),
+            );
+            CommandError::message(message)
+        }
+        Ok((_, None)) => finish_fetch_recovery_failure(
+            registry,
+            operation_id,
+            "Fetch stopped, but the repository could not be read during recovery".to_owned(),
+        ),
+        Err(error) => finish_fetch_recovery_failure(
+            registry,
+            operation_id,
+            format!("Fetch stopped, but repository recovery failed: {error}"),
+        ),
+    }
+}
+
+fn finish_fetch_recovery_failure(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    message: String,
+) -> CommandError {
+    let _ = registry.finish(
+        operation_id,
+        OperationState::Failed,
+        OperationOutcome::Unknown,
+        Some(OperationError {
+            kind: OperationErrorKind::RecoveryFailed,
+            message: message.clone(),
+            recoverable: true,
+        }),
+    );
+    CommandError::message(message)
 }
 
 /// Pushes a branch to a remote.
@@ -295,13 +371,17 @@ pub async fn fetch(
     is_background_task: Option<bool>,
     on_progress: Channel<FetchProgress>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
         GitOperationKind::Fetch,
+        "Cancel fetch",
     )
     .await?;
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
     let remote = match state
         .session_for(&repository_path, is_background_task.unwrap_or(false))
         .await
@@ -322,16 +402,32 @@ pub async fn fetch(
             return Err(command_error);
         }
     };
+    let watchdog = registry.spawn_watchdog(
+        operation.id.clone(),
+        crate::operation_registry::WatchdogPolicy::default(),
+    );
 
-    let result = git_ops::fetch::fetch(
+    let operation_id = operation.id.clone();
+    let progress_registry = registry.inner().clone();
+    let result = git_ops::fetch::fetch_controlled(
         &repository_path,
         &remote_name,
         &remote.env,
         Some(|progress: FetchProgress| {
+            let _ = progress_registry.publish_progress(
+                &operation_id,
+                OperationProgress {
+                    value: progress.value,
+                    title: Some(progress.title.clone()),
+                    description: progress.description.clone(),
+                },
+            );
             let _ = on_progress.send(progress);
         }),
+        Some(control),
     )
     .await;
+    watchdog.abort();
     match result {
         Ok(_) => {
             let _ = registry.finish(
@@ -341,6 +437,9 @@ pub async fn fetch(
                 None,
             );
             Ok(())
+        }
+        Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
+            Err(recover_terminated_fetch(&registry, &operation.id, &repository_path, reason).await)
         }
         Err(error) => {
             let command_error = remote_error(&remote, error);
@@ -356,6 +455,125 @@ pub async fn fetch(
             );
             Err(command_error)
         }
+    }
+}
+
+#[cfg(test)]
+mod fetch_cancellation_tests {
+    use std::process::Command;
+
+    use super::{fetch_termination, recover_terminated_fetch};
+    use crate::operation::{
+        CancellationCapability, GitOperationKind, OperationErrorKind, OperationOutcome,
+        OperationScope, OperationState,
+    };
+    use crate::operation_registry::OperationRegistry;
+
+    fn start_fetch(
+        registry: &OperationRegistry,
+        repository_path: &str,
+    ) -> (OperationScope, String) {
+        let scope = OperationScope::Repository {
+            lock_key: repository_path.to_owned(),
+            repository_path: repository_path.to_owned(),
+        };
+        let operation = registry
+            .start(
+                scope.clone(),
+                Some("main".to_owned()),
+                GitOperationKind::Fetch,
+                CancellationCapability::Available {
+                    label: "Cancel fetch".to_owned(),
+                },
+            )
+            .expect("fetch should reserve its repository scope");
+        (scope, operation.id)
+    }
+
+    #[test]
+    fn distinguishes_user_cancellation_from_watchdog_timeout() {
+        assert_eq!(
+            fetch_termination(git_ops::TerminationReason::Cancelled),
+            (
+                OperationState::Cancelled,
+                OperationErrorKind::Cancelled,
+                "Fetch was cancelled"
+            )
+        );
+        assert_eq!(
+            fetch_termination(git_ops::TerminationReason::TimedOut),
+            (
+                OperationState::TimedOut,
+                OperationErrorKind::TimedOut,
+                "Fetch timed out after becoming inactive"
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn releases_the_repository_lock_only_after_successful_recovery() {
+        let repository = tempfile::tempdir().expect("temporary repository");
+        let output = Command::new("git")
+            .args(["init", "--quiet"])
+            .current_dir(repository.path())
+            .output()
+            .expect("git init should run");
+        assert!(output.status.success(), "git init failed: {output:?}");
+
+        let registry = OperationRegistry::new();
+        let repository_path = repository.path().to_string_lossy().into_owned();
+        let (scope, operation_id) = start_fetch(&registry, &repository_path);
+
+        let error = recover_terminated_fetch(
+            &registry,
+            &operation_id,
+            &repository_path,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await;
+
+        assert_eq!(error.message, "Fetch was cancelled");
+        assert!(registry.active_for_scope(&scope).is_none());
+        let operation = registry.get(&operation_id).expect("operation record");
+        assert_eq!(operation.state, OperationState::Cancelled);
+        assert_eq!(operation.outcome, Some(OperationOutcome::Unchanged));
+        assert_eq!(
+            operation.error.expect("typed cancellation error").kind,
+            OperationErrorKind::Cancelled
+        );
+    }
+
+    #[tokio::test]
+    async fn retains_the_repository_lock_when_recovery_cannot_read_the_repository() {
+        let parent = tempfile::tempdir().expect("temporary parent");
+        let missing_repository = parent.path().join("missing");
+        let repository_path = missing_repository.to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let (scope, operation_id) = start_fetch(&registry, &repository_path);
+
+        let error = recover_terminated_fetch(
+            &registry,
+            &operation_id,
+            &repository_path,
+            git_ops::TerminationReason::TimedOut,
+        )
+        .await;
+
+        assert!(error.message.contains("repository recovery failed"));
+        assert_eq!(
+            registry
+                .active_for_scope(&scope)
+                .expect("failed recovery must retain the scope lock")
+                .id,
+            operation_id
+        );
+        let operation = registry.get(&operation_id).expect("operation record");
+        assert_eq!(operation.state, OperationState::Failed);
+        assert_eq!(operation.outcome, Some(OperationOutcome::Unknown));
+        assert_eq!(
+            operation.error.expect("typed recovery error").kind,
+            OperationErrorKind::RecoveryFailed
+        );
     }
 }
 

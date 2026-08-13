@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::authentication::{env_for_authentication, AUTHENTICATION_ERRORS};
 use crate::error::GitError;
-use crate::exec::{git_with_stderr_and_lfs, GitOptions, GitOutput};
+use crate::exec::{git_with_stderr_and_lfs_controlled, ExecutionControl, GitOptions, GitOutput};
 use crate::progress::{
     parse_progress_line, GitLfsProgressParser, GitProgress, GitProgressParser, ProgressLineSplitter,
 };
@@ -77,6 +77,19 @@ pub(crate) async fn run_with_progress<F>(
 where
     F: FnMut(f64, String) + Send,
 {
+    run_with_progress_controlled(repository, run, None, on_progress).await
+}
+
+/// Runs git with progress and an operation-owned cancellation signal.
+pub(crate) async fn run_with_progress_controlled<F>(
+    repository: impl AsRef<Path>,
+    run: RemoteRun<'_>,
+    control: Option<ExecutionControl>,
+    on_progress: F,
+) -> Result<GitOutput, GitError>
+where
+    F: FnMut(f64, String) + Send,
+{
     let RemoteRun {
         args,
         name,
@@ -103,11 +116,12 @@ where
     let mut splitter = ProgressLineSplitter::new();
     let mut lfs_parser = GitLfsProgressParser::default();
 
-    let output = git_with_stderr_and_lfs(
+    let output = git_with_stderr_and_lfs_controlled(
         args,
         repository,
         name,
         options,
+        control,
         |chunk| {
             for line in splitter.push(chunk) {
                 with_callback(&regular_callback, |callback| {
