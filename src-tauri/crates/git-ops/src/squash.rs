@@ -452,6 +452,51 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancelled_squash_does_not_change_head() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+        commit_file(&repo.path(), "b.txt", "two\n", "second");
+        let commits: Vec<String> = git(
+            &["log", "--format=%H", "--reverse"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("log should succeed")
+        .stdout_lossy()
+        .lines()
+        .map(str::to_owned)
+        .collect();
+        let original_head = commits[1].clone();
+        let control = ExecutionControl::new();
+        control.cancel(crate::error::TerminationReason::Cancelled);
+
+        let result = squash_controlled(
+            repo.path(),
+            &[commits[1].clone()],
+            &commits[0],
+            None,
+            "",
+            None::<fn(MultiCommitOperationProgress)>,
+            Some(control),
+        )
+        .await;
+
+        assert!(matches!(result, Err(GitError::OperationTerminated { .. })));
+        let current_head = git(
+            &["rev-parse", "HEAD"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("HEAD should resolve")
+        .stdout_trimmed();
+        assert_eq!(current_head, original_head);
+    }
+
+    #[tokio::test]
     async fn squashes_down_to_the_root_commit() {
         // `last_retained_commit_ref` of None means `--root`: the first commit has no parent to name.
         let repo = empty_repository().await;

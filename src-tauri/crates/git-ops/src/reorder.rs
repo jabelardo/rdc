@@ -389,6 +389,36 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancelled_reorder_does_not_change_head() {
+        let (repo, shas) = repo_with_four_commits().await;
+        let original_head = shas[3].clone();
+        let control = ExecutionControl::new();
+        control.cancel(crate::error::TerminationReason::Cancelled);
+
+        let result = reorder_controlled(
+            repo.path(),
+            &[shas[3].clone()],
+            Some(&shas[2]),
+            Some(&shas[0]),
+            None::<fn(MultiCommitOperationProgress)>,
+            Some(control),
+        )
+        .await;
+
+        assert!(matches!(result, Err(GitError::OperationTerminated { .. })));
+        let current_head = git(
+            &["rev-parse", "HEAD"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("HEAD should resolve")
+        .stdout_trimmed();
+        assert_eq!(current_head, original_head);
+    }
+
+    #[tokio::test]
     async fn moves_a_commit_to_the_end_of_history() {
         let (repo, shas) = repo_with_four_commits().await;
 
