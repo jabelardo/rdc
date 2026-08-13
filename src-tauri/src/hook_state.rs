@@ -18,7 +18,8 @@ use serde::{Deserialize, Serialize};
 use tauri::ipc::Channel;
 use tokio::sync::oneshot;
 
-use crate::operation_registry::OperationWaitReason;
+use crate::operation::OperationHook;
+use crate::operation_registry::{OperationRegistry, OperationWaitReason};
 
 /// The hooks currently running, so a cancel from the UI can reach one.
 ///
@@ -176,6 +177,7 @@ pub fn helper_binary(name: &str) -> Result<PathBuf, String> {
 /// `None` when the caller didn't ask to intercept, which is the default: whether to intercept is a user
 /// setting, and until the preferences UI exists (Phase 7) nothing turns it on.
 ///
+#[allow(dead_code)]
 pub fn support_for(
     intercept: bool,
     registry: &HookRegistry,
@@ -185,7 +187,27 @@ pub fn support_for(
     support_for_with_wait(intercept, registry, on_progress, on_failure, None)
 }
 
+/// Builds hook support while associating hook transitions with a native operation record.
+pub fn support_for_operation(
+    intercept: bool,
+    registry: &HookRegistry,
+    on_progress: Channel<HookProgressUpdate>,
+    on_failure: Channel<HookFailurePrompt>,
+    operation_registry: &OperationRegistry,
+    operation_id: &str,
+) -> Result<Option<HookSupport>, String> {
+    support_for_with_operation(
+        intercept,
+        registry,
+        on_progress,
+        on_failure,
+        None,
+        Some((operation_registry.clone(), operation_id.to_owned())),
+    )
+}
+
 /// Builds hook support with an optional operation watchdog boundary around Abort/Ignore.
+#[allow(dead_code)]
 pub fn support_for_with_wait(
     intercept: bool,
     registry: &HookRegistry,
@@ -193,11 +215,30 @@ pub fn support_for_with_wait(
     on_failure: Channel<HookFailurePrompt>,
     wait_hooks: Option<OperationWaitHooks>,
 ) -> Result<Option<HookSupport>, String> {
+    support_for_with_operation(
+        intercept,
+        registry,
+        on_progress,
+        on_failure,
+        wait_hooks,
+        None,
+    )
+}
+
+fn support_for_with_operation(
+    intercept: bool,
+    registry: &HookRegistry,
+    on_progress: Channel<HookProgressUpdate>,
+    on_failure: Channel<HookFailurePrompt>,
+    wait_hooks: Option<OperationWaitHooks>,
+    operation: Option<(OperationRegistry, String)>,
+) -> Result<Option<HookSupport>, String> {
     if !intercept {
         return Ok(None);
     }
 
     let progress_registry = registry.clone();
+    let operation_for_progress = operation;
     let failure_registry = registry.clone();
     let failure_wait_hooks = wait_hooks;
 
@@ -217,6 +258,22 @@ pub fn support_for_with_wait(
                     progress_registry.finish(&progress.hook).unwrap_or_default()
                 }
             };
+
+            if let Some((operation_registry, operation_id)) = &operation_for_progress {
+                let _ = operation_registry.set_hook(
+                    operation_id,
+                    Some(OperationHook {
+                        id,
+                        hook: progress.hook.clone(),
+                        status: match progress.status {
+                            HookStatus::Started => "started",
+                            HookStatus::Finished => "finished",
+                            HookStatus::Failed => "failed",
+                        }
+                        .to_owned(),
+                    }),
+                );
+            }
 
             // A closed webview drops updates rather than stopping the hook, which must not be left
             // half-run: the same rule the progress Channels already follow.

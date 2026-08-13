@@ -14,8 +14,8 @@ use serde::Serialize;
 
 use crate::operation::{
     CancellationCapability, GitOperationKind, OperationError, OperationEvent,
-    OperationEventEnvelope, OperationLifecycleState, OperationOutcome, OperationProgress,
-    OperationRecord, OperationScope, OperationState,
+    OperationEventEnvelope, OperationHook, OperationLifecycleState, OperationOutcome,
+    OperationProgress, OperationRecord, OperationScope, OperationState,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, thiserror::Error)]
@@ -116,6 +116,7 @@ impl OperationRegistry {
             state: OperationState::Running,
             cancellation,
             progress: None,
+            hook: None,
             last_activity_at: now_millis(),
             outcome: None,
             error: None,
@@ -190,6 +191,21 @@ impl OperationRegistry {
             record.last_activity_at = now_millis();
         })?;
         control.touch();
+        Ok(record)
+    }
+
+    /// Mirrors the currently intercepted hook in the operation snapshot. Hook transitions are
+    /// activity, but do not create a separate lifecycle event.
+    pub fn set_hook(
+        &self,
+        operation_id: &str,
+        hook: Option<OperationHook>,
+    ) -> Result<OperationRecord, OperationRegistryError> {
+        let record = self.update(operation_id, |record, _| {
+            record.hook = hook.clone();
+            record.last_activity_at = now_millis();
+        })?;
+        self.control(operation_id)?.touch();
         Ok(record)
     }
 

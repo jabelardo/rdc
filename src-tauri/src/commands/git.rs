@@ -23,7 +23,9 @@ use git_ops::update_index::FileToStage;
 
 use super::CommandError;
 use crate::blob_protocol::BlobRegistry;
-use crate::hook_state::{support_for, HookFailurePrompt, HookFailureResolution, HookRegistry};
+use crate::hook_state::{
+    support_for_operation, HookFailurePrompt, HookFailureResolution, HookRegistry,
+};
 use crate::operation::{
     GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
 };
@@ -154,11 +156,13 @@ pub async fn create_commit(
         GitOperationKind::Commit,
     )
     .await?;
-    let support = match support_for(
+    let support = match support_for_operation(
         intercept_hooks.unwrap_or(false),
         &hooks,
         on_hook_progress,
         on_hook_failure,
+        &registry,
+        &operation.id,
     ) {
         Ok(support) => support,
         Err(error) => {
@@ -556,11 +560,13 @@ pub async fn merge_branch(
         GitOperationKind::Merge,
     )
     .await?;
-    let support = match support_for(
+    let support = match support_for_operation(
         intercept_hooks.unwrap_or(false),
         &hooks,
         on_hook_progress,
         on_hook_failure,
+        &registry,
+        &operation.id,
     ) {
         Ok(support) => support,
         Err(message) => {

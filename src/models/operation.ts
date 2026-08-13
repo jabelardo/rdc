@@ -25,7 +25,11 @@ export type GitOperationKind =
 
 export type OperationScope =
   | { readonly kind: "repository"; readonly lockKey: string; readonly repositoryPath: string }
-  | { readonly kind: "cloneDestination"; readonly lockKey: string; readonly destinationPath: string };
+  | {
+      readonly kind: "cloneDestination";
+      readonly lockKey: string;
+      readonly destinationPath: string;
+    };
 
 export type CancellationCapability =
   | { readonly kind: "unavailable" }
@@ -44,6 +48,12 @@ export type OperationProgress = {
   readonly description?: string;
 };
 
+export type OperationHook = {
+  readonly id: number;
+  readonly hook: string;
+  readonly status: "started" | "finished" | "failed";
+};
+
 export type OperationRecord = {
   readonly id: string;
   readonly scope: OperationScope;
@@ -52,6 +62,7 @@ export type OperationRecord = {
   readonly state: OperationState;
   readonly cancellation: CancellationCapability;
   readonly progress: OperationProgress | null;
+  readonly hook?: OperationHook;
   /** Unix epoch milliseconds, supplied by native code. */
   readonly lastActivityAt: number;
   readonly outcome: OperationOutcome | null;
@@ -59,7 +70,11 @@ export type OperationRecord = {
 };
 
 export type OperationEvent =
-  | { readonly kind: "progress"; readonly operationId: string; readonly progress: OperationProgress }
+  | {
+      readonly kind: "progress";
+      readonly operationId: string;
+      readonly progress: OperationProgress;
+    }
   | {
       readonly kind: "state";
       readonly operationId: string;
@@ -71,7 +86,7 @@ export type OperationEvent =
       readonly state: "completed" | "cancelled" | "timedOut" | "failed";
       readonly outcome: OperationOutcome;
       readonly error: OperationError | null;
-  };
+    };
 
 export type OperationEventEnvelope = {
   readonly record: OperationRecord;

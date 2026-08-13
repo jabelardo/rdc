@@ -674,6 +674,11 @@ destination is rejected without modification.
 - Treat terminal hook output as activity.
 - Handle a hook completing just before the stop request.
 
+**Progress:** the commit flow now tracks the active hook in frontend state, exposes `Stop <hook>
+hook` from the shared commit progress dialog, and preserves the existing Abort/Ignore prompt after
+a stopped hook fails. Native operation snapshots now carry hook ID/name/status for commit, merge,
+push, and pull; hook transitions also refresh the operation watchdog activity clock.
+
 **Exit:** commit-hook and push-hook tests prove stop, race and Abort/Ignore handoff.
 
 ## Slice 13 — Recover sequencer/history operations

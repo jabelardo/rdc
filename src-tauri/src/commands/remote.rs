@@ -18,7 +18,7 @@ use git_ops::push::{PushOptions, PushProgress, PushTarget};
 use git_ops::remote::Remote;
 
 use super::CommandError;
-use crate::hook_state::{support_for, HookFailurePrompt, HookRegistry};
+use crate::hook_state::{support_for_operation, HookFailurePrompt, HookRegistry};
 use crate::operation::{
     GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationProgress,
     OperationState,
@@ -203,11 +203,13 @@ pub async fn push(
             return Err(command_error);
         }
     };
-    let support = match support_for(
+    let support = match support_for_operation(
         intercept_hooks.unwrap_or(false),
         &hooks,
         on_hook_progress,
         on_hook_failure,
+        &registry,
+        &operation.id,
     ) {
         Ok(support) => support,
         Err(message) => {
@@ -826,11 +828,13 @@ pub async fn pull(
             return Err(command_error);
         }
     };
-    let support = match support_for(
+    let support = match support_for_operation(
         intercept_hooks.unwrap_or(false),
         &hooks,
         on_hook_progress,
         on_hook_failure,
+        &registry,
+        &operation.id,
     ) {
         Ok(support) => support,
         Err(message) => {

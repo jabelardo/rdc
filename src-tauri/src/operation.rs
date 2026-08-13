@@ -98,6 +98,14 @@ pub struct OperationProgress {
     pub description: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OperationHook {
+    pub id: u64,
+    pub hook: String,
+    pub status: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OperationRecord {
@@ -108,6 +116,8 @@ pub struct OperationRecord {
     pub state: OperationState,
     pub cancellation: CancellationCapability,
     pub progress: Option<OperationProgress>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hook: Option<OperationHook>,
     pub last_activity_at: u64,
     pub outcome: Option<OperationOutcome>,
     pub error: Option<OperationError>,
