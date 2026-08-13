@@ -711,7 +711,8 @@ command then invokes `rebase --abort` and reports `cancelled/recovered` or `time
 Cherry-pick now follows the same boundary and invokes `cherry-pick --abort` after termination, while
 ordinary conflicts remain in the existing paused recovery flow. Revert now uses controlled execution
 and invokes `revert --abort` after termination. Focused Rebase, Cherry-pick, and Revert tests and
-strict native checks pass. Real repository cancellation, recovery, and completion-race journeys remain.
+strict native checks pass. The three operation-specific recovery policies are now explicit; real
+repository cancellation, restoration, and completion-race journeys remain as the final evidence gate.
 
 ## Slice 14 — Add Merge cancellation and recovery
 
