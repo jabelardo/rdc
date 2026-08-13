@@ -93,6 +93,7 @@ const workingTreeStore = vi.hoisted(() => ({
   discardSelectedLines: vi.fn(),
   commit: vi.fn(),
   resolveHookFailure: vi.fn(),
+  stopHook: vi.fn(),
   clear: vi.fn(),
   onDidUpdate: vi.fn(),
   onCommitTerminalOutput: vi.fn(),

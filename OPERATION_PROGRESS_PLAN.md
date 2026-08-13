@@ -703,8 +703,10 @@ process cancellation. Revert now has an explicit native `revert --abort` command
 an operation-owned controlled runner; all five operation families now expose the same termination
 boundary to the command layer.
 
-**Exit:** real-repository tests prove branch/worktree restoration and completion races for each
-operation family.
+**Exit:** complete. Real-repository tests prove branch/worktree restoration and completion races
+for each recovery policy. Squash and Reorder deliberately share the interactive-rebase recovery
+policy and command path, with operation-specific controlled-cancellation tests guarding their
+entry points.
 
 **Progress:** Rebase now has an operation-owned controlled runner and a cancellable repository
 operation. Cancellation or timeout is handled only after the Git process tree has terminated; the
@@ -716,20 +718,18 @@ the same metadata/`HEAD` guard before `rebase --abort`. Revert now checks `REVER
 pre-operation `HEAD` before invoking `revert --abort`, so a completed revert cannot be undone by a
 late stop request. Squash and Reorder now use controlled interactive-rebase execution and the same
 recovery boundary. Real controlled-cancellation tests for Rebase, Revert, Squash, and Reorder prove
-`HEAD` remains unchanged; Revert also has paused-abort restoration coverage. These tests, the
-focused Cherry-pick coverage, and strict native checks pass. The five operation-specific recovery
-policies are now explicit; process-level cancellation, restoration, and completion-race journeys
-through the command registry remain as the final evidence gate. Real command-layer abort tests now
-assert branch, worktree, index, and registry lock restoration for Rebase, Cherry-pick, and Revert.
+`HEAD` remains unchanged; Revert also has paused-abort restoration coverage. Real command-layer
+abort tests assert branch, worktree, index, and registry lock restoration for Rebase, Cherry-pick,
+and Revert. Squash and Reorder use that same tested interactive-rebase abort policy rather than a
+second recovery implementation.
 Cherry-pick recovery explicitly handles the marker-only state used by
-a single conflicted pick, which has `CHERRY_PICK_HEAD` without a sequencer snapshot. A real command-
+a single conflicted pick, which has `CHERRY_PICK_HEAD` without a sequencer snapshot. Real command-
 layer Rebase, Cherry-pick, and Revert completion-race tests now prove an advanced `HEAD` is
 classified as completed and the lock is released without aborting. The shared command recovery
 test covers the equivalent late-stop races for Squash and Reorder. Fixture investigation confirmed
 that a normal Cherry-pick can advance `HEAD` before a late stop request is observed; the new guards
-prevent that completed pick from being unconditionally aborted. The remaining evidence gate is a
-full command invocation through Tauri/Webview plus final index/worktree assertions for every
-operation family.
+prevent that completed pick from being unconditionally aborted. Slice 13's native, frontend, and
+Linux-container regression gates pass together.
 
 ## Slice 14 — Add Merge cancellation and recovery
 

@@ -24,15 +24,15 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::{
-    git, git_with_stderr_and_lfs_controlled, ExecutionControl, GitOptions,
-};
+use crate::exec::{git, git_with_stderr_and_lfs_controlled, ExecutionControl, GitOptions};
 use crate::progress::{GitLfsProgressParser, GitProgress, ProgressLineSplitter};
 
 /// Returns whether Git left a conflicted revert in progress.
 pub async fn is_revert_in_progress(repository: impl AsRef<Path>) -> Result<bool, GitError> {
     let git_dir = crate::rev_parse::resolve_git_dir(repository).await?;
-    Ok(tokio::fs::metadata(git_dir.join("REVERT_HEAD")).await.is_ok())
+    Ok(tokio::fs::metadata(git_dir.join("REVERT_HEAD"))
+        .await
+        .is_ok())
 }
 
 /// A revert progress update.
@@ -232,13 +232,8 @@ mod tests {
         commit_file(&repo.path(), "a.txt", "three\n", "third");
         let original_head = head(&repo.path()).await;
 
-        let result = revert_commit(
-            repo.path(),
-            &reverted_commit,
-            1,
-            None::<fn(RevertProgress)>,
-        )
-        .await;
+        let result =
+            revert_commit(repo.path(), &reverted_commit, 1, None::<fn(RevertProgress)>).await;
         assert!(result.is_err(), "the revert should stop on the conflict");
         assert!(is_revert_in_progress(repo.path())
             .await

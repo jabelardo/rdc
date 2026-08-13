@@ -33,11 +33,7 @@ function renderDialog(overrides: Partial<PreferencesState> = {}) {
   } as unknown as PreferencesStore;
   const onDismiss = vi.fn();
   render(
-    <PreferencesDialog
-      state={{ ...state, ...overrides }}
-      store={store}
-      onDismiss={onDismiss}
-    />,
+    <PreferencesDialog state={{ ...state, ...overrides }} store={store} onDismiss={onDismiss} />,
   );
   return { store, onDismiss };
 }

@@ -257,16 +257,32 @@ where
     let output = match on_progress {
         Some(mut on_progress) => {
             let mut parser = CherryPickProgressParser::new(commits, 0);
-            git_streaming_controlled(&args, repository, "cherryPick", options, control, |chunk| {
-                for progress in parser.push(chunk) {
-                    on_progress(progress);
-                }
-            }, |_| {})
+            git_streaming_controlled(
+                &args,
+                repository,
+                "cherryPick",
+                options,
+                control,
+                |chunk| {
+                    for progress in parser.push(chunk) {
+                        on_progress(progress);
+                    }
+                },
+                |_| {},
+            )
             .await?
         }
         None => {
-            git_streaming_controlled(&args, repository, "cherryPick", options, control, |_| {}, |_| {})
-                .await?
+            git_streaming_controlled(
+                &args,
+                repository,
+                "cherryPick",
+                options,
+                control,
+                |_| {},
+                |_| {},
+            )
+            .await?
         }
     };
 
@@ -342,9 +358,7 @@ pub async fn get_cherry_pick_snapshot(
 /// A single-commit conflicted cherry-pick has `CHERRY_PICK_HEAD` but no sequencer directory, so it
 /// cannot produce a [`CherryPickSnapshot`] and must be checked separately before deciding whether
 /// `cherry-pick --abort` is safe.
-pub async fn is_cherry_pick_in_progress(
-    repository: impl AsRef<Path>,
-) -> Result<bool, GitError> {
+pub async fn is_cherry_pick_in_progress(repository: impl AsRef<Path>) -> Result<bool, GitError> {
     let git_dir = resolve_git_dir(repository).await?;
     Ok(is_cherry_pick_head_found(&git_dir).await)
 }

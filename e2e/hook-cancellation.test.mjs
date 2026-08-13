@@ -64,16 +64,22 @@ describe("hook cancellation", () => {
       await driver.executeScript((element) => element.textContent, hookFailure),
       /pre-commit|hook/i,
     );
-    assert.ok(
-      await driver.findElement(By.xpath("//button[normalize-space()='Abort']")).isDisplayed(),
+    const abort = await driver.findElement(By.xpath("//button[normalize-space()='Abort']"));
+    const ignore = await driver.findElement(
+      By.xpath("//button[normalize-space()='Ignore and Continue']"),
     );
-    assert.ok(
-      await driver
-        .findElement(By.xpath("//button[normalize-space()='Ignore and Continue']"))
-        .isDisplayed(),
+    await driver.wait(
+      until.elementIsVisible(abort),
+      5_000,
+      "the Abort action did not become visible",
+    );
+    await driver.wait(
+      until.elementIsVisible(ignore),
+      5_000,
+      "the Ignore and Continue action did not become visible",
     );
 
-    await driver.findElement(By.xpath("//button[normalize-space()='Abort']")).click();
+    await abort.click();
     await driver.wait(
       async () =>
         (

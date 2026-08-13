@@ -7,7 +7,6 @@ import { By, until } from "selenium-webdriver";
 import {
   commitWorkingTreeBaseline,
   createFixtureRoot,
-  git,
   initCanonicalRepository,
   openSeededRepository,
   publishCanonical,
@@ -20,6 +19,8 @@ describe("clone cancellation", () => {
   let driver;
   let fixture;
   let readyPath;
+  const remotePath = "/tmp/rdc-e2e-clone-cancellation-remote";
+  const releasePath = "/tmp/rdc-e2e-clone-cancellation-release";
 
   before(async () => {
     fixture = createFixtureRoot();
@@ -28,7 +29,10 @@ describe("clone cancellation", () => {
     publishCanonical(fixture);
 
     readyPath = "/tmp/rdc-e2e-clone-cancellation-ready";
-    writeFileSync("/tmp/rdc-e2e-clone-cancellation-remote", fixture.remote);
+    for (const path of [readyPath, releasePath]) {
+      if (existsSync(path)) unlinkSync(path);
+    }
+    writeFileSync(remotePath, fixture.remote);
     chmodSync("e2e/blocking-clone-ssh.sh", 0o700);
 
     driver = await startApplication();
@@ -37,6 +41,9 @@ describe("clone cancellation", () => {
 
   after(async () => {
     await driver?.quit().catch(() => undefined);
+    for (const path of [remotePath, readyPath, releasePath]) {
+      if (existsSync(path)) unlinkSync(path);
+    }
     removeFixtureRoot(fixture);
   });
 

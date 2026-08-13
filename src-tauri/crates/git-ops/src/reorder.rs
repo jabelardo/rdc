@@ -21,8 +21,8 @@
 use std::path::Path;
 
 use crate::error::GitError;
-use crate::log::get_commits;
 use crate::exec::ExecutionControl;
+use crate::log::get_commits;
 use crate::rebase::{
     rebase_interactive_controlled, MultiCommitOperationProgress, RebaseResult, TodoStep,
 };

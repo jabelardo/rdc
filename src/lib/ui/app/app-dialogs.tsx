@@ -252,7 +252,7 @@ export function AppDialogs({
           operation="Committing"
           progress={{ value: 0, title: "Committing changes" }}
         >
-          {runningHook !== null && (
+          {runningHook != null && (
             <button type="button" onClick={() => void workingTreeStore.stopHook()}>
               Stop {runningHook.hook} hook
             </button>

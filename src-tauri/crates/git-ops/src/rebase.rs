@@ -13,7 +13,9 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::{git, git_streaming_controlled, git_with_stderr, ExecutionControl, GitOptions, GitOutput};
+use crate::exec::{
+    git, git_streaming_controlled, git_with_stderr, ExecutionControl, GitOptions, GitOutput,
+};
 use crate::git_error_kind::GitErrorKind;
 use crate::operation_state::is_rebase_head_set;
 use crate::rev_list::{get_commits_between_commits, CommitOneLine};
@@ -852,14 +854,9 @@ mod tests {
         let control = ExecutionControl::new();
         control.cancel(crate::error::TerminationReason::Cancelled);
 
-        let result = rebase_with_progress_controlled(
-            repo.path(),
-            "main",
-            "feature",
-            |_| {},
-            Some(control),
-        )
-        .await;
+        let result =
+            rebase_with_progress_controlled(repo.path(), "main", "feature", |_| {}, Some(control))
+                .await;
 
         assert!(matches!(result, Err(GitError::OperationTerminated { .. })));
         assert_eq!(
@@ -1188,21 +1185,20 @@ where
     let output = match on_progress {
         Some(mut on_progress) => {
             let mut parser = RebaseProgressParser::new(commits);
-            let output =
-                git_streaming_controlled(
-                    &args,
-                    repository,
-                    "rebaseInteractive",
-                    options,
-                    control,
-                    |_| {},
-                    |chunk| {
+            let output = git_streaming_controlled(
+                &args,
+                repository,
+                "rebaseInteractive",
+                options,
+                control,
+                |_| {},
+                |chunk| {
                     for progress in parser.push(chunk) {
                         on_progress(progress);
                     }
-                    },
-                )
-                .await?;
+                },
+            )
+            .await?;
             if let Some(progress) = parser.finish() {
                 on_progress(progress);
             }

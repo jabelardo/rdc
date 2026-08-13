@@ -157,13 +157,15 @@ export function AppShell({ controller }: AppShellProps) {
     selectedRepositoryPath: appState.selectedRepository?.path ?? null,
     remoteState,
   });
-  const operationLockActive = operationState.operation !== null &&
+  const operationLockActive =
+    operationState.operation !== null &&
     !["completed", "cancelled", "timedOut", "failed"].includes(operationState.operation.state);
-  const operationPeerMessage = operationLockActive && operationState.role === "observer"
-    ? `${operationState.operation!.operation} in progress — Started in another window`
-    : undefined;
-  const historyOperationActive = operationLockActive &&
-    isHistoryMovingOperation(operationState.operation!.operation);
+  const operationPeerMessage =
+    operationLockActive && operationState.role === "observer"
+      ? `${operationState.operation!.operation} in progress — Started in another window`
+      : undefined;
+  const historyOperationActive =
+    operationLockActive && isHistoryMovingOperation(operationState.operation!.operation);
 
   return (
     <main
