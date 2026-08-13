@@ -724,10 +724,12 @@ Cherry-pick, and Revert recovery tests now prove conflict abort restores the bra
 releases the registry lock. Cherry-pick recovery explicitly handles the marker-only state used by
 a single conflicted pick, which has `CHERRY_PICK_HEAD` without a sequencer snapshot. A real command-
 layer Rebase, Cherry-pick, and Revert completion-race tests now prove an advanced `HEAD` is
-classified as completed and the lock is released without aborting. Fixture investigation confirmed that a normal Cherry-pick can
-advance `HEAD` before a late stop request is observed; the new guards prevent that completed pick
-from being unconditionally aborted. The next evidence increment should exercise equivalent
-completion races for Squash and Reorder.
+classified as completed and the lock is released without aborting. The shared command recovery
+test covers the equivalent late-stop races for Squash and Reorder. Fixture investigation confirmed
+that a normal Cherry-pick can advance `HEAD` before a late stop request is observed; the new guards
+prevent that completed pick from being unconditionally aborted. The remaining evidence gate is a
+full command invocation through Tauri/Webview plus final index/worktree assertions for every
+operation family.
 
 ## Slice 14 — Add Merge cancellation and recovery
 
