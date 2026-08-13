@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slices 1–9 complete; Slice 10 in progress
+**Status:** Slices 1–10 complete; Slice 11 next
 **Recorded:** 2026-08-11  
 **Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
 history-changing operations.
@@ -589,9 +589,13 @@ barrier proves successful completion, and the registry preserves that terminal r
 cancellation request arrives too late. The same fixture now runs through a short-policy production
 watchdog: activity reaches the registry, inactivity requests `TimedOut`, the SSH process tree exits,
 repository recovery completes, and only then does the lock release as `timedOut/unchanged`.
-
-Still required to close the slice: prove owner-window closure, peer observation and
-different-repository isolation through command/frontend/E2E coverage.
+The Linux-container E2E pilot now drives that same cancellation through the real command boundary.
+It proves a peer sees the blocked Fetch and repository lock, a different repository completes its
+own Fetch concurrently, destroying the owner leaves the first Fetch running and unowned, and the
+surviving peer can request cancellation and observe `cancelled/unchanged` after recovery releases
+the lock. Fetch execution, watchdog and recovery run in a detached native task because Tauri drops
+the invoking command future with its webview; renderer loss can therefore no longer strand the
+process or registry record.
 
 Fetch policy:
 
@@ -619,6 +623,10 @@ Required tests:
 
 **Milestone gate:** stop and review architecture after this slice. Do not expand cancellation until
 the process tree, timeout, recovery, replay and repository isolation are demonstrated together.
+
+**Status:** complete. The architecture review gate is reached: process-tree termination, inactivity
+timeout, post-termination recovery, terminal replay, owner-window loss, peer cancellation and
+different-repository concurrency are covered by native and Linux-container tests.
 
 ## Slice 11 — Make Clone transactional and cancellable
 

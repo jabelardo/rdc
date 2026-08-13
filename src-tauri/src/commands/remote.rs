@@ -402,60 +402,76 @@ pub async fn fetch(
             return Err(command_error);
         }
     };
-    let watchdog = registry.spawn_watchdog(
-        operation.id.clone(),
-        crate::operation_registry::WatchdogPolicy::default(),
-    );
-
     let operation_id = operation.id.clone();
-    let progress_registry = registry.inner().clone();
-    let result = git_ops::fetch::fetch_controlled(
-        &repository_path,
-        &remote_name,
-        &remote.env,
-        Some(|progress: FetchProgress| {
-            let _ = progress_registry.publish_progress(
-                &operation_id,
-                OperationProgress {
-                    value: progress.value,
-                    title: Some(progress.title.clone()),
-                    description: progress.description.clone(),
-                },
-            );
-            let _ = on_progress.send(progress);
-        }),
-        Some(control),
-    )
-    .await;
-    watchdog.abort();
-    match result {
-        Ok(_) => {
-            let _ = registry.finish(
-                &operation.id,
-                OperationState::Completed,
-                OperationOutcome::Completed,
-                None,
-            );
-            Ok(())
+    let operation_registry = registry.inner().clone();
+    // Tauri drops an in-flight command future when its invoking webview is destroyed. Fetch is
+    // native-owned, so run the complete process/watchdog/recovery lifecycle in a detached task and
+    // merely await its result for a live caller. Dropping this JoinHandle does not abort the task.
+    tauri::async_runtime::spawn(async move {
+        let watchdog = operation_registry.spawn_watchdog(
+            operation_id.clone(),
+            crate::operation_registry::WatchdogPolicy::default(),
+        );
+        let progress_registry = operation_registry.clone();
+        let progress_operation_id = operation_id.clone();
+        let result = git_ops::fetch::fetch_controlled(
+            &repository_path,
+            &remote_name,
+            &remote.env,
+            Some(|progress: FetchProgress| {
+                let _ = progress_registry.publish_progress(
+                    &progress_operation_id,
+                    OperationProgress {
+                        value: progress.value,
+                        title: Some(progress.title.clone()),
+                        description: progress.description.clone(),
+                    },
+                );
+                // The channel belongs to the invoking renderer and may close while native Fetch
+                // continues. Registry events remain the durable peer-window transport.
+                let _ = on_progress.send(progress);
+            }),
+            Some(control),
+        )
+        .await;
+        watchdog.abort();
+        match result {
+            Ok(_) => {
+                let _ = operation_registry.finish(
+                    &operation_id,
+                    OperationState::Completed,
+                    OperationOutcome::Completed,
+                    None,
+                );
+                Ok(())
+            }
+            Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
+                Err(recover_terminated_fetch(
+                    &operation_registry,
+                    &operation_id,
+                    &repository_path,
+                    reason,
+                )
+                .await)
+            }
+            Err(error) => {
+                let command_error = remote_error(&remote, error);
+                let _ = operation_registry.finish(
+                    &operation_id,
+                    OperationState::Failed,
+                    OperationOutcome::Unknown,
+                    Some(OperationError {
+                        kind: OperationErrorKind::Failed,
+                        message: command_error.message.clone(),
+                        recoverable: true,
+                    }),
+                );
+                Err(command_error)
+            }
         }
-        Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
-            Err(recover_terminated_fetch(&registry, &operation.id, &repository_path, reason).await)
-        }
-        Err(error) => {
-            let command_error = remote_error(&remote, error);
-            let _ = registry.finish(
-                &operation.id,
-                OperationState::Failed,
-                OperationOutcome::Unknown,
-                Some(OperationError {
-                    kind: OperationErrorKind::Failed,
-                    message: command_error.message.clone(),
-                    recoverable: true,
-                }),
-            );
-            Err(command_error)
-        }
-    }
+    })
+    .await
+    .map_err(|error| CommandError::message(format!("Fetch task failed: {error}")))?
 }
 
 #[cfg(test)]
