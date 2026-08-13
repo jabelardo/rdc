@@ -29,6 +29,12 @@ use crate::exec::{
 };
 use crate::progress::{GitLfsProgressParser, GitProgress, ProgressLineSplitter};
 
+/// Returns whether Git left a conflicted revert in progress.
+pub async fn is_revert_in_progress(repository: impl AsRef<Path>) -> Result<bool, GitError> {
+    let git_dir = crate::rev_parse::resolve_git_dir(repository).await?;
+    Ok(tokio::fs::metadata(git_dir.join("REVERT_HEAD")).await.is_ok())
+}
+
 /// A revert progress update.
 ///
 /// Matches `IRevertProgress` in the ported `src/models/progress.ts`. `value` is always zero — see the

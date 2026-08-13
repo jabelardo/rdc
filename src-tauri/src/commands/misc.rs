@@ -98,6 +98,9 @@ pub async fn revert_commit(
     let control = registry
         .control(&operation.id)
         .map_err(|error| CommandError::message(error.to_string()))?;
+    let pre_operation_head = git_ops::get_head_sha(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
     let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
     let result = git_ops::revert::revert_commit_controlled(
         &repository_path,
@@ -121,41 +124,14 @@ pub async fn revert_commit(
             Ok(())
         }
         Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
-            let recovery = git_ops::revert::abort_revert(&repository_path).await;
-            match (reason, recovery) {
-                (git_ops::TerminationReason::Cancelled, Ok(())) => {
-                    let _ = registry.finish(
-                        &operation.id,
-                        OperationState::Cancelled,
-                        OperationOutcome::Recovered,
-                        None,
-                    );
-                    Err(CommandError::message("Revert cancelled and recovered"))
-                }
-                (git_ops::TerminationReason::TimedOut, Ok(())) => {
-                    let _ = registry.finish(
-                        &operation.id,
-                        OperationState::TimedOut,
-                        OperationOutcome::Recovered,
-                        None,
-                    );
-                    Err(CommandError::message("Revert timed out and recovered"))
-                }
-                (_, Err(error)) => {
-                    let message = error.to_string();
-                    let _ = registry.finish(
-                        &operation.id,
-                        OperationState::Failed,
-                        OperationOutcome::Unknown,
-                        Some(OperationError {
-                            kind: OperationErrorKind::RecoveryFailed,
-                            message: message.clone(),
-                            recoverable: false,
-                        }),
-                    );
-                    Err(CommandError::message(message))
-                }
-            }
+            finish_revert_termination(
+                &registry,
+                &operation.id,
+                &repository_path,
+                &pre_operation_head,
+                reason,
+            )
+            .await
         }
         Err(error) => {
             let message = error.to_string();
@@ -173,6 +149,99 @@ pub async fn revert_commit(
             Err(command_error)
         }
     }
+}
+
+async fn finish_revert_termination(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    repository_path: &str,
+    pre_operation_head: &str,
+    reason: git_ops::TerminationReason,
+) -> Result<(), CommandError> {
+    // REVERT_HEAD is the only safe abort boundary. Without it, a late stop may have followed a
+    // completed revert, and `revert --abort` would incorrectly undo that completed commit.
+    let in_progress = git_ops::revert::is_revert_in_progress(repository_path)
+        .await
+        .map_err(|error| finish_revert_recovery_failure(registry, operation_id, error))?;
+    if !in_progress {
+        let current_head = git_ops::get_head_sha(repository_path)
+            .await
+            .map_err(|error| finish_revert_recovery_failure(registry, operation_id, error))?;
+        if current_head != pre_operation_head {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            return Ok(());
+        }
+
+        let (state, kind, verb) = revert_termination_details(reason);
+        let message = format!("Revert {verb} before it changed the repository");
+        let _ = registry.finish(
+            operation_id,
+            state,
+            OperationOutcome::Unchanged,
+            Some(OperationError {
+                kind,
+                message: message.clone(),
+                recoverable: true,
+            }),
+        );
+        return Err(CommandError::message(message));
+    }
+
+    match git_ops::revert::abort_revert(repository_path).await {
+        Ok(()) => {
+            let (state, _, verb) = revert_termination_details(reason);
+            let _ = registry.finish(operation_id, state, OperationOutcome::Recovered, None);
+            Err(CommandError::message(format!(
+                "Revert {verb} and recovered"
+            )))
+        }
+        Err(error) => Err(finish_revert_recovery_failure(
+            registry,
+            operation_id,
+            error,
+        )),
+    }
+}
+
+fn revert_termination_details(
+    reason: git_ops::TerminationReason,
+) -> (OperationState, OperationErrorKind, &'static str) {
+    match reason {
+        git_ops::TerminationReason::Cancelled => (
+            OperationState::Cancelled,
+            OperationErrorKind::Cancelled,
+            "cancelled",
+        ),
+        git_ops::TerminationReason::TimedOut => (
+            OperationState::TimedOut,
+            OperationErrorKind::TimedOut,
+            "timed out",
+        ),
+    }
+}
+
+fn finish_revert_recovery_failure(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    error: git_ops::GitError,
+) -> CommandError {
+    let message = error.to_string();
+    let _ = registry.finish(
+        operation_id,
+        OperationState::Failed,
+        OperationOutcome::Unknown,
+        Some(OperationError {
+            kind: OperationErrorKind::RecoveryFailed,
+            message: message.clone(),
+            recoverable: false,
+        }),
+    );
+    CommandError::message(message)
 }
 
 /// Aborts an interrupted revert, restoring the branch, index and worktree when Git has revert state.
