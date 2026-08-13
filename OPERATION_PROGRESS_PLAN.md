@@ -636,7 +636,9 @@ different-repository concurrency are covered by native and Linux-container tests
 destination-scoped native operation, stages Git output in an app-owned sibling directory, atomically
 renames that directory into the requested destination only after Git succeeds, rejects pre-existing
 destinations, and removes only the staged directory on clone or installation failure. Cancellation,
-timeout process control, and the owner-loss lifecycle remain to be added.
+timeout process control are now wired through the shared Git execution control; cancellation and
+timeout remove the staging directory and finish as `cancelled/unchanged` or `timedOut/unchanged`.
+The owner-loss lifecycle and a deterministic blocked-clone E2E journey remain to be added.
 
 Preferred design:
 

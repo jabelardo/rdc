@@ -982,7 +982,9 @@ pub async fn clone(
             },
             Some(window.label().to_owned()),
             GitOperationKind::Clone,
-            crate::operation::CancellationCapability::Unavailable,
+            crate::operation::CancellationCapability::Available {
+                label: "Cancel clone".to_owned(),
+            },
         )
         .map_err(|error| CommandError::message(error.to_string()))?;
     // Include the native operation ID so concurrent attempts cannot share a staging directory.
@@ -994,6 +996,13 @@ pub async fn clone(
             .expect("destination was validated to include a name")
             .to_string_lossy()
     ));
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let watchdog = registry.spawn_watchdog(
+        operation.id.clone(),
+        crate::operation_registry::WatchdogPolicy::default(),
+    );
     let temporary_path = temporary_destination.to_string_lossy().into_owned();
     let remote = state
         .session_for(&temporary_path, is_background_task.unwrap_or(false))
@@ -1015,7 +1024,7 @@ pub async fn clone(
 
     let operation_id = operation.id.clone();
     let progress_registry = registry.inner().clone();
-    let result = git_ops::clone::clone(
+    let result = git_ops::clone::clone_controlled(
         &url,
         &temporary_destination,
         login.as_deref(),
@@ -1032,8 +1041,10 @@ pub async fn clone(
             );
             let _ = on_progress.send(progress);
         }),
+        Some(control),
     )
     .await;
+    watchdog.abort();
 
     match result {
         Ok(_) => match std::fs::rename(&temporary_destination, &destination) {
@@ -1063,6 +1074,32 @@ pub async fn clone(
                 Err(CommandError::message(message))
             }
         },
+        Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
+            let _ = remove_temporary_clone(&temporary_destination);
+            let (state, kind, message) = match reason {
+                git_ops::TerminationReason::Cancelled => (
+                    OperationState::Cancelled,
+                    OperationErrorKind::Cancelled,
+                    "Clone was cancelled",
+                ),
+                git_ops::TerminationReason::TimedOut => (
+                    OperationState::TimedOut,
+                    OperationErrorKind::TimedOut,
+                    "Clone timed out after becoming inactive",
+                ),
+            };
+            let _ = registry.finish(
+                &operation.id,
+                state,
+                OperationOutcome::Unchanged,
+                Some(OperationError {
+                    kind,
+                    message: message.to_owned(),
+                    recoverable: true,
+                }),
+            );
+            Err(CommandError::message(message))
+        }
         Err(error) => {
             let command_error = remote_error(&remote, error);
             let _ = remove_temporary_clone(&temporary_destination);

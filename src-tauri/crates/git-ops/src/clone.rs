@@ -8,9 +8,9 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::GitOutput;
+use crate::exec::{ExecutionControl, GitOutput};
 use crate::progress::GitProgressParser;
-use crate::remote_progress::{run_with_progress, ContextLines, RemoteRun};
+use crate::remote_progress::{run_with_progress_controlled, ContextLines, RemoteRun};
 
 /// A clone progress update.
 ///
@@ -83,6 +83,22 @@ pub async fn clone<F>(
 where
     F: FnMut(CloneProgress) + Send,
 {
+    clone_controlled(url, path, login, options, env, on_progress, None).await
+}
+
+/// Clones `url` into `path` with an operation-owned process control signal.
+pub async fn clone_controlled<F>(
+    url: &str,
+    path: impl AsRef<Path>,
+    login: Option<&str>,
+    options: &CloneOptions,
+    env: &HashMap<String, String>,
+    on_progress: Option<F>,
+    control: Option<ExecutionControl>,
+) -> Result<GitOutput, GitError>
+where
+    F: FnMut(CloneProgress) + Send,
+{
     let path = path.as_ref();
     let remote_url = url_with_login(url, login);
 
@@ -135,9 +151,10 @@ where
     };
 
     let Some(mut on_progress) = on_progress else {
-        return run_with_progress(
+        return run_with_progress_controlled(
             &working_directory,
             run(GitProgressParser::clone()),
+            control,
             |_, _| {},
         )
         .await;
@@ -150,9 +167,10 @@ where
         description: None,
     });
 
-    run_with_progress(
+    run_with_progress_controlled(
         &working_directory,
         run(GitProgressParser::clone()),
+        control,
         |value, description| {
             on_progress(CloneProgress {
                 kind: CloneProgressKind::Clone,
