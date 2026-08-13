@@ -946,6 +946,66 @@ mod tests {
             .expect("watchdog should not panic");
     }
 
+    #[test]
+    fn records_hook_completion_without_releasing_the_operation_lock() {
+        let registry = registry();
+        let record = registry
+            .start(
+                repository_scope("repo-hook-race"),
+                None,
+                GitOperationKind::Commit,
+                CancellationCapability::Available {
+                    label: "Cancel commit".to_owned(),
+                },
+            )
+            .expect("operation should reserve");
+
+        registry
+            .set_hook(
+                &record.id,
+                Some(crate::operation::OperationHook {
+                    id: 7,
+                    hook: "pre-commit".to_owned(),
+                    status: "started".to_owned(),
+                }),
+            )
+            .expect("hook start should be recorded");
+        assert_eq!(
+            registry
+                .get(&record.id)
+                .expect("record remains")
+                .hook
+                .as_ref()
+                .unwrap()
+                .status,
+            "started"
+        );
+
+        registry
+            .set_hook(
+                &record.id,
+                Some(crate::operation::OperationHook {
+                    id: 7,
+                    hook: "pre-commit".to_owned(),
+                    status: "finished".to_owned(),
+                }),
+            )
+            .expect("hook completion should be recorded");
+        assert_eq!(
+            registry
+                .get(&record.id)
+                .expect("record remains")
+                .hook
+                .as_ref()
+                .unwrap()
+                .status,
+            "finished"
+        );
+        assert!(registry
+            .active_for_scope(&repository_scope("repo-hook-race"))
+            .is_some());
+    }
+
     #[tokio::test(start_paused = true)]
     async fn paused_time_covers_soft_and_hard_watchdog_thresholds() {
         let registry = registry();
