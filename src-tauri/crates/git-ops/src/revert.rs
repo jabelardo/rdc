@@ -224,6 +224,21 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn detects_a_revert_marker_only_while_recovery_state_exists() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+
+        assert!(!is_revert_in_progress(repo.path())
+            .await
+            .expect("repository should resolve"));
+        std::fs::write(repo.path().join(".git/REVERT_HEAD"), "deadbeef\n")
+            .expect("revert marker should be writable");
+        assert!(is_revert_in_progress(repo.path())
+            .await
+            .expect("repository should resolve"));
+    }
+
+    #[tokio::test]
     async fn reverts_a_merge_commit_against_its_first_parent() {
         // Without `-m 1` git refuses a merge commit outright, since which side to undo is ambiguous.
         let repo = empty_repository().await;

@@ -717,8 +717,8 @@ late stop request. Ordinary conflicts remain in the existing paused recovery flo
 Cherry-pick, and Revert tests and strict native checks pass. The three operation-specific recovery
 policies are now explicit; real repository cancellation, restoration, and completion-race journeys
 remain as the final evidence gate. Fixture investigation confirmed that a normal Cherry-pick can
-advance `HEAD` before a late stop request is observed; the new guards prevent that completed
-completed pick from being unconditionally aborted.
+advance `HEAD` before a late stop request is observed; the new guards prevent that completed pick
+from being unconditionally aborted.
 
 ## Slice 14 — Add Merge cancellation and recovery
 
