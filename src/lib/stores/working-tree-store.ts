@@ -14,13 +14,15 @@ import { caseInsensitiveCompare } from "../compare";
 import { discardChanges as discardWorkingTreeChanges, TrashDiscardError } from "../discard-changes";
 import { discardChangesFromSelection, getWorkingDirectoryDiff } from "../diff-ipc";
 import { createCommit, getStatus, type IFileToStage, type IStatusResult } from "../git-ipc";
-import type { HookFailureResolution } from "../hook-ipc";
+import { abortHook, type HookFailureResolution, type IHookProgress } from "../hook-ipc";
 import { TerminalOutputBuffer } from "./terminal-output-buffer";
 
 export type HookFailureState = {
   readonly hook: string;
   readonly terminalOutput: string;
 };
+
+export type RunningHookState = Pick<IHookProgress, "id" | "hook">;
 
 export type WorkingTreeState = {
   readonly repositoryPath: string | null;
@@ -32,6 +34,7 @@ export type WorkingTreeState = {
   readonly commitLoading: boolean;
   readonly commitError: string | null;
   readonly hookFailure: HookFailureState | null;
+  readonly runningHook: RunningHookState | null;
   readonly loading: boolean;
   readonly error: string | null;
   /**
@@ -80,6 +83,7 @@ const EmptyState: WorkingTreeState = {
   commitLoading: false,
   commitError: null,
   hookFailure: null,
+  runningHook: null,
   loading: false,
   error: null,
   mergeHeadFound: false,
@@ -202,6 +206,7 @@ export class WorkingTreeStore {
       commitLoading: false,
       commitError: null,
       hookFailure: null,
+      runningHook: null,
       loading: true,
       error: null,
       mergeHeadFound: false,
@@ -227,6 +232,7 @@ export class WorkingTreeStore {
         commitLoading: false,
         commitError: null,
         hookFailure: null,
+        runningHook: null,
         loading: false,
         error: null,
         mergeHeadFound: status?.mergeHeadFound ?? false,
@@ -246,6 +252,7 @@ export class WorkingTreeStore {
         commitLoading: false,
         commitError: null,
         hookFailure: null,
+        runningHook: null,
         loading: false,
         error: String(error),
         mergeHeadFound: false,
@@ -439,6 +446,14 @@ export class WorkingTreeStore {
     resolver(resolution);
   }
 
+  public async stopHook(): Promise<boolean> {
+    const hook = this.currentState.runningHook;
+    if (hook === null) {
+      return false;
+    }
+    return abortHook(hook.id);
+  }
+
   public async commit(message: string, bypassHooks = false): Promise<string | null> {
     const state = this.currentState;
     if (state.repositoryPath === null || state.workingDirectory === null) {
@@ -481,6 +496,13 @@ export class WorkingTreeStore {
           ? undefined
           : {
               interceptHooks: true,
+              onHookProgress: (progress) => {
+                this.update({
+                  ...this.currentState,
+                  runningHook:
+                    progress.status === "started" ? { id: progress.id, hook: progress.hook } : null,
+                });
+              },
               onHookFailure: (hook, terminalOutput) =>
                 new Promise<HookFailureResolution>((resolve) => {
                   this.hookFailureResolver = resolve;
@@ -503,6 +525,7 @@ export class WorkingTreeStore {
       return null;
     } finally {
       this.hookFailureResolver = null;
+      this.update({ ...this.currentState, runningHook: null });
       this.commitTerminalOutput.clear();
     }
   }

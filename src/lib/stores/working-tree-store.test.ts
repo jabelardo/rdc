@@ -182,6 +182,7 @@ describe("WorkingTreeStore", () => {
       commitLoading: false,
       commitError: null,
       hookFailure: null,
+      runningHook: null,
       loading: false,
       error: null,
       mergeHeadFound: false,
@@ -492,6 +493,57 @@ describe("WorkingTreeStore", () => {
       }),
       expect.any(Function),
     );
+  });
+
+  it("tracks a running hook and keeps the failure handoff after it stops", async () => {
+    const getStatus = vi
+      .fn()
+      .mockResolvedValueOnce(
+        status([
+          {
+            path: "file.ts",
+            status: { kind: AppFileStatusKind.Modified },
+            startsUnselected: false,
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(status([]));
+    const createCommit = vi.fn((...args: Parameters<typeof createCommitCommand>) => {
+      const hooks = args[4];
+      if (
+        hooks === undefined ||
+        hooks.onHookProgress === undefined ||
+        hooks.onHookFailure === undefined
+      ) {
+        throw new Error("hook interception was not enabled");
+      }
+      hooks.onHookProgress({ id: 12, hook: "pre-commit", status: "started" });
+      hooks.onHookProgress({ id: 12, hook: "pre-commit", status: "failed" });
+      return hooks.onHookFailure("pre-commit", "stopped by user\n").then((resolution) => {
+        if (resolution === "abort") {
+          throw new Error("commit aborted by hook");
+        }
+        return "a".repeat(40);
+      });
+    });
+    const store = new WorkingTreeStore({
+      getStatus,
+      getWorkingDirectoryDiff: vi.fn(async () => binaryDiff),
+      createCommit,
+    });
+    await store.load("/repo");
+
+    const committing = store.commit("message");
+    await vi.waitFor(() =>
+      expect(store.state.hookFailure).toEqual({
+        hook: "pre-commit",
+        terminalOutput: "stopped by user\n",
+      }),
+    );
+    expect(store.state.runningHook).toBeNull();
+
+    store.resolveHookFailure("ignore");
+    await expect(committing).resolves.toBe("a".repeat(40));
   });
 
   it("bypasses hooks with noVerify instead of changing their environment", async () => {

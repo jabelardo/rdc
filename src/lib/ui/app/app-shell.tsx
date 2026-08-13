@@ -329,6 +329,7 @@ export function AppShell({ controller }: AppShellProps) {
         discarding={discarding}
         workingTreeError={workingTreeState.error}
         hookFailure={workingTreeState.hookFailure}
+        runningHook={workingTreeState.runningHook}
         commitLoading={workingTreeState.commitLoading}
         commitTerminalOutput={commitTerminalOutput}
         workingTreeStore={workingTreeStore}

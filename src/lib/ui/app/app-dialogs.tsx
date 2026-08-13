@@ -7,7 +7,11 @@ import type { BranchState } from "../../stores/branch-store";
 import type { CloneState } from "../../stores/clone-store";
 import type { PreferencesState, PreferencesStore } from "../../stores/preferences-store";
 import type { Architecture } from "../../platform/paths";
-import type { HookFailureState, WorkingTreeStore } from "../../stores/working-tree-store";
+import type {
+  HookFailureState,
+  RunningHookState,
+  WorkingTreeStore,
+} from "../../stores/working-tree-store";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +61,7 @@ type AppDialogsProps = {
   readonly discarding: boolean;
   readonly workingTreeError: string | null;
   readonly hookFailure: HookFailureState | null;
+  readonly runningHook: RunningHookState | null;
   readonly commitLoading: boolean;
   readonly commitTerminalOutput: string;
   readonly workingTreeStore: WorkingTreeStore;
@@ -159,6 +164,7 @@ export function AppDialogs({
   discarding,
   workingTreeError,
   hookFailure,
+  runningHook,
   commitLoading,
   commitTerminalOutput,
   workingTreeStore,
@@ -246,6 +252,11 @@ export function AppDialogs({
           operation="Committing"
           progress={{ value: 0, title: "Committing changes" }}
         >
+          {runningHook !== null && (
+            <button type="button" onClick={() => void workingTreeStore.stopHook()}>
+              Stop {runningHook.hook} hook
+            </button>
+          )}
           {commitTerminalOutput.length > 0 && (
             <TerminalOutput output={commitTerminalOutput} aria-label="Commit terminal output" />
           )}
