@@ -1588,4 +1588,56 @@ mod rebase_recovery_tests {
             })
             .is_none());
     }
+
+    #[tokio::test]
+    async fn command_recovery_treats_a_late_rebase_stop_as_completed() {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        run_git(directory.path(), &["init", "-q", "-b", "main"]);
+        run_git(directory.path(), &["config", "user.name", "Slice 13 Test"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "slice13@example.test"],
+        );
+        std::fs::write(directory.path().join("file.txt"), "one\n")
+            .expect("first file should be written");
+        run_git(directory.path(), &["add", "."]);
+        run_git(directory.path(), &["commit", "-qm", "first"]);
+        let pre_operation_head = run_git(directory.path(), &["rev-parse", "HEAD"]);
+        std::fs::write(directory.path().join("file.txt"), "two\n")
+            .expect("second file should be written");
+        run_git(directory.path(), &["commit", "-qam", "second"]);
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation = registry
+            .start(
+                OperationScope::Repository {
+                    lock_key: repository_path.clone(),
+                    repository_path: repository_path.clone(),
+                },
+                Some("test-window".to_owned()),
+                GitOperationKind::Rebase,
+                CancellationCapability::Available {
+                    label: "Cancel rebase".to_owned(),
+                },
+            )
+            .expect("operation should reserve the repository");
+
+        let result = recover_rebase_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &pre_operation_head,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await
+        .expect("a changed HEAD should win the cancellation race");
+
+        assert_eq!(result, RebaseResult::CompletedWithoutError);
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path: repository_path.clone(),
+            })
+            .is_none());
+    }
 }
