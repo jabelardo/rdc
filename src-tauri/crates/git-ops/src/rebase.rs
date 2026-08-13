@@ -13,7 +13,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::{git, git_with_stderr, GitOptions, GitOutput};
+use crate::exec::{git, git_streaming_controlled, git_with_stderr, ExecutionControl, GitOptions, GitOutput};
 use crate::git_error_kind::GitErrorKind;
 use crate::operation_state::is_rebase_head_set;
 use crate::rev_list::{get_commits_between_commits, CommitOneLine};
@@ -239,7 +239,22 @@ pub async fn rebase_with_progress<F>(
     repository: impl AsRef<Path>,
     base_branch: &str,
     target_branch: &str,
+    on_progress: F,
+) -> Result<RebaseResult, GitError>
+where
+    F: FnMut(MultiCommitOperationProgress) + Send,
+{
+    rebase_with_progress_controlled(repository, base_branch, target_branch, on_progress, None).await
+}
+
+/// Rebases with operation-owned process control. Termination returns before any recovery command
+/// is attempted, allowing the command layer to inspect and abort the sequencer safely.
+pub async fn rebase_with_progress_controlled<F>(
+    repository: impl AsRef<Path>,
+    base_branch: &str,
+    target_branch: &str,
     mut on_progress: F,
+    control: Option<ExecutionControl>,
 ) -> Result<RebaseResult, GitError>
 where
     F: FnMut(MultiCommitOperationProgress) + Send,
@@ -250,7 +265,7 @@ where
         return Ok(RebaseResult::Error);
     };
     let mut parser = RebaseProgressParser::new(&commits);
-    let output = git_with_stderr(
+    let output = git_streaming_controlled(
         &[
             "-c",
             "rebase.backend=merge",
@@ -261,6 +276,8 @@ where
         repository,
         "rebase",
         GitOptions::default().with_expected_errors([GitErrorKind::RebaseConflicts]),
+        control,
+        |_| {},
         |chunk| {
             for progress in parser.push(chunk) {
                 on_progress(progress);

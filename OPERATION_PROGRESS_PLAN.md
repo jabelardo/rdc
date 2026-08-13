@@ -705,6 +705,12 @@ it is recovery infrastructure only and is not exposed as concurrent process canc
 **Exit:** real-repository tests prove branch/worktree restoration and completion races for each
 operation family.
 
+**Progress:** Rebase now has an operation-owned controlled runner and a cancellable repository
+operation. Cancellation or timeout is handled only after the Git process tree has terminated; the
+command then invokes `rebase --abort` and reports `cancelled/recovered` or `timedOut/recovered`.
+Focused Rebase tests and strict native checks pass. Cherry-pick and Revert concurrent cancellation,
+plus real recovery/race journeys, remain.
+
 ## Slice 14 — Add Merge cancellation and recovery
 
 **Goal:** stop an active merge without racing `merge --abort` against the original process.
