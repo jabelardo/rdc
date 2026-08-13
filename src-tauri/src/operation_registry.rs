@@ -1138,4 +1138,35 @@ mod tests {
             .expect("recovery failure must retain the lock");
         assert_eq!(blocked.state, OperationState::Failed);
     }
+
+    #[test]
+    fn recovered_cancellation_releases_the_repository_lock() {
+        let registry = registry();
+        let record = registry
+            .start(
+                repository_scope("repo-recovered"),
+                Some("window-a".to_owned()),
+                GitOperationKind::Rebase,
+                CancellationCapability::Available {
+                    label: "Cancel rebase".to_owned(),
+                },
+            )
+            .expect("operation should reserve");
+
+        registry
+            .finish(
+                &record.id,
+                OperationState::Cancelled,
+                OperationOutcome::Recovered,
+                None,
+            )
+            .expect("recovered cancellation should finish");
+
+        assert!(registry
+            .active_for_scope(&repository_scope("repo-recovered"))
+            .is_none());
+        let finished = registry.get(&record.id).expect("finished record remains");
+        assert_eq!(finished.state, OperationState::Cancelled);
+        assert_eq!(finished.outcome, Some(OperationOutcome::Recovered));
+    }
 }
