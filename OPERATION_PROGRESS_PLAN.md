@@ -699,8 +699,9 @@ Apply the pattern to Rebase, Cherry-pick, Revert, Squash and Reorder:
 7. classify race outcomes as `completed`, `recovered`, `unchanged` or `unknown`.
 
 Existing `abort_rebase` and `abort_cherry_pick` recover paused operations; they are not concurrent
-process cancellation. Revert now has an explicit native `revert --abort` command and frontend IPC;
-it is recovery infrastructure only and is not exposed as concurrent process cancellation yet.
+process cancellation. Revert now has an explicit native `revert --abort` command, frontend IPC, and
+an operation-owned controlled runner; all five operation families now expose the same termination
+boundary to the command layer.
 
 **Exit:** real-repository tests prove branch/worktree restoration and completion races for each
 operation family.
@@ -720,7 +721,10 @@ focused Cherry-pick coverage, and strict native checks pass. The five operation-
 policies are now explicit; process-level cancellation, restoration, and completion-race journeys
 through the command registry remain as the final evidence gate. Fixture
 investigation confirmed that a normal Cherry-pick can advance `HEAD` before a late stop request is
-observed; the new guards prevent that completed pick from being unconditionally aborted.
+observed; the new guards prevent that completed pick from being unconditionally aborted. The next
+evidence increment should exercise the command handlers themselves against real repositories,
+including sequencer restoration and completion races, rather than only the native runners and
+registry in isolation.
 
 ## Slice 14 — Add Merge cancellation and recovery
 
