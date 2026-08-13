@@ -462,12 +462,18 @@ pub async fn fetch(
 mod fetch_cancellation_tests {
     use std::process::Command;
 
+    #[cfg(unix)]
+    use std::time::Duration;
+
     use super::{fetch_termination, recover_terminated_fetch};
     use crate::operation::{
         CancellationCapability, GitOperationKind, OperationErrorKind, OperationOutcome,
-        OperationScope, OperationState,
+        OperationProgress, OperationScope, OperationState,
     };
-    use crate::operation_registry::OperationRegistry;
+    use crate::operation_registry::{OperationRegistry, WatchdogPolicy};
+
+    #[cfg(unix)]
+    use git_ops::test_support::BlockingSshFetch;
 
     fn start_fetch(
         registry: &OperationRegistry,
@@ -574,6 +580,97 @@ mod fetch_cancellation_tests {
             operation.error.expect("typed recovery error").kind,
             OperationErrorKind::RecoveryFailed
         );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn watchdog_times_out_blocked_fetch_then_recovers_before_releasing_the_lock() {
+        let fixture = BlockingSshFetch::new().await;
+        let repository = fixture.repository();
+        let repository_path = repository.to_string_lossy().into_owned();
+        let env = fixture.env();
+        let registry = OperationRegistry::new();
+        let (scope, operation_id) = start_fetch(&registry, &repository_path);
+        let control = registry
+            .control(&operation_id)
+            .expect("Fetch should expose its process control");
+        let progress_registry = registry.clone();
+        let progress_operation_id = operation_id.clone();
+        let task = tokio::spawn(async move {
+            git_ops::fetch::fetch_controlled(
+                repository,
+                "origin",
+                &env,
+                Some(move |progress: git_ops::fetch::FetchProgress| {
+                    let _ = progress_registry.publish_progress(
+                        &progress_operation_id,
+                        OperationProgress {
+                            value: progress.value,
+                            title: Some(progress.title),
+                            description: progress.description,
+                        },
+                    );
+                }),
+                Some(control),
+            )
+            .await
+        });
+
+        fixture.wait_until_blocked().await;
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                let has_activity = registry
+                    .get(&operation_id)
+                    .and_then(|record| record.progress)
+                    .and_then(|progress| progress.description)
+                    .is_some_and(|text| text.starts_with("remote: Counting objects"));
+                if has_activity {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("blocked Fetch should publish activity before timeout");
+
+        let watchdog = registry.spawn_watchdog(
+            operation_id.clone(),
+            WatchdogPolicy {
+                soft_inactivity: Duration::from_millis(20),
+                hard_inactivity: Duration::from_millis(60),
+                poll_interval: Duration::from_millis(5),
+            },
+        );
+        tokio::time::timeout(Duration::from_secs(1), watchdog)
+            .await
+            .expect("short-policy watchdog should request timeout")
+            .expect("watchdog should not panic");
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("watchdog should reap the blocked Fetch process tree")
+            .expect("Fetch task should not panic");
+        assert!(matches!(
+            result,
+            Err(git_ops::GitError::OperationTerminated {
+                reason: git_ops::TerminationReason::TimedOut,
+                ..
+            })
+        ));
+        assert!(registry.active_for_scope(&scope).is_some());
+
+        let error = recover_terminated_fetch(
+            &registry,
+            &operation_id,
+            &repository_path,
+            git_ops::TerminationReason::TimedOut,
+        )
+        .await;
+
+        assert_eq!(error.message, "Fetch timed out after becoming inactive");
+        assert!(registry.active_for_scope(&scope).is_none());
+        let operation = registry.get(&operation_id).expect("terminal Fetch record");
+        assert_eq!(operation.state, OperationState::TimedOut);
+        assert_eq!(operation.outcome, Some(OperationOutcome::Unchanged));
     }
 }
 

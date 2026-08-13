@@ -586,11 +586,12 @@ The controlled `git-ops` boundary and both recovery lock outcomes have focused n
 local SSH transport fixture now emits Fetch activity and then waits at a file barrier, proving user
 cancellation and timeout process-tree termination without a real network delay. Releasing that same
 barrier proves successful completion, and the registry preserves that terminal result when a
-cancellation request arrives too late.
+cancellation request arrives too late. The same fixture now runs through a short-policy production
+watchdog: activity reaches the registry, inactivity requests `TimedOut`, the SSH process tree exits,
+repository recovery completes, and only then does the lock release as `timedOut/unchanged`.
 
-Still required to close the slice: connect the fixture to a short-policy watchdog test and prove
-owner-window closure, peer observation and different-repository isolation through
-command/frontend/E2E coverage.
+Still required to close the slice: prove owner-window closure, peer observation and
+different-repository isolation through command/frontend/E2E coverage.
 
 Fetch policy:
 

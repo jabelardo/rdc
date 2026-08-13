@@ -102,3 +102,4 @@ strip = true
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "test-util"] }
 tempfile = { workspace = true }
+git-ops = { path = "crates/git-ops", features = ["test-support"] }

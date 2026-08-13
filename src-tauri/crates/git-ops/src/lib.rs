@@ -74,8 +74,8 @@ pub mod var;
 pub mod worktree;
 pub mod worktree_include;
 
-#[cfg(test)]
-mod test_support;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 
 pub use add::add_conflicted_file;
 pub use apply::{apply_patch_to_index, discard_changes_from_selection};

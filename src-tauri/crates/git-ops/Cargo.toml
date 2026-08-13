@@ -8,6 +8,11 @@ description = "Git operations for rdc — replaces desktop-plus's app/src/lib/gi
 name = "git_ops"
 path = "src/lib.rs"
 
+[features]
+# Exposes real-repository fixtures to workspace dependants' tests without including them in normal
+# application builds.
+test-support = []
+
 # Run inside the user's login shell to capture the environment that shell builds — see
 # src/hooks/shell_env.rs. Replaces desktop-plus's vendored `printenvz` C program.
 [[bin]]
