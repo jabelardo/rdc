@@ -684,3 +684,28 @@ pub async fn merge_trailers(
     .await
     .map_err(CommandError::from)
 }
+
+#[cfg(test)]
+mod termination_tests {
+    use super::*;
+
+    #[test]
+    fn classifies_revert_cancellation_and_timeout() {
+        assert_eq!(
+            revert_termination_details(git_ops::TerminationReason::Cancelled),
+            (
+                OperationState::Cancelled,
+                OperationErrorKind::Cancelled,
+                "cancelled"
+            )
+        );
+        assert_eq!(
+            revert_termination_details(git_ops::TerminationReason::TimedOut),
+            (
+                OperationState::TimedOut,
+                OperationErrorKind::TimedOut,
+                "timed out"
+            )
+        );
+    }
+}

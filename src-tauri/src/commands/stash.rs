@@ -678,3 +678,28 @@ fn finish_rebase_result(
         }
     }
 }
+
+#[cfg(test)]
+mod termination_tests {
+    use super::*;
+
+    #[test]
+    fn classifies_cherry_pick_cancellation_and_timeout() {
+        assert_eq!(
+            termination_details(git_ops::TerminationReason::Cancelled),
+            (
+                OperationState::Cancelled,
+                OperationErrorKind::Cancelled,
+                "cancelled"
+            )
+        );
+        assert_eq!(
+            termination_details(git_ops::TerminationReason::TimedOut),
+            (
+                OperationState::TimedOut,
+                OperationErrorKind::TimedOut,
+                "timed out"
+            )
+        );
+    }
+}

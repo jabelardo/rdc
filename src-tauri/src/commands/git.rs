@@ -1457,3 +1457,28 @@ pub async fn get_commit_range_diff(
     .await
     .map_err(CommandError::from)
 }
+
+#[cfg(test)]
+mod termination_tests {
+    use super::*;
+
+    #[test]
+    fn classifies_rebase_cancellation_and_timeout() {
+        assert_eq!(
+            rebase_termination_details(git_ops::TerminationReason::Cancelled),
+            (
+                OperationState::Cancelled,
+                OperationErrorKind::Cancelled,
+                "cancelled"
+            )
+        );
+        assert_eq!(
+            rebase_termination_details(git_ops::TerminationReason::TimedOut),
+            (
+                OperationState::TimedOut,
+                OperationErrorKind::TimedOut,
+                "timed out"
+            )
+        );
+    }
+}
