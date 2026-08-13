@@ -954,7 +954,10 @@ pub async fn fast_forward_branches(
 /// helper will look for configuration — and the destination doesn't exist yet, so this is the one
 /// operation whose session path is created rather than found.
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn clone(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
     state: State<'_, TrampolineState>,
     url: String,
     path: String,
@@ -963,25 +966,144 @@ pub async fn clone(
     is_background_task: Option<bool>,
     on_progress: Channel<CloneProgress>,
 ) -> Result<(), CommandError> {
+    let destination = std::path::PathBuf::from(&path);
+    if destination.exists() {
+        return Err(CommandError::message(
+            "Clone destination already exists; choose a new path",
+        ));
+    }
+    let temporary_destination = temporary_clone_destination(&destination, "pending")?;
+    let lock_key = git_ops::operation_identity::clone_destination_lock_key(&destination);
+    let operation = registry
+        .start(
+            crate::operation::OperationScope::CloneDestination {
+                lock_key: lock_key.to_string_lossy().into_owned(),
+                destination_path: lock_key.to_string_lossy().into_owned(),
+            },
+            Some(window.label().to_owned()),
+            GitOperationKind::Clone,
+            crate::operation::CancellationCapability::Unavailable,
+        )
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    // Include the native operation ID so concurrent attempts cannot share a staging directory.
+    let temporary_destination = temporary_destination.with_file_name(format!(
+        ".rdc-clone-{}-{}",
+        operation.id,
+        destination
+            .file_name()
+            .expect("destination was validated to include a name")
+            .to_string_lossy()
+    ));
+    let temporary_path = temporary_destination.to_string_lossy().into_owned();
     let remote = state
-        .session_for(&path, is_background_task.unwrap_or(false))
+        .session_for(&temporary_path, is_background_task.unwrap_or(false))
         .await
-        .map_err(bind_error)?;
+        .map_err(|error| {
+            let command_error = bind_error(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            command_error
+        })?;
 
-    git_ops::clone::clone(
+    let operation_id = operation.id.clone();
+    let progress_registry = registry.inner().clone();
+    let result = git_ops::clone::clone(
         &url,
-        &path,
+        &temporary_destination,
         login.as_deref(),
         &options.unwrap_or_default(),
         &remote.env,
         Some(|progress: CloneProgress| {
+            let _ = progress_registry.publish_progress(
+                &operation_id,
+                OperationProgress {
+                    value: progress.value,
+                    title: Some(progress.title.clone()),
+                    description: progress.description.clone(),
+                },
+            );
             let _ = on_progress.send(progress);
         }),
     )
-    .await
-    .map_err(|error| remote_error(&remote, error))?;
+    .await;
 
-    Ok(())
+    match result {
+        Ok(_) => match std::fs::rename(&temporary_destination, &destination) {
+            Ok(()) => {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Completed,
+                    OperationOutcome::Completed,
+                    None,
+                );
+                Ok(())
+            }
+            Err(error) => {
+                let _ = remove_temporary_clone(&temporary_destination);
+                let message =
+                    format!("Clone completed, but the destination could not be installed: {error}");
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Failed,
+                    OperationOutcome::Unknown,
+                    Some(OperationError {
+                        kind: OperationErrorKind::Failed,
+                        message: message.clone(),
+                        recoverable: true,
+                    }),
+                );
+                Err(CommandError::message(message))
+            }
+        },
+        Err(error) => {
+            let command_error = remote_error(&remote, error);
+            let _ = remove_temporary_clone(&temporary_destination);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message: command_error.message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
+}
+
+fn temporary_clone_destination(
+    destination: &std::path::Path,
+    operation_id: &str,
+) -> Result<std::path::PathBuf, CommandError> {
+    let parent = destination
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .ok_or_else(|| {
+            CommandError::message("Clone destination must include a parent directory")
+        })?;
+    let name = destination
+        .file_name()
+        .ok_or_else(|| CommandError::message("Clone destination must include a directory name"))?
+        .to_string_lossy();
+    Ok(parent.join(format!(".rdc-clone-{operation_id}-{name}")))
+}
+
+fn remove_temporary_clone(path: &std::path::Path) -> std::io::Result<()> {
+    if path.is_dir() {
+        std::fs::remove_dir_all(path)
+    } else {
+        Ok(())
+    }
 }
 
 /// Lists a repository's remotes, alphabetically.

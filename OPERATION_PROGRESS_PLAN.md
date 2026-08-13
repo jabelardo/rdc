@@ -632,6 +632,12 @@ different-repository concurrency are covered by native and Linux-container tests
 
 **Goal:** avoid leaving an ambiguous partially cloned user destination.
 
+**Progress:** the transactional installation foundation is implemented. Clone now reserves a
+destination-scoped native operation, stages Git output in an app-owned sibling directory, atomically
+renames that directory into the requested destination only after Git succeeds, rejects pre-existing
+destinations, and removes only the staged directory on clone or installation failure. Cancellation,
+timeout process control, and the owner-loss lifecycle remain to be added.
+
 Preferred design:
 
 1. Create an app-owned temporary sibling destination.
