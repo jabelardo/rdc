@@ -643,7 +643,7 @@ loss cannot strand the staging directory or destination lock. A Linux-container 
 real SSH transport, cancels the destination-scoped operation, verifies the terminal cancellation
 event and confirms that both the requested destination and `.rdc-clone-*` staging entries are absent.
 The remaining Slice 11 evidence is a deterministic timeout journey and the explicit policy/test for
-an empty pre-existing destination.
+the pre-existing destination policy; the policy is to reject the path, including when it is empty.
 
 Preferred design:
 
@@ -653,9 +653,11 @@ Preferred design:
 4. On cancellation/timeout, remove only the app-owned temporary destination.
 5. Never recursively delete a pre-existing user-selected directory.
 
-Decide and test behavior when the destination already exists and is empty. Cross-device rename and
-platform differences need explicit handling; do not silently fall back to copying a partially visible
-repository without preserving cancellation safety.
+An existing destination, including an empty directory, is rejected before the operation is registered.
+This avoids recursively deleting user-owned data and is covered by the Clone E2E. Cross-device rename
+and platform differences still need explicit handling; do not silently fall back to copying a partially
+visible repository without preserving cancellation safety. Native timeout cleanup is covered by the
+shared watchdog tests; a real blocked-Clone timeout E2E remains the final Slice 11 evidence.
 
 **Exit:** cancellation and timeout leave neither a registered repository nor app-owned partial data.
 

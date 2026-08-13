@@ -1,6 +1,7 @@
 // Clone: the clone dialog produces a real repository, registers it and selects it.
 import assert from "node:assert/strict";
 import { after, before, describe, it } from "node:test";
+import { mkdirSync, readdirSync } from "node:fs";
 import { By, until } from "selenium-webdriver";
 import {
   commitWorkingTreeBaseline,
@@ -75,5 +76,30 @@ describe("clone", () => {
       git(fixture.clone, "rev-parse", "HEAD"),
       gitBare(fixture.remote, "rev-parse", "HEAD"),
     );
+  });
+
+  it("rejects an empty pre-existing destination without changing it", async () => {
+    const existingDestination = `${fixture.root}/empty-destination`;
+    mkdirSync(existingDestination);
+
+    sendNativeKeys("ctrl+shift+o");
+    const cloneDialog = await driver.wait(
+      until.elementLocated(
+        By.xpath("//*[@role='dialog' and .//*[normalize-space()='Clone a repository'] ]"),
+      ),
+      5_000,
+    );
+    await cloneDialog.findElement(By.css("#clone-url")).sendKeys(fixture.remote);
+    await cloneDialog.findElement(By.css("#clone-path")).sendKeys(existingDestination);
+    await cloneDialog
+      .findElement(By.xpath(".//button[@type='submit' and normalize-space()='Clone']"))
+      .click();
+
+    const message = await driver.wait(
+      until.elementLocated(By.css("#clone-repository-message")),
+      5_000,
+    );
+    assert.match(await message.getText(), /destination already exists/i);
+    assert.deepEqual(readdirSync(existingDestination), []);
   });
 });
