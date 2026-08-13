@@ -1091,6 +1091,31 @@ pub async fn rebase_interactive<F>(
 where
     F: FnMut(MultiCommitOperationProgress) + Send,
 {
+    rebase_interactive_controlled(
+        repository,
+        todo,
+        last_retained_commit_ref,
+        commits,
+        git_editor,
+        on_progress,
+        None,
+    )
+    .await
+}
+
+/// Runs an interactive rebase with operation-owned process control.
+pub async fn rebase_interactive_controlled<F>(
+    repository: impl AsRef<Path>,
+    todo: &[TodoStep],
+    last_retained_commit_ref: Option<&str>,
+    commits: &[CommitOneLine],
+    git_editor: Option<&str>,
+    on_progress: Option<F>,
+    control: Option<ExecutionControl>,
+) -> Result<RebaseResult, GitError>
+where
+    F: FnMut(MultiCommitOperationProgress) + Send,
+{
     let repository = repository.as_ref();
 
     if todo.is_empty() {
@@ -1125,18 +1150,37 @@ where
         Some(mut on_progress) => {
             let mut parser = RebaseProgressParser::new(commits);
             let output =
-                git_with_stderr(&args, repository, "rebaseInteractive", options, |chunk| {
+                git_streaming_controlled(
+                    &args,
+                    repository,
+                    "rebaseInteractive",
+                    options,
+                    control,
+                    |_| {},
+                    |chunk| {
                     for progress in parser.push(chunk) {
                         on_progress(progress);
                     }
-                })
+                    },
+                )
                 .await?;
             if let Some(progress) = parser.finish() {
                 on_progress(progress);
             }
             output
         }
-        None => git(&args, repository, "rebaseInteractive", options).await?,
+        None => {
+            git_streaming_controlled(
+                &args,
+                repository,
+                "rebaseInteractive",
+                options,
+                control,
+                |_| {},
+                |_| {},
+            )
+            .await?
+        }
     };
 
     Ok(parse_rebase_result(&output))

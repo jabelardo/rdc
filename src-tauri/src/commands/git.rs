@@ -729,7 +729,7 @@ pub async fn rebase_branch(
             Ok(result)
         }
         Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
-            finish_rebase_termination(
+            recover_rebase_termination(
                 &registry,
                 &operation.id,
                 &repository_path,
@@ -755,7 +755,7 @@ pub async fn rebase_branch(
     }
 }
 
-async fn finish_rebase_termination(
+pub(crate) async fn recover_rebase_termination(
     registry: &OperationRegistry,
     operation_id: &str,
     repository_path: &str,

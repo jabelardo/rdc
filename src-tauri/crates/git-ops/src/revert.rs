@@ -202,6 +202,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn aborting_a_conflicted_revert_restores_head_and_worktree() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+        commit_file(&repo.path(), "a.txt", "two\n", "second");
+        let reverted_commit = head(&repo.path()).await;
+        commit_file(&repo.path(), "a.txt", "three\n", "third");
+        let original_head = head(&repo.path()).await;
+
+        let result = revert_commit(
+            repo.path(),
+            &reverted_commit,
+            1,
+            None::<fn(RevertProgress)>,
+        )
+        .await;
+        assert!(result.is_err(), "the revert should stop on the conflict");
+        assert!(is_revert_in_progress(repo.path())
+            .await
+            .expect("repository should resolve"));
+
+        abort_revert(repo.path())
+            .await
+            .expect("abort should restore the repository");
+        assert_eq!(head(&repo.path()).await, original_head);
+        assert_eq!(
+            std::fs::read_to_string(repo.path().join("a.txt")).expect("file should be readable"),
+            "three\n"
+        );
+        assert!(!is_revert_in_progress(repo.path())
+            .await
+            .expect("repository should resolve"));
+    }
+
+    #[tokio::test]
     async fn adds_a_commit_rather_than_rewriting_history() {
         let repo = empty_repository().await;
         commit_file(&repo.path(), "a.txt", "one\n", "first");

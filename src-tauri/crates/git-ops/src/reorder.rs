@@ -22,7 +22,10 @@ use std::path::Path;
 
 use crate::error::GitError;
 use crate::log::get_commits;
-use crate::rebase::{rebase_interactive, MultiCommitOperationProgress, RebaseResult, TodoStep};
+use crate::exec::ExecutionControl;
+use crate::rebase::{
+    rebase_interactive_controlled, MultiCommitOperationProgress, RebaseResult, TodoStep,
+};
 use crate::rev_list::CommitOneLine;
 
 /// Why a reorder couldn't be attempted.
@@ -133,6 +136,29 @@ pub async fn reorder<F>(
 where
     F: FnMut(MultiCommitOperationProgress) + Send,
 {
+    reorder_controlled(
+        repository,
+        to_move,
+        before,
+        last_retained_commit_ref,
+        on_progress,
+        None,
+    )
+    .await
+}
+
+/// Reorders commits with operation-owned process control.
+pub async fn reorder_controlled<F>(
+    repository: impl AsRef<Path>,
+    to_move: &[String],
+    before: Option<&str>,
+    last_retained_commit_ref: Option<&str>,
+    on_progress: Option<F>,
+    control: Option<ExecutionControl>,
+) -> Result<RebaseResult, GitError>
+where
+    F: FnMut(MultiCommitOperationProgress) + Send,
+{
     let repository = repository.as_ref();
 
     let range = last_retained_commit_ref.map(|reference| format!("{reference}..HEAD"));
@@ -153,13 +179,14 @@ where
     let mut replayed = commits.clone();
     replayed.reverse();
 
-    rebase_interactive(
+    rebase_interactive_controlled(
         repository,
         &todo,
         last_retained_commit_ref,
         &replayed,
         None,
         on_progress,
+        control,
     )
     .await
 }

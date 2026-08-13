@@ -713,12 +713,12 @@ Cherry-pick now follows the same boundary and inspects both sequencer state and 
 reported as completed, while an unchanged repository is reported as unchanged. Rebase now applies
 the same metadata/`HEAD` guard before `rebase --abort`. Revert now checks `REVERT_HEAD` and the
 pre-operation `HEAD` before invoking `revert --abort`, so a completed revert cannot be undone by a
-late stop request. Ordinary conflicts remain in the existing paused recovery flow. Focused Rebase,
-Cherry-pick, and Revert tests and strict native checks pass. The three operation-specific recovery
-policies are now explicit; real repository cancellation, restoration, and completion-race journeys
-remain as the final evidence gate. Fixture investigation confirmed that a normal Cherry-pick can
-advance `HEAD` before a late stop request is observed; the new guards prevent that completed pick
-from being unconditionally aborted.
+late stop request. Squash and Reorder now use controlled interactive-rebase execution and the same
+recovery boundary. Real Revert abort restoration coverage and focused Squash/Reorder tests pass,
+together with strict native checks. The five operation-specific recovery policies are now explicit;
+real cancellation and completion-race journeys remain as the final evidence gate. Fixture
+investigation confirmed that a normal Cherry-pick can advance `HEAD` before a late stop request is
+observed; the new guards prevent that completed pick from being unconditionally aborted.
 
 ## Slice 14 — Add Merge cancellation and recovery
 

@@ -576,14 +576,22 @@ pub async fn squash(
     commit_message: Option<String>,
     on_progress: Channel<MultiCommitOperationProgress>,
 ) -> Result<RebaseResult, CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
         GitOperationKind::Rebase,
+        "Cancel squash",
     )
     .await?;
-    let result = git_ops::squash::squash(
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let pre_operation_head = git_ops::get_head_sha(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
+    let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
+    let result = git_ops::squash::squash_controlled(
         &repository_path,
         &to_squash,
         &squash_onto,
@@ -592,8 +600,20 @@ pub async fn squash(
         Some(|progress: MultiCommitOperationProgress| {
             let _ = on_progress.send(progress);
         }),
+        Some(control),
     )
     .await;
+    watchdog.abort();
+    if let Err(git_ops::GitError::OperationTerminated { reason, .. }) = &result {
+        return crate::commands::git::recover_rebase_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &pre_operation_head,
+            *reason,
+        )
+        .await;
+    }
     finish_rebase_result(&registry, &operation.id, result)
 }
 
@@ -620,14 +640,22 @@ pub async fn reorder(
     last_retained_commit_ref: Option<String>,
     on_progress: Channel<MultiCommitOperationProgress>,
 ) -> Result<RebaseResult, CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
         GitOperationKind::Rebase,
+        "Cancel reorder",
     )
     .await?;
-    let result = git_ops::reorder::reorder(
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let pre_operation_head = git_ops::get_head_sha(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
+    let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
+    let result = git_ops::reorder::reorder_controlled(
         &repository_path,
         &to_move,
         before.as_deref(),
@@ -635,8 +663,20 @@ pub async fn reorder(
         Some(|progress: MultiCommitOperationProgress| {
             let _ = on_progress.send(progress);
         }),
+        Some(control),
     )
     .await;
+    watchdog.abort();
+    if let Err(git_ops::GitError::OperationTerminated { reason, .. }) = &result {
+        return crate::commands::git::recover_rebase_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &pre_operation_head,
+            *reason,
+        )
+        .await;
+    }
     finish_rebase_result(&registry, &operation.id, result)
 }
 
