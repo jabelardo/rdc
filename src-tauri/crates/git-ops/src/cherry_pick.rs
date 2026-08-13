@@ -22,7 +22,9 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::{git, git_with_stdout, GitOptions, GitOutput};
+use crate::exec::{
+    git, git_streaming_controlled, git_with_stdout, ExecutionControl, GitOptions, GitOutput,
+};
 use crate::git_error_kind::GitErrorKind;
 use crate::operation_state::is_cherry_pick_head_found;
 use crate::rebase::{MultiCommitOperationProgress, MultiCommitOperationProgressKind};
@@ -220,6 +222,20 @@ pub async fn cherry_pick<F>(
 where
     F: FnMut(MultiCommitOperationProgress) + Send,
 {
+    cherry_pick_controlled(repository, commits, on_progress, None).await
+}
+
+/// Cherry-picks with operation-owned process control. A termination error is returned to the
+/// command layer before any sequencer recovery is attempted.
+pub async fn cherry_pick_controlled<F>(
+    repository: impl AsRef<Path>,
+    commits: &[CommitOneLine],
+    on_progress: Option<F>,
+    control: Option<ExecutionControl>,
+) -> Result<CherryPickResult, GitError>
+where
+    F: FnMut(MultiCommitOperationProgress) + Send,
+{
     if commits.is_empty() {
         return Ok(CherryPickResult::UnableToStart);
     }
@@ -241,14 +257,17 @@ where
     let output = match on_progress {
         Some(mut on_progress) => {
             let mut parser = CherryPickProgressParser::new(commits, 0);
-            git_with_stdout(&args, repository, "cherryPick", options, |chunk| {
+            git_streaming_controlled(&args, repository, "cherryPick", options, control, |chunk| {
                 for progress in parser.push(chunk) {
                     on_progress(progress);
                 }
-            })
+            }, |_| {})
             .await?
         }
-        None => git(&args, repository, "cherryPick", options).await?,
+        None => {
+            git_streaming_controlled(&args, repository, "cherryPick", options, control, |_| {}, |_| {})
+                .await?
+        }
     };
 
     Ok(parse_cherry_pick_result(&output))

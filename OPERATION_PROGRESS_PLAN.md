@@ -708,8 +708,9 @@ operation family.
 **Progress:** Rebase now has an operation-owned controlled runner and a cancellable repository
 operation. Cancellation or timeout is handled only after the Git process tree has terminated; the
 command then invokes `rebase --abort` and reports `cancelled/recovered` or `timedOut/recovered`.
-Focused Rebase tests and strict native checks pass. Cherry-pick and Revert concurrent cancellation,
-plus real recovery/race journeys, remain.
+Cherry-pick now follows the same boundary and invokes `cherry-pick --abort` after termination, while
+ordinary conflicts remain in the existing paused recovery flow. Focused Rebase and Cherry-pick tests
+and strict native checks pass. Revert concurrent cancellation and real recovery/race journeys remain.
 
 ## Slice 14 — Add Merge cancellation and recovery
 

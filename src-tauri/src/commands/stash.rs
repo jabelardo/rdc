@@ -16,7 +16,7 @@ use super::CommandError;
 use crate::operation::{
     GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
 };
-use crate::operation_registry::OperationRegistry;
+use crate::operation_registry::{OperationRegistry, WatchdogPolicy};
 use tauri::{State, WebviewWindow};
 
 /// Lists the app's stash entries and counts all of them.
@@ -188,21 +188,65 @@ pub async fn cherry_pick(
     commits: Vec<CommitOneLine>,
     on_progress: Channel<MultiCommitOperationProgress>,
 ) -> Result<CherryPickResult, CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
         GitOperationKind::CherryPick,
+        "Cancel cherry-pick",
     )
     .await?;
-    let result = git_ops::cherry_pick::cherry_pick(
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
+    let result = git_ops::cherry_pick::cherry_pick_controlled(
         &repository_path,
         &commits,
         Some(|progress: MultiCommitOperationProgress| {
             let _ = on_progress.send(progress);
         }),
+        Some(control),
     )
     .await;
+    watchdog.abort();
+    if let Err(git_ops::GitError::OperationTerminated { reason, .. }) = &result {
+        let recovery = git_ops::cherry_pick::abort_cherry_pick(&repository_path).await;
+        return match (reason, recovery) {
+            (git_ops::TerminationReason::Cancelled, Ok(())) => {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Cancelled,
+                    OperationOutcome::Recovered,
+                    None,
+                );
+                Err(CommandError::message("Cherry-pick cancelled and recovered"))
+            }
+            (git_ops::TerminationReason::TimedOut, Ok(())) => {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::TimedOut,
+                    OperationOutcome::Recovered,
+                    None,
+                );
+                Err(CommandError::message("Cherry-pick timed out and recovered"))
+            }
+            (_, Err(error)) => {
+                let message = error.to_string();
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Failed,
+                    OperationOutcome::Unknown,
+                    Some(OperationError {
+                        kind: OperationErrorKind::RecoveryFailed,
+                        message: message.clone(),
+                        recoverable: false,
+                    }),
+                );
+                Err(CommandError::message(message))
+            }
+        };
+    }
     finish_cherry_pick_result(&registry, &operation.id, result)
 }
 
