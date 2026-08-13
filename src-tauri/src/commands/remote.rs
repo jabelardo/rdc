@@ -999,10 +999,6 @@ pub async fn clone(
     let control = registry
         .control(&operation.id)
         .map_err(|error| CommandError::message(error.to_string()))?;
-    let watchdog = registry.spawn_watchdog(
-        operation.id.clone(),
-        crate::operation_registry::WatchdogPolicy::default(),
-    );
     let temporary_path = temporary_destination.to_string_lossy().into_owned();
     let remote = state
         .session_for(&temporary_path, is_background_task.unwrap_or(false))
@@ -1023,99 +1019,113 @@ pub async fn clone(
         })?;
 
     let operation_id = operation.id.clone();
-    let progress_registry = registry.inner().clone();
-    let result = git_ops::clone::clone_controlled(
-        &url,
-        &temporary_destination,
-        login.as_deref(),
-        &options.unwrap_or_default(),
-        &remote.env,
-        Some(|progress: CloneProgress| {
-            let _ = progress_registry.publish_progress(
-                &operation_id,
-                OperationProgress {
-                    value: progress.value,
-                    title: Some(progress.title.clone()),
-                    description: progress.description.clone(),
-                },
-            );
-            let _ = on_progress.send(progress);
-        }),
-        Some(control),
-    )
-    .await;
-    watchdog.abort();
-
-    match result {
-        Ok(_) => match std::fs::rename(&temporary_destination, &destination) {
-            Ok(()) => {
-                let _ = registry.finish(
-                    &operation.id,
-                    OperationState::Completed,
-                    OperationOutcome::Completed,
-                    None,
+    let operation_registry = registry.inner().clone();
+    let clone_options = options.unwrap_or_default();
+    // Tauri drops an in-flight command future when its invoking webview is destroyed. Keep the
+    // staged clone, watchdog and cleanup in a detached native task so owner-window loss cannot
+    // strand a partially cloned destination or its operation lock.
+    let task = tauri::async_runtime::spawn(async move {
+        let watchdog = operation_registry.spawn_watchdog(
+            operation_id.clone(),
+            crate::operation_registry::WatchdogPolicy::default(),
+        );
+        let progress_registry = operation_registry.clone();
+        let result = git_ops::clone::clone_controlled(
+            &url,
+            &temporary_destination,
+            login.as_deref(),
+            &clone_options,
+            &remote.env,
+            Some(|progress: CloneProgress| {
+                let _ = progress_registry.publish_progress(
+                    &operation_id,
+                    OperationProgress {
+                        value: progress.value,
+                        title: Some(progress.title.clone()),
+                        description: progress.description.clone(),
+                    },
                 );
-                Ok(())
-            }
-            Err(error) => {
+                let _ = on_progress.send(progress);
+            }),
+            Some(control),
+        )
+        .await;
+        watchdog.abort();
+
+        match result {
+            Ok(_) => match std::fs::rename(&temporary_destination, &destination) {
+                Ok(()) => {
+                    let _ = operation_registry.finish(
+                        &operation_id,
+                        OperationState::Completed,
+                        OperationOutcome::Completed,
+                        None,
+                    );
+                    Ok(())
+                }
+                Err(error) => {
+                    let _ = remove_temporary_clone(&temporary_destination);
+                    let message = format!(
+                        "Clone completed, but the destination could not be installed: {error}"
+                    );
+                    let _ = operation_registry.finish(
+                        &operation_id,
+                        OperationState::Failed,
+                        OperationOutcome::Unknown,
+                        Some(OperationError {
+                            kind: OperationErrorKind::Failed,
+                            message: message.clone(),
+                            recoverable: true,
+                        }),
+                    );
+                    Err(CommandError::message(message))
+                }
+            },
+            Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
                 let _ = remove_temporary_clone(&temporary_destination);
-                let message =
-                    format!("Clone completed, but the destination could not be installed: {error}");
-                let _ = registry.finish(
-                    &operation.id,
-                    OperationState::Failed,
-                    OperationOutcome::Unknown,
+                let (state, kind, message) = match reason {
+                    git_ops::TerminationReason::Cancelled => (
+                        OperationState::Cancelled,
+                        OperationErrorKind::Cancelled,
+                        "Clone was cancelled",
+                    ),
+                    git_ops::TerminationReason::TimedOut => (
+                        OperationState::TimedOut,
+                        OperationErrorKind::TimedOut,
+                        "Clone timed out after becoming inactive",
+                    ),
+                };
+                let _ = operation_registry.finish(
+                    &operation_id,
+                    state,
+                    OperationOutcome::Unchanged,
                     Some(OperationError {
-                        kind: OperationErrorKind::Failed,
-                        message: message.clone(),
+                        kind,
+                        message: message.to_owned(),
                         recoverable: true,
                     }),
                 );
                 Err(CommandError::message(message))
             }
-        },
-        Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
-            let _ = remove_temporary_clone(&temporary_destination);
-            let (state, kind, message) = match reason {
-                git_ops::TerminationReason::Cancelled => (
-                    OperationState::Cancelled,
-                    OperationErrorKind::Cancelled,
-                    "Clone was cancelled",
-                ),
-                git_ops::TerminationReason::TimedOut => (
-                    OperationState::TimedOut,
-                    OperationErrorKind::TimedOut,
-                    "Clone timed out after becoming inactive",
-                ),
-            };
-            let _ = registry.finish(
-                &operation.id,
-                state,
-                OperationOutcome::Unchanged,
-                Some(OperationError {
-                    kind,
-                    message: message.to_owned(),
-                    recoverable: true,
-                }),
-            );
-            Err(CommandError::message(message))
+            Err(error) => {
+                let command_error = remote_error(&remote, error);
+                let _ = remove_temporary_clone(&temporary_destination);
+                let _ = operation_registry.finish(
+                    &operation_id,
+                    OperationState::Failed,
+                    OperationOutcome::Unknown,
+                    Some(OperationError {
+                        kind: OperationErrorKind::Failed,
+                        message: command_error.message.clone(),
+                        recoverable: true,
+                    }),
+                );
+                Err(command_error)
+            }
         }
-        Err(error) => {
-            let command_error = remote_error(&remote, error);
-            let _ = remove_temporary_clone(&temporary_destination);
-            let _ = registry.finish(
-                &operation.id,
-                OperationState::Failed,
-                OperationOutcome::Unknown,
-                Some(OperationError {
-                    kind: OperationErrorKind::Failed,
-                    message: command_error.message.clone(),
-                    recoverable: true,
-                }),
-            );
-            Err(command_error)
-        }
-    }
+    });
+    task.await
+        .map_err(|error| CommandError::message(format!("Clone task failed: {error}")))?
 }
 
 fn temporary_clone_destination(

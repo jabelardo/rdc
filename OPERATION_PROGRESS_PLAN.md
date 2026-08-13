@@ -638,7 +638,9 @@ renames that directory into the requested destination only after Git succeeds, r
 destinations, and removes only the staged directory on clone or installation failure. Cancellation,
 timeout process control are now wired through the shared Git execution control; cancellation and
 timeout remove the staging directory and finish as `cancelled/unchanged` or `timedOut/unchanged`.
-The owner-loss lifecycle and a deterministic blocked-clone E2E journey remain to be added.
+The staged clone, watchdog, cleanup, and final install run in a detached native task so owner-window
+loss cannot strand the staging directory or destination lock. A deterministic blocked-clone E2E
+journey and explicit cleanup assertions remain to be added.
 
 Preferred design:
 
