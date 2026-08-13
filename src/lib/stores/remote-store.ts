@@ -3,6 +3,7 @@ import type { IFetchProgress, IPullProgress, IPushProgress, Progress } from "../
 import type { IRemote } from "../../models/remote";
 import { getBranches, getBranchesDifferingFromUpstream } from "../branch-ipc";
 import { getStatus, type IStatusResult } from "../git-ipc";
+import { describeError } from "../format-error";
 import { describeRemoteError } from "../remote-error";
 import {
   addRemote as addRemoteCommand,
@@ -194,7 +195,7 @@ export class RemoteStore {
         currentRemote: null,
         currentBranch: null,
         loading: false,
-        error: String(error),
+        error: describeError(error),
         operation: null,
         progress: null,
         operationError: null,

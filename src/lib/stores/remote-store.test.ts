@@ -28,6 +28,18 @@ function branch(name: string, upstreamName: string | null): Branch {
 }
 
 describe("RemoteStore", () => {
+  it("maps a structured status failure to the toolbar message", async () => {
+    const store = new RemoteStore({
+      getRemotes: vi.fn(async () => {
+        throw { message: "remote status unavailable", isAuthFailure: false };
+      }),
+    });
+
+    await store.load("/repo");
+
+    expect(store.state.error).toBe("remote status unavailable");
+  });
+
   it("selects the current branches tracked remote ahead of origin", async () => {
     const store = new RemoteStore({
       getRemotes: vi.fn(async () => [origin, upstream]),

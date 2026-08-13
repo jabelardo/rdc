@@ -23,10 +23,6 @@ describe("describeError", () => {
 
     expect(describeError(error)).not.toBe("[object Object]");
   });
-
-  it("uses a message from a structured error without auth metadata", () => {
-    expect(describeError({ message: "native failure" })).toBe("native failure");
-  });
 });
 
 describe("reportError", () => {

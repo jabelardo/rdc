@@ -370,7 +370,6 @@ export function useAppController() {
       mergeBranch: requestMerge,
       manageRemotes: requestManageRemotes,
       showDiscardFileDialog: () => {
-        setError(null);
         injectDebugState();
         const firstFile = workingTreeStore.state.workingDirectory?.files[0];
         if (firstFile !== undefined) {
@@ -380,12 +379,10 @@ export function useAppController() {
         }
       },
       showAddRemoteDialog: () => {
-        setError(null);
         injectDebugState();
         setShowAddRemote(true);
       },
       showRemoveRepositoryDialog: () => {
-        setError(null);
         injectDebugState();
         if (appStore.state.selectedRepository !== null) {
           setRepositoryToRemove(appStore.state.selectedRepository);
@@ -442,37 +439,30 @@ export function useAppController() {
         clonePreviewTimer.current = window.setInterval(step, 667);
       },
       debugShowDiscardAllDialog: () => {
-        setError(null);
         injectDebugState();
         requestDiscardAll(false);
       },
       debugShowRenameBranchDialog: () => {
-        setError(null);
         injectDebugState();
         renameCurrentBranch();
       },
       debugShowDeleteBranchDialog: () => {
-        setError(null);
         injectDebugState();
         deleteCurrentBranch();
       },
       debugShowMergeDialog: () => {
-        setError(null);
         injectDebugState();
         requestMerge();
       },
       debugShowRebaseDialog: () => {
-        setError(null);
         injectDebugState();
         requestRebase();
       },
       debugShowManageRemotesDialog: () => {
-        setError(null);
         injectDebugState();
         requestManageRemotes();
       },
       debugShowHookFailureDialog: () => {
-        setError(null);
         injectDebugState({ hookFailure: true });
       },
     });

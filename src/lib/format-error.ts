@@ -13,16 +13,6 @@ export function describeError(error: unknown): string {
   if (isCommandError(error)) {
     return error.message;
   }
-  // Some native/plugin boundaries preserve `message` but omit the optional auth fields. Keep
-  // those structured failures readable instead of falling through to `[object Object]`.
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof error.message === "string"
-  ) {
-    return error.message;
-  }
   if (error instanceof Error) {
     return error.message;
   }
