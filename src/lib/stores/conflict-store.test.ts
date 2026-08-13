@@ -113,7 +113,19 @@ describe("ConflictStore", () => {
     expect(await store.stageResolvedFile("conflicted.txt")).toBe(false);
     expect(store.state.files).toHaveLength(1);
     expect(store.state.stagingPath).toBeNull();
-    expect(store.state.operationError).toBe("Error: stage failed");
+    expect(store.state.operationError).toBe("stage failed");
+  });
+
+  it("maps a structured command error to its message", async () => {
+    const store = new ConflictStore({
+      getStatus: vi.fn(async () => {
+        throw { message: "status unavailable", isAuthFailure: false };
+      }),
+    });
+
+    await store.load("/repo");
+
+    expect(store.state.error).toBe("status unavailable");
   });
 
   it("ignores stale status after switching repositories", async () => {

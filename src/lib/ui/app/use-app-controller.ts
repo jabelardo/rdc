@@ -44,6 +44,7 @@ import type { ConflictState } from "../../stores/conflict-store";
 import { getDefaultAppStore } from "../../stores/default-app-store";
 import { getDefaultBranchStore } from "../../stores/default-branch-store";
 import { getDefaultCloneStore } from "../../stores/default-clone-store";
+import { describeError } from "../../format-error";
 import { getDefaultConflictStore } from "../../stores/default-conflict-store";
 import { getDefaultHistoryStore } from "../../stores/default-history-store";
 import { getDefaultMessageStore } from "../../stores/default-message-store";
@@ -659,7 +660,7 @@ export function useAppController() {
     const load = appStore.load().catch((error) => {
       log.error("Failed to load the repository list", error);
       if (!disposed) {
-        setError(String(error));
+        setError(describeError(error));
       }
     });
 
@@ -693,7 +694,7 @@ export function useAppController() {
       setError(null);
       await appStore.addRepository(selected);
     } catch (error) {
-      setError(String(error));
+      setError(describeError(error));
     }
   }
 
@@ -711,7 +712,7 @@ export function useAppController() {
       await initRepository(selected, "main");
       await appStore.addRepository(selected);
     } catch (error) {
-      setError(String(error));
+      setError(describeError(error));
     }
   }
 
@@ -764,7 +765,7 @@ export function useAppController() {
       setClonePath("");
       setShowCloneDialog(false);
     } catch (error) {
-      setError(String(error));
+      setError(describeError(error));
     }
   }
 
@@ -773,7 +774,7 @@ export function useAppController() {
       setError(null);
       await appStore.selectRepository(repository);
     } catch (error) {
-      setError(String(error));
+      setError(describeError(error));
     }
   }
 
@@ -823,7 +824,7 @@ export function useAppController() {
       setError(null);
       await action();
     } catch (error) {
-      setError(String(error));
+      setError(describeError(error));
     }
   }
 

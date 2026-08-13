@@ -11,6 +11,7 @@ import {
   WorkingDirectoryStatus,
 } from "../../models/status";
 import { caseInsensitiveCompare } from "../compare";
+import { describeError } from "../format-error";
 import { discardChanges as discardWorkingTreeChanges, TrashDiscardError } from "../discard-changes";
 import { discardChangesFromSelection, getWorkingDirectoryDiff } from "../diff-ipc";
 import { createCommit, getStatus, type IFileToStage, type IStatusResult } from "../git-ipc";
@@ -254,7 +255,7 @@ export class WorkingTreeStore {
         hookFailure: null,
         runningHook: null,
         loading: false,
-        error: String(error),
+        error: describeError(error),
         mergeHeadFound: false,
       });
     }
@@ -348,7 +349,7 @@ export class WorkingTreeStore {
       this.update({
         ...this.currentState,
         loading: false,
-        error: String(error),
+        error: describeError(error),
       });
       return "failed";
     }
@@ -384,7 +385,7 @@ export class WorkingTreeStore {
       this.update({
         ...this.currentState,
         loading: false,
-        error: String(error),
+        error: describeError(error),
       });
       return "failed";
     }
@@ -427,7 +428,7 @@ export class WorkingTreeStore {
       this.update({
         ...this.currentState,
         loading: false,
-        error: String(error),
+        error: describeError(error),
       });
       return false;
     }
@@ -520,7 +521,7 @@ export class WorkingTreeStore {
       this.update({
         ...this.currentState,
         commitLoading: false,
-        commitError: String(error),
+        commitError: describeError(error),
       });
       return null;
     } finally {
@@ -595,7 +596,7 @@ export class WorkingTreeStore {
         ...this.currentState,
         diff: null,
         diffLoading: false,
-        diffError: String(error),
+        diffError: describeError(error),
       });
     }
   }

@@ -125,7 +125,7 @@ describe("WorkingTreeStore", () => {
       repositoryPath: "/repo",
       workingDirectory: null,
       loading: false,
-      error: "Error: status failed",
+      error: "status failed",
     });
     expect(listener).toHaveBeenCalled();
   });
@@ -630,7 +630,7 @@ describe("WorkingTreeStore", () => {
     expect(getStatus).toHaveBeenCalledOnce();
     expect(store.state).toMatchObject({
       repositoryPath: "/repo",
-      error: "Error: trash unavailable",
+      error: "trash unavailable",
     });
   });
 
@@ -781,7 +781,7 @@ describe("WorkingTreeStore", () => {
     expect(getStatus).toHaveBeenCalledOnce();
     expect(store.state).toMatchObject({
       repositoryPath: "/repo",
-      error: "Error: trash unavailable",
+      error: "trash unavailable",
     });
   });
 

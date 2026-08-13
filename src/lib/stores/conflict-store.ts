@@ -9,6 +9,7 @@ import {
   type IStatusFileChange,
   type IStatusResult,
 } from "../git-ipc";
+import { describeError } from "../format-error";
 
 export type ConflictFile = {
   readonly path: string;
@@ -117,7 +118,7 @@ export class ConflictStore {
         mergeInProgress: false,
         files: [],
         loading: false,
-        error: String(error),
+        error: describeError(error),
         stagingPath: null,
         operationError: null,
       });
@@ -167,7 +168,7 @@ export class ConflictStore {
         this.update({
           ...this.currentState,
           stagingPath: null,
-          operationError: String(error),
+          operationError: describeError(error),
         });
       }
       return false;
