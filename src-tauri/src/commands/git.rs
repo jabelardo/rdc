@@ -697,6 +697,9 @@ pub async fn rebase_branch(
     let control = registry
         .control(&operation.id)
         .map_err(|error| CommandError::message(error.to_string()))?;
+    let pre_operation_head = git_ops::get_head_sha(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
     let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
     let result = git_ops::rebase::rebase_with_progress_controlled(
         &repository_path,
@@ -726,41 +729,14 @@ pub async fn rebase_branch(
             Ok(result)
         }
         Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
-            let recovery = git_ops::rebase::abort_rebase(&repository_path).await;
-            match (reason, recovery) {
-                (git_ops::TerminationReason::Cancelled, Ok(())) => {
-                    let _ = registry.finish(
-                        &operation.id,
-                        OperationState::Cancelled,
-                        OperationOutcome::Recovered,
-                        None,
-                    );
-                    Err(CommandError::message("Rebase cancelled and recovered"))
-                }
-                (git_ops::TerminationReason::TimedOut, Ok(())) => {
-                    let _ = registry.finish(
-                        &operation.id,
-                        OperationState::TimedOut,
-                        OperationOutcome::Recovered,
-                        None,
-                    );
-                    Err(CommandError::message("Rebase timed out and recovered"))
-                }
-                (_, Err(recovery_error)) => {
-                    let message = recovery_error.to_string();
-                    let _ = registry.finish(
-                        &operation.id,
-                        OperationState::Failed,
-                        OperationOutcome::Unknown,
-                        Some(OperationError {
-                            kind: OperationErrorKind::RecoveryFailed,
-                            message: message.clone(),
-                            recoverable: false,
-                        }),
-                    );
-                    Err(CommandError::message(message))
-                }
-            }
+            finish_rebase_termination(
+                &registry,
+                &operation.id,
+                &repository_path,
+                &pre_operation_head,
+                reason,
+            )
+            .await
         }
         Err(error) => {
             let command_error = CommandError::from(error);
@@ -777,6 +753,99 @@ pub async fn rebase_branch(
             Err(command_error)
         }
     }
+}
+
+async fn finish_rebase_termination(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    repository_path: &str,
+    pre_operation_head: &str,
+    reason: git_ops::TerminationReason,
+) -> Result<RebaseResult, CommandError> {
+    // A stop request may arrive after Git has finished the last commit. Only abort while rebase
+    // metadata remains; otherwise the abort would undo a completed rebase.
+    let snapshot = git_ops::rebase::get_rebase_snapshot(repository_path)
+        .await
+        .map_err(|error| finish_rebase_recovery_failure(registry, operation_id, error))?;
+    if snapshot.is_none() {
+        let current_head = git_ops::get_head_sha(repository_path)
+            .await
+            .map_err(|error| finish_rebase_recovery_failure(registry, operation_id, error))?;
+        if current_head != pre_operation_head {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            return Ok(RebaseResult::CompletedWithoutError);
+        }
+
+        let (state, kind, verb) = rebase_termination_details(reason);
+        let message = format!("Rebase {verb} before it changed the repository");
+        let _ = registry.finish(
+            operation_id,
+            state,
+            OperationOutcome::Unchanged,
+            Some(OperationError {
+                kind,
+                message: message.clone(),
+                recoverable: true,
+            }),
+        );
+        return Err(CommandError::message(message));
+    }
+
+    match git_ops::rebase::abort_rebase(repository_path).await {
+        Ok(()) => {
+            let (state, _, verb) = rebase_termination_details(reason);
+            let _ = registry.finish(operation_id, state, OperationOutcome::Recovered, None);
+            Err(CommandError::message(format!(
+                "Rebase {verb} and recovered"
+            )))
+        }
+        Err(error) => Err(finish_rebase_recovery_failure(
+            registry,
+            operation_id,
+            error,
+        )),
+    }
+}
+
+fn rebase_termination_details(
+    reason: git_ops::TerminationReason,
+) -> (OperationState, OperationErrorKind, &'static str) {
+    match reason {
+        git_ops::TerminationReason::Cancelled => (
+            OperationState::Cancelled,
+            OperationErrorKind::Cancelled,
+            "cancelled",
+        ),
+        git_ops::TerminationReason::TimedOut => (
+            OperationState::TimedOut,
+            OperationErrorKind::TimedOut,
+            "timed out",
+        ),
+    }
+}
+
+fn finish_rebase_recovery_failure(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    error: git_ops::GitError,
+) -> CommandError {
+    let message = error.to_string();
+    let _ = registry.finish(
+        operation_id,
+        OperationState::Failed,
+        OperationOutcome::Unknown,
+        Some(OperationError {
+            kind: OperationErrorKind::RecoveryFailed,
+            message: message.clone(),
+            recoverable: false,
+        }),
+    );
+    CommandError::message(message)
 }
 
 /// Stages the selected resolutions and continues an in-progress rebase.

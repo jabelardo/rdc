@@ -710,14 +710,15 @@ operation. Cancellation or timeout is handled only after the Git process tree ha
 command then invokes `rebase --abort` and reports `cancelled/recovered` or `timedOut/recovered`.
 Cherry-pick now follows the same boundary and inspects both sequencer state and the pre-operation
 `HEAD` before deciding whether to invoke `cherry-pick --abort`; a late stop after `HEAD` advanced is
-reported as completed, while an unchanged repository is reported as unchanged. Ordinary conflicts
-remain in the existing paused recovery flow. Revert now uses controlled execution and invokes
-`revert --abort` after termination. Focused Rebase, Cherry-pick, and Revert tests and strict native
-checks pass. The three operation-specific recovery policies are now explicit; Rebase and Revert
-still need the same completion-race guard, and real repository cancellation, restoration, and
-completion-race journeys remain as the final evidence gate. Fixture investigation confirmed that a
-normal Cherry-pick can advance `HEAD` before a late stop request is observed; the new guard prevents
-that completed pick from being unconditionally aborted.
+reported as completed, while an unchanged repository is reported as unchanged. Rebase now applies
+the same metadata/`HEAD` guard before `rebase --abort`. Ordinary conflicts remain in the existing
+paused recovery flow. Revert still uses controlled execution and invokes `revert --abort` after
+termination, but needs the equivalent completion-race guard. Focused Rebase, Cherry-pick, and
+Revert tests and strict native checks pass. The three operation-specific recovery policies are now
+explicit; Revert's race guard and real repository cancellation, restoration, and completion-race
+journeys remain as the final evidence gate. Fixture investigation confirmed that a normal
+Cherry-pick can advance `HEAD` before a late stop request is observed; the new guard prevents that
+completed pick from being unconditionally aborted.
 
 ## Slice 14 — Add Merge cancellation and recovery
 
