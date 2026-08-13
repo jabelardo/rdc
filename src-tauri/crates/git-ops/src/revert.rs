@@ -202,6 +202,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn cancelled_revert_does_not_change_head() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "a.txt", "one\n", "first");
+        commit_file(&repo.path(), "a.txt", "two\n", "second");
+        let original_head = head(&repo.path()).await;
+        let control = ExecutionControl::new();
+        control.cancel(crate::error::TerminationReason::Cancelled);
+
+        let result = revert_commit_controlled(
+            repo.path(),
+            &original_head,
+            1,
+            None::<fn(RevertProgress)>,
+            Some(control),
+        )
+        .await;
+
+        assert!(matches!(result, Err(GitError::OperationTerminated { .. })));
+        assert_eq!(head(&repo.path()).await, original_head);
+    }
+
+    #[tokio::test]
     async fn aborting_a_conflicted_revert_restores_head_and_worktree() {
         let repo = empty_repository().await;
         commit_file(&repo.path(), "a.txt", "one\n", "first");

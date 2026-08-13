@@ -837,6 +837,45 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn cancelled_rebase_does_not_change_head() {
+        let repo = two_commit_rebase_repository().await;
+        let original_head = git(
+            &["rev-parse", "HEAD"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("HEAD should resolve")
+        .stdout_trimmed();
+        let control = ExecutionControl::new();
+        control.cancel(crate::error::TerminationReason::Cancelled);
+
+        let result = rebase_with_progress_controlled(
+            repo.path(),
+            "main",
+            "feature",
+            |_| {},
+            Some(control),
+        )
+        .await;
+
+        assert!(matches!(result, Err(GitError::OperationTerminated { .. })));
+        assert_eq!(
+            git(
+                &["rev-parse", "HEAD"],
+                repo.path(),
+                "test",
+                GitOptions::default(),
+            )
+            .await
+            .expect("HEAD should resolve")
+            .stdout_trimmed(),
+            original_head
+        );
+    }
+
     #[test]
     fn parses_rebase_progress_with_commit_summaries() {
         let commits = vec![
