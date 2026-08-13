@@ -24,7 +24,9 @@ use std::sync::{Arc, Mutex};
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::{git, git_with_stderr_and_lfs, GitOptions};
+use crate::exec::{
+    git, git_with_stderr_and_lfs_controlled, ExecutionControl, GitOptions,
+};
 use crate::progress::{GitLfsProgressParser, GitProgress, ProgressLineSplitter};
 
 /// A revert progress update.
@@ -62,6 +64,21 @@ pub async fn revert_commit<F>(
 where
     F: FnMut(RevertProgress) + Send,
 {
+    revert_commit_controlled(repository, commit, parent_count, on_progress, None).await
+}
+
+/// Reverts with operation-owned process control. Termination is returned to the command layer
+/// before `revert --abort` is attempted.
+pub async fn revert_commit_controlled<F>(
+    repository: impl AsRef<Path>,
+    commit: &str,
+    parent_count: usize,
+    on_progress: Option<F>,
+    control: Option<ExecutionControl>,
+) -> Result<(), GitError>
+where
+    F: FnMut(RevertProgress) + Send,
+{
     let mut args = vec!["revert".to_owned()];
     if parent_count > 1 {
         args.extend(["-m".to_owned(), "1".to_owned()]);
@@ -69,7 +86,16 @@ where
     args.push(commit.to_owned());
 
     let Some(on_progress) = on_progress else {
-        git(&args, repository, "revert", GitOptions::default()).await?;
+        git_with_stderr_and_lfs_controlled(
+            &args,
+            repository,
+            "revert",
+            GitOptions::default(),
+            control,
+            |_| {},
+            |_| {},
+        )
+        .await?;
         return Ok(());
     };
 
@@ -79,11 +105,12 @@ where
     let regular_progress = Arc::clone(&progress);
     let lfs_progress = Arc::clone(&progress);
 
-    git_with_stderr_and_lfs(
+    git_with_stderr_and_lfs_controlled(
         &args,
         repository,
         "revert",
         GitOptions::default(),
+        control,
         |chunk| {
             for line in splitter.push(chunk) {
                 with_progress_callback(&regular_progress, |callback| {

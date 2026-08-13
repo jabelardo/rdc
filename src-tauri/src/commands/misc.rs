@@ -16,7 +16,7 @@ use super::CommandError;
 use crate::operation::{
     GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
 };
-use crate::operation_registry::OperationRegistry;
+use crate::operation_registry::{OperationRegistry, WatchdogPolicy};
 use tauri::{State, WebviewWindow};
 
 /// Creates an annotated tag on a commit.
@@ -87,22 +87,29 @@ pub async fn revert_commit(
     parent_count: usize,
     on_progress: Channel<RevertProgress>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
         GitOperationKind::Revert,
+        "Cancel revert",
     )
     .await?;
-    let result = git_ops::revert::revert_commit(
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
+    let result = git_ops::revert::revert_commit_controlled(
         &repository_path,
         &commit,
         parent_count,
         Some(|progress: RevertProgress| {
             let _ = on_progress.send(progress);
         }),
+        Some(control),
     )
     .await;
+    watchdog.abort();
     match result {
         Ok(()) => {
             let _ = registry.finish(
@@ -112,6 +119,43 @@ pub async fn revert_commit(
                 None,
             );
             Ok(())
+        }
+        Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
+            let recovery = git_ops::revert::abort_revert(&repository_path).await;
+            match (reason, recovery) {
+                (git_ops::TerminationReason::Cancelled, Ok(())) => {
+                    let _ = registry.finish(
+                        &operation.id,
+                        OperationState::Cancelled,
+                        OperationOutcome::Recovered,
+                        None,
+                    );
+                    Err(CommandError::message("Revert cancelled and recovered"))
+                }
+                (git_ops::TerminationReason::TimedOut, Ok(())) => {
+                    let _ = registry.finish(
+                        &operation.id,
+                        OperationState::TimedOut,
+                        OperationOutcome::Recovered,
+                        None,
+                    );
+                    Err(CommandError::message("Revert timed out and recovered"))
+                }
+                (_, Err(error)) => {
+                    let message = error.to_string();
+                    let _ = registry.finish(
+                        &operation.id,
+                        OperationState::Failed,
+                        OperationOutcome::Unknown,
+                        Some(OperationError {
+                            kind: OperationErrorKind::RecoveryFailed,
+                            message: message.clone(),
+                            recoverable: false,
+                        }),
+                    );
+                    Err(CommandError::message(message))
+                }
+            }
         }
         Err(error) => {
             let message = error.to_string();

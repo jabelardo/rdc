@@ -709,8 +709,9 @@ operation family.
 operation. Cancellation or timeout is handled only after the Git process tree has terminated; the
 command then invokes `rebase --abort` and reports `cancelled/recovered` or `timedOut/recovered`.
 Cherry-pick now follows the same boundary and invokes `cherry-pick --abort` after termination, while
-ordinary conflicts remain in the existing paused recovery flow. Focused Rebase and Cherry-pick tests
-and strict native checks pass. Revert concurrent cancellation and real recovery/race journeys remain.
+ordinary conflicts remain in the existing paused recovery flow. Revert now uses controlled execution
+and invokes `revert --abort` after termination. Focused Rebase, Cherry-pick, and Revert tests and
+strict native checks pass. Real repository cancellation, recovery, and completion-race journeys remain.
 
 ## Slice 14 — Add Merge cancellation and recovery
 
