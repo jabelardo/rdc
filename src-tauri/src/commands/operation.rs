@@ -49,6 +49,21 @@ pub async fn get_active_operation_for_repository(
     Ok(registry.active_for_scope(&scope))
 }
 
+/// Returns the operation currently reserving a clone destination, including before the repository
+/// exists. Clone uses this separate scope because repository identity cannot be resolved yet.
+#[tauri::command]
+pub fn get_active_operation_for_clone_destination(
+    registry: State<'_, OperationRegistry>,
+    destination_path: String,
+) -> Result<Option<OperationRecord>, CommandError> {
+    let lock_key = git_ops::operation_identity::clone_destination_lock_key(&destination_path);
+    let scope = OperationScope::CloneDestination {
+        lock_key: lock_key.to_string_lossy().into_owned(),
+        destination_path: lock_key.to_string_lossy().into_owned(),
+    };
+    Ok(registry.active_for_scope(&scope))
+}
+
 /// Resolves the stable operation scope even when the repository is currently idle.
 #[tauri::command]
 pub async fn get_operation_scope_for_repository(

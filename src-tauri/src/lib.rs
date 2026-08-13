@@ -310,6 +310,7 @@ pub fn run() {
             commands::misc::is_cherry_pick_head_found,
             commands::misc::get_rebase_internal_state,
             commands::operation::get_active_operation_for_repository,
+            commands::operation::get_active_operation_for_clone_destination,
             commands::operation::get_operation_scope_for_repository,
             commands::operation::get_latest_operation_event,
             commands::operation::request_operation_cancellation,

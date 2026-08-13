@@ -12,6 +12,10 @@ export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}"
 # The E2E binary is exercised through WebDriver, not a debugger; stripping Rust debuginfo keeps
 # the Tauri/WebKit link below the constrained container memory limit.
 export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C debuginfo=0"
+if [[ "${E2E_TEST_PATTERN:-}" == "e2e/clone-cancellation.test.mjs" ]]; then
+  export GIT_SSH="${PWD}/e2e/blocking-clone-ssh.sh"
+  export GIT_SSH_VARIANT=ssh
+fi
 mkdir -p "${XDG_CONFIG_HOME}" "${XDG_DATA_HOME}"
 Xvfb "${DISPLAY}" -screen 0 1280x1024x24 -nolisten tcp &
 XVFB_PID=$!

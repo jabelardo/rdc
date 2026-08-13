@@ -639,8 +639,11 @@ destinations, and removes only the staged directory on clone or installation fai
 timeout process control are now wired through the shared Git execution control; cancellation and
 timeout remove the staging directory and finish as `cancelled/unchanged` or `timedOut/unchanged`.
 The staged clone, watchdog, cleanup, and final install run in a detached native task so owner-window
-loss cannot strand the staging directory or destination lock. A deterministic blocked-clone E2E
-journey and explicit cleanup assertions remain to be added.
+loss cannot strand the staging directory or destination lock. A Linux-container E2E now blocks the
+real SSH transport, cancels the destination-scoped operation, verifies the terminal cancellation
+event and confirms that both the requested destination and `.rdc-clone-*` staging entries are absent.
+The remaining Slice 11 evidence is a deterministic timeout journey and the explicit policy/test for
+an empty pre-existing destination.
 
 Preferred design:
 
