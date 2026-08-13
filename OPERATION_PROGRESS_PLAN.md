@@ -657,9 +657,12 @@ An existing destination, including an empty directory, is rejected before the op
 This avoids recursively deleting user-owned data and is covered by the Clone E2E. Cross-device rename
 and platform differences still need explicit handling; do not silently fall back to copying a partially
 visible repository without preserving cancellation safety. Native timeout cleanup is covered by the
-shared watchdog tests; a real blocked-Clone timeout E2E remains the final Slice 11 evidence.
+shared watchdog tests, and a real blocked-Clone timeout E2E verifies the production watchdog emits
+`timedOut/unchanged`, reports the typed timeout error, and removes the destination and staging data.
 
-**Exit:** cancellation and timeout leave neither a registered repository nor app-owned partial data.
+**Exit:** complete. Cancellation and timeout leave neither a registered repository nor app-owned
+partial data; the Linux-container Clone journey covers both terminal paths, and an existing empty
+destination is rejected without modification.
 
 ## Slice 12 — Present hook cancellation
 
