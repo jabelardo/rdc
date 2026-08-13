@@ -576,17 +576,21 @@ terminal-event refresh in the matching window.
 
 **Goal:** ship the first safe end-to-end cancellation path before touching history.
 
-**Progress:** the first native Fetch increment is implemented. Foreground and background Fetch now
+**Progress:** the native Fetch cancellation path is implemented. Foreground and background Fetch now
 reserve a cancellable repository-scoped operation, publish their existing progress into the shared
 registry, and run under the inactivity watchdog. User cancellation and hard timeout terminate the
 Git process tree through the shared execution control. Once Git has stopped, the command re-reads
 remotes and status before reporting `cancelled/unchanged` or `timedOut/unchanged` and releasing the
 repository lock; failed recovery reports `recoveryFailed/unknown` and deliberately retains the lock.
-The controlled `git-ops` boundary and both recovery lock outcomes have focused native tests.
+The controlled `git-ops` boundary and both recovery lock outcomes have focused native tests. A
+local SSH transport fixture now emits Fetch activity and then waits at a file barrier, proving user
+cancellation and timeout process-tree termination without a real network delay. Releasing that same
+barrier proves successful completion, and the registry preserves that terminal result when a
+cancellation request arrives too late.
 
-Still required to close the slice: add the deterministic blocking Git/SSH fixture and prove user
-cancellation, short-policy hard timeout, successful-completion race, owner-window closure, peer
-observation and different-repository isolation through command/frontend/E2E coverage.
+Still required to close the slice: connect the fixture to a short-policy watchdog test and prove
+owner-window closure, peer observation and different-repository isolation through
+command/frontend/E2E coverage.
 
 Fetch policy:
 

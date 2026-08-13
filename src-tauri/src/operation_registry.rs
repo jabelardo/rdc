@@ -740,6 +740,42 @@ mod tests {
         );
     }
 
+    #[test]
+    fn completed_operation_wins_a_late_cancellation_request() {
+        let registry = registry();
+        let record = registry
+            .start(
+                repository_scope("repo-completion-race"),
+                Some("window-a".to_owned()),
+                GitOperationKind::Fetch,
+                CancellationCapability::Available {
+                    label: "Cancel fetch".to_owned(),
+                },
+            )
+            .expect("operation should reserve");
+        registry
+            .finish(
+                &record.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            )
+            .expect("Fetch should complete");
+
+        assert_eq!(
+            registry.request_cancellation(&record.id),
+            Err(OperationRegistryError::NotFound {
+                operation_id: record.id.clone(),
+            })
+        );
+        let completed = registry.get(&record.id).expect("terminal record remains");
+        assert_eq!(completed.state, OperationState::Completed);
+        assert_eq!(completed.outcome, Some(OperationOutcome::Completed));
+        assert!(registry
+            .active_for_scope(&repository_scope("repo-completion-race"))
+            .is_none());
+    }
+
     #[tokio::test]
     async fn operation_id_cancellation_reaps_the_controlled_git_process() {
         let directory = tempfile::tempdir().expect("temporary directory should be created");

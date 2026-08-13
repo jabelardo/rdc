@@ -217,6 +217,14 @@ mod tests {
     use super::*;
     use crate::test_support::{commit_file, empty_repository, TempRepository};
 
+    #[cfg(unix)]
+    use std::sync::{Arc, Mutex};
+    #[cfg(unix)]
+    use std::time::Duration;
+
+    #[cfg(unix)]
+    use crate::test_support::BlockingSshFetch;
+
     /// An "upstream" repository and a clone of it, so nothing touches the network.
     async fn upstream_and_clone() -> (TempRepository, TempRepository) {
         let upstream = empty_repository().await;
@@ -296,6 +304,138 @@ mod tests {
                 ..
             })
         ));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn cancels_a_fetch_blocked_after_reporting_activity() {
+        let fixture = BlockingSshFetch::new().await;
+        let control = ExecutionControl::new();
+        let cancellation = control.clone();
+        let progress = Arc::new(Mutex::new(Vec::new()));
+        let captured = Arc::clone(&progress);
+        let repository = fixture.repository();
+        let env = fixture.env();
+        let task = tokio::spawn(async move {
+            fetch_controlled(
+                repository,
+                "origin",
+                &env,
+                Some(move |update| {
+                    captured.lock().expect("progress lock").push(update);
+                }),
+                Some(control),
+            )
+            .await
+        });
+
+        fixture.wait_until_blocked().await;
+        wait_for_counting_progress(&progress).await;
+        cancellation.cancel(crate::TerminationReason::Cancelled);
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("cancelled Fetch should reap its SSH process tree")
+            .expect("Fetch task should not panic");
+
+        assert!(matches!(
+            result,
+            Err(GitError::OperationTerminated {
+                reason: crate::TerminationReason::Cancelled,
+                ..
+            })
+        ));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn times_out_a_fetch_at_the_same_deterministic_barrier() {
+        let fixture = BlockingSshFetch::new().await;
+        let control = ExecutionControl::new();
+        let timeout = control.clone();
+        let repository = fixture.repository();
+        let env = fixture.env();
+        let task = tokio::spawn(async move {
+            fetch_controlled(
+                repository,
+                "origin",
+                &env,
+                None::<fn(FetchProgress)>,
+                Some(control),
+            )
+            .await
+        });
+
+        fixture.wait_until_blocked().await;
+        timeout.cancel(crate::TerminationReason::TimedOut);
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("timed-out Fetch should reap its SSH process tree")
+            .expect("Fetch task should not panic");
+
+        assert!(matches!(
+            result,
+            Err(GitError::OperationTerminated {
+                reason: crate::TerminationReason::TimedOut,
+                ..
+            })
+        ));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn successful_completion_wins_before_a_late_cancellation_request() {
+        let fixture = BlockingSshFetch::new().await;
+        let control = ExecutionControl::new();
+        let late_cancellation = control.clone();
+        let repository = fixture.repository();
+        let fetched_repository = repository.clone();
+        let env = fixture.env();
+        let task = tokio::spawn(async move {
+            fetch_controlled(
+                fetched_repository,
+                "origin",
+                &env,
+                None::<fn(FetchProgress)>,
+                Some(control),
+            )
+            .await
+        });
+
+        fixture.wait_until_blocked().await;
+        fixture.release();
+        tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("released Fetch should complete")
+            .expect("Fetch task should not panic")
+            .expect("released Fetch should succeed");
+        late_cancellation.cancel(crate::TerminationReason::Cancelled);
+
+        let refs = refs_matching(&repository, "refs/remotes/origin").await;
+        assert!(refs.contains(&"origin/main".to_owned()), "got {refs:?}");
+    }
+
+    #[cfg(unix)]
+    async fn wait_for_counting_progress(progress: &Arc<Mutex<Vec<FetchProgress>>>) {
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if progress
+                    .lock()
+                    .expect("progress lock")
+                    .iter()
+                    .any(|update| {
+                        update
+                            .description
+                            .as_deref()
+                            .is_some_and(|text| text.starts_with("remote: Counting objects"))
+                    })
+                {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("blocking SSH fixture did not publish Fetch activity");
     }
 
     #[tokio::test]

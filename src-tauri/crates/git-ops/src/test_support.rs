@@ -27,6 +27,117 @@ impl TempRepository {
     }
 }
 
+/// A local SSH transport whose upload-pack blocks after emitting Fetch activity.
+///
+/// The fixture lives behind the Unix gate because it is a shell executable. Linux is where the
+/// E2E suite runs, and keeping the OS calls inside this module preserves the portable test-support
+/// surface for the future Windows arm.
+#[cfg(unix)]
+mod blocking_ssh {
+    use std::collections::HashMap;
+    use std::fs;
+    use std::os::unix::fs::PermissionsExt;
+    use std::path::{Path, PathBuf};
+    use std::time::Duration;
+
+    use tempfile::TempDir;
+
+    use super::{commit_file, empty_repository, run, TempRepository};
+
+    pub struct BlockingSshFetch {
+        _transport: TempDir,
+        _upstream: TempRepository,
+        client: TempRepository,
+        ready: PathBuf,
+        release: PathBuf,
+        env: HashMap<String, String>,
+    }
+
+    impl BlockingSshFetch {
+        pub async fn new() -> Self {
+            let upstream = empty_repository().await;
+            commit_file(&upstream.path(), "upstream.txt", "one\n", "upstream commit");
+            let client = empty_repository().await;
+            run(
+                &client.path(),
+                &["remote", "add", "origin", "ssh://fixture/repository"],
+            );
+
+            let transport = tempfile::tempdir().expect("temporary SSH transport");
+            let script = transport.path().join("blocking-ssh");
+            let ready = transport.path().join("ready");
+            let release = transport.path().join("release");
+            fs::write(
+                &script,
+                r#"#!/bin/sh
+printf '%s\n' 'remote: Counting objects: 50% (1/2)' >&2
+: > "$RDC_BLOCKING_FETCH_READY"
+while [ ! -e "$RDC_BLOCKING_FETCH_RELEASE" ]; do
+  sleep 0.01
+done
+exec git-upload-pack "$RDC_BLOCKING_FETCH_UPSTREAM"
+"#,
+            )
+            .expect("blocking SSH fixture should be written");
+            let mut permissions = fs::metadata(&script)
+                .expect("blocking SSH fixture metadata")
+                .permissions();
+            permissions.set_mode(0o700);
+            fs::set_permissions(&script, permissions)
+                .expect("blocking SSH fixture should be executable");
+
+            let env = HashMap::from([
+                ("GIT_SSH".to_owned(), path_text(&script)),
+                ("GIT_SSH_VARIANT".to_owned(), "ssh".to_owned()),
+                (
+                    "RDC_BLOCKING_FETCH_UPSTREAM".to_owned(),
+                    path_text(&upstream.path()),
+                ),
+                ("RDC_BLOCKING_FETCH_READY".to_owned(), path_text(&ready)),
+                ("RDC_BLOCKING_FETCH_RELEASE".to_owned(), path_text(&release)),
+            ]);
+
+            Self {
+                _transport: transport,
+                _upstream: upstream,
+                client,
+                ready,
+                release,
+                env,
+            }
+        }
+
+        pub fn repository(&self) -> PathBuf {
+            self.client.path()
+        }
+
+        pub fn env(&self) -> HashMap<String, String> {
+            self.env.clone()
+        }
+
+        pub async fn wait_until_blocked(&self) {
+            tokio::time::timeout(Duration::from_secs(2), async {
+                while !self.ready.exists() {
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                }
+            })
+            .await
+            .expect("SSH transport did not reach its deterministic barrier");
+        }
+
+        pub fn release(&self) {
+            fs::write(&self.release, []).expect("SSH transport should be released");
+        }
+    }
+
+    fn path_text(path: &Path) -> String {
+        path.to_string_lossy().into_owned()
+    }
+}
+
+#[cfg(unix)]
+pub use blocking_ssh::BlockingSshFetch;
+
 /// Runs a setup command, panicking with the captured output if it fails.
 ///
 /// Panicking is correct here: a failure means the test environment is broken, not that the
