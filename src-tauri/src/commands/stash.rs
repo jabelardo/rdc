@@ -199,6 +199,9 @@ pub async fn cherry_pick(
     let control = registry
         .control(&operation.id)
         .map_err(|error| CommandError::message(error.to_string()))?;
+    let pre_operation_head = git_ops::get_head_sha(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
     let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
     let result = git_ops::cherry_pick::cherry_pick_controlled(
         &repository_path,
@@ -211,43 +214,110 @@ pub async fn cherry_pick(
     .await;
     watchdog.abort();
     if let Err(git_ops::GitError::OperationTerminated { reason, .. }) = &result {
-        let recovery = git_ops::cherry_pick::abort_cherry_pick(&repository_path).await;
-        return match (reason, recovery) {
-            (git_ops::TerminationReason::Cancelled, Ok(())) => {
-                let _ = registry.finish(
-                    &operation.id,
-                    OperationState::Cancelled,
-                    OperationOutcome::Recovered,
-                    None,
-                );
-                Err(CommandError::message("Cherry-pick cancelled and recovered"))
-            }
-            (git_ops::TerminationReason::TimedOut, Ok(())) => {
-                let _ = registry.finish(
-                    &operation.id,
-                    OperationState::TimedOut,
-                    OperationOutcome::Recovered,
-                    None,
-                );
-                Err(CommandError::message("Cherry-pick timed out and recovered"))
-            }
-            (_, Err(error)) => {
-                let message = error.to_string();
-                let _ = registry.finish(
-                    &operation.id,
-                    OperationState::Failed,
-                    OperationOutcome::Unknown,
-                    Some(OperationError {
-                        kind: OperationErrorKind::RecoveryFailed,
-                        message: message.clone(),
-                        recoverable: false,
-                    }),
-                );
-                Err(CommandError::message(message))
-            }
-        };
+        return finish_cherry_pick_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &pre_operation_head,
+            *reason,
+        )
+        .await;
     }
     finish_cherry_pick_result(&registry, &operation.id, result)
+}
+
+async fn finish_cherry_pick_termination(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    repository_path: &str,
+    pre_operation_head: &str,
+    reason: git_ops::TerminationReason,
+) -> Result<CherryPickResult, CommandError> {
+    // A stop request can race with Git's final commit. Only abort while the sequencer still exists;
+    // otherwise an unconditional `cherry-pick --abort` would undo a pick that already completed.
+    let snapshot = git_ops::cherry_pick::get_cherry_pick_snapshot(repository_path)
+        .await
+        .map_err(|error| finish_cherry_pick_recovery_failure(registry, operation_id, error))?;
+    if snapshot.is_none() {
+        let current_head = git_ops::get_head_sha(repository_path)
+            .await
+            .map_err(|error| finish_cherry_pick_recovery_failure(registry, operation_id, error))?;
+        if current_head != pre_operation_head {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            return Ok(CherryPickResult::CompletedWithoutError);
+        }
+
+        let (state, kind, verb) = termination_details(reason);
+        let message = format!("Cherry-pick {verb} before it changed the repository");
+        let _ = registry.finish(
+            operation_id,
+            state,
+            OperationOutcome::Unchanged,
+            Some(OperationError {
+                kind,
+                message: message.clone(),
+                recoverable: true,
+            }),
+        );
+        return Err(CommandError::message(message));
+    }
+
+    let recovery = git_ops::cherry_pick::abort_cherry_pick(repository_path).await;
+    match recovery {
+        Ok(()) => {
+            let (state, _, verb) = termination_details(reason);
+            let _ = registry.finish(operation_id, state, OperationOutcome::Recovered, None);
+            Err(CommandError::message(format!(
+                "Cherry-pick {verb} and recovered"
+            )))
+        }
+        Err(error) => Err(finish_cherry_pick_recovery_failure(
+            registry,
+            operation_id,
+            error,
+        )),
+    }
+}
+
+fn termination_details(
+    reason: git_ops::TerminationReason,
+) -> (OperationState, OperationErrorKind, &'static str) {
+    match reason {
+        git_ops::TerminationReason::Cancelled => (
+            OperationState::Cancelled,
+            OperationErrorKind::Cancelled,
+            "cancelled",
+        ),
+        git_ops::TerminationReason::TimedOut => (
+            OperationState::TimedOut,
+            OperationErrorKind::TimedOut,
+            "timed out",
+        ),
+    }
+}
+
+fn finish_cherry_pick_recovery_failure(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    error: git_ops::GitError,
+) -> CommandError {
+    let message = error.to_string();
+    let _ = registry.finish(
+        operation_id,
+        OperationState::Failed,
+        OperationOutcome::Unknown,
+        Some(OperationError {
+            kind: OperationErrorKind::RecoveryFailed,
+            message: message.clone(),
+            recoverable: false,
+        }),
+    );
+    CommandError::message(message)
 }
 
 /// Reconstructs an interrupted cherry-pick, or `null` if none is in progress.

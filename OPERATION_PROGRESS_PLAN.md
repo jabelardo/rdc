@@ -708,14 +708,16 @@ operation family.
 **Progress:** Rebase now has an operation-owned controlled runner and a cancellable repository
 operation. Cancellation or timeout is handled only after the Git process tree has terminated; the
 command then invokes `rebase --abort` and reports `cancelled/recovered` or `timedOut/recovered`.
-Cherry-pick now follows the same boundary and invokes `cherry-pick --abort` after termination, while
-ordinary conflicts remain in the existing paused recovery flow. Revert now uses controlled execution
-and invokes `revert --abort` after termination. Focused Rebase, Cherry-pick, and Revert tests and
-strict native checks pass. The three operation-specific recovery policies are now explicit; real
-repository cancellation, restoration, and completion-race journeys remain as the final evidence gate.
-Fixture investigation also confirmed that a normal Cherry-pick can advance `HEAD` before a late stop
-request is observed; cancellation recovery must therefore inspect `HEAD` and sequencer state before
-running `cherry-pick --abort`, never unconditionally resetting a completed pick.
+Cherry-pick now follows the same boundary and inspects both sequencer state and the pre-operation
+`HEAD` before deciding whether to invoke `cherry-pick --abort`; a late stop after `HEAD` advanced is
+reported as completed, while an unchanged repository is reported as unchanged. Ordinary conflicts
+remain in the existing paused recovery flow. Revert now uses controlled execution and invokes
+`revert --abort` after termination. Focused Rebase, Cherry-pick, and Revert tests and strict native
+checks pass. The three operation-specific recovery policies are now explicit; Rebase and Revert
+still need the same completion-race guard, and real repository cancellation, restoration, and
+completion-race journeys remain as the final evidence gate. Fixture investigation confirmed that a
+normal Cherry-pick can advance `HEAD` before a late stop request is observed; the new guard prevents
+that completed pick from being unconditionally aborted.
 
 ## Slice 14 — Add Merge cancellation and recovery
 

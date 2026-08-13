@@ -45,6 +45,18 @@ pub async fn get_repository_type(path: impl AsRef<Path>) -> Result<RepositoryTyp
     get_repository_type_with_env(path, HashMap::new()).await
 }
 
+/// Returns the commit currently checked out at `HEAD`.
+pub async fn get_head_sha(path: impl AsRef<Path>) -> Result<String, GitError> {
+    let output = git(
+        &["rev-parse", "HEAD"],
+        path,
+        "getHeadSha",
+        GitOptions::default(),
+    )
+    .await?;
+    Ok(output.stdout_lossy().trim().to_owned())
+}
+
 /// [`get_repository_type`], with extra environment variables for the git invocation.
 ///
 /// Exists so tests can set `GIT_TEST_ASSUME_DIFFERENT_OWNER` and a stub `HOME` per-invocation.
@@ -269,6 +281,18 @@ mod tests {
             }
             other => panic!("expected Regular, got {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn reads_the_current_head_sha() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "file.txt", "content\n", "initial commit");
+
+        let head = get_head_sha(repo.path())
+            .await
+            .expect("HEAD should resolve");
+        assert_eq!(head.len(), 40);
+        assert!(head.chars().all(|character| character.is_ascii_hexdigit()));
     }
 
     #[tokio::test]

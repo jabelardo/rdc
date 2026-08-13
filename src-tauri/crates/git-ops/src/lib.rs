@@ -178,7 +178,7 @@ pub use rev_list::{
     get_ahead_behind, get_commits_between_commits, get_commits_in_range, CommitOneLine,
 };
 pub use rev_parse::{
-    get_current_upstream_ref, get_current_upstream_remote_name, get_repository_type,
+    get_current_upstream_ref, get_current_upstream_remote_name, get_head_sha, get_repository_type,
     get_upstream_ref_for_ref, get_upstream_remote_name_for_ref, resolve_git_dir, RepositoryType,
 };
 pub use revert::{revert_commit, RevertProgress, RevertProgressKind};
