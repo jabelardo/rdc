@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import type { IProgress } from "../../../models/progress";
 import type { OperationProgressViewModel } from "../../operation-presentation";
 import type { OperationState } from "../../../models/operation";
@@ -149,6 +149,14 @@ export function OperationProgressDialog({
     viewModel ?? legacyViewModel(operation ?? "Operation", progress);
   const terminal = ["completed", "cancelled", "timedOut", "failed"].includes(model.state);
   const title = terminal ? `${model.operationLabel}` : `${model.operationLabel} in progress`;
+  const closeButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (terminal && onClose !== undefined) {
+      closeButton.current?.focus();
+    }
+  }, [onClose, terminal]);
+  const showCancel = model.cancellationAvailable && onCancel !== undefined;
+  const showClose = terminal && onClose !== undefined;
 
   return (
     <AlertDialog
@@ -176,15 +184,15 @@ export function OperationProgressDialog({
           >
             {children}
           </OperationProgressBody>
-          {(model.cancellationAvailable || (terminal && onClose !== undefined)) && (
+          {(showCancel || showClose) && (
             <div className="flex justify-end gap-2">
-              {model.cancellationAvailable && onCancel !== undefined && (
+              {showCancel && (
                 <Button type="button" onClick={onCancel} disabled={model.state === "cancelling"}>
                   {model.cancellationLabel ?? "Cancel"}
                 </Button>
               )}
-              {terminal && onClose !== undefined && (
-                <Button type="button" onClick={onClose}>
+              {showClose && (
+                <Button ref={closeButton} type="button" onClick={onClose}>
                   Close
                 </Button>
               )}

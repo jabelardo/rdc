@@ -890,6 +890,8 @@ owner cancellation, recovery, terminal errors and non-modal body rendering.
 Cancellation requests now override stale Git progress immediately, the slow-operation warning cannot
 be hidden by an old progress description, and observer/unowned windows identify their ownership
 context without inheriting the owner's controls.
+The modal renders no empty action row when a callback is unavailable, and focus moves to Close when
+an in-flight cancellation reaches a terminal state.
 CloneStore now hydrates the native clone-destination operation after invocation starts and follows
 only that operation ID through the global event stream. Native lifecycle tracking is presentation
 enrichment rather than a prerequisite for cloning, and stale/reset clone callbacks remain rejected.

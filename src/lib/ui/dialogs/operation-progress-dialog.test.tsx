@@ -141,4 +141,34 @@ describe("OperationProgressDialog", () => {
     expect(screen.getAllByText("Remote rejected the operation")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
+
+  it("moves focus to Close when cancellation reaches a terminal state", () => {
+    const onClose = vi.fn();
+    const cancelling: OperationRecord = {
+      ...operationRecord("cancelling"),
+      cancellation: { kind: "requested" },
+    };
+    const view = render(
+      <OperationProgressDialog
+        viewModel={operationProgressViewModel(cancelling, "window-a")}
+        onClose={onClose}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument();
+
+    const cancelled: OperationRecord = {
+      ...cancelling,
+      state: "cancelled",
+      outcome: "recovered",
+      error: { kind: "cancelled", message: "Clone was cancelled", recoverable: true },
+    };
+    view.rerender(
+      <OperationProgressDialog
+        viewModel={operationProgressViewModel(cancelled, "window-a")}
+        onClose={onClose}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+  });
 });
