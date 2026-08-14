@@ -978,7 +978,8 @@ Migrate incrementally to the operation record and shared presentation:
    Cherry-pick and Revert commands, and their operation records mount the unified progress dialog.
    The conflict surface now identifies Cherry-pick/Revert recovery, stages resolutions, offers
    Cherry-pick continuation and explicit abort for both operations. Interactive Squash/Reorder
-   remain pending.
+   remain pending at the selection/execution UI layer; their rebase-category native operations
+   already preserve the user-facing Squash/Reorder progress labels in the shared model.
 
 Remove duplicated operation/progress fields only after their final consumer migrates. Preserve stale
 callback rejection by operation ID. Keep domain-store post-operation refresh behavior intact.
