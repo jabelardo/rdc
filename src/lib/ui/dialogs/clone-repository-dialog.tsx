@@ -7,6 +7,7 @@ import { Label } from "../../../components/ui/label";
 import { DialogActions } from "./dialog-actions";
 import { DialogMessage } from "./dialog-message";
 import { OperationProgressDialog } from "./operation-progress-dialog";
+import type { OperationProgressViewModel } from "../../operation-presentation";
 
 const MessageID = "clone-repository-message";
 
@@ -18,6 +19,8 @@ type CloneRepositoryDialogProps = {
   readonly progress: ICloneProgress | null;
   /** A clone that was attempted and refused, or failed partway. */
   readonly error: string | null;
+  readonly operationViewModel?: OperationProgressViewModel;
+  readonly onCancelOperation?: () => void;
   readonly onUrlChange: (value: string) => void;
   readonly onPathChange: (value: string) => void;
   readonly onChooseDestination: () => void;
@@ -42,6 +45,8 @@ export function CloneRepositoryDialog({
   running,
   progress,
   error,
+  operationViewModel,
+  onCancelOperation,
   onUrlChange,
   onPathChange,
   onChooseDestination,
@@ -65,9 +70,11 @@ export function CloneRepositoryDialog({
   if (running) {
     return (
       <OperationProgressDialog
+        viewModel={operationViewModel}
         operation="Cloning"
         progress={progress ?? { value: 0 }}
         currentCommit={undefined}
+        onCancel={onCancelOperation}
       />
     );
   }

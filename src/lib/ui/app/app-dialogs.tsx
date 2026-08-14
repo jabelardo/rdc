@@ -47,7 +47,10 @@ import { TerminalOutput } from "../terminal-output";
 import type { MergeTreeResult } from "../../../models/merge";
 import type { MergeStrategy } from "../../../models/merge-strategy";
 import type { RebasePreview } from "../../../models/rebase-preview";
-import type { OperationProgressViewModel } from "../../operation-presentation";
+import {
+  operationProgressViewModel,
+  type OperationProgressViewModel,
+} from "../../operation-presentation";
 
 type AppDialogsProps = {
   readonly discardFile: WorkingDirectoryFileChange | null;
@@ -143,6 +146,7 @@ type AppDialogsProps = {
   readonly onDismissAbout: () => void;
   readonly onDismissPreferences: () => void;
   readonly onDismissClone: () => void;
+  readonly onCancelCloneOperation: () => void;
   readonly onChooseCloneDestination: () => void;
   readonly onSubmitClone: () => void;
   readonly onCloneURLChange: (value: string) => void;
@@ -245,6 +249,7 @@ export function AppDialogs({
   onDismissAbout,
   onDismissPreferences,
   onDismissClone,
+  onCancelCloneOperation,
   onChooseCloneDestination,
   onSubmitClone,
   onCloneURLChange,
@@ -662,6 +667,16 @@ export function AppDialogs({
           running={cloneState.operation !== null}
           progress={cloneState.progress}
           error={cloneState.error}
+          operationViewModel={
+            cloneState.nativeOperation === null
+              ? undefined
+              : operationProgressViewModel(
+                  cloneState.nativeOperation,
+                  cloneState.nativeOperation.ownerWindow ?? "",
+                  cloneState.nativeOperation.ownerWindow === null ? "unowned" : "owner",
+                )
+          }
+          onCancelOperation={onCancelCloneOperation}
           onChooseDestination={onChooseCloneDestination}
           onConfirm={onSubmitClone}
           onCancel={onDismissClone}

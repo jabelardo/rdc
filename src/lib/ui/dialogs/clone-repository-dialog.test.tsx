@@ -2,7 +2,22 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import type { OperationRecord } from "../../../models/operation";
+import { operationProgressViewModel } from "../../operation-presentation";
 import { CloneRepositoryDialog } from "./clone-repository-dialog";
+
+const cloneOperation: OperationRecord = {
+  id: "clone-operation-1",
+  scope: { kind: "cloneDestination", lockKey: "/tmp/repo", destinationPath: "/tmp/repo" },
+  ownerWindow: "window-a",
+  operation: "clone",
+  state: "running",
+  cancellation: { kind: "available", label: "Cancel clone" },
+  progress: { value: 0.6, description: "Receiving objects: 60%" },
+  lastActivityAt: 1,
+  outcome: null,
+  error: null,
+};
 
 function renderDialog(overrides: Partial<Parameters<typeof CloneRepositoryDialog>[0]> = {}) {
   const props = {
@@ -121,5 +136,19 @@ describe("CloneRepositoryDialog", () => {
 
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(props.onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("routes native clone cancellation through the operation control", async () => {
+    const user = userEvent.setup();
+    const onCancelOperation = vi.fn();
+    renderDialog({
+      running: true,
+      operationViewModel: operationProgressViewModel(cloneOperation, "window-a"),
+      onCancelOperation,
+    });
+
+    await user.click(screen.getByRole("button", { name: "Cancel clone" }));
+
+    expect(onCancelOperation).toHaveBeenCalledOnce();
   });
 });

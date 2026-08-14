@@ -893,6 +893,9 @@ context without inheriting the owner's controls.
 CloneStore now hydrates the native clone-destination operation after invocation starts and follows
 only that operation ID through the global event stream. Native lifecycle tracking is presentation
 enrichment rather than a prerequisite for cloning, and stale/reset clone callbacks remain rejected.
+The Clone dialog now consumes that native view model and routes its operation-specific Cancel action
+through the hydrated native operation ID; the form's ordinary Cancel remains separate and available
+only before cloning starts.
 
 Refactor `src/lib/ui/dialogs/operation-progress-dialog.tsx` to consume an operation view model rather
 than loose operation-specific props. Extract a shared progress body so background operations can use

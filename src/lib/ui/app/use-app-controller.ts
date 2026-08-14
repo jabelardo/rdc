@@ -1639,6 +1639,7 @@ export function useAppController() {
     branchState,
     branchStore,
     cloneState,
+    cloneStore,
     conflictState,
     conflictStore,
     historyState,

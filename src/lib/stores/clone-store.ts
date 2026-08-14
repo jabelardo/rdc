@@ -3,6 +3,7 @@ import type { OperationEventEnvelope, OperationRecord } from "../../models/opera
 import {
   getActiveOperationForCloneDestination,
   listenToOperationEvents,
+  requestOperationCancellation,
 } from "../operation-ipc";
 import { clone as cloneRepository } from "../remote-ipc";
 import { describeRemoteError } from "../remote-error";
@@ -18,6 +19,7 @@ type CloneStoreDependencies = {
   readonly clone: typeof cloneRepository;
   readonly getActive: typeof getActiveOperationForCloneDestination;
   readonly listen: (callback: (event: OperationEventEnvelope) => void) => Promise<() => void>;
+  readonly cancel: typeof requestOperationCancellation;
 };
 
 const EmptyState: CloneState = {
@@ -45,6 +47,7 @@ export class CloneStore {
       clone: cloneRepository,
       getActive: getActiveOperationForCloneDestination,
       listen: listenToOperationEvents,
+      cancel: requestOperationCancellation,
       ...dependencies,
     };
   }
@@ -156,6 +159,23 @@ export class CloneStore {
   public reset(): void {
     this.operationID++;
     this.update(EmptyState);
+  }
+
+  public async requestCancellation(): Promise<void> {
+    const operation = this.currentState.nativeOperation;
+    if (operation === null || operation.cancellation.kind !== "available") {
+      return;
+    }
+    try {
+      const updated = await this.dependencies.cancel(operation.id);
+      if (this.currentState.nativeOperation?.id === operation.id) {
+        this.update({ ...this.currentState, nativeOperation: updated });
+      }
+    } catch (error) {
+      if (this.currentState.nativeOperation?.id === operation.id) {
+        this.update({ ...this.currentState, error: String(error) });
+      }
+    }
   }
 
   private update(state: CloneState): void {

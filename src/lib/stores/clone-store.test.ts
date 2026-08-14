@@ -6,6 +6,7 @@ import { CloneStore } from "./clone-store";
 const noNativeTracking = () => ({
   getActive: vi.fn(async () => null),
   listen: vi.fn(async () => () => {}),
+  cancel: vi.fn(async () => nativeClone("cancelling")),
 });
 
 const nativeClone = (state: OperationRecord["state"] = "running"): OperationRecord => ({
@@ -157,5 +158,31 @@ describe("CloneStore", () => {
     finish?.();
     await expect(clone).resolves.toBe("/work/repo");
     expect(store.state.nativeOperation).toBeNull();
+  });
+
+  it("requests cancellation by the hydrated native operation id", async () => {
+    let finish: (() => void) | undefined;
+    const pending = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const cancel = vi.fn(async () => ({
+      ...nativeClone("cancelling"),
+      cancellation: { kind: "requested" as const },
+    }));
+    const store = new CloneStore({
+      clone: vi.fn(async () => pending),
+      getActive: vi.fn(async () => nativeClone()),
+      listen: vi.fn(async () => () => {}),
+      cancel,
+    });
+    const clone = store.clone("/remote.git", "/work/repo");
+    await vi.waitFor(() => expect(store.state.nativeOperation).not.toBeNull());
+
+    await store.requestCancellation();
+
+    expect(cancel).toHaveBeenCalledWith("clone-operation-1");
+    expect(store.state.nativeOperation?.cancellation.kind).toBe("requested");
+    finish?.();
+    await clone;
   });
 });

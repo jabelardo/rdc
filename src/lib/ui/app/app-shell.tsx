@@ -29,6 +29,7 @@ export function AppShell({ controller }: AppShellProps) {
     branchState,
     branchStore,
     cloneState,
+    cloneStore,
     conflictState,
     conflictStore,
     historyState,
@@ -423,6 +424,7 @@ export function AppShell({ controller }: AppShellProps) {
         onDismissAbout={() => setShowAboutDialog(false)}
         onDismissPreferences={() => setShowPreferencesDialog(false)}
         onDismissClone={dismissCloneDialog}
+        onCancelCloneOperation={() => void cloneStore.requestCancellation()}
         onChooseCloneDestination={() => void chooseCloneDestination()}
         onSubmitClone={() => void submitClone()}
         onCloneURLChange={setCloneURL}
