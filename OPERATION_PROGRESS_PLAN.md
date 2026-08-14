@@ -883,7 +883,10 @@ Commit, Merge and Rebase progress surfaces are now wired to the selected window'
 record while retaining their operation-specific initiation and current-commit details. Native
 operation-specific cancellation labels flow through the shared model, and only the owner window gets
 the action; observers remain read-only. Clone retains its destination-scoped initiation boundary.
-Focused presentation, dialog and operation-store tests cover owner cancellation and recovery.
+`OperationProgressBody` now owns the reusable progress/live-status/error content independently from
+the modal shell, so embedded toolbar/sidebar surfaces can consume the same lifecycle rendering.
+Terminal errors are not announced twice. Focused presentation, dialog and operation-store tests cover
+owner cancellation, recovery, terminal errors and non-modal body rendering.
 
 Refactor `src/lib/ui/dialogs/operation-progress-dialog.tsx` to consume an operation view model rather
 than loose operation-specific props. Extract a shared progress body so background operations can use

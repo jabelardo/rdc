@@ -40,6 +40,16 @@ export type OperationProgressDialogProps = {
   readonly onClose?: () => void;
 };
 
+export type OperationProgressBodyProps = {
+  readonly viewModel: Pick<
+    OperationProgressViewModel,
+    "operationLabel" | "progress" | "statusText" | "error"
+  >;
+  readonly currentCommit?: OperationProgressCommit;
+  readonly children?: ReactNode;
+  readonly statusID?: string;
+};
+
 function legacyViewModel(
   operation: string,
   progress: OperationProgressDialogProps["progress"],
@@ -69,6 +79,45 @@ function legacyViewModel(
   };
 }
 
+function progressStatusLine(
+  model: OperationProgressBodyProps["viewModel"],
+  currentCommit: OperationProgressCommit | undefined,
+): string {
+  return currentCommit
+    ? `Commit ${currentCommit.position} of ${currentCommit.totalCommitCount}${
+        currentCommit.summary === "" ? "" : ` — ${currentCommit.summary}`
+      }`
+    : model.statusText;
+}
+
+/** Shared lifecycle content for modal and future embedded progress surfaces. */
+export function OperationProgressBody({
+  viewModel,
+  currentCommit,
+  children,
+  statusID,
+}: OperationProgressBodyProps) {
+  const value = Math.max(0, Math.min(1, viewModel.progress.value));
+  const statusLine = progressStatusLine(viewModel, currentCommit);
+  const showSeparateError =
+    viewModel.error !== null && viewModel.error.message !== statusLine;
+
+  return (
+    <div className="grid gap-3">
+      <div id={statusID} role="status" aria-live="polite" className="grid gap-2">
+        <Progress value={value * 100} />
+        <p className="text-muted-foreground text-xs">{statusLine}</p>
+        {showSeparateError && (
+          <p role="alert" className="text-destructive text-xs">
+            {viewModel.error?.message}
+          </p>
+        )}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 /**
  * The shared progress dialog every category-1 operation mounts (category 1 = the operation is the
  * point: history moves, clone, commit — see `COMPONENT_MIGRATION_PROCESS.md` § Progress
@@ -93,12 +142,6 @@ export function OperationProgressDialog({
 }: OperationProgressDialogProps) {
   const model =
     viewModel ?? legacyViewModel(operation ?? "Operation", progress);
-  const value = Math.max(0, Math.min(1, model.progress.value));
-  const statusLine = currentCommit
-    ? `Commit ${currentCommit.position} of ${currentCommit.totalCommitCount}${
-        currentCommit.summary === "" ? "" : ` — ${currentCommit.summary}`
-      }`
-    : model.statusText;
   const terminal = ["completed", "cancelled", "timedOut", "failed"].includes(model.state);
   const title = terminal ? `${model.operationLabel}` : `${model.operationLabel} in progress`;
 
@@ -120,18 +163,14 @@ export function OperationProgressDialog({
       >
         <div className="grid gap-3">
           <AlertDialogTitle>{title}</AlertDialogTitle>
-          {/* One element is both the accessible description (announced on open, via
-           * aria-describedby) and the live region (re-announced as git reports progress). */}
-          <div id={StatusID} role="status" aria-live="polite" className="grid gap-2">
-            <Progress value={value * 100} />
-            <p className="text-muted-foreground text-xs">{statusLine}</p>
-            {model.error !== null && (
-              <p role="alert" className="text-destructive text-xs">
-                {model.error.message}
-              </p>
-            )}
-          </div>
-          {children}
+          {/* The status element is both the accessible description and the polite live region. */}
+          <OperationProgressBody
+            viewModel={model}
+            currentCommit={currentCommit}
+            statusID={StatusID}
+          >
+            {children}
+          </OperationProgressBody>
           {(model.cancellationAvailable || (terminal && onClose !== undefined)) && (
             <div className="flex justify-end gap-2">
               {model.cancellationAvailable && onCancel !== undefined && (

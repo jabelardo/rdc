@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { OperationRecord } from "../../../models/operation";
 import { operationProgressViewModel } from "../../operation-presentation";
-import { OperationProgressDialog } from "./operation-progress-dialog";
+import { OperationProgressBody, OperationProgressDialog } from "./operation-progress-dialog";
 
 const operationRecord = (state: OperationRecord["state"] = "running"): OperationRecord => ({
   id: "operation-1",
@@ -99,5 +99,35 @@ describe("OperationProgressDialog", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("Recovering repository…");
     expect(screen.queryByRole("button", { name: "Cancel fetch" })).not.toBeInTheDocument();
+  });
+
+  it("renders the shared progress body without mounting a modal", () => {
+    render(
+      <OperationProgressBody
+        viewModel={operationProgressViewModel(operationRecord(), "window-a")}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Receiving objects");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "25");
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("does not repeat a terminal error already used as the lifecycle status", () => {
+    const failed: OperationRecord = {
+      ...operationRecord("failed"),
+      cancellation: { kind: "unavailable" },
+      error: { kind: "failed", message: "Remote rejected the operation", recoverable: true },
+      outcome: "unknown",
+    };
+    render(
+      <OperationProgressDialog
+        viewModel={operationProgressViewModel(failed, "window-a")}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(screen.getAllByText("Remote rejected the operation")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 });
