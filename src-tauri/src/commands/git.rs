@@ -318,17 +318,33 @@ pub async fn checkout_branch(
     name: String,
     on_progress: Channel<CheckoutProgress>,
 ) -> Result<(), CommandError> {
-    // Snapshot before reserving the cancellable operation: an unavailable snapshot must not expose
-    // a stop button that cannot restore the repository. The command remains locked by the normal
-    // operation start immediately after this read; a later increment will close this small setup
-    // race by making snapshot acquisition part of reservation.
-    let snapshot = git_ops::checkout::get_checkout_snapshot(&repository_path)
-        .await
-        .map_err(CommandError::from)?;
-    let operation = crate::commands::operation::start_cancellable_repository_operation(
+    run_cancellable_branch_checkout(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
+        CheckoutTarget::Local(&name),
+        on_progress,
+    )
+    .await
+}
+
+async fn run_cancellable_branch_checkout(
+    registry: &OperationRegistry,
+    repository_path: &str,
+    owner_window: Option<String>,
+    target: CheckoutTarget<'_>,
+    on_progress: Channel<CheckoutProgress>,
+) -> Result<(), CommandError> {
+    // Snapshot before reserving the cancellable operation: an unavailable snapshot must not expose
+    // a stop button that cannot restore the repository. The reservation race is tracked in Slice 15
+    // and will be closed once snapshot acquisition is made part of operation reservation.
+    let snapshot = git_ops::checkout::get_checkout_snapshot(repository_path)
+        .await
+        .map_err(CommandError::from)?;
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
+        registry,
+        repository_path,
+        owner_window,
         GitOperationKind::Checkout,
         "Cancel checkout",
     )
@@ -338,8 +354,8 @@ pub async fn checkout_branch(
         .map_err(|error| CommandError::message(error.to_string()))?;
     let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
     let result = git_ops::checkout::checkout_branch_with_progress_controlled(
-        &repository_path,
-        CheckoutTarget::Local(&name),
+        repository_path,
+        target,
         move |progress| {
             let _ = on_progress.send(progress);
         },
@@ -359,9 +375,9 @@ pub async fn checkout_branch(
         }
         Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
             recover_checkout_termination(
-                &registry,
+                registry,
                 &operation.id,
-                &repository_path,
+                repository_path,
                 &snapshot,
                 reason,
             )
@@ -461,49 +477,17 @@ pub async fn checkout_remote_branch(
     local_name: String,
     on_progress: Channel<CheckoutProgress>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    run_cancellable_branch_checkout(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
-        GitOperationKind::Checkout,
-    )
-    .await?;
-    let result = git_ops::checkout::checkout_branch_with_progress(
-        &repository_path,
         CheckoutTarget::Remote {
             remote_ref: &remote_ref,
             local_name: &local_name,
         },
-        move |progress| {
-            let _ = on_progress.send(progress);
-        },
+        on_progress,
     )
-    .await;
-    match result {
-        Ok(()) => {
-            let _ = registry.finish(
-                &operation.id,
-                OperationState::Completed,
-                OperationOutcome::Completed,
-                None,
-            );
-            Ok(())
-        }
-        Err(error) => {
-            let command_error = CommandError::from(error);
-            let _ = registry.finish(
-                &operation.id,
-                OperationState::Failed,
-                OperationOutcome::Unknown,
-                Some(OperationError {
-                    kind: OperationErrorKind::Failed,
-                    message: command_error.message.clone(),
-                    recoverable: true,
-                }),
-            );
-            Err(command_error)
-        }
-    }
+    .await
 }
 
 /// Checks out a commit, leaving `HEAD` detached.
@@ -519,21 +503,48 @@ pub async fn checkout_commit(
     commit: String,
     on_progress: Channel<CheckoutProgress>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    run_cancellable_commit_checkout(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
+        &commit,
+        on_progress,
+    )
+    .await
+}
+
+async fn run_cancellable_commit_checkout(
+    registry: &OperationRegistry,
+    repository_path: &str,
+    owner_window: Option<String>,
+    commit: &str,
+    on_progress: Channel<CheckoutProgress>,
+) -> Result<(), CommandError> {
+    let snapshot = git_ops::checkout::get_checkout_snapshot(repository_path)
+        .await
+        .map_err(CommandError::from)?;
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
+        registry,
+        repository_path,
+        owner_window,
         GitOperationKind::Checkout,
+        "Cancel checkout",
     )
     .await?;
-    let result = git_ops::checkout::checkout_commit_with_progress(
-        &repository_path,
-        &commit,
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
+    let result = git_ops::checkout::checkout_commit_with_progress_controlled(
+        repository_path,
+        commit,
         move |progress| {
             let _ = on_progress.send(progress);
         },
+        Some(control),
     )
     .await;
+    watchdog.abort();
     match result {
         Ok(()) => {
             let _ = registry.finish(
@@ -543,6 +554,16 @@ pub async fn checkout_commit(
                 None,
             );
             Ok(())
+        }
+        Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
+            recover_checkout_termination(
+                registry,
+                &operation.id,
+                repository_path,
+                &snapshot,
+                reason,
+            )
+            .await
         }
         Err(error) => {
             let command_error = CommandError::from(error);

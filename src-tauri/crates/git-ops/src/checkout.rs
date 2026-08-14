@@ -24,9 +24,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::{
-    git, git_with_stderr_and_lfs, git_with_stderr_and_lfs_controlled, ExecutionControl, GitOptions,
-};
+use crate::exec::{git, git_with_stderr_and_lfs_controlled, ExecutionControl, GitOptions};
 use crate::progress::{GitLfsProgressParser, GitProgress};
 
 /// Repository state that must survive an interrupted checkout.
@@ -779,7 +777,20 @@ pub async fn checkout_commit(repository: impl AsRef<Path>, commit: &str) -> Resu
 pub async fn checkout_commit_with_progress<F>(
     repository: impl AsRef<Path>,
     commit: &str,
+    on_progress: F,
+) -> Result<(), GitError>
+where
+    F: FnMut(CheckoutProgress) + Send,
+{
+    checkout_commit_with_progress_controlled(repository, commit, on_progress, None).await
+}
+
+/// Checks out a commit with optional process cancellation.
+pub async fn checkout_commit_with_progress_controlled<F>(
+    repository: impl AsRef<Path>,
+    commit: &str,
     mut on_progress: F,
+    control: Option<ExecutionControl>,
 ) -> Result<(), GitError>
 where
     F: FnMut(CheckoutProgress) + Send,
@@ -805,11 +816,12 @@ where
     let regular_progress = Arc::clone(&progress);
     let lfs_progress = Arc::clone(&progress);
     let mut lfs_parser = GitLfsProgressParser::default();
-    git_with_stderr_and_lfs(
+    git_with_stderr_and_lfs_controlled(
         &args,
         repository,
         "checkoutCommit",
         GitOptions::default(),
+        control,
         |chunk| {
             for (value, description) in parser.push(chunk) {
                 with_progress_callback(&regular_progress, |callback| {
