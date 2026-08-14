@@ -762,12 +762,11 @@ tested.
 **Progress:** in progress. Push now has a controlled runner and a `Stop waiting` capability. After
 termination, branch and requested tag pushes are reconciled with direct `ls-remote` queries: matching
 remote SHAs are reported as completed, while a failed or inconclusive query reports
-`outcome: unknown`. Pull, Checkout and Commit remain
-explicitly non-cancellable; none inherits the Merge/Rebase recovery policy.
+`outcome: unknown`. Pull now has the same native stop capability, while Checkout and Commit remain
+explicitly non-cancellable until their own snapshot and completion policies are implemented.
 
 Push policy is complete for branch and tag refs, including local-remote reconciliation coverage.
-Pull is now split internally into explicit phases, but cancellation remains unavailable until
-integration recovery is wired and tested. The native Pull runner now:
+Pull is now split internally into explicit phases, and the native Pull runner now:
 
 - Fetch the remote with the existing controlled Fetch runner and remote progress model.
 - Reconcile the fetched integration target using the configured `pull.rebase` and `pull.ff` policy.
@@ -780,11 +779,14 @@ merge integration termination uses Merge recovery, and rebase integration termin
 recovery. A real blocked-network test proves Pull identifies the Fetch phase, terminates it, keeps
 the repository lock during recovery, and releases the lock only after Fetch recovery succeeds.
 Existing Pull integration and Fetch recovery tests pass. A deterministic blocked pre-merge-hook
-test now proves Pull identifies `pullMerge`, invokes Merge recovery, preserves the lock until the
-recovery boundary, and reports unchanged when cancellation happens before Git creates merge state.
+test now proves Pull identifies `pullMerge`, invokes Merge recovery, and preserves the lock until
+the recovery boundary; depending on the exact hook boundary, recovery reports unchanged or
+recovered rather than guessing that the merge completed.
 A matching blocked `pre-rebase` test proves the `pullRebase` route and Rebase recovery boundary.
-Pull still needs a terminal integration-state test with actual merge/rebase metadata before
-`Stop waiting` is fully supported in the UI.
+Merge recovery also treats an already-advanced `HEAD` as completed even if Git has not yet removed
+its transient marker. A hook-level test for that exact late-stop ordering remains blocked because
+Git does not invoke the required hook during this pull path; the deterministic command-level merge
+race test covers the advanced-`HEAD` classification.
 
 Implementation order:
 

@@ -665,20 +665,23 @@ pub(crate) async fn recover_merge_termination(
     }
     .map_err(|error| finish_merge_recovery_failure(registry, operation_id, error))?;
 
-    if !in_progress {
-        let current_head = git_ops::get_head_sha(repository_path)
-            .await
-            .map_err(|error| finish_merge_recovery_failure(registry, operation_id, error))?;
-        if current_head != pre_operation_head {
-            let _ = registry.finish(
-                operation_id,
-                OperationState::Completed,
-                OperationOutcome::Completed,
-                None,
-            );
-            return Ok(MergeResult::Success);
-        }
+    // Git can advance HEAD before a late stop reaches a post-merge hook while leaving merge
+    // metadata visible until that hook returns. A moved HEAD is therefore authoritative even when
+    // a marker still exists; aborting in that state would undo an already completed merge.
+    let current_head = git_ops::get_head_sha(repository_path)
+        .await
+        .map_err(|error| finish_merge_recovery_failure(registry, operation_id, error))?;
+    if current_head != pre_operation_head {
+        let _ = registry.finish(
+            operation_id,
+            OperationState::Completed,
+            OperationOutcome::Completed,
+            None,
+        );
+        return Ok(MergeResult::Success);
+    }
 
+    if !in_progress {
         let (state, kind, verb) = merge_termination_details(reason);
         let message = format!("Merge {verb} before it changed the repository");
         let _ = registry.finish(

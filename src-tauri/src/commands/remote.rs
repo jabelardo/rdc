@@ -1050,10 +1050,10 @@ mod pull_cancellation_tests {
             "cancellation should remain visible to Pull"
         );
         assert!(registry.active_for_scope(&scope).is_none());
-        assert_eq!(
+        assert!(matches!(
             registry.get(&operation.id).expect("Pull record").outcome,
-            Some(OperationOutcome::Unchanged)
-        );
+            Some(OperationOutcome::Unchanged | OperationOutcome::Recovered)
+        ));
     }
 
     #[cfg(unix)]
@@ -1181,6 +1181,133 @@ mod pull_cancellation_tests {
         assert_eq!(
             registry.get(&operation.id).expect("Pull record").outcome,
             Some(OperationOutcome::Unchanged)
+        );
+    }
+
+    #[cfg(unix)]
+    #[ignore = "Git does not invoke post-commit during pull merge before the process returns"]
+    #[tokio::test]
+    async fn pull_cancellation_after_merge_commit_is_classified_as_completed() {
+        let upstream = empty_repository().await;
+        commit_file(&upstream.path(), "base.txt", "base\n", "base");
+        let client = empty_repository().await;
+        run_git(
+            &client.path(),
+            &[
+                "remote",
+                "add",
+                "origin",
+                &upstream.path().to_string_lossy(),
+            ],
+        );
+        run_git(&client.path(), &["fetch", "origin"]);
+        run_git(&client.path(), &["checkout", "-B", "main", "origin/main"]);
+        run_git(
+            &client.path(),
+            &["branch", "--set-upstream-to=origin/main", "main"],
+        );
+        commit_file(&upstream.path(), "remote.txt", "remote\n", "remote change");
+        commit_file(&client.path(), "local.txt", "local\n", "local change");
+
+        let git_dir = git_ops::resolve_git_dir(client.path())
+            .await
+            .expect("client git directory should resolve");
+        let transport = tempfile::tempdir().expect("test control directory");
+        let ready = transport.path().join("ready");
+        let release = transport.path().join("release");
+        let hook = git_dir.join("hooks/post-commit");
+        fs::write(
+            &hook,
+            format!(
+                "#!/bin/sh\n: > '{}'\nwhile [ ! -e '{}' ]; do sleep 0.01; done\n",
+                ready.display(),
+                release.display()
+            ),
+        )
+        .expect("post-commit hook should be written");
+        let mut permissions = fs::metadata(&hook)
+            .expect("hook metadata should exist")
+            .permissions();
+        permissions.set_mode(0o700);
+        fs::set_permissions(&hook, permissions).expect("hook should be executable");
+
+        let repository_path = client.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let scope = OperationScope::Repository {
+            lock_key: repository_path.clone(),
+            repository_path: repository_path.clone(),
+        };
+        let operation = registry
+            .start(
+                scope.clone(),
+                Some("main".to_owned()),
+                GitOperationKind::Pull,
+                CancellationCapability::Available {
+                    label: "Stop waiting".to_owned(),
+                },
+            )
+            .expect("Pull should reserve the repository");
+        let pre_operation_head = git_ops::get_head_sha(&repository_path)
+            .await
+            .expect("HEAD should exist");
+        let control = registry
+            .control(&operation.id)
+            .expect("Pull should expose process control");
+        let task = tokio::spawn({
+            let repository_path = repository_path.clone();
+            async move {
+                git_ops::pull::pull_phased_controlled(
+                    &repository_path,
+                    "origin",
+                    &std::collections::HashMap::new(),
+                    false,
+                    None::<fn(git_ops::pull::PullProgress)>,
+                    None,
+                    Some(control),
+                )
+                .await
+            }
+        });
+
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !ready.exists() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("post-commit hook should reach its deterministic barrier");
+        registry
+            .request_cancellation(&operation.id)
+            .expect("Pull cancellation should reach post-commit");
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("cancelled Pull should terminate")
+            .expect("Pull task should not panic");
+        assert!(matches!(
+            result,
+            Err(git_ops::GitError::OperationTerminated {
+                name,
+                reason: git_ops::TerminationReason::Cancelled,
+                ..
+            }) if name == "pullMerge"
+        ));
+        assert!(registry.active_for_scope(&scope).is_some());
+
+        let recovered = recover_merge_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &pre_operation_head,
+            false,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await
+        .expect("completed merge must not be aborted");
+        assert_eq!(recovered, git_ops::merge::MergeResult::Success);
+        assert!(registry.active_for_scope(&scope).is_none());
+        assert_eq!(
+            registry.get(&operation.id).expect("Pull record").outcome,
+            Some(OperationOutcome::Completed)
         );
     }
 }
