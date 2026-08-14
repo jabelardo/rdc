@@ -765,6 +765,16 @@ remote SHAs are reported as completed, while a failed or inconclusive query repo
 `outcome: unknown`. Pull, Checkout and Commit remain
 explicitly non-cancellable; none inherits the Merge/Rebase recovery policy.
 
+Push policy is complete for branch and tag refs, including local-remote reconciliation coverage.
+Pull is the next implementation target. The current native Pull still invokes one monolithic
+`git pull`, so cancellation must remain unavailable until it is split into these explicit phases:
+
+- Fetch the remote with the existing controlled Fetch runner and remote progress model.
+- Reconcile the fetched integration target using the configured `pull.rebase` and `pull.ff` policy.
+- Delegate merge integration recovery to Merge and rebase integration recovery to Rebase.
+- Keep hook interception active across the integration phase and preserve `noVerify` behavior.
+- Report network cancellation separately from an integration conflict or recovery failure.
+
 Implementation order:
 
 1. Push reconciliation and typed unknown-outcome tests.
