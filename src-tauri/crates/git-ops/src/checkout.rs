@@ -25,6 +25,64 @@ use crate::error::GitError;
 use crate::exec::{git, git_with_stderr_and_lfs, GitOptions};
 use crate::progress::{GitLfsProgressParser, GitProgress};
 
+/// Repository state that must survive an interrupted checkout.
+///
+/// This is deliberately only the tracked-state portion of the final recovery snapshot. Checkout
+/// cancellation stays unavailable until untracked paths are captured and this snapshot has a
+/// tested restore operation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckoutSnapshot {
+    /// The branch ref `HEAD` pointed at, or `None` for a detached checkout.
+    pub symbolic_head: Option<String>,
+    /// The commit checked out before the operation started.
+    pub head_sha: String,
+    /// Exact on-disk index bytes, including extensions and staged file modes.
+    pub index: Option<Vec<u8>>,
+    /// Binary-safe patch representing the tracked worktree relative to `HEAD`.
+    pub tracked_worktree_patch: Vec<u8>,
+}
+
+/// Captures the tracked repository state required to recover an interrupted checkout.
+///
+/// The raw index is intentional: reconstructing it from a tree would lose partially staged files,
+/// intent-to-add entries, and index extensions. `git diff --binary HEAD` captures the final tracked
+/// worktree state independently, so staged and unstaged versions of the same path remain distinct.
+pub async fn get_checkout_snapshot(
+    repository: impl AsRef<Path>,
+) -> Result<CheckoutSnapshot, GitError> {
+    let repository = repository.as_ref();
+    let symbolic_head = crate::refs::get_symbolic_ref(repository, "HEAD").await?;
+    let head_sha = crate::rev_parse::get_head_sha(repository).await?;
+    let git_dir = crate::rev_parse::resolve_git_dir(repository).await?;
+    let index_path = git_dir.join("index");
+    let index = match tokio::fs::read(&index_path).await {
+        Ok(index) => Some(index),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(source) => {
+            return Err(GitError::Spawn {
+                name: "readCheckoutIndex".to_owned(),
+                path: index_path,
+                source,
+            });
+        }
+    };
+    let tracked_worktree_patch = git(
+        &["diff", "--binary", "--full-index", "HEAD", "--"],
+        repository,
+        "getCheckoutSnapshot",
+        GitOptions::default(),
+    )
+    .await?
+    .stdout;
+
+    Ok(CheckoutSnapshot {
+        symbolic_head,
+        head_sha,
+        index,
+        tracked_worktree_patch,
+    })
+}
+
 /// A checkout progress update sent to the frontend.
 ///
 /// Matches the ported [`src/models/progress.ts`](../../../../../src/models/progress.ts)
@@ -446,6 +504,105 @@ mod tests {
             .await
             .expect("symbolic-ref should not error")
             .map(|value| value.trim_start_matches("refs/heads/").to_owned())
+    }
+
+    #[tokio::test]
+    async fn checkout_snapshot_keeps_head_index_and_tracked_worktree_separate() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "file.txt", "base\n", "base");
+        std::fs::write(repo.path().join("file.txt"), "staged\n")
+            .expect("staged contents should be written");
+        git(
+            &["add", "file.txt"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("staged contents should be indexed");
+        std::fs::write(repo.path().join("file.txt"), "worktree\n")
+            .expect("worktree contents should be written");
+
+        let snapshot = get_checkout_snapshot(repo.path())
+            .await
+            .expect("checkout state should be captured");
+        let git_dir = crate::rev_parse::resolve_git_dir(repo.path())
+            .await
+            .expect("git directory should resolve");
+        let expected_index =
+            std::fs::read(git_dir.join("index")).expect("index should be readable");
+
+        assert_eq!(snapshot.symbolic_head.as_deref(), Some("refs/heads/main"));
+        assert_eq!(
+            snapshot.head_sha,
+            crate::rev_parse::get_head_sha(repo.path())
+                .await
+                .expect("HEAD should resolve")
+        );
+        assert_eq!(snapshot.index.as_deref(), Some(expected_index.as_slice()));
+        let patch = String::from_utf8(snapshot.tracked_worktree_patch)
+            .expect("the textual fixture should produce a UTF-8 patch");
+        assert!(patch.contains("-base"));
+        assert!(patch.contains("+worktree"));
+    }
+
+    #[tokio::test]
+    async fn checkout_snapshot_records_a_detached_head() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "file.txt", "base\n", "base");
+        let first = crate::rev_parse::get_head_sha(repo.path())
+            .await
+            .expect("first commit should resolve");
+        commit_file(&repo.path(), "file.txt", "second\n", "second");
+        git(
+            &["checkout", "--detach", &first],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("HEAD should detach");
+
+        let snapshot = get_checkout_snapshot(repo.path())
+            .await
+            .expect("detached checkout state should be captured");
+
+        assert_eq!(snapshot.symbolic_head, None);
+        assert_eq!(snapshot.head_sha, first);
+    }
+
+    #[tokio::test]
+    async fn checkout_snapshot_uses_a_binary_patch_for_tracked_binary_content() {
+        let repo = empty_repository().await;
+        std::fs::write(repo.path().join("binary.dat"), [0, 1, 2, 3])
+            .expect("binary fixture should be written");
+        git(
+            &["add", "binary.dat"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("binary fixture should be staged");
+        git(
+            &["commit", "-m", "binary"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("binary fixture should be committed");
+        std::fs::write(repo.path().join("binary.dat"), [0, 4, 5, 6])
+            .expect("binary change should be written");
+
+        let snapshot = get_checkout_snapshot(repo.path())
+            .await
+            .expect("binary checkout state should be captured");
+
+        assert!(snapshot
+            .tracked_worktree_patch
+            .windows(b"GIT binary patch".len())
+            .any(|window| window == b"GIT binary patch"));
     }
 
     #[tokio::test]

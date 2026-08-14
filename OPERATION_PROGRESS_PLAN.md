@@ -813,6 +813,10 @@ Implementation order:
 ### Checkout
 
 - No `checkout --abort` exists.
+- The tracked-state snapshot is implemented and tested: it records symbolic or detached `HEAD`,
+  preserves the raw index bytes so partially staged entries and extensions are not reconstructed
+  incorrectly, and stores a `--binary --full-index` worktree patch relative to the original commit.
+  Restoration and untracked-path capture remain pending, so cancellation is still unavailable.
 - The pre-operation snapshot must capture the symbolic `HEAD` target (or detached SHA), the complete
   index including staged modes/content, the tracked worktree patch including binary files and modes,
   and the inventory/content of untracked paths that checkout could overwrite. A `HEAD` SHA alone is
