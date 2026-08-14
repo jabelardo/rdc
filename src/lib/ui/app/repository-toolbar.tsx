@@ -68,12 +68,6 @@ export function RepositoryToolbar({
   onPush,
   onSelectView,
 }: RepositoryToolbarProps) {
-  const progress =
-    remoteState.progress === null
-      ? null
-      : `${remoteState.progress.title ?? "Fetching"}${
-          remoteState.progress.description ? ` — ${remoteState.progress.description}` : ""
-        } (${Math.round(remoteState.progress.value * 100)}%)`;
   const nativeRemoteOperation =
     operationViewModel?.operation === "fetch" ||
     operationViewModel?.operation === "push" ||
@@ -83,8 +77,7 @@ export function RepositoryToolbar({
     : remoteState.operation;
   const status =
     remoteState.operationError ??
-    remoteState.error ??
-    (nativeRemoteOperation ? null : progress);
+    remoteState.error;
   const statusIsError = remoteState.operationError !== null || remoteState.error !== null;
   const statusElement = (
     <p
@@ -263,8 +256,7 @@ export function RepositoryToolbar({
           </button>
         </Tooltip>
       </nav>
-      {status !== null &&
-        (status === progress ? <Tooltip label={status}>{statusElement}</Tooltip> : statusElement)}
+      {status !== null && <Tooltip label={status}>{statusElement}</Tooltip>}
     </header>
   );
 }
