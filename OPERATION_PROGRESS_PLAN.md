@@ -986,29 +986,24 @@ Migrate incrementally to the operation record and shared presentation:
    selected commit or moved to the end of history, with native progress shown through the shared
    model. Squash validates contiguous ranges, and Reorder supports an explicit target or end of
    history. The History workspace now has focused interaction coverage for selection, Squash and
-   explicit Reorder targets; remaining work is visual QA and broader E2E coverage.
+   explicit Reorder targets; remaining work is visual QA and broader dedicated E2E coverage.
 
-Remote-store compatibility is intentionally still open. `RemoteStore` continues to own remote
-selection, multi-remote Fetch aggregation, post-operation refresh sequencing, boolean action
-results and remote/authentication error classification. The native operation record is already
-authoritative for toolbar/menu presentation and repository locking. Remove the store-owned
-`operation`/`progress` fields only after those store responsibilities have native-event consumers
-and their refresh/error tests no longer depend on callback progress.
+Remote-store compatibility is now closed. `RemoteStore` continues to own remote selection,
+post-operation refresh sequencing, boolean action results and remote-management error
+classification, while native operation records own repository-operation lifecycle, progress,
+refresh requirements and transport errors. The store retains only operation identity for stale
+request gating and a management-operation guard; it no longer exposes duplicate lifecycle,
+progress or operation-error fields.
 
-Consolidate parallel lifecycle representations only after their final consumer migrates. For remote
-operations, this specifically means `RemoteState.operation` and `RemoteState.progress` may be
-removed only after multi-remote orchestration and refresh/error handling consume native operation
-events directly; `RemoteState.operationError` remains until its remote-specific error contract has
-a native equivalent. Preserve stale callback rejection by operation ID and keep domain-store
-post-operation refresh behavior intact.
+The final remote refresh/error consumers now use native operation events. Preserve stale callback
+rejection by operation ID and keep domain-store post-operation refresh behavior intact.
 
-The native remote-workflow coordinator boundary is now partially implemented: multi-remote Fetch
+The native remote-workflow coordinator boundary is now implemented: multi-remote Fetch
 and Push/Pull transport phases run under one operation-owned workflow, publish terminal refresh
 requirements, and preserve remote-specific error classification. The progress-weighting portion is
-isolated in `remote-operation-progress.ts` with focused coverage. Remaining work is to move the
-last refresh/error consumers to native events before removing the store-owned lifecycle fields.
+isolated in `remote-operation-progress.ts` with focused coverage.
 
-The first native producer is now available as `fetch_workflow`: it owns the repository lock,
+The native producer `fetch_workflow` owns the repository lock,
 watchdog, cancellation, multi-remote transport loop, weighted native progress, and terminal
 transport outcome. `RemoteStore` now consumes it for the real IPC dependency and retains the
 store-owned remote-head/facts refresh follow-up after consuming that terminal requirement. Test
@@ -1031,9 +1026,8 @@ The operation store exposes that metadata and the terminal refresh coordinator h
 `repositoryFacts` flag, retaining the broad refresh fallback for operations without metadata.
 The operation registry also verifies that the refresh requirement survives terminal completion and
 remains available to observers.
-The toolbar no longer renders `RemoteState.operationError` while a native Fetch/Push/Pull record is
-present; that field remains reserved for remote-management compatibility errors such as Add/Remove
-Remote until those commands have an equivalent native operation contract.
+The toolbar no longer renders a remote operation error from store state; management failures such
+as Add/Remove Remote continue to use the public store `error` field.
 
 The public `RemoteState` contract now removes `operation`, `progress`, and `operationError`. Native
 operation records own those lifecycle concerns; the store retains refresh sequencing and maps
@@ -1044,7 +1038,8 @@ identity for stale-request gating and a management-operation guard. Compatibilit
 callbacks no longer publish progress or operation-error state.
 
 Latest verification after this removal: the complete frontend suite passes (136 files, 1,205
-tests); focused remote and operation tests remain green.
+tests); focused remote and operation tests remain green; and the Linux-container E2E suite passes
+38 tests across 17 suites.
 
 Coordinator acceptance boundary:
 
