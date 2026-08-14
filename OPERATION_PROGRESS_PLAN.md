@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slices 1–18 complete; Slice 19 in progress
+**Status:** Slices 1–19 complete and re-verified against the code; Slice 20 remains
 **Recorded:** 2026-08-14  
 **Primary milestone:** define truthful cancellation and timeout policies for the remaining
 progress-producing operations before completing the unified progress presentation.
@@ -210,6 +210,13 @@ Tasks:
 typed `git-ipc` fixture cover a repository-scoped Fetch record, including optional progress fields,
 capability-driven cancellation and lifecycle outcome. Operation events use the same vocabulary and
 are ready for the registry transport.
+
+The event side of that contract was pinned only after the fact, and pinning it found a real drift:
+serde's `rename_all` renames enum *variants* but not their payload *fields*, so every
+`OperationEvent` variant was serializing `operation_id` while `src/models/operation.ts` declared
+`operationId`. Nothing read the field yet, which is exactly why no test failed. All three variants
+and `OperationEventEnvelope` now have snapshot and typed fixtures, so the next such divergence
+cannot be silent.
 
 ## Slice 3 — Resolve stable repository identity
 
@@ -533,6 +540,13 @@ repository's refs, config, index, worktree, hooks, ignore files, stash, or remot
 crosses a repository lock boundary. Global configuration/install commands and initialization of
 an as-yet-uncreated repository remain intentionally outside this lock.
 
+A re-audit of that claim found three commands it had missed. `add_worktree`, `remove_worktree` and
+`move_worktree` write `worktrees/<name>` in the *common* Git directory — and `createBranch` writes a
+ref — so they were mutating shared repository state with no lock at all. They now use the Checkout
+lock category against the source repository's identity, with terminal reporting on both the success
+and failure paths. Only the IPC wrapper consumes them today, so the gap was latent rather than
+user-visible, but it had to close before a worktree UI lands on top of it.
+
 Wire lock acquisition into mutating command boundaries incrementally. At minimum classify:
 
 - repository metadata/ref writes: Fetch, Push and related refresh/fast-forward stages;
@@ -722,6 +736,32 @@ recovery boundary. Real controlled-cancellation tests for Rebase, Revert, Squash
 abort tests assert branch, worktree, index, and registry lock restoration for Rebase, Cherry-pick,
 and Revert. Squash and Reorder use that same tested interactive-rebase abort policy rather than a
 second recovery implementation.
+One asymmetry survived that boundary and has now been fixed: `abort_revert` was the only recovery
+exit that did not consume its retained operation. A conflicted revert enters recovery holding the
+repository write lock deliberately, and the recovery banner's Abort action is the only way out of
+it — so the lock was never released, and the repository stayed write-locked for the rest of the
+session even after Git had been cleaned up. It now finishes the operation as `cancelled/recovered`,
+or retains the lock as `recoveryFailed` when the abort itself fails, matching rebase and cherry-pick.
+
+Two guards were needed to keep that fix from creating worse failures than the one it removed:
+
+- **Only a Revert may be ended here.** `REVERT_HEAD` can outlive its record — a revert run outside
+  rdc, or one that survived a restart — so the lock holder is not necessarily this revert. Without a
+  kind check the abort would finish an unrelated Fetch and release its lock mid-transport.
+- **Nothing to abort is not a recovery failure.** `git revert --abort` exits 128 with
+  `no cherry-pick or revert in progress` (verified against real Git). Recording that as
+  `recoveryFailed` retains the write lock, and the recovery panel's only action is this command, so
+  every retry would fail identically and the repository would stay locked until restart. An
+  already-resolved revert now ends the operation with an explicit `unknown` outcome instead: whether
+  the user completed or abandoned it outside rdc genuinely cannot be determined here.
+
+The registry itself carried the amplifier for the first case: `finish` removed the scope lock
+without checking the lock still mapped to that operation, so any stale or double finish handed away
+whichever operation held it next — two concurrent writers in one repository. It now releases only
+its own lock. Real-repository tests cover the successful release, the already-resolved abort and the
+unrelated-operation refusal, and a registry test covers the stale finish; each was confirmed to fail
+with its guard removed.
+
 Cherry-pick recovery explicitly handles the marker-only state used by
 a single conflicted pick, which has `CHERRY_PICK_HEAD` without a sequencer snapshot. Real command-
 layer Rebase, Cherry-pick, and Revert completion-race tests now prove an advanced `HEAD` is
@@ -762,9 +802,10 @@ tested.
 **Progress:** complete. Push now has a controlled runner and a `Stop waiting` capability. After
 termination, branch and requested tag pushes are reconciled with direct `ls-remote` queries: matching
 remote SHAs are reported as completed, while a failed or inconclusive query reports
-`outcome: unknown`. Pull, Checkout and Commit now have native stop and recovery policies. Commit’s
-generic user-facing cancellation remains unavailable until Slice 16 supplies the capability-aware
-unified presentation; hook cancellation remains independently available.
+`outcome: unknown`. Pull, Checkout and Commit now have native stop and recovery policies. Commit and
+Checkout held their user-facing capability back until Slice 16 supplied the capability-aware unified
+presentation; now that it has landed, both declare `Cancel commit`/`Cancel checkout` against their
+completed native snapshot-and-recovery policy. Hook cancellation remains independently available.
 
 Push policy is complete for branch and tag refs, including local-remote reconciliation coverage.
 Pull is now split internally into explicit phases, and the native Pull runner now:
@@ -846,7 +887,8 @@ Implementation order:
 - Add fixture-backed tests for clean state, staged changes, unstaged tracked changes, untracked files,
   detached `HEAD`, and a late stop after checkout has advanced the ref.
 - Keep the final unified UI presentation aligned with this native capability; no generic cancellation
-  affordance should be added to operations whose policy remains unavailable.
+  affordance should be added to operations whose policy remains unavailable. Checkout's policy is
+  complete, so it now declares `Cancel checkout` rather than staying unavailable.
 
 ### Commit
 
@@ -864,8 +906,8 @@ Implementation order:
   watchdog/termination and recovery-failure boundaries are covered. The user-facing capability stays
   unavailable until the unified progress presentation can render its explicit policy safely.
 - After termination, inspect whether `HEAD` advanced before deciding to restore.
-- Keep the generic user-facing cancellation affordance unavailable until Slice 16 wires the explicit
-  Commit capability into the unified progress presentation.
+- Slice 16 has landed, so Commit now declares its explicit `Cancel commit` capability through the
+  unified progress presentation rather than staying unavailable.
 - Hook cancellation remains independently available through Slice 12.
 
 **Exit:** every progress-producing operation has an explicit supported, unavailable or
@@ -1178,6 +1220,13 @@ Add automated coverage for this matrix:
 E2E remains Linux-container-only. Keep one product slice per spec file and no cross-file ordering.
 Use deterministic blocking helper processes or local repositories; never depend on real network
 latency to create a cancellation race.
+
+Two matrix rows were only half-covered and are now closed. The Fetch cancellation journey opens a
+third window *after* the blocked transport is already running, so the operation it shows can only
+have come from the registry snapshot — that is the hydration row, and the file barrier makes it a
+check rather than a race. The multi-window journey now also asserts the negative half of terminal
+routing: the unrelated repository's window never sees the operation and its history never acquires
+the commit that landed elsewhere.
 
 **Exit:** complete against the current architecture. Multi-window isolation, hydration, owner loss,
 explicit cancellation adoption, timeout/recovery lock semantics, completion races, terminal event
