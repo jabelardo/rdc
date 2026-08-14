@@ -16,10 +16,10 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::GitOutput;
+use crate::exec::{ExecutionControl, GitOutput};
 use crate::hooks::with_env::{with_hooks_env, HookSupport};
 use crate::progress::GitProgressParser;
-use crate::remote_progress::{run_with_progress, ContextLines, RemoteRun};
+use crate::remote_progress::{run_with_progress_controlled, ContextLines, RemoteRun};
 
 /// A push progress update.
 ///
@@ -100,6 +100,22 @@ pub async fn push<F>(
 where
     F: FnMut(PushProgress) + Send,
 {
+    push_controlled(repository, target, env, options, on_progress, hooks, None).await
+}
+
+/// Pushes with an operation-owned cancellation signal.
+pub async fn push_controlled<F>(
+    repository: impl AsRef<Path>,
+    target: PushTarget<'_>,
+    env: &HashMap<String, String>,
+    options: PushOptions,
+    on_progress: Option<F>,
+    hooks: Option<&HookSupport>,
+    control: Option<ExecutionControl>,
+) -> Result<GitOutput, GitError>
+where
+    F: FnMut(PushProgress) + Send,
+{
     let repository = repository.as_ref();
     let interception = hooks.map(|support| support.intercepting(["pre-push"]));
 
@@ -109,7 +125,9 @@ where
         repository,
         interception.as_ref(),
         env.clone(),
-        |env| async move { push_impl(repository, target, &env, options, on_progress).await },
+        |env| async move {
+            push_impl(repository, target, &env, options, on_progress, control).await
+        },
     )
     .await?
 }
@@ -120,6 +138,7 @@ async fn push_impl<F>(
     env: &HashMap<String, String>,
     options: PushOptions,
     on_progress: Option<F>,
+    control: Option<ExecutionControl>,
 ) -> Result<GitOutput, GitError>
 where
     F: FnMut(PushProgress) + Send,
@@ -153,7 +172,7 @@ where
     let title = format!("Pushing to {remote_name}");
 
     let Some(mut on_progress) = on_progress else {
-        return run_with_progress(
+        return run_with_progress_controlled(
             repository,
             RemoteRun {
                 args: &args,
@@ -163,6 +182,7 @@ where
                 parser: GitProgressParser::push(),
                 context: ContextLines::Include,
             },
+            control,
             |_, _| {},
         )
         .await;
@@ -181,7 +201,7 @@ where
         branch: local_branch.to_owned(),
     });
 
-    run_with_progress(
+    run_with_progress_controlled(
         repository,
         RemoteRun {
             args: &args,
@@ -191,6 +211,7 @@ where
             parser: GitProgressParser::push(),
             context: ContextLines::Include,
         },
+        control,
         |value, description| {
             on_progress(PushProgress {
                 kind: PushProgressKind::Push,

@@ -141,6 +141,90 @@ fn finish_fetch_recovery_failure(
     CommandError::message(message)
 }
 
+/// Reconciles a terminated Push against the remote before releasing its repository lock.
+///
+/// A local process stop cannot prove that the remote rejected the update: the server may have
+/// accepted the pack just before the client disappeared. Branch pushes can therefore be classified
+/// as completed only when the remote ref is readable and equals the intended local ref. Tags and
+/// any failed lookup remain explicitly unknown.
+#[allow(clippy::too_many_arguments)]
+async fn reconcile_terminated_push(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    repository_path: &str,
+    remote: &RemoteSession,
+    remote_name: &str,
+    remote_branch: &str,
+    local_branch: &str,
+    tags: &[String],
+    reason: git_ops::TerminationReason,
+) -> CommandError {
+    let (state, kind, verb) = match reason {
+        git_ops::TerminationReason::Cancelled => (
+            OperationState::Cancelled,
+            OperationErrorKind::Cancelled,
+            "Push was stopped",
+        ),
+        git_ops::TerminationReason::TimedOut => (
+            OperationState::TimedOut,
+            OperationErrorKind::TimedOut,
+            "Push timed out after becoming inactive",
+        ),
+    };
+
+    let local_ref = format!("refs/heads/{local_branch}");
+    let reconciliation = async {
+        if !tags.is_empty() {
+            return Ok::<Option<bool>, git_ops::GitError>(None);
+        }
+        let local_sha = git_ops::get_ref_sha(repository_path, &local_ref).await?;
+        let remote_sha = git_ops::get_remote_branch_sha(
+            repository_path,
+            remote_name,
+            remote_branch,
+            &remote.env,
+        )
+        .await?;
+        Ok(remote_sha.map(|sha| sha == local_sha))
+    }
+    .await;
+
+    match reconciliation {
+        Ok(Some(true)) => {
+            let message = format!(
+                "{verb}, but the remote accepted {remote_name}/{remote_branch} before it stopped"
+            );
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                Some(OperationError {
+                    kind,
+                    message: message.clone(),
+                    recoverable: true,
+                }),
+            );
+            CommandError::message(message)
+        }
+        Ok(Some(false)) | Ok(None) | Err(_) => {
+            let message = format!(
+                "{verb}; the remote outcome is unknown. Verify {remote_name}/{remote_branch} before trying again"
+            );
+            let _ = registry.finish(
+                operation_id,
+                state,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind,
+                    message: message.clone(),
+                    recoverable: true,
+                }),
+            );
+            CommandError::message(message)
+        }
+    }
+}
+
 /// Pushes a branch to a remote.
 ///
 /// ```js
@@ -176,11 +260,12 @@ pub async fn push(
     on_hook_progress: Channel<HookProgressUpdate>,
     on_hook_failure: Channel<HookFailurePrompt>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
         GitOperationKind::Push,
+        "Stop waiting",
     )
     .await?;
     let remote = match state
@@ -228,8 +313,16 @@ pub async fn push(
     };
 
     let tags = tags.unwrap_or_default();
+    let options = options.unwrap_or_default();
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let watchdog = registry.spawn_watchdog(
+        operation.id.clone(),
+        crate::operation_registry::WatchdogPolicy::default(),
+    );
 
-    let result = git_ops::push::push(
+    let result = git_ops::push::push_controlled(
         &repository_path,
         PushTarget {
             remote_name: &remote_name,
@@ -238,15 +331,17 @@ pub async fn push(
             tags: &tags,
         },
         &remote.env,
-        options.unwrap_or_default(),
+        options,
         Some(|progress: PushProgress| {
             // A closed webview drops updates rather than cancelling git, which must not be left
             // half-done.
             let _ = on_progress.send(progress);
         }),
         support.as_ref(),
+        Some(control),
     )
     .await;
+    watchdog.abort();
     match result {
         Ok(_) => {
             let _ = registry.finish(
@@ -256,6 +351,20 @@ pub async fn push(
                 None,
             );
             Ok(())
+        }
+        Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
+            Err(reconcile_terminated_push(
+                &registry,
+                &operation.id,
+                &repository_path,
+                &remote,
+                &remote_name,
+                remote_branch.as_deref().unwrap_or(&local_branch),
+                &local_branch,
+                &tags,
+                reason,
+            )
+            .await)
         }
         Err(error) => {
             let command_error = remote_error(&remote, error);

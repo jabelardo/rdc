@@ -759,13 +759,11 @@ slice establishes the native cancellation and recovery contract it will consume.
 Do not expose cancellation for these operations until their individual policy is implemented and
 tested.
 
-**Progress:** in progress. Push, Pull, Checkout and Commit currently remain explicitly
-non-cancellable; none inherits the Merge/Rebase recovery policy. The first implementation target
-is Push because terminating the local process cannot prove that the remote rejected the update.
-The implementation must add a controlled push runner, reconcile the requested remote refs after
-termination, report `completed` when the remote matches the intended local refs, and report
-`outcome: unknown` when reconciliation cannot establish the result. Until that evidence exists,
-the user-facing action remains `Stop waiting` rather than `Cancel push`.
+**Progress:** in progress. Push now has a controlled runner and a `Stop waiting` capability. After
+termination, a branch push is reconciled with a direct `ls-remote` query: a matching remote SHA is
+reported as completed, while a failed or inconclusive query reports `outcome: unknown`. Tag pushes
+remain unknown until tag-by-tag reconciliation is implemented. Pull, Checkout and Commit remain
+explicitly non-cancellable; none inherits the Merge/Rebase recovery policy.
 
 Implementation order:
 

@@ -57,6 +57,18 @@ pub async fn get_head_sha(path: impl AsRef<Path>) -> Result<String, GitError> {
     Ok(output.stdout_lossy().trim().to_owned())
 }
 
+/// Returns the commit currently named by a fully qualified ref.
+pub async fn get_ref_sha(path: impl AsRef<Path>, ref_name: &str) -> Result<String, GitError> {
+    let output = git(
+        &["rev-parse", "--verify", ref_name],
+        path,
+        "getRefSha",
+        GitOptions::default(),
+    )
+    .await?;
+    Ok(output.stdout_trimmed())
+}
+
 /// [`get_repository_type`], with extra environment variables for the git invocation.
 ///
 /// Exists so tests can set `GIT_TEST_ASSUME_DIFFERENT_OWNER` and a stub `HOME` per-invocation.
