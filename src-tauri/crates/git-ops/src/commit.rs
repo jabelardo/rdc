@@ -14,6 +14,7 @@
 //! Tauri Channel; the store and dialog that retain and display it belong to the frontend.
 
 use std::collections::HashMap;
+use std::io::Write;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
@@ -25,6 +26,113 @@ use crate::multi_operation_terminal_output::MultiOperationTerminalOutput;
 use crate::reset::unstage_all;
 use crate::stage::{stage_manual_conflict_resolution_with_entries, ManualResolution};
 use crate::update_index::{stage_files, FileToStage};
+
+/// The repository state that must survive a future cancellable commit runner.
+///
+/// Commit stages the user's selection before invoking Git, so a HEAD-only snapshot is not enough:
+/// a stopped hook must not leave the real index containing a partial, app-created selection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommitSnapshot {
+    /// `None` represents an unborn `HEAD`.
+    pub head_sha: Option<String>,
+    /// Exact index bytes, including partially staged entries and extensions.
+    pub index: Option<Vec<u8>>,
+}
+
+/// Captures the state that a cancellable commit operation would need to restore.
+pub async fn get_commit_snapshot(repository: impl AsRef<Path>) -> Result<CommitSnapshot, GitError> {
+    let repository = repository.as_ref();
+    let head_sha = match crate::exec::git(
+        &["rev-parse", "--verify", "HEAD"],
+        repository,
+        "getCommitSnapshotHead",
+        GitOptions::default(),
+    )
+    .await
+    {
+        Ok(output) => Some(output.stdout_trimmed()),
+        Err(GitError::UnexpectedExitCode {
+            kind: Some(crate::git_error_kind::GitErrorKind::InvalidObjectName),
+            ..
+        }) => None,
+        Err(GitError::UnexpectedExitCode {
+            kind: None, stderr, ..
+        }) if stderr.contains("Needed a single revision") => None,
+        Err(error) => return Err(error),
+    };
+    let git_dir = crate::rev_parse::resolve_git_dir(repository).await?;
+    let index_path = git_dir.join("index");
+    let index = match tokio::fs::read(&index_path).await {
+        Ok(index) => Some(index),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(source) => {
+            return Err(GitError::Spawn {
+                name: "readCommitIndex".to_owned(),
+                path: index_path,
+                source,
+            });
+        }
+    };
+    Ok(CommitSnapshot { head_sha, index })
+}
+
+/// Restores only the index portion of a commit snapshot.
+///
+/// The caller must first classify the final HEAD. Restoring after HEAD advanced would discard the
+/// index Git produced for a successful commit, so this helper intentionally does not inspect refs.
+pub async fn restore_commit_snapshot(
+    repository: impl AsRef<Path>,
+    snapshot: &CommitSnapshot,
+) -> Result<(), GitError> {
+    let git_dir = crate::rev_parse::resolve_git_dir(repository.as_ref()).await?;
+    let index_path = git_dir.join("index");
+    let Some(index) = snapshot.index.as_deref() else {
+        match tokio::fs::remove_file(&index_path).await {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(source) => {
+                return Err(GitError::Spawn {
+                    name: "restoreCommitIndex".to_owned(),
+                    path: index_path,
+                    source,
+                });
+            }
+        }
+    };
+    let mut temporary = tempfile::Builder::new()
+        .prefix("rdc-commit-index-")
+        .tempfile_in(&git_dir)
+        .map_err(|source| GitError::Spawn {
+            name: "restoreCommitIndex".to_owned(),
+            path: index_path.clone(),
+            source,
+        })?;
+    temporary
+        .write_all(index)
+        .and_then(|()| temporary.as_file().sync_all())
+        .map_err(|source| GitError::Spawn {
+            name: "restoreCommitIndex".to_owned(),
+            path: index_path.clone(),
+            source,
+        })?;
+    temporary
+        .persist(&index_path)
+        .map_err(|error| GitError::Spawn {
+            name: "restoreCommitIndex".to_owned(),
+            path: index_path,
+            source: error.error,
+        })?;
+    Ok(())
+}
+
+/// Classifies a terminated commit without making a destructive guess.
+pub async fn classify_commit_termination(
+    repository: impl AsRef<Path>,
+    snapshot: &CommitSnapshot,
+) -> Result<bool, GitError> {
+    let current = get_commit_snapshot(repository).await?.head_sha;
+    Ok(current != snapshot.head_sha)
+}
 
 /// Options for [`create_commit`], all off by default.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -301,6 +409,58 @@ mod tests {
         .stdout_trimmed()
         .parse()
         .expect("a count")
+    }
+
+    #[tokio::test]
+    async fn commit_snapshot_restores_a_partial_index_when_head_is_unchanged() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "README.md", "initial\n", "initial");
+        std::fs::write(repo.path().join("README.md"), "changed\n").expect("write should succeed");
+        let snapshot = get_commit_snapshot(repo.path())
+            .await
+            .expect("snapshot should succeed");
+        let original_index = snapshot.index.clone().expect("initial index should exist");
+
+        stage_files(repo.path(), &[FileToStage::new("README.md")])
+            .await
+            .expect("staging should succeed");
+        assert!(!classify_commit_termination(repo.path(), &snapshot)
+            .await
+            .expect("classification should succeed"));
+
+        restore_commit_snapshot(repo.path(), &snapshot)
+            .await
+            .expect("index restoration should succeed");
+        let restored = get_commit_snapshot(repo.path())
+            .await
+            .expect("snapshot should succeed")
+            .index
+            .expect("restored index should exist");
+        assert_eq!(restored, original_index);
+    }
+
+    #[tokio::test]
+    async fn commit_snapshot_classifies_an_advanced_head_as_completed() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "README.md", "initial\n", "initial");
+        let snapshot = get_commit_snapshot(repo.path())
+            .await
+            .expect("snapshot should succeed");
+        std::fs::write(repo.path().join("README.md"), "committed\n").expect("write should succeed");
+        commit_file(&repo.path(), "README.md", "committed\n", "completed");
+
+        assert!(classify_commit_termination(repo.path(), &snapshot)
+            .await
+            .expect("classification should succeed"));
+    }
+
+    #[tokio::test]
+    async fn commit_snapshot_supports_an_unborn_head() {
+        let repo = empty_repository().await;
+        let snapshot = get_commit_snapshot(repo.path())
+            .await
+            .expect("snapshot should succeed");
+        assert_eq!(snapshot.head_sha, None);
     }
 
     #[tokio::test]

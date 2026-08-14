@@ -850,7 +850,10 @@ Implementation order:
 ### Commit
 
 - Current implementation unstages and stages the real index before `git commit`.
-- Capture pre-operation `HEAD` and an index restoration snapshot.
+- `git_ops::commit` now captures an unborn-safe `HEAD` plus exact raw index bytes and can restore that
+  index atomically. A completion-race classifier and tests prove that an advanced `HEAD` is completed
+  while an unchanged `HEAD` is safe to restore. The command does not expose general commit
+  cancellation yet; wiring this snapshot around a controlled commit runner remains the final step.
 - After termination, inspect whether `HEAD` advanced before deciding to restore.
 - Keep general cancellation unavailable until staged state and completion races are proven.
 - Hook cancellation remains independently available through Slice 12.
