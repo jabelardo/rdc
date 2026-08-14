@@ -47,6 +47,7 @@ import { TerminalOutput } from "../terminal-output";
 import type { MergeTreeResult } from "../../../models/merge";
 import type { MergeStrategy } from "../../../models/merge-strategy";
 import type { RebasePreview } from "../../../models/rebase-preview";
+import type { OperationProgressViewModel } from "../../operation-presentation";
 
 type AppDialogsProps = {
   readonly discardFile: WorkingDirectoryFileChange | null;
@@ -64,6 +65,7 @@ type AppDialogsProps = {
   readonly runningHook: RunningHookState | null;
   readonly commitLoading: boolean;
   readonly commitTerminalOutput: string;
+  readonly commitOperationViewModel: OperationProgressViewModel | undefined;
   readonly workingTreeStore: WorkingTreeStore;
   readonly repositoryToRemove: Repository | null;
   readonly showAboutDialog: boolean;
@@ -167,6 +169,7 @@ export function AppDialogs({
   runningHook,
   commitLoading,
   commitTerminalOutput,
+  commitOperationViewModel,
   workingTreeStore,
   repositoryToRemove,
   showAboutDialog,
@@ -249,6 +252,7 @@ export function AppDialogs({
     <>
       {commitLoading && hookFailure === null && (
         <OperationProgressDialog
+          viewModel={commitOperationViewModel}
           operation="Committing"
           progress={{ value: 0, title: "Committing changes" }}
         >

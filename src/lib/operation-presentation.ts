@@ -79,15 +79,17 @@ function lifecycleStatus(record: OperationRecord): string {
 export function operationProgressViewModel(
   record: OperationRecord,
   windowLabel: string,
+  roleOverride?: OperationPresentationRole,
 ): OperationProgressViewModel {
+  const role = roleOverride ?? operationPresentationRole(record, windowLabel);
   return {
     operation: record.operation,
     operationLabel: operationLabel(record.operation),
     state: record.state,
     progress: record.progress ?? { value: 0 },
-    role: operationPresentationRole(record, windowLabel),
+    role,
     cancellationAvailable:
-      operationPresentationRole(record, windowLabel) === "owner" &&
+      role === "owner" &&
       record.cancellation.kind === "available" &&
       (record.state === "running" || record.state === "takingLongerThanExpected"),
     statusText: lifecycleStatus(record),

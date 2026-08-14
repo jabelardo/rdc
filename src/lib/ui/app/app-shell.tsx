@@ -12,7 +12,10 @@ import { RepositoryToolbar } from "./repository-toolbar";
 import type { AppController } from "./use-app-controller";
 import { WindowDragStrip } from "./window-drag-strip";
 import { remoteEnablement } from "../../remote-enablement";
-import { isHistoryMovingOperation } from "../../operation-presentation";
+import {
+  isHistoryMovingOperation,
+  operationProgressViewModel,
+} from "../../operation-presentation";
 
 type AppShellProps = {
   readonly controller: AppController;
@@ -334,6 +337,15 @@ export function AppShell({ controller }: AppShellProps) {
         runningHook={workingTreeState.runningHook}
         commitLoading={workingTreeState.commitLoading}
         commitTerminalOutput={commitTerminalOutput}
+        commitOperationViewModel={
+          operationState.operation?.operation === "commit"
+            ? operationProgressViewModel(
+                operationState.operation,
+                "",
+                operationState.role ?? "observer",
+              )
+            : undefined
+        }
         workingTreeStore={workingTreeStore}
         repositoryToRemove={repositoryToRemove}
         showAboutDialog={showAboutDialog}
