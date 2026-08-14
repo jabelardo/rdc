@@ -1002,6 +1002,12 @@ events directly; `RemoteState.operationError` remains until its remote-specific 
 a native equivalent. Preserve stale callback rejection by operation ID and keep domain-store
 post-operation refresh behavior intact.
 
+The next implementation boundary is a native remote-workflow coordinator: it must represent the
+complete multi-remote Fetch sequence and Push/Pull follow-up refreshes as one operation-owned
+workflow, publish terminal refresh requirements, and preserve remote-specific error classification.
+Only after that coordinator is consumed by the controller can the store-owned lifecycle fields be
+removed safely.
+
 User-initiated operations mount the unified dialog. Scheduled/background Fetch mounts the shared
 progress body in its non-modal control and never opens a surprise dialog.
 
