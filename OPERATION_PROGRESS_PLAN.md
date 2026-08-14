@@ -759,6 +759,22 @@ slice establishes the native cancellation and recovery contract it will consume.
 Do not expose cancellation for these operations until their individual policy is implemented and
 tested.
 
+**Progress:** in progress. Push, Pull, Checkout and Commit currently remain explicitly
+non-cancellable; none inherits the Merge/Rebase recovery policy. The first implementation target
+is Push because terminating the local process cannot prove that the remote rejected the update.
+The implementation must add a controlled push runner, reconcile the requested remote refs after
+termination, report `completed` when the remote matches the intended local refs, and report
+`outcome: unknown` when reconciliation cannot establish the result. Until that evidence exists,
+the user-facing action remains `Stop waiting` rather than `Cancel push`.
+
+Implementation order:
+
+1. Push reconciliation and typed unknown-outcome tests.
+2. Pull phase separation, delegating integration cancellation to Merge/Rebase recovery.
+3. Checkout snapshot and restoration tests for `HEAD`, index and worktree.
+4. Commit index snapshot and completion-race tests, while preserving the independent hook stop
+   flow from Slice 12.
+
 ### Push
 
 - UI label: `Stop waiting`, not `Cancel push`.
