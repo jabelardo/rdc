@@ -1,16 +1,11 @@
 import { BranchType, type Branch, type ITrackingBranch } from "../../models/branch";
-import type { IFetchProgress, IPullProgress, IPushProgress, Progress } from "../../models/progress";
+import type { IFetchProgress, IPullProgress, IPushProgress } from "../../models/progress";
 import type { IRemote } from "../../models/remote";
 import type { OperationRecord } from "../../models/operation";
 import { getBranches, getBranchesDifferingFromUpstream } from "../branch-ipc";
 import { getStatus, type IStatusResult } from "../git-ipc";
 import { describeError } from "../format-error";
 import { describeRemoteError } from "../remote-error";
-import {
-  aggregatePhaseProgress,
-  aggregateRemoteProgress,
-} from "../remote-operation-progress";
-import { remoteWorkflowPhase } from "../remote-operation-workflow";
 import {
   addRemote as addRemoteCommand,
   fastForwardBranches,
@@ -32,12 +27,6 @@ export type RemoteState = {
   readonly currentBranch: Branch | null;
   readonly loading: boolean;
   readonly error: string | null;
-};
-
-type RemoteInternalState = RemoteState & {
-  readonly operation: RemoteOperation | null;
-  readonly progress: Progress | null;
-  readonly operationError: string | null;
 };
 
 type RemoteFactsStatus = Pick<IStatusResult, "currentBranch">;
@@ -105,16 +94,13 @@ const defaultDependencies: RemoteStoreDependencies = {
   removeRemote: removeRemoteCommand,
 };
 
-const EmptyState: RemoteInternalState = {
+const EmptyState: RemoteState = {
   repositoryPath: null,
   remotes: [],
   currentRemote: null,
   currentBranch: null,
   loading: false,
   error: null,
-  operation: null,
-  progress: null,
-  operationError: null,
 };
 
 type RemoteFacts = {
@@ -150,14 +136,16 @@ function findCurrentRemote(
  * Owns the frontend half of remote synchronization.
  *
  * Git owns transport, credentials and ref updates. This store owns tracked/default-remote policy,
- * store-owned aggregate progress and refresh sequencing. Native operation records own the repository
- * lock and cross-window lifecycle; callback fields remain until multi-remote aggregation and
- * remote-specific refresh/error handling move to native event consumers.
+ * store-owned refresh sequencing and remote-management policy. Native operation records own the
+ * repository lock, lifecycle, progress and transport error presentation; compatibility callbacks
+ * are retained only as transport inputs and never become UI state.
  */
 export class RemoteStore {
   private currentState = EmptyState;
   private requestID = 0;
   private operationID = 0;
+  private activeOperation: RemoteOperation | null = null;
+  private managementOperationActive = false;
   private readonly dependencies: RemoteStoreDependencies;
   private readonly listeners = new Set<(state: RemoteState) => void>();
 
@@ -172,12 +160,7 @@ export class RemoteStore {
   }
 
   public get state(): RemoteState {
-    const { operation: _operation, progress: _progress, operationError: _operationError, ...state } =
-      this.currentState;
-    return {
-      ...state,
-      error: state.error ?? this.currentState.operationError,
-    };
+    return this.currentState;
   }
 
   public onDidUpdate(listener: (state: RemoteState) => void): () => void {
@@ -188,6 +171,8 @@ export class RemoteStore {
   public async load(repositoryPath: string): Promise<void> {
     const requestID = ++this.requestID;
     this.operationID++;
+    this.activeOperation = null;
+    this.managementOperationActive = false;
     this.update({
       repositoryPath,
       remotes: [],
@@ -195,9 +180,6 @@ export class RemoteStore {
       currentBranch: null,
       loading: true,
       error: null,
-      operation: null,
-      progress: null,
-      operationError: null,
     });
 
     try {
@@ -210,9 +192,6 @@ export class RemoteStore {
         ...facts,
         loading: false,
         error: null,
-        operation: null,
-        progress: null,
-        operationError: null,
       });
     } catch (error) {
       if (requestID !== this.requestID) {
@@ -225,9 +204,6 @@ export class RemoteStore {
         currentBranch: null,
         loading: false,
         error: describeError(error),
-        operation: null,
-        progress: null,
-        operationError: null,
       });
     }
   }
@@ -243,7 +219,8 @@ export class RemoteStore {
     if (
       repositoryPath === null ||
       this.currentState.loading ||
-      this.currentState.operation !== null ||
+      this.activeOperation !== null ||
+      this.managementOperationActive ||
       trimmedName.length === 0 ||
       trimmedURL.length === 0
     ) {
@@ -252,9 +229,9 @@ export class RemoteStore {
 
     const operationID = ++this.operationID;
     const requestID = this.requestID;
+    this.managementOperationActive = true;
     this.update({
       ...this.currentState,
-      operationError: null,
     });
     try {
       await this.dependencies.addRemote(repositoryPath, trimmedName, trimmedURL);
@@ -267,18 +244,17 @@ export class RemoteStore {
         ...facts,
         loading: false,
         error: null,
-        operation: null,
-        progress: null,
-        operationError: null,
       });
+      this.managementOperationActive = false;
       return true;
     } catch (error) {
       if (this.isCurrentOperation(requestID, operationID)) {
         this.update({
           ...this.currentState,
-          operationError: describeRemoteError(error),
+          error: describeRemoteError(error),
         });
       }
+      this.managementOperationActive = false;
       return false;
     }
   }
@@ -289,16 +265,17 @@ export class RemoteStore {
     if (
       repositoryPath === null ||
       this.currentState.loading ||
-      this.currentState.operation !== null
+      this.activeOperation !== null
+      || this.managementOperationActive
     ) {
       return false;
     }
 
     const operationID = ++this.operationID;
     const requestID = this.requestID;
+    this.managementOperationActive = true;
     this.update({
       ...this.currentState,
-      operationError: null,
     });
     try {
       await this.dependencies.removeRemote(repositoryPath, name);
@@ -311,18 +288,17 @@ export class RemoteStore {
         ...facts,
         loading: false,
         error: null,
-        operation: null,
-        progress: null,
-        operationError: null,
       });
+      this.managementOperationActive = false;
       return true;
     } catch (error) {
       if (this.isCurrentOperation(requestID, operationID)) {
         this.update({
           ...this.currentState,
-          operationError: describeRemoteError(error),
+          error: describeRemoteError(error),
         });
       }
+      this.managementOperationActive = false;
       return false;
     }
   }
@@ -333,23 +309,17 @@ export class RemoteStore {
       repositoryPath === null ||
       currentRemote === null ||
       this.currentState.loading ||
-      this.currentState.operation !== null
+      this.activeOperation !== null
     ) {
       return false;
     }
 
     const operationID = ++this.operationID;
     const requestID = this.requestID;
+    this.activeOperation = "fetch";
     this.update({
       ...this.currentState,
-      operation: "fetch",
-      progress: {
-        kind: "fetch",
-        remote: currentRemote.name,
-        value: 0,
-        title: `Fetching ${currentRemote.name}`,
-      },
-      operationError: null,
+      error: null,
     });
 
     const defaultRemote = findDefaultRemote(remotes);
@@ -358,23 +328,7 @@ export class RemoteStore {
         remote !== null && all.findIndex((candidate) => candidate?.name === remote.name) === index,
     );
     try {
-      const updateProgress = (progress: IFetchProgress) => {
-        const index = relevantRemotes.findIndex((remote) => remote.name === progress.remote);
-        if (this.isCurrentOperation(requestID, operationID)) {
-          this.update({
-            ...this.currentState,
-            progress: {
-              ...progress,
-              title: `Fetching ${progress.remote}`,
-              value: aggregateRemoteProgress(
-                index < 0 ? 0 : index,
-                relevantRemotes.length,
-                progress.value,
-              ),
-            },
-          });
-        }
-      };
+      const updateProgress = () => undefined;
 
       if (this.dependencies.fetchWorkflow !== undefined) {
         const nativeRecord = await this.dependencies.fetchWorkflow(
@@ -400,12 +354,6 @@ export class RemoteStore {
       }
       this.update({
         ...this.currentState,
-        progress: {
-          kind: "generic",
-          title: "Refreshing repository",
-          description: "Fast-forwarding branches",
-          value: remoteWorkflowPhase("fetch", "transport").weight,
-        },
       });
 
       await this.fastForwardEligibleBranches(repositoryPath);
@@ -419,19 +367,16 @@ export class RemoteStore {
         ...facts,
         loading: false,
         error: null,
-        operation: null,
-        progress: null,
-        operationError: null,
       });
+      this.activeOperation = null;
       return true;
     } catch (error) {
       if (this.isCurrentOperation(requestID, operationID)) {
         this.update({
           ...this.currentState,
-          operation: null,
-          progress: null,
-          operationError: describeRemoteError(error),
+          error: describeRemoteError(error),
         });
+        this.activeOperation = null;
       }
       return false;
     }
@@ -444,28 +389,19 @@ export class RemoteStore {
       currentRemote === null ||
       currentBranch === null ||
       this.currentState.loading ||
-      this.currentState.operation !== null
+      this.activeOperation !== null
     ) {
       return false;
     }
 
     const operationID = ++this.operationID;
     const requestID = this.requestID;
+    this.activeOperation = "push";
     this.update({
       ...this.currentState,
-      operation: "push",
-      progress: {
-        kind: "push",
-        remote: currentRemote.name,
-        branch: currentBranch.name,
-        value: 0,
-        title: `Pushing to ${currentRemote.name}`,
-      },
-      operationError: null,
+      error: null,
     });
 
-    const pushWeight = remoteWorkflowPhase("push", "transport").weight;
-    const fetchWeight = remoteWorkflowPhase("push", "fetch").weight;
     try {
       await this.dependencies.push(
         repositoryPath,
@@ -474,47 +410,20 @@ export class RemoteStore {
         currentBranch.upstreamWithoutRemote,
         [],
         {},
-        (progress) => {
-          if (this.isCurrentOperation(requestID, operationID)) {
-            this.update({
-              ...this.currentState,
-              progress: {
-                ...progress,
-                title: `Pushing to ${currentRemote.name}`,
-                value: aggregatePhaseProgress(0, pushWeight, progress.value),
-              },
-            });
-          }
-        },
+        () => undefined,
         false,
       );
 
       if (this.dependencies.push === pushRemote) {
         this.update({
           ...this.currentState,
-          progress: {
-            kind: "generic",
-            title: `Fetching ${currentRemote.name}`,
-            description: "Refreshing remote references",
-            value: pushWeight + fetchWeight,
-          },
+          error: null,
         });
       } else {
         await this.dependencies.fetch(
           repositoryPath,
           currentRemote.name,
-          (progress) => {
-            if (this.isCurrentOperation(requestID, operationID)) {
-              this.update({
-                ...this.currentState,
-                progress: {
-                  ...progress,
-                  title: `Fetching ${currentRemote.name}`,
-                  value: aggregatePhaseProgress(pushWeight, fetchWeight, progress.value),
-                },
-              });
-            }
-          },
+          () => undefined,
           false,
         );
       }
@@ -525,12 +434,6 @@ export class RemoteStore {
       }
       this.update({
         ...this.currentState,
-        progress: {
-          kind: "generic",
-          title: "Refreshing repository",
-          description: "Fast-forwarding branches",
-          value: pushWeight + fetchWeight,
-        },
       });
       await this.fastForwardEligibleBranches(repositoryPath);
 
@@ -543,19 +446,16 @@ export class RemoteStore {
         ...facts,
         loading: false,
         error: null,
-        operation: null,
-        progress: null,
-        operationError: null,
       });
+      this.activeOperation = null;
       return true;
     } catch (error) {
       if (this.isCurrentOperation(requestID, operationID)) {
         this.update({
           ...this.currentState,
-          operation: null,
-          progress: null,
-          operationError: describeRemoteError(error),
+          error: describeRemoteError(error),
         });
+        this.activeOperation = null;
       }
       return false;
     }
@@ -569,44 +469,24 @@ export class RemoteStore {
       currentBranch === null ||
       currentBranch.upstream === null ||
       this.currentState.loading ||
-      this.currentState.operation !== null
+      this.activeOperation !== null
     ) {
       return false;
     }
 
     const operationID = ++this.operationID;
     const requestID = this.requestID;
+    this.activeOperation = "pull";
     this.update({
       ...this.currentState,
-      operation: "pull",
-      progress: {
-        kind: "pull",
-        remote: currentRemote.name,
-        value: 0,
-        title: `Pulling ${currentRemote.name}`,
-      },
-      operationError: null,
+      error: null,
     });
 
-    // Native Pull already owns its Fetch and integration phases. Keep one compatibility progress
-    // phase here while the terminal refresh remains store-owned.
-    const pullWeight = 0.9;
     try {
       await this.dependencies.pull(
         repositoryPath,
         currentRemote.name,
-        (progress) => {
-          if (this.isCurrentOperation(requestID, operationID)) {
-            this.update({
-              ...this.currentState,
-              progress: {
-                ...progress,
-                title: `Pulling ${currentRemote.name}`,
-                value: aggregatePhaseProgress(0, pullWeight, progress.value),
-              },
-            });
-          }
-        },
+        () => undefined,
         false,
         false,
       );
@@ -618,12 +498,6 @@ export class RemoteStore {
       }
       this.update({
         ...this.currentState,
-        progress: {
-          kind: "generic",
-          title: "Refreshing repository",
-          description: "Fast-forwarding branches",
-          value: pullWeight,
-        },
       });
       await this.fastForwardEligibleBranches(repositoryPath);
 
@@ -636,19 +510,16 @@ export class RemoteStore {
         ...facts,
         loading: false,
         error: null,
-        operation: null,
-        progress: null,
-        operationError: null,
       });
+      this.activeOperation = null;
       return true;
     } catch (error) {
       if (this.isCurrentOperation(requestID, operationID)) {
         this.update({
           ...this.currentState,
-          operation: null,
-          progress: null,
-          operationError: describeRemoteError(error),
+          error: describeRemoteError(error),
         });
+        this.activeOperation = null;
       }
       return false;
     }
@@ -701,19 +572,10 @@ export class RemoteStore {
     return requestID === this.requestID && operationID === this.operationID;
   }
 
-  private update(state: RemoteInternalState): void {
+  private update(state: RemoteState): void {
     this.currentState = state;
-    const {
-      operation: _operation,
-      progress: _progress,
-      operationError: _operationError,
-      ...publicState
-    } = state;
     for (const listener of this.listeners) {
-      listener({
-        ...publicState,
-        error: publicState.error ?? state.operationError,
-      });
+      listener(state);
     }
   }
 }

@@ -1036,8 +1036,12 @@ present; that field remains reserved for remote-management compatibility errors 
 Remote until those commands have an equivalent native operation contract.
 
 The public `RemoteState` contract now removes `operation`, `progress`, and `operationError`. Native
-operation records own those lifecycle concerns; the store retains only private callback bookkeeping
-for compatibility transports and maps management failures into the public `error` field.
+operation records own those lifecycle concerns; the store retains refresh sequencing and maps
+management failures into the public `error` field.
+
+The private lifecycle bookkeeping is now removed as well: `RemoteStore` retains only operation
+identity for stale-request gating and a management-operation guard. Compatibility transport
+callbacks no longer publish progress or operation-error state.
 
 Coordinator acceptance boundary:
 
