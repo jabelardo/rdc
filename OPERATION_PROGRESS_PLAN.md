@@ -972,7 +972,8 @@ Migrate incrementally to the operation record and shared presentation:
 5. Merge/squash merge. **Complete.**
 6. Push/Pull. **Complete:** the toolbar uses the same native shared body for Push and Pull and
    prefers the native operation record for action labels/icons; legacy remote-store state remains
-   the orchestration, refresh and error compatibility path.
+   the orchestration, refresh and error compatibility path. Application menus now also subscribe
+   to the native repository lock before deriving remote-action enablement.
 7. Checkout. **Complete:** the branch sidebar renders native Checkout progress through the shared
    body; branch-store state remains the refresh/error compatibility path.
 8. Cherry-pick/Revert. **In progress:** the History commit context menu now starts the native

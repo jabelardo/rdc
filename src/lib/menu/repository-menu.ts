@@ -80,6 +80,7 @@ export function buildRepositoryMenu(
   platform: MenuPlatform,
   remoteState?: RemoteState,
   preferencesState?: PreferencesState,
+  repositoryOperationActive = false,
 ): IMenu {
   const hasRepositories = state.repositories.length > 0;
   const hasSelection = state.selectedRepository !== null;
@@ -87,6 +88,7 @@ export function buildRepositoryMenu(
     hasSelection,
     selectedRepositoryPath: state.selectedRepository?.path ?? null,
     remoteState,
+    repositoryOperationActive,
   });
   const enabledByID = new Map<string, boolean>([
     ["new-repository", true],

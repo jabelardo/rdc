@@ -346,6 +346,9 @@ export function useAppController() {
     let latestState = appStore.state;
     let latestRemoteState = remoteStore.state;
     let latestPreferencesState = preferencesStore.state;
+    let latestOperationActive =
+      operationStore.state.operation !== null &&
+      !isTerminalOperation(operationStore.state.operation.state);
     const platform = rendererPlatform;
     const executeMenuEvent = createRepositoryMenuEventExecutor(appStore, {
       createRepository,
@@ -483,7 +486,13 @@ export function useAppController() {
       }
       void controller
         .replaceMenu(
-          buildRepositoryMenu(latestState, platform, latestRemoteState, latestPreferencesState),
+          buildRepositoryMenu(
+            latestState,
+            platform,
+            latestRemoteState,
+            latestPreferencesState,
+            latestOperationActive,
+          ),
         )
         .catch((error) => {
           log.error("Failed to update the application menu", error);
@@ -497,18 +506,23 @@ export function useAppController() {
       latestRemoteState = state;
       replaceMenu();
     });
+    const unsubscribeOperation = operationStore.onDidUpdate((state) => {
+      latestOperationActive = state.operation !== null && !isTerminalOperation(state.operation.state);
+      replaceMenu();
+    });
     const unsubscribePreferences = preferencesStore.onDidUpdate((state) => {
       latestPreferencesState = state;
       replaceMenu();
     });
 
     void installApplicationMenu({
-      initialMenu: buildRepositoryMenu(
-        latestState,
-        platform,
-        latestRemoteState,
-        latestPreferencesState,
-      ),
+        initialMenu: buildRepositoryMenu(
+          latestState,
+          platform,
+          latestRemoteState,
+          latestPreferencesState,
+          latestOperationActive,
+        ),
       executeMenuEvent,
     })
       .then(async (installedController) => {
@@ -519,7 +533,13 @@ export function useAppController() {
           if (updatePending) {
             updatePending = false;
             await controller.replaceMenu(
-              buildRepositoryMenu(latestState, platform, latestRemoteState, latestPreferencesState),
+              buildRepositoryMenu(
+                latestState,
+                platform,
+                latestRemoteState,
+                latestPreferencesState,
+                latestOperationActive,
+              ),
             );
           }
         }
@@ -532,10 +552,11 @@ export function useAppController() {
       disposed = true;
       unsubscribe();
       unsubscribeRemote();
+      unsubscribeOperation();
       unsubscribePreferences();
       controller?.dispose();
     };
-  }, [appStore, branchStore, cloneStore, historyStore, preferencesStore, remoteStore]);
+  }, [appStore, branchStore, cloneStore, historyStore, operationStore, preferencesStore, remoteStore]);
   // oxlint-enable react-hooks/exhaustive-deps
 
   useEffect(() => {
