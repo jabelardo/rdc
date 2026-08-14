@@ -779,8 +779,11 @@ The phase-specific command routing is now implemented: Fetch termination uses Fe
 merge integration termination uses Merge recovery, and rebase integration termination uses Rebase
 recovery. A real blocked-network test proves Pull identifies the Fetch phase, terminates it, keeps
 the repository lock during recovery, and releases the lock only after Fetch recovery succeeds.
-Existing Pull integration and Fetch recovery tests pass. Integration-phase Pull termination tests
-remain before Pull can advertise `Stop waiting` as a supported UI action.
+Existing Pull integration and Fetch recovery tests pass. A deterministic blocked pre-merge-hook
+test now proves Pull identifies `pullMerge`, invokes Merge recovery, preserves the lock until the
+recovery boundary, and reports unchanged when cancellation happens before Git creates merge state.
+Rebase-phase Pull termination coverage remains before Pull can advertise `Stop waiting` as a fully
+supported UI action.
 
 Implementation order:
 

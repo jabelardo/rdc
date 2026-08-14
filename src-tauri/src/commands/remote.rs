@@ -897,6 +897,166 @@ mod fetch_cancellation_tests {
     }
 }
 
+#[cfg(test)]
+mod pull_cancellation_tests {
+    use std::fs;
+    use std::path::Path;
+    use std::process::Command;
+    use std::time::Duration;
+
+    #[cfg(unix)]
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::super::git::recover_merge_termination;
+    use crate::operation::{
+        CancellationCapability, GitOperationKind, OperationOutcome, OperationScope,
+    };
+    use crate::operation_registry::OperationRegistry;
+    use git_ops::test_support::{commit_file, empty_repository};
+
+    fn run_git(repository: &Path, args: &[&str]) {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(repository)
+            .output()
+            .expect("git should run");
+        assert!(
+            output.status.success(),
+            "git {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn pull_cancellation_routes_a_blocked_merge_phase_to_merge_recovery() {
+        let upstream = empty_repository().await;
+        commit_file(&upstream.path(), "base.txt", "base\n", "base");
+        let client = empty_repository().await;
+        run_git(
+            &client.path(),
+            &[
+                "remote",
+                "add",
+                "origin",
+                &upstream.path().to_string_lossy(),
+            ],
+        );
+        run_git(&client.path(), &["fetch", "origin"]);
+        run_git(&client.path(), &["checkout", "-B", "main", "origin/main"]);
+        run_git(
+            &client.path(),
+            &["branch", "--set-upstream-to=origin/main", "main"],
+        );
+        commit_file(&upstream.path(), "remote.txt", "remote\n", "remote change");
+        commit_file(&client.path(), "local.txt", "local\n", "local change");
+
+        let git_dir = git_ops::resolve_git_dir(client.path())
+            .await
+            .expect("client git directory should resolve");
+        let transport = tempfile::tempdir().expect("test control directory");
+        let ready = transport.path().join("ready");
+        let release = transport.path().join("release");
+        let hook = git_dir.join("hooks/pre-merge-commit");
+        fs::write(
+            &hook,
+            format!(
+                "#!/bin/sh\n: > '{}'\nwhile [ ! -e '{}' ]; do sleep 0.01; done\n",
+                ready.display(),
+                release.display()
+            ),
+        )
+        .expect("pre-merge hook should be written");
+        let mut permissions = fs::metadata(&hook)
+            .expect("hook metadata should exist")
+            .permissions();
+        permissions.set_mode(0o700);
+        fs::set_permissions(&hook, permissions).expect("hook should be executable");
+
+        let repository_path = client.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let scope = OperationScope::Repository {
+            lock_key: repository_path.clone(),
+            repository_path: repository_path.clone(),
+        };
+        let operation = registry
+            .start(
+                scope.clone(),
+                Some("main".to_owned()),
+                GitOperationKind::Pull,
+                CancellationCapability::Available {
+                    label: "Stop waiting".to_owned(),
+                },
+            )
+            .expect("Pull should reserve the repository");
+        let pre_operation_head = git_ops::get_head_sha(&repository_path)
+            .await
+            .expect("HEAD should exist");
+        let control = registry
+            .control(&operation.id)
+            .expect("Pull should expose process control");
+        let task = tokio::spawn({
+            let repository_path = repository_path.clone();
+            async move {
+                git_ops::pull::pull_phased_controlled(
+                    &repository_path,
+                    "origin",
+                    &std::collections::HashMap::new(),
+                    false,
+                    None::<fn(git_ops::pull::PullProgress)>,
+                    None,
+                    Some(control),
+                )
+                .await
+            }
+        });
+
+        tokio::time::timeout(Duration::from_secs(2), async {
+            while !ready.exists() {
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("merge hook should reach its deterministic barrier");
+        registry
+            .request_cancellation(&operation.id)
+            .expect("Pull cancellation should reach merge integration");
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("cancelled Pull should terminate")
+            .expect("Pull task should not panic");
+        assert!(matches!(
+            result,
+            Err(git_ops::GitError::OperationTerminated {
+                name,
+                reason: git_ops::TerminationReason::Cancelled,
+                ..
+            }) if name == "pullMerge"
+        ));
+        assert!(registry.active_for_scope(&scope).is_some());
+
+        let recovered = recover_merge_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &pre_operation_head,
+            false,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await;
+        assert!(
+            recovered.is_err(),
+            "cancellation should remain visible to Pull"
+        );
+        assert!(registry.active_for_scope(&scope).is_none());
+        assert_eq!(
+            registry.get(&operation.id).expect("Pull record").outcome,
+            Some(OperationOutcome::Unchanged)
+        );
+    }
+}
+
 /// Fetches a single refspec.
 ///
 /// ```js
