@@ -643,6 +643,24 @@ mod fetch_cancellation_tests {
         (scope, operation.id)
     }
 
+    fn start_pull(registry: &OperationRegistry, repository_path: &str) -> (OperationScope, String) {
+        let scope = OperationScope::Repository {
+            lock_key: repository_path.to_owned(),
+            repository_path: repository_path.to_owned(),
+        };
+        let operation = registry
+            .start(
+                scope.clone(),
+                Some("main".to_owned()),
+                GitOperationKind::Pull,
+                CancellationCapability::Available {
+                    label: "Stop waiting".to_owned(),
+                },
+            )
+            .expect("pull should reserve its repository scope");
+        (scope, operation.id)
+    }
+
     #[test]
     fn distinguishes_user_cancellation_from_watchdog_timeout() {
         assert_eq!(
@@ -818,6 +836,64 @@ mod fetch_cancellation_tests {
         let operation = registry.get(&operation_id).expect("terminal Fetch record");
         assert_eq!(operation.state, OperationState::TimedOut);
         assert_eq!(operation.outcome, Some(OperationOutcome::Unchanged));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn pull_cancellation_routes_a_blocked_network_phase_to_fetch_recovery() {
+        let fixture = BlockingSshFetch::new().await;
+        let repository = fixture.repository();
+        let repository_path = repository.to_string_lossy().into_owned();
+        let env = fixture.env();
+        let registry = OperationRegistry::new();
+        let (scope, operation_id) = start_pull(&registry, &repository_path);
+        let control = registry
+            .control(&operation_id)
+            .expect("Pull should expose the phase process control");
+        let task = tokio::spawn(async move {
+            git_ops::pull::pull_phased_controlled(
+                repository,
+                "origin",
+                &env,
+                false,
+                None::<fn(git_ops::pull::PullProgress)>,
+                None,
+                Some(control),
+            )
+            .await
+        });
+
+        fixture.wait_until_blocked().await;
+        registry
+            .request_cancellation(&operation_id)
+            .expect("Pull cancellation should reach the Fetch phase");
+        let result = tokio::time::timeout(Duration::from_secs(2), task)
+            .await
+            .expect("cancelled Pull should terminate")
+            .expect("Pull task should not panic");
+        assert!(matches!(
+            result,
+            Err(git_ops::GitError::OperationTerminated {
+                name,
+                reason: git_ops::TerminationReason::Cancelled,
+                ..
+            }) if name == "fetch"
+        ));
+        assert!(registry.active_for_scope(&scope).is_some());
+
+        let error = recover_terminated_fetch(
+            &registry,
+            &operation_id,
+            &repository_path,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await;
+        assert_eq!(error.message, "Fetch was cancelled");
+        assert!(registry.active_for_scope(&scope).is_none());
+        assert_eq!(
+            registry.get(&operation_id).expect("Pull record").outcome,
+            Some(OperationOutcome::Unchanged)
+        );
     }
 }
 

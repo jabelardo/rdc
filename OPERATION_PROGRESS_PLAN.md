@@ -777,8 +777,10 @@ integration recovery is wired and tested. The native Pull runner now:
 
 The phase-specific command routing is now implemented: Fetch termination uses Fetch recovery,
 merge integration termination uses Merge recovery, and rebase integration termination uses Rebase
-recovery. Existing Pull integration tests and Fetch recovery tests pass. Dedicated command-level
-Pull termination tests remain before Pull can advertise `Stop waiting` as a supported UI action.
+recovery. A real blocked-network test proves Pull identifies the Fetch phase, terminates it, keeps
+the repository lock during recovery, and releases the lock only after Fetch recovery succeeds.
+Existing Pull integration and Fetch recovery tests pass. Integration-phase Pull termination tests
+remain before Pull can advertise `Stop waiting` as a supported UI action.
 
 Implementation order:
 
