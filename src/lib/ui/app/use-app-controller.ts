@@ -5,6 +5,8 @@ import type { Repository } from "../../../models/repository";
 import { getCloneDirectoryName } from "../../clone-destination";
 import { getMergedBranches } from "../../branch-ipc";
 import { initRepository } from "../../git-ipc";
+import { revertCommit } from "../../misc-ipc";
+import { cherryPick } from "../../stash-ipc";
 import { installApplicationMenu } from "../../menu/application-menu";
 import { showContextMenu } from "../../platform/menu";
 import { dismissAllTooltips } from "../tooltip";
@@ -1185,6 +1187,38 @@ export function useAppController() {
     );
   }
 
+  async function openCommitContextMenu(commit: import("../../../models/commit").Commit, x: number, y: number) {
+    const repository = appState.selectedRepository;
+    if (repository === null) {
+      return;
+    }
+    dismissAllTooltips();
+    await showContextMenu(
+      [
+        {
+          text: "Cherry-pick commit",
+          enabled: !operationStateForRepositoryActive(),
+          action: () => {
+            void cherryPick(repository.path, [{ sha: commit.sha, summary: commit.summary }]);
+          },
+        },
+        {
+          text: "Revert commit",
+          enabled: !operationStateForRepositoryActive(),
+          action: () => {
+            void revertCommit(repository.path, commit.sha, commit.parentSHAs.length);
+          },
+        },
+      ],
+      { x, y },
+    );
+  }
+
+  function operationStateForRepositoryActive(): boolean {
+    const operation = operationStore.state.operation;
+    return operation !== null && !isTerminalOperation(operation.state);
+  }
+
   // Reactive merge preview: when mergeTarget changes, check mergeability and commit count
   useEffect(() => {
     if (!mergePickerOpen || mergeTarget === "") {
@@ -1725,6 +1759,7 @@ export function useAppController() {
     renameCurrentBranch,
     deleteCurrentBranch,
     openBranchContextMenu,
+    openCommitContextMenu,
     mergePickerOpen,
     mergeTarget,
     setMergeTarget,

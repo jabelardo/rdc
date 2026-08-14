@@ -71,6 +71,7 @@ type AppDialogsProps = {
   readonly operationViewModel: OperationProgressViewModel | undefined;
   readonly onCancelOperation: () => void;
   readonly onAdoptCancellation: () => void;
+  readonly onDismissOperation: () => void;
   readonly workingTreeStore: WorkingTreeStore;
   readonly repositoryToRemove: Repository | null;
   readonly showAboutDialog: boolean;
@@ -178,6 +179,7 @@ export function AppDialogs({
   operationViewModel,
   onCancelOperation,
   onAdoptCancellation,
+  onDismissOperation,
   workingTreeStore,
   repositoryToRemove,
   showAboutDialog,
@@ -277,6 +279,17 @@ export function AppDialogs({
           )}
         </OperationProgressDialog>
       )}
+
+      {operationViewModel !== undefined &&
+        (operationViewModel.operation === "cherryPick" ||
+          operationViewModel.operation === "revert") && (
+          <OperationProgressDialog
+            viewModel={operationViewModel}
+            onCancel={onCancelOperation}
+            onAdoptCancellation={onAdoptCancellation}
+            onClose={onDismissOperation}
+          />
+        )}
 
       {discardFile !== null && (
         <ConfirmDialog

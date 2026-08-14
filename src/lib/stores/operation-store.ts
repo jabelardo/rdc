@@ -144,6 +144,14 @@ export class OperationStore {
     }
   }
 
+  /** Remove a terminal record from this window after its outcome has been presented. */
+  public dismissTerminalOperation(): void {
+    if (this.state.operation === null || !isTerminal(this.state.operation)) {
+      return;
+    }
+    this.update({ ...emptyState, repositoryPath: this.state.repositoryPath });
+  }
+
   /** Reconcile a window that may have missed native events while opening or unfocused. */
   public async refreshActiveOperation(): Promise<void> {
     const repositoryPath = this.state.repositoryPath;

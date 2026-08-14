@@ -2,6 +2,7 @@ import { useRef, useState, type CSSProperties } from "react";
 import { DiffLineType, DiffType } from "../../../models/diff";
 import { formatRelative } from "../../format-relative";
 import type { HistoryState, HistoryStore } from "../../stores/history-store";
+import type { Commit } from "../../../models/commit";
 import { handleListNavigation } from "../list-navigation";
 import { HorizontalResizer } from "../horizontal-resizer";
 import { FileStatusIcon } from "../mvp-list-rows";
@@ -24,10 +25,11 @@ type HistoryWorkspaceProps = {
   readonly visible: boolean;
   readonly state: HistoryState;
   readonly store: HistoryStore;
+  readonly onCommitContextMenu?: (commit: Commit, x: number, y: number) => void;
 };
 
 /** Commit list, details, changed files, and the selected historical diff. */
-export function HistoryWorkspace({ visible, state, store }: HistoryWorkspaceProps) {
+export function HistoryWorkspace({ visible, state, store, onCommitContextMenu }: HistoryWorkspaceProps) {
   const historyRef = useRef<HTMLElement>(null);
   const changeWorkspaceRef = useRef<HTMLDivElement>(null);
   const [commitListWidth, setCommitListWidth] = useState(270);
@@ -76,6 +78,10 @@ export function HistoryWorkspace({ visible, state, store }: HistoryWorkspaceProp
                       : -1
                   }
                   onClick={() => void store.selectCommit(commit.sha)}
+                  onContextMenu={(event) => {
+                    event.preventDefault();
+                    onCommitContextMenu?.(commit, event.clientX, event.clientY);
+                  }}
                   onKeyDown={(event) =>
                     handleListNavigation(event, index, state.commits.length, (targetIndex) => {
                       void store.selectCommit(state.commits[targetIndex].sha);

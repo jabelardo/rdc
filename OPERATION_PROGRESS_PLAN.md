@@ -974,7 +974,9 @@ Migrate incrementally to the operation record and shared presentation:
    legacy remote-store state remains the refresh/error compatibility path.
 7. Checkout. **Complete:** the branch sidebar renders native Checkout progress through the shared
    body; branch-store state remains the refresh/error compatibility path.
-8. Cherry-pick/Revert/Squash/Reorder remain pending until their UI slices land.
+8. Cherry-pick/Revert. **In progress:** the History commit context menu now starts the native
+   Cherry-pick and Revert commands, and their operation records mount the unified progress dialog.
+   Conflict continuation/recovery UI and interactive Squash/Reorder remain pending.
 
 Remove duplicated operation/progress fields only after their final consumer migrates. Preserve stale
 callback rejection by operation ID. Keep domain-store post-operation refresh behavior intact.

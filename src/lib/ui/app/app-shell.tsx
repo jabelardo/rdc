@@ -81,6 +81,7 @@ export function AppShell({ controller }: AppShellProps) {
     submitClone,
     selectRepository,
     openRepositoryContextMenu,
+    openCommitContextMenu,
     runRepositoryAction,
     confirmRemoveRepository,
     openInShell,
@@ -336,6 +337,7 @@ export function AppShell({ controller }: AppShellProps) {
               visible={repositoryView === "history"}
               state={historyState}
               store={historyStore}
+              onCommitContextMenu={openCommitContextMenu}
             />
           </div>
         )}
@@ -362,6 +364,7 @@ export function AppShell({ controller }: AppShellProps) {
         operationViewModel={operationViewModel}
         onCancelOperation={() => void operationStore.requestCancellation()}
         onAdoptCancellation={() => void operationStore.requestCancellation(true)}
+        onDismissOperation={() => operationStore.dismissTerminalOperation()}
         workingTreeStore={workingTreeStore}
         repositoryToRemove={repositoryToRemove}
         showAboutDialog={showAboutDialog}
