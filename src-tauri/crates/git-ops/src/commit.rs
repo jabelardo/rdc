@@ -506,6 +506,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn controlled_commit_terminates_before_commit_and_preserves_head() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "README.md", "initial\n", "initial");
+        std::fs::write(repo.path().join("README.md"), "changed\n").expect("write should succeed");
+        let original_head = crate::rev_parse::get_head_sha(repo.path())
+            .await
+            .expect("HEAD should resolve");
+        let control = ExecutionControl::new();
+        control.cancel(crate::error::TerminationReason::Cancelled);
+
+        let result = create_commit_with_terminal_output_controlled(
+            repo.path(),
+            "cancelled",
+            &[FileToStage::new("README.md")],
+            CommitOptions::default(),
+            None,
+            &MultiOperationTerminalOutput::default(),
+            control,
+        )
+        .await;
+
+        assert!(matches!(result, Err(GitError::OperationTerminated { .. })));
+        assert_eq!(
+            crate::rev_parse::get_head_sha(repo.path())
+                .await
+                .expect("HEAD should resolve"),
+            original_head
+        );
+    }
+
+    #[tokio::test]
     async fn commits_the_given_files() {
         let repo = empty_repository().await;
         commit_file(&repo.path(), "README.md", "Hello\n", "first");
