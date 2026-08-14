@@ -895,6 +895,9 @@ an in-flight cancellation reaches a terminal state.
 Terminal state takes precedence over a stale cancellation request: completion races render
 `Completed before cancellation`, failed unknown outcomes render `Outcome unknown` alongside their
 error, and the completed/cancelled/timed-out/failed matrix has focused coverage.
+An unowned operation now exposes an explicit `Take control and cancel` action only after the owner
+window disappears; observers with a live owner remain read-only. Recovery failures identify that
+repository recovery is required before continuing.
 CloneStore now hydrates the native clone-destination operation after invocation starts and follows
 only that operation ID through the global event stream. Native lifecycle tracking is presentation
 enrichment rather than a prerequisite for cloning, and stale/reset clone callbacks remain rejected.

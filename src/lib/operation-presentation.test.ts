@@ -147,4 +147,30 @@ describe("operation progress view model", () => {
       ).statusText,
     ).toBe("Completed before cancellation");
   });
+
+  it("requires explicit adoption before an unowned window can cancel", () => {
+    const model = operationProgressViewModel(
+      { ...record(null), cancellation: { kind: "available", label: "Cancel fetch" } },
+      "window-b",
+    );
+
+    expect(model.adoptionAvailable).toBe(true);
+    expect(model.adoptionLabel).toBe("Take control and cancel");
+    expect(model.cancellationAvailable).toBe(false);
+  });
+
+  it("identifies recovery-required failures separately from ordinary failures", () => {
+    const model = operationProgressViewModel(
+      {
+        ...record("window-a"),
+        state: "failed",
+        outcome: "unknown",
+        error: { kind: "recoveryFailed", message: "could not restore", recoverable: false },
+      },
+      "window-a",
+    );
+
+    expect(model.recoveryRequired).toBe(true);
+    expect(model.contextText).toBe("Repository recovery is required before continuing");
+  });
 });

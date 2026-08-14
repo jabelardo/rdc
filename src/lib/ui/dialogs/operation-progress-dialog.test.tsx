@@ -124,6 +124,25 @@ describe("OperationProgressDialog", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
+  it("offers explicit cancellation adoption for an unowned operation", async () => {
+    const user = userEvent.setup();
+    const onAdoptCancellation = vi.fn();
+    render(
+      <OperationProgressDialog
+        viewModel={operationProgressViewModel(
+          { ...operationRecord(), ownerWindow: null },
+          "window-b",
+        )}
+        onAdoptCancellation={onAdoptCancellation}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Take control and cancel" }));
+
+    expect(onAdoptCancellation).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Cancel fetch" })).not.toBeInTheDocument();
+  });
+
   it("does not repeat a terminal error already used as the lifecycle status", () => {
     const failed: OperationRecord = {
       ...operationRecord("failed"),

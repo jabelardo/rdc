@@ -158,6 +158,7 @@ type MergeBranchDialogProps = {
   readonly failure: string | null;
   readonly operationViewModel?: OperationProgressViewModel;
   readonly onCancelOperation?: () => void;
+  readonly onAdoptCancellation?: () => void;
   readonly onSelect: (branch: Branch) => void;
   readonly onStrategyChange: (strategy: MergeStrategy) => void;
   readonly onConfirm: () => void;
@@ -178,6 +179,7 @@ export function MergeBranchDialog({
   failure,
   operationViewModel,
   onCancelOperation,
+  onAdoptCancellation,
   onSelect,
   onStrategyChange,
   onConfirm,
@@ -190,6 +192,7 @@ export function MergeBranchDialog({
         operation={strategy === "squash" ? "Squashing" : "Merging"}
         progress={progress ?? { value: 0 }}
         onCancel={onCancelOperation}
+        onAdoptCancellation={onAdoptCancellation}
       />
     );
   }

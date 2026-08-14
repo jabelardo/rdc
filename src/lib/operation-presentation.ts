@@ -14,8 +14,11 @@ export type OperationProgressViewModel = {
   readonly role: OperationPresentationRole;
   readonly cancellationAvailable: boolean;
   readonly cancellationLabel: string | null;
+  readonly adoptionAvailable: boolean;
+  readonly adoptionLabel: string | null;
   readonly statusText: string;
   readonly contextText: string | null;
+  readonly recoveryRequired: boolean;
   readonly error: OperationError | null;
   readonly outcome: OperationRecord["outcome"];
 };
@@ -94,6 +97,7 @@ export function operationProgressViewModel(
   roleOverride?: OperationPresentationRole,
 ): OperationProgressViewModel {
   const role = roleOverride ?? operationPresentationRole(record, windowLabel);
+  const recoveryRequired = record.error?.kind === "recoveryFailed";
   return {
     operation: record.operation,
     operationLabel: operationLabel(record.operation),
@@ -106,13 +110,21 @@ export function operationProgressViewModel(
       (record.state === "running" || record.state === "takingLongerThanExpected"),
     cancellationLabel:
       record.cancellation.kind === "available" ? record.cancellation.label : null,
+    adoptionAvailable:
+      role === "unowned" &&
+      record.cancellation.kind === "available" &&
+      !isTerminalOperation(record.state),
+    adoptionLabel: role === "unowned" ? "Take control and cancel" : null,
     statusText: lifecycleStatus(record),
     contextText:
-      role === "observer"
+      recoveryRequired
+        ? "Repository recovery is required before continuing"
+        : role === "observer"
         ? "Started in another window"
         : role === "unowned"
           ? "The window that started this operation is no longer open"
           : null,
+    recoveryRequired,
     error: record.error,
     outcome: record.outcome,
   };

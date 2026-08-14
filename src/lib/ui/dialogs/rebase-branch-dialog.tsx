@@ -38,6 +38,7 @@ type RebaseBranchDialogProps = {
   readonly failure: string | null;
   readonly operationViewModel?: OperationProgressViewModel;
   readonly onCancelOperation?: () => void;
+  readonly onAdoptCancellation?: () => void;
   readonly onSelect: (branch: Branch) => void;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
@@ -55,6 +56,7 @@ export function RebaseBranchDialog({
   failure,
   operationViewModel,
   onCancelOperation,
+  onAdoptCancellation,
   onSelect,
   onConfirm,
   onCancel,
@@ -66,6 +68,7 @@ export function RebaseBranchDialog({
         operation="Rebasing"
         progress={progress ?? { value: 0 }}
         onCancel={onCancelOperation}
+        onAdoptCancellation={onAdoptCancellation}
         currentCommit={
           progress === null
             ? undefined

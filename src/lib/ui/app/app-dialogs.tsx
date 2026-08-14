@@ -70,6 +70,7 @@ type AppDialogsProps = {
   readonly commitTerminalOutput: string;
   readonly operationViewModel: OperationProgressViewModel | undefined;
   readonly onCancelOperation: () => void;
+  readonly onAdoptCancellation: () => void;
   readonly workingTreeStore: WorkingTreeStore;
   readonly repositoryToRemove: Repository | null;
   readonly showAboutDialog: boolean;
@@ -176,6 +177,7 @@ export function AppDialogs({
   commitTerminalOutput,
   operationViewModel,
   onCancelOperation,
+  onAdoptCancellation,
   workingTreeStore,
   repositoryToRemove,
   showAboutDialog,
@@ -263,6 +265,7 @@ export function AppDialogs({
           operation="Committing"
           progress={{ value: 0, title: "Committing changes" }}
           onCancel={onCancelOperation}
+          onAdoptCancellation={onAdoptCancellation}
         >
           {runningHook != null && (
             <button type="button" onClick={() => void workingTreeStore.stopHook()}>
@@ -404,6 +407,7 @@ export function AppDialogs({
             operationViewModel?.operation === "merge" ? operationViewModel : undefined
           }
           onCancelOperation={onCancelOperation}
+          onAdoptCancellation={onAdoptCancellation}
         />
       )}
 
@@ -425,6 +429,7 @@ export function AppDialogs({
             operationViewModel?.operation === "rebase" ? operationViewModel : undefined
           }
           onCancelOperation={onCancelOperation}
+          onAdoptCancellation={onAdoptCancellation}
         />
       )}
 

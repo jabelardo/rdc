@@ -349,6 +349,7 @@ export function AppShell({ controller }: AppShellProps) {
         commitTerminalOutput={commitTerminalOutput}
         operationViewModel={operationViewModel}
         onCancelOperation={() => void operationStore.requestCancellation()}
+        onAdoptCancellation={() => void operationStore.requestCancellation(true)}
         workingTreeStore={workingTreeStore}
         repositoryToRemove={repositoryToRemove}
         showAboutDialog={showAboutDialog}

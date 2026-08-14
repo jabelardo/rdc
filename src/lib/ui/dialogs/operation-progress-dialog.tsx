@@ -36,6 +36,8 @@ export type OperationProgressDialogProps = {
   readonly children?: ReactNode;
   /** Requests cancellation through the owning operation store. */
   readonly onCancel?: () => void;
+  /** Explicitly adopts cancellation authority after the original owner is gone. */
+  readonly onAdoptCancellation?: () => void;
   /** Closes a terminal operation after its recovery/outcome is understood. */
   readonly onClose?: () => void;
 };
@@ -60,11 +62,14 @@ function legacyViewModel(
   | "progress"
   | "statusText"
   | "contextText"
-  | "cancellationAvailable"
-  | "cancellationLabel"
-  | "error"
-  | "outcome"
-  | "role"
+    | "cancellationAvailable"
+    | "cancellationLabel"
+    | "adoptionAvailable"
+    | "adoptionLabel"
+    | "error"
+    | "outcome"
+    | "role"
+    | "recoveryRequired"
 > {
   return {
     operationLabel: operation,
@@ -75,9 +80,12 @@ function legacyViewModel(
     contextText: null,
     cancellationAvailable: false,
     cancellationLabel: null,
+    adoptionAvailable: false,
+    adoptionLabel: null,
     error: null,
     outcome: null,
     role: "owner",
+    recoveryRequired: false,
   };
 }
 
@@ -143,6 +151,7 @@ export function OperationProgressDialog({
   currentCommit,
   children,
   onCancel,
+  onAdoptCancellation,
   onClose,
 }: OperationProgressDialogProps) {
   const model =
@@ -156,6 +165,7 @@ export function OperationProgressDialog({
     }
   }, [onClose, terminal]);
   const showCancel = model.cancellationAvailable && onCancel !== undefined;
+  const showAdopt = model.adoptionAvailable && onAdoptCancellation !== undefined;
   const showClose = terminal && onClose !== undefined;
 
   return (
@@ -184,11 +194,21 @@ export function OperationProgressDialog({
           >
             {children}
           </OperationProgressBody>
-          {(showCancel || showClose) && (
+          {(showCancel || showAdopt || showClose) && (
             <div className="flex justify-end gap-2">
               {showCancel && (
                 <Button type="button" onClick={onCancel} disabled={model.state === "cancelling"}>
                   {model.cancellationLabel ?? "Cancel"}
+                </Button>
+              )}
+              {showAdopt && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onAdoptCancellation}
+                  disabled={model.state === "cancelling"}
+                >
+                  {model.adoptionLabel ?? "Take control and cancel"}
                 </Button>
               )}
               {showClose && (
