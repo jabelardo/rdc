@@ -131,6 +131,21 @@ describe("repository application menu", () => {
     expect(byId(enabled, "push")).toMatchObject({ enabled: true });
   });
 
+  it("honors the native repository lock while store state is still idle", () => {
+    const menu = buildRepositoryMenu(
+      { repositories: [repository], selectedRepository: repository },
+      "linux",
+      remoteState,
+      undefined,
+      true,
+    );
+    const byId = (id: string) => flattenMenu(menu.items).find((item) => item.id === id);
+
+    expect(byId("fetch")).toMatchObject({ enabled: false });
+    expect(byId("push")).toMatchObject({ enabled: false });
+    expect(byId("pull")).toMatchObject({ enabled: false });
+  });
+
   it("enables preferences globally and installed integration actions for a selection", () => {
     const menu = buildRepositoryMenu(
       {
