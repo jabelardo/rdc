@@ -41,10 +41,29 @@ describe("MergeConflicts recovery presentation", () => {
   });
 
   it("offers only abort for Revert recovery", () => {
+    const conflictedState: ConflictState = {
+      ...state,
+      files: [
+        {
+          path: "conflicted.txt",
+          status: {
+            kind: AppFileStatusKind.Conflicted,
+            entry: {
+              kind: "conflicted",
+              action: UnmergedEntrySummary.BothModified,
+              us: GitStatusEntry.UpdatedButUnmerged,
+              them: GitStatusEntry.UpdatedButUnmerged,
+            },
+            conflictMarkerCount: 0,
+          },
+          resolvedInWorkingTree: true,
+        },
+      ],
+    };
     render(
       <MergeConflicts
         repositoryPath="/repo"
-        state={state}
+        state={conflictedState}
         store={store}
         onStageResolved={vi.fn()}
         recoveryOperation="revert"
@@ -53,6 +72,10 @@ describe("MergeConflicts recovery presentation", () => {
     );
 
     expect(screen.getByRole("region", { name: "Revert recovery" })).toBeInTheDocument();
+    expect(screen.getByText(/Revert can only be aborted from here/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Stage resolution for conflicted.txt" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Continue cherry-pick" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abort revert" })).toBeInTheDocument();
   });

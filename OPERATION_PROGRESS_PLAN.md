@@ -988,7 +988,8 @@ Migrate incrementally to the operation record and shared presentation:
    history. The History workspace now has focused interaction coverage for selection, Squash and
    explicit Reorder targets; real-shell E2E now verifies contiguous selection and executes both
    Reorder and Squash against a disposable repository. Recovery coverage verifies Cherry-pick
-   continuation is gated on staged resolutions and Revert remains abort-only; remaining work is
+   continuation is gated on staged resolutions and Revert remains abort-only; the recovery banner
+   now reflects that distinction by hiding unsupported Revert staging controls. Remaining work is
    visual QA and broader Cherry-pick/Revert E2E coverage.
 
 Remote-store compatibility is now closed. `RemoteStore` continues to own remote selection,

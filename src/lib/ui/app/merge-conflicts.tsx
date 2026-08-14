@@ -21,7 +21,12 @@ export function MergeConflicts({
   onAbortRecovery,
 }: MergeConflictsProps) {
   const recoveryVisible = recoveryOperation !== undefined;
-  if (!recoveryVisible && !state.mergeInProgress && state.files.length === 0 && state.error === null) {
+  if (
+    !recoveryVisible &&
+    !state.mergeInProgress &&
+    state.files.length === 0 &&
+    state.error === null
+  ) {
     return null;
   }
 
@@ -45,7 +50,11 @@ export function MergeConflicts({
                 ? "Merge in progress"
                 : "Repository conflicts"}
           </h3>
-          <p>Resolve files in your editor, then refresh and stage each resolution.</p>
+          <p>
+            {recoveryOperation === "revert"
+              ? "Resolve files in your editor, then refresh the conflict state. Revert can only be aborted from here."
+              : "Resolve files in your editor, then refresh and stage each resolution."}
+          </p>
         </div>
         <button
           type="button"
@@ -82,14 +91,16 @@ export function MergeConflicts({
                       }`
                     : "Choose a side outside rdc"}
               </small>
-              <button
-                type="button"
-                aria-label={`Stage resolution for ${file.path}`}
-                disabled={!file.resolvedInWorkingTree || state.stagingPath !== null}
-                onClick={() => onStageResolved(file.path)}
-              >
-                {state.stagingPath === file.path ? "Staging…" : "Stage resolution"}
-              </button>
+              {recoveryOperation !== "revert" && (
+                <button
+                  type="button"
+                  aria-label={`Stage resolution for ${file.path}`}
+                  disabled={!file.resolvedInWorkingTree || state.stagingPath !== null}
+                  onClick={() => onStageResolved(file.path)}
+                >
+                  {state.stagingPath === file.path ? "Staging…" : "Stage resolution"}
+                </button>
+              )}
             </li>
           ))}
         </ul>
