@@ -853,9 +853,10 @@ Implementation order:
 - `git_ops::commit` now captures an unborn-safe `HEAD` plus exact raw index bytes and can restore that
   index atomically. A completion-race classifier and tests prove that an advanced `HEAD` is completed
   while an unchanged `HEAD` is safe to restore. The command now has an internal controlled runner and
-  recovery boundary, but the user-facing Commit cancellation capability remains unavailable until
-  command-level termination tests cover the lock, watchdog, late-completion and index-restoration
-  journeys.
+  recovery boundary. Command-level tests now prove timeout recovery restores the unchanged index and
+  releases the repository lock, while a late HEAD advance returns the committed SHA without rollback.
+  The user-facing Commit cancellation capability remains unavailable until a native blocked-process
+  test covers the actual watchdog/termination path and recovery-failure handling.
 - After termination, inspect whether `HEAD` advanced before deciding to restore.
 - Keep general cancellation unavailable until staged state and completion races are proven.
 - Hook cancellation remains independently available through Slice 12.

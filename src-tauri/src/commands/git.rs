@@ -1887,6 +1887,133 @@ mod termination_tests {
 }
 
 #[cfg(test)]
+mod commit_recovery_tests {
+    use super::*;
+    use crate::operation::{CancellationCapability, OperationScope};
+    use std::path::Path;
+    use std::process::Command;
+
+    fn run_git(repository: &Path, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(repository)
+            .output()
+            .expect("git should start");
+        assert!(
+            output.status.success(),
+            "git {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_owned()
+    }
+
+    fn repository() -> tempfile::TempDir {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        run_git(directory.path(), &["init", "-q", "-b", "main"]);
+        run_git(directory.path(), &["config", "user.name", "Slice 15 Test"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "slice15@example.test"],
+        );
+        std::fs::write(directory.path().join("file.txt"), "initial\n")
+            .expect("initial file should be written");
+        run_git(directory.path(), &["add", "."]);
+        run_git(directory.path(), &["commit", "-qm", "initial"]);
+        directory
+    }
+
+    fn start_commit_operation(registry: &OperationRegistry, repository_path: &str) -> String {
+        registry
+            .start(
+                OperationScope::Repository {
+                    lock_key: repository_path.to_owned(),
+                    repository_path: repository_path.to_owned(),
+                },
+                Some("test-window".to_owned()),
+                GitOperationKind::Commit,
+                CancellationCapability::Available {
+                    label: "Cancel commit".to_owned(),
+                },
+            )
+            .expect("commit operation should reserve the repository")
+            .id
+    }
+
+    #[tokio::test]
+    async fn command_recovery_restores_the_index_when_commit_did_not_advance_head() {
+        let directory = repository();
+        std::fs::write(directory.path().join("file.txt"), "changed\n")
+            .expect("changed file should be written");
+        let snapshot = git_ops::commit::get_commit_snapshot(directory.path())
+            .await
+            .expect("commit snapshot should succeed");
+        let original_index = snapshot.index.clone().expect("index should exist");
+        run_git(directory.path(), &["add", "file.txt"]);
+
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation_id = start_commit_operation(&registry, &repository_path);
+        let result = finish_commit_termination(
+            &registry,
+            &operation_id,
+            &repository_path,
+            &snapshot,
+            git_ops::TerminationReason::TimedOut,
+        )
+        .await;
+
+        assert!(result.is_err(), "an unchanged commit should report timeout");
+        let restored = git_ops::commit::get_commit_snapshot(directory.path())
+            .await
+            .expect("restored snapshot should succeed")
+            .index
+            .expect("restored index should exist");
+        assert_eq!(restored, original_index);
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path,
+            })
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn command_recovery_returns_the_sha_when_commit_advanced_before_stop() {
+        let directory = repository();
+        std::fs::write(directory.path().join("file.txt"), "committed\n")
+            .expect("changed file should be written");
+        let snapshot = git_ops::commit::get_commit_snapshot(directory.path())
+            .await
+            .expect("commit snapshot should succeed");
+        run_git(directory.path(), &["add", "file.txt"]);
+        run_git(directory.path(), &["commit", "-qm", "completed"]);
+        let expected_sha = run_git(directory.path(), &["rev-parse", "HEAD"]);
+
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation_id = start_commit_operation(&registry, &repository_path);
+        let result = finish_commit_termination(
+            &registry,
+            &operation_id,
+            &repository_path,
+            &snapshot,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await
+        .expect("a completed commit should win the cancellation race");
+
+        assert_eq!(result, expected_sha);
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path,
+            })
+            .is_none());
+    }
+}
+
+#[cfg(test)]
 mod rebase_recovery_tests {
     use super::*;
     use crate::operation::{CancellationCapability, OperationScope};
