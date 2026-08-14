@@ -76,8 +76,9 @@ use serde_json::json;
 #[allow(dead_code)]
 mod operation;
 use operation::{
-    CancellationCapability, GitOperationKind, OperationOutcome, OperationProgress, OperationRecord,
-    OperationRefresh, OperationScope, OperationState,
+    CancellationCapability, GitOperationKind, OperationError, OperationErrorKind, OperationEvent,
+    OperationEventEnvelope, OperationHook, OperationLifecycleState, OperationOutcome,
+    OperationProgress, OperationRecord, OperationRefresh, OperationScope, OperationState,
 };
 
 // Platform commands live in the Tauri app rather than git-ops. Include the shared wire model from
@@ -1085,6 +1086,73 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
                 remote_names: vec!["origin".to_owned()],
                 repository_facts: true,
             }),
+        }),
+    );
+
+    // Each variant is pinned separately: `rename_all` renames variants but not their payload
+    // fields, so a missing `rename_all_fields` shows up only per-variant.
+    cases.insert(
+        "operationProgressEvent",
+        to_value(OperationEvent::Progress {
+            operation_id: "operation-1".to_owned(),
+            progress: OperationProgress {
+                value: 0.45,
+                title: Some("Fetching origin".to_owned()),
+                description: None,
+            },
+        }),
+    );
+
+    cases.insert(
+        "operationStateEvent",
+        to_value(OperationEvent::State {
+            operation_id: "operation-1".to_owned(),
+            state: OperationLifecycleState::TakingLongerThanExpected,
+        }),
+    );
+
+    cases.insert(
+        "operationFinishedEvent",
+        to_value(OperationEvent::Finished {
+            operation_id: "operation-1".to_owned(),
+            state: OperationState::Cancelled,
+            outcome: OperationOutcome::Unchanged,
+            error: Some(OperationError {
+                kind: OperationErrorKind::Cancelled,
+                message: "Fetch cancelled before it changed the repository".to_owned(),
+                recoverable: true,
+            }),
+        }),
+    );
+
+    cases.insert(
+        "operationEventEnvelope",
+        to_value(OperationEventEnvelope {
+            record: OperationRecord {
+                id: "operation-1".to_owned(),
+                scope: OperationScope::CloneDestination {
+                    lock_key: "/work/new-repository".to_owned(),
+                    destination_path: "/work/new-repository".to_owned(),
+                },
+                owner_window: None,
+                operation: GitOperationKind::Clone,
+                state: OperationState::Recovering,
+                cancellation: CancellationCapability::Requested,
+                progress: None,
+                hook: Some(OperationHook {
+                    id: 7,
+                    hook: "pre-commit".to_owned(),
+                    status: "started".to_owned(),
+                }),
+                last_activity_at: 1_723_379_200_000,
+                outcome: None,
+                error: None,
+                refresh: None,
+            },
+            event: OperationEvent::State {
+                operation_id: "operation-1".to_owned(),
+                state: OperationLifecycleState::Recovering,
+            },
         }),
     );
 

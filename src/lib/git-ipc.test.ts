@@ -11,7 +11,7 @@ import { mapStatus } from "./status";
 import { MergeResult, RebaseResult, type IRebaseSnapshot, type IStatusResult } from "./git-ipc";
 import snapshot from "./__generated__/wire-snapshot.json";
 import type { ICheckoutProgress, IMultiCommitOperationProgress } from "../models/progress";
-import type { OperationRecord } from "../models/operation";
+import type { OperationEvent, OperationEventEnvelope, OperationRecord } from "../models/operation";
 
 /**
  * Proves the Rust wire shape is usable by the ported domain model.
@@ -62,6 +62,57 @@ const operationRecord: OperationRecord = {
   outcome: "unchanged",
   error: null,
   refresh: { remoteNames: ["origin"], repositoryFacts: true },
+};
+
+// One fixture per event variant: serde renames enum *variants* and payload *fields* through
+// separate attributes, so a variant's `operationId` can regress on its own.
+const operationProgressEvent: OperationEvent = {
+  kind: "progress",
+  operationId: "operation-1",
+  progress: { value: 0.45, title: "Fetching origin" },
+};
+
+const operationStateEvent: OperationEvent = {
+  kind: "state",
+  operationId: "operation-1",
+  state: "takingLongerThanExpected",
+};
+
+const operationFinishedEvent: OperationEvent = {
+  kind: "finished",
+  operationId: "operation-1",
+  state: "cancelled",
+  outcome: "unchanged",
+  error: {
+    kind: "cancelled",
+    message: "Fetch cancelled before it changed the repository",
+    recoverable: true,
+  },
+};
+
+const operationEventEnvelope: OperationEventEnvelope = {
+  record: {
+    id: "operation-1",
+    scope: {
+      kind: "cloneDestination",
+      lockKey: "/work/new-repository",
+      destinationPath: "/work/new-repository",
+    },
+    ownerWindow: null,
+    operation: "clone",
+    state: "recovering",
+    cancellation: { kind: "requested" },
+    progress: null,
+    hook: { id: 7, hook: "pre-commit", status: "started" },
+    lastActivityAt: 1_723_379_200_000,
+    outcome: null,
+    error: null,
+  },
+  event: {
+    kind: "state",
+    operationId: "operation-1",
+    state: "recovering",
+  },
 };
 
 const modifiedSubmodule: AppFileStatus = {
@@ -183,6 +234,10 @@ describe("the git IPC wire shape", () => {
       ["checkoutProgress", checkoutProgress],
       ["multiCommitOperationProgress", multiCommitOperationProgress],
       ["operationRecord", operationRecord],
+      ["operationProgressEvent", operationProgressEvent],
+      ["operationStateEvent", operationStateEvent],
+      ["operationFinishedEvent", operationFinishedEvent],
+      ["operationEventEnvelope", operationEventEnvelope],
       ["rebaseSnapshot", rebaseSnapshot],
       ["mergeResult", mergeResult],
       ["rebaseResult", rebaseResult],
@@ -238,7 +293,11 @@ describe("the git IPC wire shape", () => {
       "modified",
       "modifiedSubmodule",
       "multiCommitOperationProgress",
+      "operationEventEnvelope",
+      "operationFinishedEvent",
+      "operationProgressEvent",
       "operationRecord",
+      "operationStateEvent",
       // Covered by diff-ipc.test.ts (hydrated into the models/diff classes).
       "parsedDiff",
       "pullProgress",

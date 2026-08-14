@@ -132,8 +132,16 @@ pub struct OperationRecord {
     pub refresh: Option<OperationRefresh>,
 }
 
+// `rename_all` only renames the *variants*; the payload fields need `rename_all_fields`, which is
+// how `operation_id` used to reach the frontend as snake_case while `src/models/operation.ts`
+// declared `operationId`. Nothing read it, so nothing failed — the wire fixtures below are what
+// keep it that way.
 #[derive(Debug, Clone, PartialEq, Serialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum OperationEvent {
     Progress {
         operation_id: String,

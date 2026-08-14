@@ -268,6 +268,55 @@
     "totalCommitCount": 2,
     "value": 0.5
   },
+  "operationEventEnvelope": {
+    "event": {
+      "kind": "state",
+      "operationId": "operation-1",
+      "state": "recovering"
+    },
+    "record": {
+      "cancellation": {
+        "kind": "requested"
+      },
+      "error": null,
+      "hook": {
+        "hook": "pre-commit",
+        "id": 7,
+        "status": "started"
+      },
+      "id": "operation-1",
+      "lastActivityAt": 1723379200000,
+      "operation": "clone",
+      "outcome": null,
+      "ownerWindow": null,
+      "progress": null,
+      "scope": {
+        "destinationPath": "/work/new-repository",
+        "kind": "cloneDestination",
+        "lockKey": "/work/new-repository"
+      },
+      "state": "recovering"
+    }
+  },
+  "operationFinishedEvent": {
+    "error": {
+      "kind": "cancelled",
+      "message": "Fetch cancelled before it changed the repository",
+      "recoverable": true
+    },
+    "kind": "finished",
+    "operationId": "operation-1",
+    "outcome": "unchanged",
+    "state": "cancelled"
+  },
+  "operationProgressEvent": {
+    "kind": "progress",
+    "operationId": "operation-1",
+    "progress": {
+      "title": "Fetching origin",
+      "value": 0.45
+    }
+  },
   "operationRecord": {
     "cancellation": {
       "kind": "available",
@@ -295,6 +344,11 @@
       "repositoryPath": "/repo"
     },
     "state": "running"
+  },
+  "operationStateEvent": {
+    "kind": "state",
+    "operationId": "operation-1",
+    "state": "takingLongerThanExpected"
   },
   "parsedDiff": {
     "contents": "@@ -10,2 +10,2 @@ fn context()\n unchanged\n-before\n+after\n@@ -100,1 +100,1 @@\n-last\n+last line",
