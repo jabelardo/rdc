@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import type { RemoteState } from "../../stores/remote-store";
 import type { OperationProgressViewModel } from "../../operation-presentation";
-import { OperationProgressBody } from "../dialogs/operation-progress-dialog";
 import { Tooltip } from "../tooltip";
 
 type RepositoryToolbarProps = {
@@ -23,10 +22,10 @@ type RepositoryToolbarProps = {
   readonly canPull: boolean;
   /** A repository-scoped operation is active in this window or a peer window. */
   readonly operationLockActive?: boolean;
+  /** Active remote operation kind used only for toolbar activity animation. */
+  readonly operationViewModel?: OperationProgressViewModel;
   /** Summary shown when this window is observing a peer operation. */
   readonly operationPeerMessage?: string;
-  /** Native Fetch progress rendered in the non-modal toolbar surface. */
-  readonly operationViewModel?: OperationProgressViewModel;
   /** Prevents switching to stale history while a history-moving operation owns the repository. */
   readonly historyOperationActive?: boolean;
   readonly hasEditor: boolean;
@@ -68,13 +67,14 @@ export function RepositoryToolbar({
   onPush,
   onSelectView,
 }: RepositoryToolbarProps) {
-  const nativeRemoteOperation =
+  const displayedRemoteOperation =
     operationViewModel?.operation === "fetch" ||
     operationViewModel?.operation === "push" ||
-    operationViewModel?.operation === "pull";
-  const displayedRemoteOperation = nativeRemoteOperation ? operationViewModel.operation : null;
-  const status = nativeRemoteOperation ? null : remoteState.error;
-  const statusIsError = !nativeRemoteOperation && remoteState.error !== null;
+    operationViewModel?.operation === "pull"
+      ? operationViewModel.operation
+      : null;
+  const status = remoteState.error;
+  const statusIsError = remoteState.error !== null;
   const statusElement = (
     <p
       className={`repository-toolbar-status${statusIsError ? " is-error" : ""}`}
@@ -214,14 +214,6 @@ export function RepositoryToolbar({
           <p className="repository-toolbar-status" role="status">
             {operationPeerMessage}
           </p>
-        )}
-        {nativeRemoteOperation && operationViewModel !== undefined && (
-          <div
-            className="repository-toolbar-progress min-w-40 max-w-64"
-            aria-label={`${operationViewModel.operation} progress`}
-          >
-            <OperationProgressBody viewModel={operationViewModel} />
-          </div>
         )}
       </section>
       <nav

@@ -1148,9 +1148,10 @@ Push's native recovery path already distinguishes an accepted branch update from
 unconfirmed remote result: the former finishes as completed, while the latter emits a typed
 cancelled/timed-out error with `unknown` outcome and retains the lock until reconciliation finishes.
 
-Remote progress is rendered in the toolbar's embedded, non-modal surface for Fetch, Push and Pull,
-so a background Fetch does not block unrelated repository work. An automated background-task
-presentation assertion remains part of the final resilience coverage.
+Remote progress is now routed through the shared modal `OperationProgressDialog` for Fetch, Push
+and Pull; the toolbar retains only action state and peer-window status. This removes the obsolete
+embedded progress presentation. An automated background-task presentation assertion remains part
+of the final resilience coverage.
 
 Add automated coverage for this matrix:
 

@@ -261,6 +261,18 @@ export function AppDialogs({
 }: AppDialogsProps) {
   return (
     <>
+      {operationViewModel !== undefined &&
+        (operationViewModel.operation === "fetch" ||
+          operationViewModel.operation === "push" ||
+          operationViewModel.operation === "pull") && (
+          <OperationProgressDialog
+            viewModel={operationViewModel}
+            onCancel={onCancelOperation}
+            onAdoptCancellation={onAdoptCancellation}
+            onClose={onDismissOperation}
+          />
+        )}
+
       {commitLoading && hookFailure === null && (
         <OperationProgressDialog
           viewModel={operationViewModel?.operation === "commit" ? operationViewModel : undefined}
