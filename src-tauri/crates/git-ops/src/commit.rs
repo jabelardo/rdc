@@ -20,7 +20,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::{git, git_streaming, GitOptions};
+use crate::exec::{git, git_streaming_controlled, ExecutionControl, GitOptions};
 use crate::hooks::with_env::{with_hooks_env, HookSupport};
 use crate::multi_operation_terminal_output::MultiOperationTerminalOutput;
 use crate::reset::unstage_all;
@@ -175,7 +175,7 @@ pub async fn create_commit(
     options: CommitOptions,
     hooks: Option<&HookSupport>,
 ) -> Result<String, GitError> {
-    create_commit_inner(repository, message, files, options, hooks, None).await
+    create_commit_inner(repository, message, files, options, hooks, None, None).await
 }
 
 /// Creates a commit while capturing the commit process's combined stdout and stderr.
@@ -196,6 +196,32 @@ pub async fn create_commit_with_terminal_output(
         files,
         options,
         hooks,
+        None,
+        Some(terminal_output.clone()),
+    )
+    .await
+}
+
+/// Creates a commit with operation-owned process termination.
+///
+/// This is intentionally a separate entry point: callers must own the snapshot and recovery
+/// boundary before exposing cancellation to users.
+pub async fn create_commit_with_terminal_output_controlled(
+    repository: impl AsRef<Path>,
+    message: &str,
+    files: &[FileToStage],
+    options: CommitOptions,
+    hooks: Option<&HookSupport>,
+    terminal_output: &MultiOperationTerminalOutput,
+    control: ExecutionControl,
+) -> Result<String, GitError> {
+    create_commit_inner(
+        repository,
+        message,
+        files,
+        options,
+        hooks,
+        Some(control),
         Some(terminal_output.clone()),
     )
     .await
@@ -207,6 +233,7 @@ async fn create_commit_inner(
     files: &[FileToStage],
     options: CommitOptions,
     hooks: Option<&HookSupport>,
+    control: Option<ExecutionControl>,
     terminal_output: Option<MultiOperationTerminalOutput>,
 ) -> Result<String, GitError> {
     let repository = repository.as_ref();
@@ -259,17 +286,32 @@ async fn create_commit_inner(
 
             if let Some(terminal_output) = terminal_output {
                 let stdout = terminal_output.clone();
-                git_streaming(
+                git_streaming_controlled(
                     &args,
                     repository,
                     "createCommit",
                     git_options,
+                    control,
                     move |chunk| stdout.push(chunk),
                     move |chunk| terminal_output.push(chunk),
                 )
                 .await
             } else {
-                git(&args, repository, "createCommit", git_options).await
+                match control {
+                    Some(control) => {
+                        git_streaming_controlled(
+                            &args,
+                            repository,
+                            "createCommit",
+                            git_options,
+                            Some(control),
+                            |_| {},
+                            |_| {},
+                        )
+                        .await
+                    }
+                    None => git(&args, repository, "createCommit", git_options).await,
+                }
             }
         },
     )

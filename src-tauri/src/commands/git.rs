@@ -150,11 +150,12 @@ pub async fn create_commit(
     on_hook_failure: Channel<HookFailurePrompt>,
     on_terminal_output: Channel<String>,
 ) -> Result<String, CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
         GitOperationKind::Commit,
+        "Cancel commit",
     )
     .await?;
     let support = match support_for_operation(
@@ -185,18 +186,44 @@ pub async fn create_commit(
         // Losing the webview must not cancel a commit and leave the index in an unexpected state.
         let _ = on_terminal_output.send(chunk.to_owned());
     });
+    let snapshot = match git_ops::commit::get_commit_snapshot(&repository_path).await {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::RecoveryFailed,
+                    message: command_error.message.clone(),
+                    recoverable: false,
+                }),
+            );
+            return Err(command_error);
+        }
+    };
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let watchdog = registry.spawn_watchdog(
+        operation.id.clone(),
+        crate::operation_registry::WatchdogPolicy::default(),
+    );
 
     // `options` is optional so the frontend can omit it entirely, matching the original's
     // `options?: { … }`. Absent means every flag off.
-    let result = git_ops::commit::create_commit_with_terminal_output(
+    let result = git_ops::commit::create_commit_with_terminal_output_controlled(
         &repository_path,
         &message,
         &files,
         options.unwrap_or_default(),
         support.as_ref(),
         &terminal_output,
+        control,
     )
     .await;
+    watchdog.abort();
     match result {
         Ok(sha) => {
             let _ = registry.finish(
@@ -206,6 +233,16 @@ pub async fn create_commit(
                 None,
             );
             Ok(sha)
+        }
+        Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
+            finish_commit_termination(
+                &registry,
+                &operation.id,
+                &repository_path,
+                &snapshot,
+                reason,
+            )
+            .await
         }
         Err(error) => {
             let command_error = CommandError::from(error);
@@ -222,6 +259,76 @@ pub async fn create_commit(
             Err(command_error)
         }
     }
+}
+
+async fn finish_commit_termination(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    repository_path: &str,
+    snapshot: &git_ops::commit::CommitSnapshot,
+    reason: git_ops::TerminationReason,
+) -> Result<String, CommandError> {
+    let (state, kind, verb) = match reason {
+        git_ops::TerminationReason::Cancelled => (
+            OperationState::Cancelled,
+            OperationErrorKind::Cancelled,
+            "cancelled",
+        ),
+        git_ops::TerminationReason::TimedOut => (
+            OperationState::TimedOut,
+            OperationErrorKind::TimedOut,
+            "timed out",
+        ),
+    };
+    let completed = git_ops::commit::classify_commit_termination(repository_path, snapshot)
+        .await
+        .map_err(|error| finish_commit_recovery_failure(registry, operation_id, error))?;
+    if completed {
+        let sha = git_ops::get_head_sha(repository_path)
+            .await
+            .map_err(|error| finish_commit_recovery_failure(registry, operation_id, error))?;
+        let _ = registry.finish(
+            operation_id,
+            OperationState::Completed,
+            OperationOutcome::Completed,
+            None,
+        );
+        return Ok(sha);
+    }
+    git_ops::commit::restore_commit_snapshot(repository_path, snapshot)
+        .await
+        .map_err(|error| finish_commit_recovery_failure(registry, operation_id, error))?;
+    let message = format!("Commit {verb} and recovered");
+    let _ = registry.finish(
+        operation_id,
+        state,
+        OperationOutcome::Recovered,
+        Some(OperationError {
+            kind,
+            message: message.clone(),
+            recoverable: true,
+        }),
+    );
+    Err(CommandError::message(message))
+}
+
+fn finish_commit_recovery_failure(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    error: git_ops::GitError,
+) -> CommandError {
+    let message = error.to_string();
+    let _ = registry.finish(
+        operation_id,
+        OperationState::Failed,
+        OperationOutcome::Unknown,
+        Some(OperationError {
+            kind: OperationErrorKind::RecoveryFailed,
+            message: message.clone(),
+            recoverable: false,
+        }),
+    );
+    CommandError::message(message)
 }
 
 /// Stops a hook that is still running.
