@@ -91,6 +91,17 @@ describe("remoteEnablement", () => {
     ).toEqual({ canFetch: false, canPush: false, canPull: false });
   });
 
+  it("honors the native repository lock even before legacy remote state catches up", () => {
+    expect(
+      remoteEnablement({
+        hasSelection: true,
+        selectedRepositoryPath: repository.path,
+        remoteState: remoteState(),
+        repositoryOperationActive: true,
+      }),
+    ).toEqual({ canFetch: false, canPush: false, canPull: false });
+  });
+
   it("scales push and pull off the current branch and its upstream", () => {
     expect(
       remoteEnablement({

@@ -162,14 +162,15 @@ export function AppShell({ controller }: AppShellProps) {
   } = controller;
   const workspaceMinimum = appState.selectedRepository === null ? 490 : 560;
   const hasSelection = appState.selectedRepository !== null;
+  const operationLockActive =
+    operationState.operation !== null &&
+    !["completed", "cancelled", "timedOut", "failed"].includes(operationState.operation.state);
   const { canFetch, canPush, canPull } = remoteEnablement({
     hasSelection,
     selectedRepositoryPath: appState.selectedRepository?.path ?? null,
     remoteState,
+    repositoryOperationActive: operationLockActive,
   });
-  const operationLockActive =
-    operationState.operation !== null &&
-    !["completed", "cancelled", "timedOut", "failed"].includes(operationState.operation.state);
   const operationPeerMessage =
     operationLockActive && operationState.role === "observer"
       ? `${operationState.operation!.operation} in progress — Started in another window`

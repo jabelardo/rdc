@@ -10,6 +10,8 @@ export type RemoteEnablementInput = {
   readonly hasSelection: boolean;
   readonly selectedRepositoryPath: string | null;
   readonly remoteState?: RemoteState;
+  /** Native repository lock state; authoritative when present. */
+  readonly repositoryOperationActive?: boolean;
 };
 
 export function remoteEnablement(input: RemoteEnablementInput): RemoteEnablement {
@@ -19,7 +21,8 @@ export function remoteEnablement(input: RemoteEnablementInput): RemoteEnablement
     input.remoteState.repositoryPath === input.selectedRepositoryPath &&
     input.remoteState.currentRemote !== null &&
     !input.remoteState.loading &&
-    input.remoteState.operation === null;
+    input.remoteState.operation === null &&
+    input.repositoryOperationActive !== true;
   const canPush = canFetch && input.remoteState?.currentBranch !== null;
   const canPull = canPush && typeof input.remoteState?.currentBranch?.upstream === "string";
   return { canFetch, canPush, canPull };
