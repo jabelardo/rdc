@@ -1023,6 +1023,10 @@ Pull no longer starts a second Fetch from `RemoteStore`: native `pull_phased_con
 owns the Fetch/integration sequence, leaving the store responsible only for its post-operation
 remote-head and repository-facts refresh.
 
+Native Push now owns its follow-up Fetch under the same Push operation and publishes Fetch progress
+through the operation registry. `RemoteStore` skips its compatibility Fetch only for the real IPC
+Push implementation; injected transports continue to exercise the older two-call path.
+
 Coordinator acceptance boundary:
 
 - one repository-scoped native operation spans every selected Fetch transport and the Push/Pull

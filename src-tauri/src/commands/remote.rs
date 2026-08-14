@@ -342,7 +342,7 @@ pub async fn push(
         crate::operation_registry::WatchdogPolicy::default(),
     );
 
-    let result = git_ops::push::push_controlled(
+    let push_result = git_ops::push::push_controlled(
         &repository_path,
         PushTarget {
             remote_name: &remote_name,
@@ -358,9 +358,33 @@ pub async fn push(
             let _ = on_progress.send(progress);
         }),
         support.as_ref(),
-        Some(control),
+        Some(control.clone()),
     )
     .await;
+    let operation_id = operation.id.clone();
+    let operation_registry = registry.inner().clone();
+    let result = match push_result {
+        Ok(_) => {
+            git_ops::fetch::fetch_controlled(
+                &repository_path,
+                &remote_name,
+                &remote.env,
+                Some(|progress: FetchProgress| {
+                    let _ = operation_registry.publish_progress(
+                        &operation_id,
+                        OperationProgress {
+                            value: 0.65 + progress.value * 0.25,
+                            title: Some(format!("Fetching {remote_name}")),
+                            description: progress.description.clone(),
+                        },
+                    );
+                }),
+                Some(control),
+            )
+            .await
+        }
+        Err(error) => Err(error),
+    };
     watchdog.abort();
     match result {
         Ok(_) => {
@@ -371,6 +395,9 @@ pub async fn push(
                 None,
             );
             Ok(())
+        }
+        Err(git_ops::GitError::OperationTerminated { name, reason, .. }) if name == "fetch" => {
+            Err(recover_terminated_fetch(&registry, &operation.id, &repository_path, reason).await)
         }
         Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
             Err(reconcile_terminated_push(

@@ -483,23 +483,35 @@ export class RemoteStore {
         false,
       );
 
-      await this.dependencies.fetch(
-        repositoryPath,
-        currentRemote.name,
-        (progress) => {
-          if (this.isCurrentOperation(requestID, operationID)) {
-            this.update({
-              ...this.currentState,
-              progress: {
-                ...progress,
-                title: `Fetching ${currentRemote.name}`,
-                value: aggregatePhaseProgress(pushWeight, fetchWeight, progress.value),
-              },
-            });
-          }
-        },
-        false,
-      );
+      if (this.dependencies.push === pushRemote) {
+        this.update({
+          ...this.currentState,
+          progress: {
+            kind: "generic",
+            title: `Fetching ${currentRemote.name}`,
+            description: "Refreshing remote references",
+            value: pushWeight + fetchWeight,
+          },
+        });
+      } else {
+        await this.dependencies.fetch(
+          repositoryPath,
+          currentRemote.name,
+          (progress) => {
+            if (this.isCurrentOperation(requestID, operationID)) {
+              this.update({
+                ...this.currentState,
+                progress: {
+                  ...progress,
+                  title: `Fetching ${currentRemote.name}`,
+                  value: aggregatePhaseProgress(pushWeight, fetchWeight, progress.value),
+                },
+              });
+            }
+          },
+          false,
+        );
+      }
       await this.updateRemoteHeadQuietly(repositoryPath, currentRemote.name);
 
       if (!this.isCurrentOperation(requestID, operationID)) {
