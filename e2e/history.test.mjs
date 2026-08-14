@@ -146,8 +146,14 @@ describe("history", () => {
       until.elementLocated(By.css('[aria-label="Select History operation newest"]')),
       10_000,
     );
-    await driver.findElement(By.css('[aria-label="Select History operation newest"]')).click();
-    await driver.findElement(By.css('[aria-label="Select History operation middle"]')).click();
+    await driver.executeScript(
+      (element) => element.click(),
+      await driver.findElement(By.css('[aria-label="Select History operation newest"]')),
+    );
+    await driver.executeScript(
+      (element) => element.click(),
+      await driver.findElement(By.css('[aria-label="Select History operation middle"]')),
+    );
 
     const squash = await driver.findElement(
       By.xpath("//button[normalize-space()='Squash selected']"),
@@ -163,6 +169,51 @@ describe("history", () => {
         .findElement(By.xpath("//button[normalize-space()='Reorder selected']"))
         .isEnabled(),
       true,
+    );
+
+    await driver.executeScript(() => {
+      window.confirm = () => true;
+    });
+    await driver.executeScript(
+      (element) => element.click(),
+      await driver.findElement(By.css('[aria-label="Select History operation middle"]')),
+    );
+    await driver.executeScript(
+      (element) => element.click(),
+      await driver.findElement(By.css('[aria-label="Select Commit from the real shell"]')),
+    );
+    await driver.executeScript(
+      (element) => element.click(),
+      await driver.findElement(By.xpath("//button[normalize-space()='Reorder selected']")),
+    );
+    await driver.wait(
+      () =>
+        git(fixture.canonical, "log", "-3", "--pretty=%s") ===
+        "History operation newest\nCommit from the real shell\nHistory operation middle",
+      10_000,
+      "reorder did not move the selected commits to the end",
+    );
+
+    await driver.wait(
+      until.elementLocated(By.css('[aria-label="Select History operation newest"]')),
+      10_000,
+    );
+    await driver.executeScript(
+      (element) => element.click(),
+      await driver.findElement(By.css('[aria-label="Select History operation newest"]')),
+    );
+    await driver.executeScript(
+      (element) => element.click(),
+      await driver.findElement(By.css('[aria-label="Select Commit from the real shell"]')),
+    );
+    await driver.executeScript(
+      (element) => element.click(),
+      await driver.findElement(By.xpath("//button[normalize-space()='Squash selected']")),
+    );
+    await driver.wait(
+      () => git(fixture.canonical, "rev-list", "--count", "HEAD") === "2",
+      10_000,
+      "squash did not reduce the history to two commits",
     );
   });
 });
