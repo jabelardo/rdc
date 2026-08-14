@@ -554,11 +554,12 @@ pub async fn merge_branch(
     on_hook_progress: Channel<HookProgressUpdate>,
     on_hook_failure: Channel<HookFailurePrompt>,
 ) -> Result<MergeResult, CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
         GitOperationKind::Merge,
+        "Cancel merge",
     )
     .await?;
     let support = match support_for_operation(
@@ -585,13 +586,23 @@ pub async fn merge_branch(
         }
     };
 
-    let result = git_ops::merge::merge(
+    let options = options.unwrap_or_default();
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let pre_operation_head = git_ops::get_head_sha(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
+    let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
+    let result = git_ops::merge::merge_controlled(
         &repository_path,
         &branch,
-        options.unwrap_or_default(),
+        options,
         support.as_ref(),
+        Some(control),
     )
     .await;
+    watchdog.abort();
     match result {
         Ok(MergeResult::Failed) => {
             let _ = registry.enter_recovery(&operation.id);
@@ -605,6 +616,17 @@ pub async fn merge_branch(
                 None,
             );
             Ok(result)
+        }
+        Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
+            recover_merge_termination(
+                &registry,
+                &operation.id,
+                &repository_path,
+                &pre_operation_head,
+                options.squash,
+                reason,
+            )
+            .await
         }
         Err(error) => {
             let command_error = CommandError::from(error);
@@ -621,6 +643,106 @@ pub async fn merge_branch(
             Err(command_error)
         }
     }
+}
+
+pub(crate) async fn recover_merge_termination(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    repository_path: &str,
+    pre_operation_head: &str,
+    squash: bool,
+    reason: git_ops::TerminationReason,
+) -> Result<MergeResult, CommandError> {
+    // Plain merges expose MERGE_HEAD; squash merges intentionally do not, and leave SQUASH_MSG
+    // plus index/worktree state instead. Only recover inside the marker belonging to this phase.
+    let in_progress = if squash {
+        git_ops::merge::is_squash_merge_in_progress(repository_path).await
+    } else {
+        let git_dir = git_ops::rev_parse::resolve_git_dir(repository_path)
+            .await
+            .map_err(|error| finish_merge_recovery_failure(registry, operation_id, error))?;
+        Ok(git_ops::operation_state::is_merge_head_set(git_dir).await)
+    }
+    .map_err(|error| finish_merge_recovery_failure(registry, operation_id, error))?;
+
+    if !in_progress {
+        let current_head = git_ops::get_head_sha(repository_path)
+            .await
+            .map_err(|error| finish_merge_recovery_failure(registry, operation_id, error))?;
+        if current_head != pre_operation_head {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            return Ok(MergeResult::Success);
+        }
+
+        let (state, kind, verb) = merge_termination_details(reason);
+        let message = format!("Merge {verb} before it changed the repository");
+        let _ = registry.finish(
+            operation_id,
+            state,
+            OperationOutcome::Unchanged,
+            Some(OperationError {
+                kind,
+                message: message.clone(),
+                recoverable: true,
+            }),
+        );
+        return Err(CommandError::message(message));
+    }
+
+    let recovery = if squash {
+        git_ops::merge::abort_squash_merge(repository_path).await
+    } else {
+        git_ops::merge::abort_merge(repository_path).await
+    };
+    match recovery {
+        Ok(()) => {
+            let (state, _, verb) = merge_termination_details(reason);
+            let _ = registry.finish(operation_id, state, OperationOutcome::Recovered, None);
+            Err(CommandError::message(format!("Merge {verb} and recovered")))
+        }
+        Err(error) => Err(finish_merge_recovery_failure(registry, operation_id, error)),
+    }
+}
+
+fn merge_termination_details(
+    reason: git_ops::TerminationReason,
+) -> (OperationState, OperationErrorKind, &'static str) {
+    match reason {
+        git_ops::TerminationReason::Cancelled => (
+            OperationState::Cancelled,
+            OperationErrorKind::Cancelled,
+            "cancelled",
+        ),
+        git_ops::TerminationReason::TimedOut => (
+            OperationState::TimedOut,
+            OperationErrorKind::TimedOut,
+            "timed out",
+        ),
+    }
+}
+
+fn finish_merge_recovery_failure(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    error: git_ops::GitError,
+) -> CommandError {
+    let message = error.to_string();
+    let _ = registry.finish(
+        operation_id,
+        OperationState::Failed,
+        OperationOutcome::Unknown,
+        Some(OperationError {
+            kind: OperationErrorKind::RecoveryFailed,
+            message: message.clone(),
+            recoverable: false,
+        }),
+    );
+    CommandError::message(message)
 }
 
 /// Returns the common ancestor of two refs, or `None` when there isn't one or a ref is missing.
@@ -644,7 +766,12 @@ pub async fn abort_merge(
     let operation =
         crate::commands::operation::active_repository_operation(&registry, &repository_path)
             .await?;
-    let result = git_ops::merge::abort_merge(&repository_path).await;
+    let squash = git_ops::merge::is_squash_merge_in_progress(&repository_path).await;
+    let result = match squash {
+        Ok(true) => git_ops::merge::abort_squash_merge(&repository_path).await,
+        Ok(false) => git_ops::merge::abort_merge(&repository_path).await,
+        Err(error) => Err(error),
+    };
     match result {
         Ok(()) => {
             if let Some(operation) = operation {
@@ -1481,6 +1608,26 @@ mod termination_tests {
             )
         );
     }
+
+    #[test]
+    fn classifies_merge_cancellation_and_timeout() {
+        assert_eq!(
+            merge_termination_details(git_ops::TerminationReason::Cancelled),
+            (
+                OperationState::Cancelled,
+                OperationErrorKind::Cancelled,
+                "cancelled"
+            )
+        );
+        assert_eq!(
+            merge_termination_details(git_ops::TerminationReason::TimedOut),
+            (
+                OperationState::TimedOut,
+                OperationErrorKind::TimedOut,
+                "timed out"
+            )
+        );
+    }
 }
 
 #[cfg(test)]
@@ -1643,5 +1790,232 @@ mod rebase_recovery_tests {
                 repository_path: repository_path.clone(),
             })
             .is_none());
+    }
+}
+
+#[cfg(test)]
+mod merge_recovery_tests {
+    use super::*;
+    use crate::operation::{CancellationCapability, OperationScope};
+    use crate::operation_registry::OperationRegistry;
+    use std::path::Path;
+    use std::process::Command;
+
+    fn run_git(repository: &Path, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(repository)
+            .output()
+            .expect("git should start");
+        assert!(
+            output.status.success(),
+            "git {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_owned()
+    }
+
+    fn run_git_allowing_failure(repository: &Path, args: &[&str]) -> std::process::Output {
+        Command::new("git")
+            .args(args)
+            .current_dir(repository)
+            .output()
+            .expect("git should start")
+    }
+
+    fn base_repository() -> (tempfile::TempDir, String) {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        run_git(directory.path(), &["init", "-q", "-b", "main"]);
+        run_git(directory.path(), &["config", "user.name", "Slice 14 Test"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "slice14@example.test"],
+        );
+        std::fs::write(directory.path().join("file.txt"), "base\n")
+            .expect("base file should be written");
+        run_git(directory.path(), &["add", "."]);
+        run_git(directory.path(), &["commit", "-qm", "base"]);
+        run_git(directory.path(), &["branch", "feature"]);
+        run_git(directory.path(), &["checkout", "-q", "feature"]);
+        std::fs::write(directory.path().join("file.txt"), "feature\n")
+            .expect("feature file should be written");
+        run_git(directory.path(), &["commit", "-qam", "feature change"]);
+        run_git(directory.path(), &["checkout", "-q", "main"]);
+        let original_head = run_git(directory.path(), &["rev-parse", "HEAD"]);
+        (directory, original_head)
+    }
+
+    fn conflicted_merge_repository() -> (tempfile::TempDir, String) {
+        let (directory, _) = base_repository();
+        std::fs::write(directory.path().join("file.txt"), "main\n")
+            .expect("main file should be written");
+        run_git(directory.path(), &["commit", "-qam", "main change"]);
+        let original_head = run_git(directory.path(), &["rev-parse", "HEAD"]);
+        let merge = run_git_allowing_failure(directory.path(), &["merge", "feature"]);
+        assert!(!merge.status.success(), "merge should stop with a conflict");
+        (directory, original_head)
+    }
+
+    fn start_merge_operation(registry: &OperationRegistry, repository_path: &str) -> String {
+        registry
+            .start(
+                OperationScope::Repository {
+                    lock_key: repository_path.to_owned(),
+                    repository_path: repository_path.to_owned(),
+                },
+                Some("test-window".to_owned()),
+                GitOperationKind::Merge,
+                CancellationCapability::Available {
+                    label: "Cancel merge".to_owned(),
+                },
+            )
+            .expect("merge operation should reserve the repository")
+            .id
+    }
+
+    #[tokio::test]
+    async fn command_recovery_aborts_a_conflicted_merge_and_restores_the_worktree() {
+        let (directory, original_head) = conflicted_merge_repository();
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation_id = start_merge_operation(&registry, &repository_path);
+
+        let result = recover_merge_termination(
+            &registry,
+            &operation_id,
+            &repository_path,
+            &original_head,
+            false,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await;
+
+        assert!(result.is_err(), "cancellation should be reported");
+        assert_eq!(
+            run_git(directory.path(), &["rev-parse", "HEAD"]),
+            original_head
+        );
+        assert_eq!(
+            std::fs::read_to_string(directory.path().join("file.txt"))
+                .expect("worktree file should be readable"),
+            "main\n"
+        );
+        assert!(
+            run_git_allowing_failure(directory.path(), &["diff", "--quiet"])
+                .status
+                .success()
+        );
+        assert!(
+            run_git_allowing_failure(directory.path(), &["diff", "--cached", "--quiet"])
+                .status
+                .success()
+        );
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path: repository_path.clone(),
+            })
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn command_recovery_aborts_a_squash_merge_without_moving_head() {
+        let (directory, original_head) = base_repository();
+        run_git(directory.path(), &["merge", "--squash", "feature"]);
+        assert!(
+            git_ops::merge::is_squash_merge_in_progress(directory.path())
+                .await
+                .expect("squash state should be readable")
+        );
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation_id = start_merge_operation(&registry, &repository_path);
+
+        let result = recover_merge_termination(
+            &registry,
+            &operation_id,
+            &repository_path,
+            &original_head,
+            true,
+            git_ops::TerminationReason::TimedOut,
+        )
+        .await;
+
+        assert!(result.is_err(), "timeout should be reported");
+        assert_eq!(
+            run_git(directory.path(), &["rev-parse", "HEAD"]),
+            original_head
+        );
+        assert_eq!(
+            std::fs::read_to_string(directory.path().join("file.txt"))
+                .expect("worktree file should be readable"),
+            "base\n"
+        );
+        assert!(
+            run_git_allowing_failure(directory.path(), &["status", "--porcelain"])
+                .stdout
+                .is_empty()
+        );
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path: repository_path.clone(),
+            })
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn command_recovery_treats_a_fast_forward_race_as_completed() {
+        let (directory, original_head) = base_repository();
+        run_git(directory.path(), &["merge", "--ff-only", "feature"]);
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation_id = start_merge_operation(&registry, &repository_path);
+
+        let result = recover_merge_termination(
+            &registry,
+            &operation_id,
+            &repository_path,
+            &original_head,
+            false,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await
+        .expect("a changed HEAD should win the cancellation race");
+
+        assert_eq!(result, MergeResult::Success);
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path: repository_path.clone(),
+            })
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn command_recovery_retains_the_lock_when_state_cannot_be_read() {
+        let directory = tempfile::tempdir().expect("temporary directory should be created");
+        let repository_path = directory.path().join("missing");
+        let repository_path = repository_path.to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation_id = start_merge_operation(&registry, &repository_path);
+
+        assert!(recover_merge_termination(
+            &registry,
+            &operation_id,
+            &repository_path,
+            "0000000000000000000000000000000000000000",
+            false,
+            git_ops::TerminationReason::TimedOut,
+        )
+        .await
+        .is_err());
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path: repository_path.clone(),
+            })
+            .is_some());
     }
 }

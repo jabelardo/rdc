@@ -19,7 +19,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::{git, GitOptions};
+use crate::exec::{git, git_streaming_controlled, ExecutionControl, GitOptions};
 use crate::git_error_kind::GitErrorKind;
 use crate::hooks::with_env::{with_hooks_env, HookSupport};
 
@@ -49,6 +49,20 @@ pub async fn merge(
     options: MergeOptions,
     hooks: Option<&HookSupport>,
 ) -> Result<MergeResult, GitError> {
+    merge_controlled(repository, branch, options, hooks, None).await
+}
+
+/// Merges `branch` while allowing the owning operation to terminate Git and its descendants.
+///
+/// A squash merge has two Git phases (`merge --squash`, then `commit`), so the same control is
+/// passed to both. The command layer must inspect which phase left state before choosing recovery.
+pub async fn merge_controlled(
+    repository: impl AsRef<Path>,
+    branch: &str,
+    options: MergeOptions,
+    hooks: Option<&HookSupport>,
+    control: Option<ExecutionControl>,
+) -> Result<MergeResult, GitError> {
     let repository = repository.as_ref();
     let mut args = vec!["merge"];
     if options.squash {
@@ -64,6 +78,7 @@ pub async fn merge(
     // `--squash` leaves the commit to a second invocation which is a commit in every way that matters.
     let merge_hooks =
         hooks.map(|support| support.intercepting(["pre-merge-commit", "post-merge", "commit-msg"]));
+    let merge_control = control.clone();
 
     let output = with_hooks_env(
         repository,
@@ -76,7 +91,16 @@ pub async fn merge(
                 git_options = git_options.with_env(name, value);
             }
 
-            git(&args, repository, "merge", git_options).await
+            git_streaming_controlled(
+                &args,
+                repository,
+                "merge",
+                git_options,
+                merge_control,
+                |_| {},
+                |_| {},
+            )
+            .await
         },
     )
     .await??;
@@ -106,11 +130,14 @@ pub async fn merge(
                     git_options = git_options.with_env(name, value);
                 }
 
-                git(
+                git_streaming_controlled(
                     &["commit", "--no-edit"],
                     repository,
                     "createSquashMergeCommit",
                     git_options,
+                    control.clone(),
+                    |_| {},
+                    |_| {},
                 )
                 .await
             },
@@ -157,6 +184,35 @@ pub async fn abort_merge(repository: impl AsRef<Path>) -> Result<(), GitError> {
         &["merge", "--abort"],
         repository,
         "abortMerge",
+        GitOptions::default(),
+    )
+    .await?;
+    Ok(())
+}
+
+/// Returns whether a squash merge left its temporary message and index/worktree state behind.
+pub async fn is_squash_merge_in_progress(repository: impl AsRef<Path>) -> Result<bool, GitError> {
+    let git_dir = crate::rev_parse::resolve_git_dir(repository).await?;
+    Ok(tokio::fs::metadata(git_dir.join("SQUASH_MSG"))
+        .await
+        .is_ok())
+}
+
+/// Restores the pre-squash index and worktree without resetting an unrelated branch tip.
+pub async fn abort_squash_merge(repository: impl AsRef<Path>) -> Result<(), GitError> {
+    if !is_squash_merge_in_progress(&repository).await? {
+        return Err(GitError::UnexpectedExitCode {
+            name: "abortSquashMerge".to_owned(),
+            path: repository.as_ref().to_owned(),
+            exit_code: 1,
+            kind: Some(GitErrorKind::NoMergeToAbort),
+            stderr: "There is no squash merge to abort".to_owned(),
+        });
+    }
+    git(
+        &["reset", "--merge", "HEAD"],
+        repository,
+        "abortSquashMerge",
         GitOptions::default(),
     )
     .await?;

@@ -735,6 +735,12 @@ Linux-container regression gates pass together.
 
 **Goal:** stop an active merge without racing `merge --abort` against the original process.
 
+**Progress:** complete. Merge now runs through controlled process execution, exposes a cancellable
+`Cancel merge` operation, starts a watchdog, and distinguishes ordinary merge state from the
+squash-merge pre-commit state. Termination recovery aborts the appropriate state, preserves an
+advanced `HEAD` as completed, reports unchanged termination when no state was created, and retains
+the repository lock when conflict-state inspection or recovery fails.
+
 After termination:
 
 - if `MERGE_HEAD` exists, run `merge --abort` and refresh;
@@ -742,7 +748,11 @@ After termination:
 - if neither is true, verify the index/worktree before reporting unchanged;
 - if a squash merge is between merge and commit stages, use a distinct recovery policy.
 
-**Exit:** tests cover clean merge, conflict, fast-forward race, squash pre-commit and recovery failure.
+**Exit:** complete. Native merge tests cover clean merge and conflict reporting. Command-layer
+tests cover conflicted-merge restoration, fast-forward completion races, squash pre-commit
+recovery, cancellation/timeout classification, and recovery failure with lock retention. The
+frontend cancellation affordance remains part of Slice 16's unified progress presentation; this
+slice establishes the native cancellation and recovery contract it will consume.
 
 ## Slice 15 — Resolve risky operation policies
 
