@@ -217,6 +217,20 @@ describe("OperationStore", () => {
     expect(store.state.error?.message).toBe("recovery failed");
   });
 
+  it("dismisses a terminal operation after its outcome is presented", async () => {
+    const store = new OperationStore("window-a", {
+      getScope: vi.fn().mockResolvedValue(record("operation-1", "window-a").scope),
+      getActive: vi.fn().mockResolvedValue(record("operation-1", "window-a", "completed")),
+      listen: vi.fn().mockResolvedValue(() => {}),
+    });
+    await store.selectRepository("/repo-a");
+
+    store.dismissTerminalOperation();
+
+    expect(store.state.operation).toBeNull();
+    expect(store.state.repositoryPath).toBe("/repo-a");
+  });
+
   it("isolates selection changes and cleanup", async () => {
     const cleanups = [vi.fn(), vi.fn()];
     let selection = 0;
