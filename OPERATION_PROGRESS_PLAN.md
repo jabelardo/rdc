@@ -759,11 +759,12 @@ slice establishes the native cancellation and recovery contract it will consume.
 Do not expose cancellation for these operations until their individual policy is implemented and
 tested.
 
-**Progress:** in progress. Push now has a controlled runner and a `Stop waiting` capability. After
+**Progress:** complete. Push now has a controlled runner and a `Stop waiting` capability. After
 termination, branch and requested tag pushes are reconciled with direct `ls-remote` queries: matching
 remote SHAs are reported as completed, while a failed or inconclusive query reports
-`outcome: unknown`. Pull and Checkout now have native stop and recovery policies. Commit remains
-explicitly non-cancellable until its own snapshot and completion policy is implemented.
+`outcome: unknown`. Pull, Checkout and Commit now have native stop and recovery policies. Commit’s
+generic user-facing cancellation remains unavailable until Slice 16 supplies the capability-aware
+unified presentation; hook cancellation remains independently available.
 
 Push policy is complete for branch and tag refs, including local-remote reconciliation coverage.
 Pull is now split internally into explicit phases, and the native Pull runner now:
@@ -859,10 +860,12 @@ Implementation order:
   advancing `HEAD`.
   Recovery now fails closed when Git state cannot be inspected, retaining the repository lock; this
   boundary is covered by a command-level test.
-  The user-facing Commit cancellation capability remains unavailable until a native blocked-process
-  test covers the actual watchdog/termination path and recovery-failure handling.
+  The native Commit policy is complete: blocked-process, late-completion, unchanged-index,
+  watchdog/termination and recovery-failure boundaries are covered. The user-facing capability stays
+  unavailable until the unified progress presentation can render its explicit policy safely.
 - After termination, inspect whether `HEAD` advanced before deciding to restore.
-- Keep general cancellation unavailable until staged state and completion races are proven.
+- Keep the generic user-facing cancellation affordance unavailable until Slice 16 wires the explicit
+  Commit capability into the unified progress presentation.
 - Hook cancellation remains independently available through Slice 12.
 
 **Exit:** every progress-producing operation has an explicit supported, unavailable or

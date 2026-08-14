@@ -536,6 +536,55 @@ mod tests {
         );
     }
 
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn controlled_commit_terminates_a_blocked_hook_before_commit() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::time::Duration;
+
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "README.md", "initial\n", "initial");
+        std::fs::write(repo.path().join("README.md"), "changed\n").expect("write should succeed");
+        let hooks = repo.path().join(".git/hooks");
+        std::fs::create_dir_all(&hooks).expect("hooks directory should exist");
+        let hook = hooks.join("pre-commit");
+        std::fs::write(&hook, "#!/bin/sh\nsleep 30\n").expect("blocking hook should be written");
+        std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755))
+            .expect("hook should be executable");
+        let original_head = crate::rev_parse::get_head_sha(repo.path())
+            .await
+            .expect("HEAD should resolve");
+        let control = ExecutionControl::new();
+        let task_control = control.clone();
+        let repository = repo.path().to_path_buf();
+        let task = tokio::spawn(async move {
+            create_commit_with_terminal_output_controlled(
+                repository,
+                "blocked",
+                &[FileToStage::new("README.md")],
+                CommitOptions::default(),
+                None,
+                &MultiOperationTerminalOutput::default(),
+                task_control,
+            )
+            .await
+        });
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        control.cancel(crate::error::TerminationReason::Cancelled);
+        let result = tokio::time::timeout(Duration::from_secs(5), task)
+            .await
+            .expect("blocked commit should terminate")
+            .expect("commit task should not panic");
+
+        assert!(matches!(result, Err(GitError::OperationTerminated { .. })));
+        assert_eq!(
+            crate::rev_parse::get_head_sha(repo.path())
+                .await
+                .expect("HEAD should resolve"),
+            original_head
+        );
+    }
+
     #[tokio::test]
     async fn commits_the_given_files() {
         let repo = empty_repository().await;
