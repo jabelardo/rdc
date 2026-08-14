@@ -955,6 +955,14 @@ mod tests {
     use super::*;
     use crate::test_support::{empty_repository, fixture_repository};
 
+    /// How long a cancellation test waits for the process tree to be reaped.
+    ///
+    /// The blocked helper sleeps for 30 seconds, so anything well under that still proves
+    /// termination rather than completion. It used to be 2 seconds, which is fine in isolation —
+    /// these finish in under 200ms — but `cargo test --workspace` runs them alongside every other
+    /// test in the workspace, and one of them timed out purely from scheduling pressure.
+    const CANCELLATION_BUDGET: Duration = Duration::from_secs(10);
+
     #[tokio::test]
     async fn classifies_a_recognized_failure_on_the_error() {
         let repo = empty_repository().await;
@@ -1250,7 +1258,7 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(50)).await;
         cancellation.cancel(TerminationReason::Cancelled);
-        let result = tokio::time::timeout(Duration::from_secs(2), task)
+        let result = tokio::time::timeout(CANCELLATION_BUDGET, task)
             .await
             .expect("cancellation should reap the process group")
             .expect("test task should not panic");
@@ -1288,7 +1296,7 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(50)).await;
         cancellation.cancel(TerminationReason::Cancelled);
-        let result = tokio::time::timeout(Duration::from_secs(2), task)
+        let result = tokio::time::timeout(CANCELLATION_BUDGET, task)
             .await
             .expect("LFS cancellation should finish")
             .expect("test task should not panic");
@@ -1334,7 +1342,7 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
         cancellation.cancel(TerminationReason::Cancelled);
-        let result = tokio::time::timeout(Duration::from_secs(2), task)
+        let result = tokio::time::timeout(CANCELLATION_BUDGET, task)
             .await
             .expect("pipe-pressure cancellation should not deadlock")
             .expect("test task should not panic");
