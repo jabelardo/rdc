@@ -12,6 +12,8 @@ import {
   Terminal,
 } from "lucide-react";
 import type { RemoteState } from "../../stores/remote-store";
+import type { OperationProgressViewModel } from "../../operation-presentation";
+import { OperationProgressBody } from "../dialogs/operation-progress-dialog";
 import { Tooltip } from "../tooltip";
 
 type RepositoryToolbarProps = {
@@ -23,6 +25,8 @@ type RepositoryToolbarProps = {
   readonly operationLockActive?: boolean;
   /** Summary shown when this window is observing a peer operation. */
   readonly operationPeerMessage?: string;
+  /** Native Fetch progress rendered in the non-modal toolbar surface. */
+  readonly operationViewModel?: OperationProgressViewModel;
   /** Prevents switching to stale history while a history-moving operation owns the repository. */
   readonly historyOperationActive?: boolean;
   readonly hasEditor: boolean;
@@ -48,6 +52,7 @@ export function RepositoryToolbar({
   canPull,
   operationLockActive = false,
   operationPeerMessage,
+  operationViewModel,
   historyOperationActive = false,
   hasEditor,
   hasShell,
@@ -210,6 +215,14 @@ export function RepositoryToolbar({
           <p className="repository-toolbar-status" role="status">
             {operationPeerMessage}
           </p>
+        )}
+        {operationViewModel?.operation === "fetch" && (
+          <div
+            className="repository-toolbar-progress min-w-40 max-w-64"
+            aria-label="Fetch progress"
+          >
+            <OperationProgressBody viewModel={operationViewModel} />
+          </div>
         )}
       </section>
       <nav

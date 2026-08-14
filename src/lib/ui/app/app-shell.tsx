@@ -275,6 +275,9 @@ export function AppShell({ controller }: AppShellProps) {
               canPull={canPull}
               operationLockActive={operationLockActive}
               operationPeerMessage={operationPeerMessage}
+              operationViewModel={
+                operationViewModel?.operation === "fetch" ? operationViewModel : undefined
+              }
               historyOperationActive={historyOperationActive}
               hasEditor={preferencesStore.selectedEditor !== null}
               hasShell={preferencesStore.selectedShell !== null}

@@ -963,7 +963,9 @@ Accessibility:
 
 Migrate incrementally to the operation record and shared presentation:
 
-1. Fetch pilot.
+1. Fetch pilot. **In progress:** the toolbar now renders the native Fetch record through the shared
+   non-modal `OperationProgressBody`; legacy remote-store progress remains as the refresh/error
+   compatibility path until the remaining producers migrate.
 2. Clone.
 3. Rebase.
 4. Commit and hook handoff.
