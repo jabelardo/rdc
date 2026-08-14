@@ -130,7 +130,11 @@ while [ ! -e '${pushRelease}' ]; do sleep 0.01; done
       "Push did not become available for cancellation",
     );
     await driver.executeScript((element) => element.click(), pushButton);
-    await driver.wait(() => existsSync(pushReady), 10_000, "Push did not reach its pre-push barrier");
+    await driver.wait(
+      () => existsSync(pushReady),
+      10_000,
+      "Push did not reach its pre-push barrier",
+    );
 
     const operation = await driver.wait(
       async () =>

@@ -16,9 +16,7 @@ export function remoteWorkflowPhase(
   phase: "transport" | "fetch" | "refresh",
 ): RemoteWorkflowPhase {
   if (operation === "fetch") {
-    return phase === "refresh"
-      ? { offset: 0.9, weight: 0.1 }
-      : { offset: 0, weight: 0.9 };
+    return phase === "refresh" ? { offset: 0.9, weight: 0.1 } : { offset: 0, weight: 0.9 };
   }
 
   if (phase === "transport") {

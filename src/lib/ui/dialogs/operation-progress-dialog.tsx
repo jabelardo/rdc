@@ -28,8 +28,7 @@ export type OperationProgressDialogProps = {
   /** Capitalized operation name; the title reads "<operation> in progress". */
   readonly operation?: string;
   /** Any git progress event: a 0–1 value plus title and description where git provides them. */
-  readonly progress?: Pick<IProgress, "value"> &
-    Partial<Pick<IProgress, "title" | "description">>;
+  readonly progress?: Pick<IProgress, "value"> & Partial<Pick<IProgress, "title" | "description">>;
   /** Which commit a multi-commit operation is applying, shown as "commit N of M" + summary. */
   readonly currentCommit?: OperationProgressCommit;
   /** Extra content mounted under the status, e.g. hook terminal output for a commit. */
@@ -64,22 +63,21 @@ function legacyViewModel(
   | "progress"
   | "statusText"
   | "contextText"
-    | "cancellationAvailable"
-    | "cancellationLabel"
-    | "adoptionAvailable"
-    | "adoptionLabel"
-    | "error"
-    | "outcome"
-    | "role"
-    | "recoveryRequired"
-    | "retryAvailable"
+  | "cancellationAvailable"
+  | "cancellationLabel"
+  | "adoptionAvailable"
+  | "adoptionLabel"
+  | "error"
+  | "outcome"
+  | "role"
+  | "recoveryRequired"
+  | "retryAvailable"
 > {
   return {
     operationLabel: operation,
     state: "running" as OperationState,
     progress: progress ?? { value: 0 },
-    statusText:
-      progress?.description ?? progress?.title ?? `${operation} in progress`,
+    statusText: progress?.description ?? progress?.title ?? `${operation} in progress`,
     contextText: null,
     cancellationAvailable: false,
     cancellationLabel: null,
@@ -113,8 +111,7 @@ export function OperationProgressBody({
 }: OperationProgressBodyProps) {
   const value = Math.max(0, Math.min(1, viewModel.progress.value));
   const statusLine = progressStatusLine(viewModel, currentCommit);
-  const showSeparateError =
-    viewModel.error !== null && viewModel.error.message !== statusLine;
+  const showSeparateError = viewModel.error !== null && viewModel.error.message !== statusLine;
 
   return (
     <div className="grid gap-3">
@@ -159,8 +156,7 @@ export function OperationProgressDialog({
   onRetry,
   onClose,
 }: OperationProgressDialogProps) {
-  const model =
-    viewModel ?? legacyViewModel(operation ?? "Operation", progress);
+  const model = viewModel ?? legacyViewModel(operation ?? "Operation", progress);
   const terminal = ["completed", "cancelled", "timedOut", "failed"].includes(model.state);
   const title = terminal ? `${model.operationLabel}` : `${model.operationLabel} in progress`;
   const closeButton = useRef<HTMLButtonElement>(null);

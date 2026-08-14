@@ -97,10 +97,7 @@ export class CloneStore {
     try {
       try {
         unlisten = await this.dependencies.listen((event) => {
-          if (
-            operationID === this.operationID &&
-            trackedNativeOperationID === event.record.id
-          ) {
+          if (operationID === this.operationID && trackedNativeOperationID === event.record.id) {
             this.update({ ...this.currentState, nativeOperation: event.record });
           }
         });

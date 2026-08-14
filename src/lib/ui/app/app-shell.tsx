@@ -12,10 +12,7 @@ import { RepositoryToolbar } from "./repository-toolbar";
 import type { AppController } from "./use-app-controller";
 import { WindowDragStrip } from "./window-drag-strip";
 import { remoteEnablement } from "../../remote-enablement";
-import {
-  isHistoryMovingOperation,
-  operationProgressViewModel,
-} from "../../operation-presentation";
+import { isHistoryMovingOperation, operationProgressViewModel } from "../../operation-presentation";
 
 type AppShellProps = {
   readonly controller: AppController;
@@ -183,11 +180,7 @@ export function AppShell({ controller }: AppShellProps) {
   const operationViewModel =
     operationState.operation === null
       ? undefined
-      : operationProgressViewModel(
-          operationState.operation,
-          "",
-          operationState.role ?? "observer",
-        );
+      : operationProgressViewModel(operationState.operation, "", operationState.role ?? "observer");
 
   return (
     <main
@@ -329,7 +322,7 @@ export function AppShell({ controller }: AppShellProps) {
                   (operationViewModel.operation === "cherryPick" ||
                     operationViewModel.operation === "revert")
                     ? operationViewModel.operation
-                    : conflictState.recoveryOperation ?? undefined
+                    : (conflictState.recoveryOperation ?? undefined)
                 }
                 onContinueRecovery={() => void continueHistoryRecovery()}
                 onAbortRecovery={() => void abortHistoryRecovery()}

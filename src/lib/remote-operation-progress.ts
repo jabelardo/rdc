@@ -14,10 +14,6 @@ export function aggregateRemoteProgress(
   return remoteIndex * weight + value * weight;
 }
 
-export function aggregatePhaseProgress(
-  offset: number,
-  phaseWeight: number,
-  value: number,
-): number {
+export function aggregatePhaseProgress(offset: number, phaseWeight: number, value: number): number {
   return offset + value * phaseWeight;
 }

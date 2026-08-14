@@ -46,8 +46,8 @@ export function MergeConflicts({
           : state.rebaseInProgress
             ? "Rebase recovery"
             : state.mergeInProgress
-            ? "Merge conflicts"
-            : "Repository conflicts"
+              ? "Merge conflicts"
+              : "Repository conflicts"
       }
     >
       <header className="flex items-start justify-between gap-4">
@@ -58,8 +58,8 @@ export function MergeConflicts({
               : state.rebaseInProgress
                 ? "Rebase recovery"
                 : state.mergeInProgress
-                ? "Merge in progress"
-                : "Repository conflicts"}
+                  ? "Merge in progress"
+                  : "Repository conflicts"}
           </h3>
           <p>
             {recoveryOperation === "revert"
@@ -68,7 +68,7 @@ export function MergeConflicts({
                 ? "A rebase was interrupted. Resolve files in your editor, then refresh and stage each resolution. Continue or abort the rebase below."
                 : state.mergeInProgress
                   ? "A merge was interrupted. Resolve and stage each conflict, then commit the merge, or abort it below."
-                : "Resolve files in your editor, then refresh and stage each resolution."}
+                  : "Resolve files in your editor, then refresh and stage each resolution."}
           </p>
         </div>
         <button

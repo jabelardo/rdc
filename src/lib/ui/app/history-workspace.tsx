@@ -88,93 +88,93 @@ export function HistoryWorkspace({
                     Squash selected
                   </button>
                 )}
-              {onReorderSelected !== undefined && (
-                <>
-                  <select
-                    aria-label="Move selected before"
-                    value={reorderBeforeSHA}
-                    onChange={(event) => setReorderBeforeSHA(event.target.value)}
-                  >
-                    <option value="">End of history</option>
-                    {state.commits
-                      .filter((commit) => !selectedCommitSHAs.has(commit.sha))
-                      .map((commit) => (
-                        <option key={commit.sha} value={commit.sha}>
-                          Before {commit.summary}
-                        </option>
-                      ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      onReorderSelected(
-                        selectedCommits,
-                        state.commits.find((commit) => commit.sha === reorderBeforeSHA) ?? null,
-                      )
-                    }
-                  >
-                    Reorder selected
-                  </button>
-                </>
-              )}
+                {onReorderSelected !== undefined && (
+                  <>
+                    <select
+                      aria-label="Move selected before"
+                      value={reorderBeforeSHA}
+                      onChange={(event) => setReorderBeforeSHA(event.target.value)}
+                    >
+                      <option value="">End of history</option>
+                      {state.commits
+                        .filter((commit) => !selectedCommitSHAs.has(commit.sha))
+                        .map((commit) => (
+                          <option key={commit.sha} value={commit.sha}>
+                            Before {commit.summary}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onReorderSelected(
+                          selectedCommits,
+                          state.commits.find((commit) => commit.sha === reorderBeforeSHA) ?? null,
+                        )
+                      }
+                    >
+                      Reorder selected
+                    </button>
+                  </>
+                )}
               </div>
             )}
             <ul className="history-commits" aria-label="Commits" data-keyboard-list>
-            {state.commits.map((commit, index) => (
-              <li key={commit.sha}>
-                <label>
-                  <input
-                    type="checkbox"
-                    aria-label={`Select ${commit.summary}`}
-                    checked={selectedCommitSHAs.has(commit.sha)}
-                    onChange={(event) => {
-                      setSelectedCommitSHAs((current) => {
-                        const next = new Set(current);
-                        if (event.target.checked) {
-                          next.add(commit.sha);
-                        } else {
-                          next.delete(commit.sha);
-                        }
-                        return next;
-                      });
+              {state.commits.map((commit, index) => (
+                <li key={commit.sha}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${commit.summary}`}
+                      checked={selectedCommitSHAs.has(commit.sha)}
+                      onChange={(event) => {
+                        setSelectedCommitSHAs((current) => {
+                          const next = new Set(current);
+                          if (event.target.checked) {
+                            next.add(commit.sha);
+                          } else {
+                            next.delete(commit.sha);
+                          }
+                          return next;
+                        });
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    data-commit-sha={commit.sha}
+                    data-keyboard-list-item
+                    aria-current={state.selectedCommitSHA === commit.sha ? "true" : undefined}
+                    tabIndex={
+                      state.selectedCommitSHA === commit.sha ||
+                      (state.selectedCommitSHA === null && index === 0)
+                        ? 0
+                        : -1
+                    }
+                    onClick={() => void store.selectCommit(commit.sha)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      onCommitContextMenu?.(commit, event.clientX, event.clientY);
                     }}
-                  />
-                </label>
-                <button
-                  type="button"
-                  data-commit-sha={commit.sha}
-                  data-keyboard-list-item
-                  aria-current={state.selectedCommitSHA === commit.sha ? "true" : undefined}
-                  tabIndex={
-                    state.selectedCommitSHA === commit.sha ||
-                    (state.selectedCommitSHA === null && index === 0)
-                      ? 0
-                      : -1
-                  }
-                  onClick={() => void store.selectCommit(commit.sha)}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    onCommitContextMenu?.(commit, event.clientX, event.clientY);
-                  }}
-                  onKeyDown={(event) =>
-                    handleListNavigation(event, index, state.commits.length, (targetIndex) => {
-                      void store.selectCommit(state.commits[targetIndex].sha);
-                    })
-                  }
-                >
-                  <strong>{commit.summary}</strong>
-                  <small>
-                    {commit.author.name}
-                    <span aria-hidden="true"> · </span>
-                    <Tooltip label={commit.author.date.toLocaleString()}>
-                      <time dateTime={commit.author.date.toISOString()}>
-                        {formatRelative(commit.author.date.getTime() - Date.now())}
-                      </time>
-                    </Tooltip>
-                  </small>
-                </button>
-              </li>
-            ))}
+                    onKeyDown={(event) =>
+                      handleListNavigation(event, index, state.commits.length, (targetIndex) => {
+                        void store.selectCommit(state.commits[targetIndex].sha);
+                      })
+                    }
+                  >
+                    <strong>{commit.summary}</strong>
+                    <small>
+                      {commit.author.name}
+                      <span aria-hidden="true"> · </span>
+                      <Tooltip label={commit.author.date.toLocaleString()}>
+                        <time dateTime={commit.author.date.toISOString()}>
+                          {formatRelative(commit.author.date.getTime() - Date.now())}
+                        </time>
+                      </Tooltip>
+                    </small>
+                  </button>
+                </li>
+              ))}
             </ul>
           </>
         )}

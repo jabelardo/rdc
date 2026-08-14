@@ -19,7 +19,10 @@ const history = [commit("a"), commit("b"), commit("c"), commit("d")];
 
 describe("history operation selection", () => {
   it("orders selected commits by the displayed history", () => {
-    expect(orderSelectedCommits(history, [history[2], history[0]])).toEqual([history[0], history[2]]);
+    expect(orderSelectedCommits(history, [history[2], history[0]])).toEqual([
+      history[0],
+      history[2],
+    ]);
   });
 
   it("accepts only contiguous squash ranges", () => {

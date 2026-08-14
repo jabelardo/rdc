@@ -125,18 +125,16 @@ export function operationProgressViewModel(
       role === "owner" &&
       record.cancellation.kind === "available" &&
       (record.state === "running" || record.state === "takingLongerThanExpected"),
-    cancellationLabel:
-      record.cancellation.kind === "available" ? record.cancellation.label : null,
+    cancellationLabel: record.cancellation.kind === "available" ? record.cancellation.label : null,
     adoptionAvailable:
       role === "unowned" &&
       record.cancellation.kind === "available" &&
       !isTerminalOperation(record.state),
     adoptionLabel: role === "unowned" ? "Take control and cancel" : null,
     statusText: lifecycleStatus(record),
-    contextText:
-      recoveryRequired
-        ? "Repository recovery is required before continuing"
-        : role === "observer"
+    contextText: recoveryRequired
+      ? "Repository recovery is required before continuing"
+      : role === "observer"
         ? "Started in another window"
         : role === "unowned"
           ? "The window that started this operation is no longer open"

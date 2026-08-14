@@ -265,8 +265,8 @@ export class RemoteStore {
     if (
       repositoryPath === null ||
       this.currentState.loading ||
-      this.activeOperation !== null
-      || this.managementOperationActive
+      this.activeOperation !== null ||
+      this.managementOperationActive
     ) {
       return false;
     }
@@ -420,12 +420,7 @@ export class RemoteStore {
           error: null,
         });
       } else {
-        await this.dependencies.fetch(
-          repositoryPath,
-          currentRemote.name,
-          () => undefined,
-          false,
-        );
+        await this.dependencies.fetch(repositoryPath, currentRemote.name, () => undefined, false);
       }
       await this.updateRemoteHeadQuietly(repositoryPath, currentRemote.name);
 

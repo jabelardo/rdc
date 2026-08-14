@@ -132,8 +132,7 @@ describe("RemoteStore", () => {
       ["refs/remotes/origin/main", "refs/heads/main"],
     ]);
     expect(getRemotes).toHaveBeenCalledTimes(2);
-    expect(store.state).toMatchObject({
-    });
+    expect(store.state).toMatchObject({});
   });
 
   it("uses the native multi-remote workflow when it is available", async () => {
@@ -252,8 +251,7 @@ describe("RemoteStore", () => {
     await store.load("/repo");
 
     await expect(store.fetch()).resolves.toBe(true);
-    expect(store.state).toMatchObject({
-    });
+    expect(store.state).toMatchObject({});
   });
 
   it("sets upstream when pushing an unpublished current branch", async () => {
@@ -449,13 +447,9 @@ describe("RemoteStore", () => {
     await store.load("/repo");
 
     expect(await store.fetch()).toBe(false);
-    expect(store.state.error).toMatch(
-      /Authentication failed.*credential helper.*SSH agent/s,
-    );
+    expect(store.state.error).toMatch(/Authentication failed.*credential helper.*SSH agent/s);
     expect(await store.fetch()).toBe(false);
-    expect(store.state.error).toMatch(
-      /SSL certificate problem.*system Git.*proxy.*certificate/s,
-    );
+    expect(store.state.error).toMatch(/SSL certificate problem.*system Git.*proxy.*certificate/s);
   });
 
   it("ignores a slow load after the repository changes", async () => {

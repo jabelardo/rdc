@@ -19,5 +19,12 @@ export function isContiguousSelection(
   }
   const ordered = orderSelectedCommits(history, selected);
   const first = history.findIndex((commit) => commit.sha === ordered[0]?.sha);
-  return ordered.length === selected.length && ordered.every((_, index) => index === 0 || first + index === history.findIndex((commit) => commit.sha === ordered[index].sha));
+  return (
+    ordered.length === selected.length &&
+    ordered.every(
+      (_, index) =>
+        index === 0 ||
+        first + index === history.findIndex((commit) => commit.sha === ordered[index].sha),
+    )
+  );
 }
