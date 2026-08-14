@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { RemoteState } from "../../stores/remote-store";
+import type { OperationRecord } from "../../../models/operation";
+import { operationProgressViewModel } from "../../operation-presentation";
 import { RepositoryToolbar } from "./repository-toolbar";
 
 const remoteState: RemoteState = {
@@ -46,5 +48,45 @@ describe("RepositoryToolbar progress presentation", () => {
 
     expect(screen.queryByText(/Receiving objects/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Fetch" })).toBeDisabled();
+  });
+
+  it("prefers a native remote error over the store error fallback", () => {
+    const operation: OperationRecord = {
+      id: "fetch-1",
+      scope: { kind: "repository", lockKey: "repo", repositoryPath: "/repo" },
+      ownerWindow: "window-a",
+      operation: "fetch",
+      state: "failed",
+      cancellation: { kind: "unavailable" },
+      progress: { value: 0.5, description: "Receiving objects" },
+      lastActivityAt: 1,
+      outcome: "unknown",
+      error: { kind: "failed", message: "Native fetch failed", recoverable: true },
+    };
+    render(
+      <RepositoryToolbar
+        remoteState={{ ...remoteState, operationError: "Store fetch failed" }}
+        operationViewModel={operationProgressViewModel(operation, "window-a")}
+        canFetch={false}
+        canPush={false}
+        canPull={false}
+        hasEditor={false}
+        hasShell={false}
+        repositoryView="changes"
+        onCreateRepository={vi.fn()}
+        onAddExistingRepository={vi.fn()}
+        onCloneRepository={vi.fn()}
+        onShowFiles={vi.fn()}
+        onOpenEditor={vi.fn()}
+        onOpenShell={vi.fn()}
+        onFetch={vi.fn()}
+        onPull={vi.fn()}
+        onPush={vi.fn()}
+        onSelectView={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Native fetch failed")).toBeInTheDocument();
+    expect(screen.queryByText("Store fetch failed")).not.toBeInTheDocument();
   });
 });

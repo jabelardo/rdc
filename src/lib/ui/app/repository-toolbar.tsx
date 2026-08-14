@@ -75,9 +75,9 @@ export function RepositoryToolbar({
   const displayedRemoteOperation = nativeRemoteOperation
     ? operationViewModel.operation
     : remoteState.operation;
+  const nativeRemoteError = nativeRemoteOperation && operationViewModel.error !== null;
   const status =
-    remoteState.operationError ??
-    remoteState.error;
+    nativeRemoteError ? null : (remoteState.operationError ?? remoteState.error);
   const statusIsError = remoteState.operationError !== null || remoteState.error !== null;
   const statusElement = (
     <p
