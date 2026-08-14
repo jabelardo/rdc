@@ -116,6 +116,7 @@ export function AppShell({ controller }: AppShellProps) {
     abortHistoryRecovery,
     continueRebaseRecovery,
     abortRebaseRecovery,
+    abortMergeRecovery,
     squashSelectedCommits,
     reorderSelectedCommits,
     mergePickerOpen,
@@ -340,6 +341,7 @@ export function AppShell({ controller }: AppShellProps) {
                 onAbortRecovery={() => void abortHistoryRecovery()}
                 onContinueRebase={() => void continueRebaseRecovery()}
                 onAbortRebase={() => void abortRebaseRecovery()}
+                onAbortMerge={() => void abortMergeRecovery()}
               />
             )}
             <ChangesWorkspace

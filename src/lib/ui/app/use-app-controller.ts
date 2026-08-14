@@ -6,7 +6,7 @@ import type { Repository } from "../../../models/repository";
 import { getCloneDirectoryName } from "../../clone-destination";
 import { isContiguousSelection, orderSelectedCommits } from "../../history-operation-selection";
 import { getMergedBranches } from "../../branch-ipc";
-import { abortRebase, continueRebase, initRepository } from "../../git-ipc";
+import { abortMerge, abortRebase, continueRebase, initRepository } from "../../git-ipc";
 import { abortRevert, revertCommit } from "../../misc-ipc";
 import { abortCherryPick, cherryPick, continueCherryPick, reorder, squash } from "../../stash-ipc";
 import { installApplicationMenu } from "../../menu/application-menu";
@@ -1322,6 +1322,15 @@ export function useAppController() {
     await conflictStore.load(repository.path);
   }
 
+  async function abortMergeRecovery(): Promise<void> {
+    const repository = appState.selectedRepository;
+    if (repository === null || !conflictState.mergeInProgress) {
+      return;
+    }
+    await abortMerge(repository.path);
+    await conflictStore.load(repository.path);
+  }
+
   async function squashSelectedCommits(commits: ReadonlyArray<Commit>): Promise<void> {
     const repository = appState.selectedRepository;
     if (repository === null || commits.length < 2 || operationStateForRepositoryActive()) {
@@ -1938,6 +1947,7 @@ export function useAppController() {
     abortHistoryRecovery,
     continueRebaseRecovery,
     abortRebaseRecovery,
+    abortMergeRecovery,
     squashSelectedCommits,
     reorderSelectedCommits,
     mergePickerOpen,

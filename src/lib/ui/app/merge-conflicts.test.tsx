@@ -149,4 +149,22 @@ describe("MergeConflicts recovery presentation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue cherry-pick" }));
     expect(onContinue).toHaveBeenCalledOnce();
   });
+
+  it("offers abort for an interrupted merge", () => {
+    const onAbort = vi.fn();
+    render(
+      <MergeConflicts
+        repositoryPath="/repo"
+        state={{ ...state, mergeInProgress: true }}
+        store={store}
+        onStageResolved={vi.fn()}
+        onAbortMerge={onAbort}
+      />,
+    );
+
+    expect(screen.getByRole("region", { name: "Merge conflicts" })).toBeInTheDocument();
+    expect(screen.getByText(/A merge was interrupted/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Abort merge" }));
+    expect(onAbort).toHaveBeenCalledOnce();
+  });
 });

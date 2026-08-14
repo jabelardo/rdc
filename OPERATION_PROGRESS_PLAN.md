@@ -1102,7 +1102,9 @@ hydrated operation kind. Focused restart E2E passes after this hydration path is
 It also retains interrupted rebase state from `rebaseInternalState` and presents explicit recovery
 guidance after reload. The recovery surface now exposes native Continue rebase and Abort rebase
 actions, with continuation gated until conflicted files are staged; focused restart E2E passes
-after the handlers are wired through AppShell.
+after the handlers are wired through AppShell. Interrupted merge state now has an explicit Abort
+merge action and explains that the staged resolutions can be completed by committing the merge;
+the abort handler refreshes the native conflict state after Git cleans up.
 
 Do not claim the original process is still running after an app restart. Present the detected
 repository state as recovery-required and offer the operation-specific continue/abort path.

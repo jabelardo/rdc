@@ -10,6 +10,7 @@ type MergeConflictsProps = {
   readonly onAbortRecovery?: () => void;
   readonly onContinueRebase?: () => void;
   readonly onAbortRebase?: () => void;
+  readonly onAbortMerge?: () => void;
 };
 
 /** In-progress merge state and resolved-file staging controls. */
@@ -23,6 +24,7 @@ export function MergeConflicts({
   onAbortRecovery,
   onContinueRebase,
   onAbortRebase,
+  onAbortMerge,
 }: MergeConflictsProps) {
   const recoveryVisible = recoveryOperation !== undefined;
   if (
@@ -63,8 +65,10 @@ export function MergeConflicts({
             {recoveryOperation === "revert"
               ? "Resolve files in your editor, then refresh the conflict state. Revert can only be aborted from here."
               : state.rebaseInProgress
-                ? "A rebase was interrupted. Resolve files in your editor, then continue or abort the rebase from a terminal."
-              : "Resolve files in your editor, then refresh and stage each resolution."}
+                ? "A rebase was interrupted. Resolve files in your editor, then refresh and stage each resolution. Continue or abort the rebase below."
+                : state.mergeInProgress
+                  ? "A merge was interrupted. Resolve and stage each conflict, then commit the merge, or abort it below."
+                : "Resolve files in your editor, then refresh and stage each resolution."}
           </p>
         </div>
         <button
@@ -150,6 +154,13 @@ export function MergeConflicts({
           </button>
           <button type="button" disabled={state.loading} onClick={onAbortRebase}>
             Abort rebase
+          </button>
+        </div>
+      )}
+      {state.mergeInProgress && onAbortMerge !== undefined && (
+        <div className="mt-4 flex justify-end">
+          <button type="button" disabled={state.loading} onClick={onAbortMerge}>
+            Abort merge
           </button>
         </div>
       )}
