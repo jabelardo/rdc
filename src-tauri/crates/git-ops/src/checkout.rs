@@ -41,6 +41,8 @@ pub struct CheckoutSnapshot {
     pub index: Option<Vec<u8>>,
     /// Binary-safe patch representing the tracked worktree relative to `HEAD`.
     pub tracked_worktree_patch: Vec<u8>,
+    /// Git-reported untracked paths, including ignored files that checkout may overwrite.
+    pub untracked_paths: Vec<std::path::PathBuf>,
 }
 
 /// Captures the tracked repository state required to recover an interrupted checkout.
@@ -75,13 +77,50 @@ pub async fn get_checkout_snapshot(
     )
     .await?
     .stdout;
+    let untracked_paths = git(
+        &["ls-files", "--others", "-z", "--"],
+        repository,
+        "getCheckoutUntrackedPaths",
+        GitOptions::default(),
+    )
+    .await?
+    .stdout
+    .split(|byte| *byte == 0)
+    .filter(|path| !path.is_empty())
+    .map(git_path::from_bytes)
+    .collect::<Result<Vec<_>, _>>()?;
 
     Ok(CheckoutSnapshot {
         symbolic_head,
         head_sha,
         index,
         tracked_worktree_patch,
+        untracked_paths,
     })
+}
+
+mod git_path {
+    use std::path::PathBuf;
+
+    use crate::error::GitError;
+
+    #[cfg(unix)]
+    pub fn from_bytes(value: &[u8]) -> Result<PathBuf, GitError> {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        Ok(PathBuf::from(OsString::from_vec(value.to_vec())))
+    }
+
+    #[cfg(windows)]
+    pub fn from_bytes(value: &[u8]) -> Result<PathBuf, GitError> {
+        String::from_utf8(value.to_vec())
+            .map(PathBuf::from)
+            .map_err(|error| GitError::Parse {
+                context: "checkout untracked path".to_owned(),
+                message: format!("Git returned a path that is not valid UTF-8: {error}"),
+            })
+    }
 }
 
 /// Restores the tracked portion of a checkout snapshot.
@@ -661,6 +700,52 @@ mod tests {
 
         assert_eq!(snapshot.symbolic_head, None);
         assert_eq!(snapshot.head_sha, first);
+    }
+
+    #[tokio::test]
+    async fn checkout_snapshot_inventories_ordinary_and_ignored_untracked_paths() {
+        let repo = empty_repository().await;
+        commit_file(
+            &repo.path(),
+            ".gitignore",
+            "ignored.dat\n",
+            "ignore fixture",
+        );
+        std::fs::write(repo.path().join("ordinary.txt"), "ordinary\n")
+            .expect("ordinary untracked file should be written");
+        std::fs::write(repo.path().join("ignored.dat"), "ignored\n")
+            .expect("ignored untracked file should be written");
+
+        let snapshot = get_checkout_snapshot(repo.path())
+            .await
+            .expect("untracked checkout state should be captured");
+
+        assert_eq!(
+            snapshot.untracked_paths,
+            vec![
+                std::path::PathBuf::from("ignored.dat"),
+                std::path::PathBuf::from("ordinary.txt")
+            ]
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[tokio::test]
+    async fn checkout_snapshot_preserves_non_utf8_untracked_paths_on_unix() {
+        use std::ffi::OsString;
+        use std::os::unix::ffi::OsStringExt;
+
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "tracked.txt", "tracked\n", "tracked fixture");
+        let path = std::path::PathBuf::from(OsString::from_vec(vec![b'f', 0x80]));
+        std::fs::write(repo.path().join(&path), "untracked\n")
+            .expect("non-UTF-8 untracked file should be written");
+
+        let snapshot = get_checkout_snapshot(repo.path())
+            .await
+            .expect("non-UTF-8 checkout state should be captured");
+
+        assert_eq!(snapshot.untracked_paths, vec![path]);
     }
 
     #[tokio::test]
