@@ -1044,7 +1044,7 @@ The private lifecycle bookkeeping is now removed as well: `RemoteStore` retains 
 identity for stale-request gating and a management-operation guard. Compatibility transport
 callbacks no longer publish progress or operation-error state.
 
-Latest verification after this removal: the complete frontend suite passes (136 files, 1,206
+Latest verification after this removal: the complete frontend suite passes (136 files, 1,212
 tests); focused remote and operation tests remain green; and the Linux-container E2E suite passes
 39 tests across 17 suites, including the History interactive-controls journey; the focused History
 E2E passes 3 tests including Git-verified Reorder and Squash mutations; focused recovery tests pass
