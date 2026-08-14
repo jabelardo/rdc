@@ -994,8 +994,12 @@ authoritative for toolbar/menu presentation and repository locking. Remove the s
 `operation`/`progress` fields only after those store responsibilities have native-event consumers
 and their refresh/error tests no longer depend on callback progress.
 
-Remove duplicated operation/progress fields only after their final consumer migrates. Preserve stale
-callback rejection by operation ID. Keep domain-store post-operation refresh behavior intact.
+Consolidate parallel lifecycle representations only after their final consumer migrates. For remote
+operations, this specifically means `RemoteState.operation` and `RemoteState.progress` may be
+removed only after multi-remote orchestration and refresh/error handling consume native operation
+events directly; `RemoteState.operationError` remains until its remote-specific error contract has
+a native equivalent. Preserve stale callback rejection by operation ID and keep domain-store
+post-operation refresh behavior intact.
 
 User-initiated operations mount the unified dialog. Scheduled/background Fetch mounts the shared
 progress body in its non-modal control and never opens a surprise dialog.
