@@ -21,6 +21,52 @@ import {
   startApplication,
 } from "./harness.mjs";
 
+const FETCH_ACTION = 'section[aria-label="Remote synchronization"] button[aria-label="Fetch"]';
+
+// Re-resolves the Fetch action on every use. The toolbar rerenders whenever an operation event
+// lands, which replaces the button node and makes a held reference stale. Locating it once and
+// then calling `isEnabled()` or clicking it races the very state changes this spec waits for.
+async function fetchAction(driver) {
+  return driver.wait(until.elementLocated(By.css(FETCH_ACTION)), 10_000);
+}
+
+// Enabled-state of the Fetch action, or null when it cannot be read right now. The toolbar can
+// rerender between `findElements` and `isEnabled`, which invalidates the node mid-poll — that is
+// "not settled yet", not a failure, so the caller's `wait` should simply poll again.
+async function fetchActionEnabled(driver) {
+  try {
+    const buttons = await driver.findElements(By.css(FETCH_ACTION));
+    if (buttons.length !== 1) {
+      return null;
+    }
+    return await buttons[0].isEnabled();
+  } catch (error) {
+    if (error.name === "StaleElementReferenceError") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function clickFetch(driver) {
+  await driver.wait(
+    async () => {
+      try {
+        const button = await fetchAction(driver);
+        await driver.executeScript((element) => element.click(), button);
+        return true;
+      } catch (error) {
+        if (error.name === "StaleElementReferenceError") {
+          return false;
+        }
+        throw error;
+      }
+    },
+    10_000,
+    "the Fetch action could not be clicked",
+  );
+}
+
 async function activeOperation(driver, repositoryPath) {
   return driver.executeAsyncScript((selectedPath, done) => {
     window.__TAURI_INTERNALS__
@@ -128,13 +174,7 @@ exec git-upload-pack '${fixture.remote}'
 
   it("cancels an unowned Fetch while another repository fetches independently", async () => {
     await driver.switchTo().window(ownerWindow);
-    const fetchButton = await driver.wait(
-      until.elementLocated(
-        By.css('section[aria-label="Remote synchronization"] button[aria-label="Fetch"]'),
-      ),
-      10_000,
-    );
-    await driver.executeScript((element) => element.click(), fetchButton);
+    await clickFetch(driver);
     await driver.wait(
       () => existsSync(readyPath),
       10_000,
@@ -158,15 +198,48 @@ exec git-upload-pack '${fixture.remote}'
     assert.equal(peerOperation?.id, ownerOperation.id);
     assert.match(peerOperation.progress.description, /Counting objects/);
     await driver.wait(
-      async () => {
-        const buttons = await driver.findElements(
-          By.css('section[aria-label="Remote synchronization"] button[aria-label="Fetch"]'),
-        );
-        return buttons.length === 1 && !(await buttons[0].isEnabled());
-      },
+      async () => (await fetchActionEnabled(driver)) === false,
       5_000,
       "the peer window did not disable writes for the owner Fetch",
     );
+
+    // A window opened *after* the Fetch started has no event history to replay, so anything it
+    // shows had to come from the registry snapshot. The transport is blocked on a file barrier
+    // rather than a timer, so this is a hydration check and not a race.
+    const windowsBeforeHydration = await driver.getAllWindowHandles();
+    await openRepositoryWindow(driver, fixture.canonical);
+    const hydratedWindow = await driver.wait(
+      async () => {
+        const handles = await driver.getAllWindowHandles();
+        return handles.find((handle) => !windowsBeforeHydration.includes(handle)) ?? false;
+      },
+      10_000,
+      "the mid-operation window did not open",
+    );
+    await driver.switchTo().window(hydratedWindow);
+    await driver.wait(
+      until.elementLocated(By.css('[aria-label="Repository views"]')),
+      10_000,
+      "the mid-operation window did not hydrate the selected repository",
+    );
+    const hydratedOperation = await driver.wait(
+      async () => {
+        const operation = await activeOperation(driver, fixture.canonical);
+        return operation?.id === ownerOperation.id && operation.progress?.description
+          ? operation
+          : false;
+      },
+      5_000,
+      "the mid-operation window did not hydrate the running Fetch",
+    );
+    assert.match(hydratedOperation.progress.description, /Counting objects/);
+    await driver.wait(
+      async () => (await fetchActionEnabled(driver)) === false,
+      5_000,
+      "the mid-operation window did not disable writes from the hydrated snapshot",
+    );
+    await driver.close();
+    await driver.switchTo().window(peerWindow);
 
     writeFileSync(path.join(independentPublisher, "concurrent.txt"), "concurrent fetch\n");
     git(independentPublisher, "add", "concurrent.txt");
@@ -179,14 +252,12 @@ exec git-upload-pack '${fixture.remote}'
     );
 
     await driver.switchTo().window(independentWindow);
-    const independentFetch = await driver.wait(
-      until.elementLocated(
-        By.css('section[aria-label="Remote synchronization"] button[aria-label="Fetch"]'),
-      ),
-      10_000,
+    await driver.wait(
+      async () => (await fetchActionEnabled(driver)) === true,
+      5_000,
+      "a different repository must not be disabled by the blocked Fetch",
     );
-    assert.equal(await independentFetch.isEnabled(), true);
-    await driver.executeScript((element) => element.click(), independentFetch);
+    await clickFetch(driver);
     await driver.wait(
       () =>
         git(independentRepository, "rev-parse", `refs/remotes/origin/${independentBranch}`) ===
@@ -242,15 +313,8 @@ exec git-upload-pack '${fixture.remote}'
     assert.equal(terminal.outcome, "unchanged");
     assert.equal(terminal.error.kind, "cancelled");
     assert.equal(await activeOperation(driver, fixture.canonical), null);
-    const fetchAfterRecovery = await driver.wait(
-      until.elementLocated(
-        By.css('section[aria-label="Remote synchronization"] button[aria-label="Fetch"]'),
-      ),
-      5_000,
-      "the peer Fetch action did not return after cancellation recovery",
-    );
     await driver.wait(
-      () => fetchAfterRecovery.isEnabled(),
+      async () => (await fetchActionEnabled(driver)) === true,
       5_000,
       "the peer Fetch action remained disabled after the native lock cleared",
     );

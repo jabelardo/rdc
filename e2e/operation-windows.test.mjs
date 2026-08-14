@@ -303,5 +303,34 @@ describe("operation windows", () => {
       await driver.executeScript((element) => element.textContent, refreshedCommit),
       /Owner loss coverage/,
     );
+
+    // The other half of the contract: a terminal event must reach every *matching* window and no
+    // other. The unrelated repository's window must never see this operation, and its history must
+    // not acquire the commit that just landed somewhere else.
+    await driver.switchTo().window(differentRepositoryWindow);
+    const unrelatedOperation = await driver.executeAsyncScript((repositoryPath, done) => {
+      window.__TAURI_INTERNALS__
+        .invoke("get_active_operation_for_repository", { repositoryPath })
+        .then(done, (error) => done({ error: String(error) }));
+    }, secondRepository);
+    assert.equal(
+      unrelatedOperation,
+      null,
+      "the unrelated repository window observed another repository's operation",
+    );
+    const unrelatedHistory = await driver.findElement(
+      By.xpath("//nav[@aria-label='Repository views']//button[normalize-space()='History']"),
+    );
+    await driver.executeScript((element) => element.click(), unrelatedHistory);
+    await driver.wait(
+      until.elementLocated(By.css("[data-commit-sha]")),
+      10_000,
+      "the unrelated repository history did not render",
+    );
+    assert.equal(
+      (await driver.findElements(By.css(`[data-commit-sha="${ownerLossHead}"]`))).length,
+      0,
+      "the unrelated repository window refreshed with another repository's commit",
+    );
   });
 });
