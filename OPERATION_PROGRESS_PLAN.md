@@ -992,8 +992,8 @@ Migrate incrementally to the operation record and shared presentation:
    now reflects that distinction by hiding unsupported Revert staging controls. Remaining work is
    visual QA and broader Cherry-pick/Revert E2E coverage. Shared presentation tests now cover
    native Cherry-pick/Revert labels, progress, owner cancellation controls, and terminal recovery
-   presentation, including terminal focus restoration and close behavior. The remaining E2E gap is
-   documented as a real native-command journey rather than a browser-side IPC shortcut. A
+   presentation, including terminal focus restoration and close behavior. The independent native
+   command journeys now cover both recovery paths rather than using browser-side IPC shortcuts. A
    debug-only QA-driver seam now selects the repository and invokes the production IPC wrappers,
    preserving their real progress channels; its ordering contract is covered by frontend tests.
    A real `history-recovery.test.mjs` journey now prepares a disposable conflicting repository,

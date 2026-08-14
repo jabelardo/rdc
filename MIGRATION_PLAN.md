@@ -3382,9 +3382,9 @@ branch (+ the "cannot delete" notice), remove repository, manage remotes, add re
 and merge. **Preferences is now extracted and migrated; only its visual QA sign-off remains.** Rebase
 and Clone were subsequently migrated, and Rebase, Clone, Commit and Merge now consume the shared blocking
 progress dialog. Fetch, Push, Pull and Checkout expose embedded text/percentage progress, but still
-need the shared compact progress-bar presentation. Cherry-pick and Revert remain planned blocking
-history-operation consumers; interactive squash/reorder remains deferred to the interactive-rebase
-scope. The process promoted
+need the shared compact progress-bar presentation. Cherry-pick and Revert history-operation
+consumers are now migrated; interactive squash/reorder remains deferred to the
+interactive-rebase scope. The process promoted
 the four conventions that are now the strongest layout rules the migration produced:
 
 - **Convention 12** — all of a dialog's messages share one height-holding slot, so a message that
@@ -3591,8 +3591,9 @@ Phase 8b is running the component/dialog migration in parallel with its QA/fix c
 dialog queue is now complete, with Preferences extracted into its own Radix dialog; its Light/Dark
 visual sign-off remains. Rebase and Clone have also completed their migration. The shared blocking
 progress dialog is now consumed by Clone, Rebase, Commit and Merge;
-the remaining progress work is the embedded bar for Fetch/Push/Pull/Checkout and the planned
-history-operation consumers. The code-organization pass (`CODE_ORGANIZATION_PLAN.md`) remains
+the remaining progress work is the embedded bar for Fetch/Push/Pull/Checkout; history-operation
+progress is covered by Slice 17's native consumers. The code-organization pass
+(`CODE_ORGANIZATION_PLAN.md`) remains
 scheduled immediately after so it moves settled code rather than code in flight.
 
 Repository-scoped operation progress, cancellation and timeout recovery are tracked in
