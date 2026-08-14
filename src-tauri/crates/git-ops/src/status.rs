@@ -31,8 +31,8 @@ use crate::diff_check::get_files_with_conflict_markers;
 use crate::error::GitError;
 use crate::exec::{git, GitOptions};
 use crate::operation_state::{
-    get_rebase_internal_state, is_cherry_pick_head_found, is_merge_head_set, is_squash_msg_set,
-    RebaseInternalState,
+    get_rebase_internal_state, is_cherry_pick_head_found, is_merge_head_set, is_revert_head_found,
+    is_squash_msg_set, RebaseInternalState,
 };
 use crate::rev_parse::resolve_git_dir;
 use crate::status_parser::{
@@ -173,6 +173,8 @@ pub struct StatusResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rebase_internal_state: Option<RebaseInternalState>,
     pub is_cherry_picking_head_found: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub is_reverting_head_found: bool,
     /// Changed paths, in the order git reported them.
     pub files: Vec<StatusFileChange>,
     pub do_conflicted_files_exist: bool,
@@ -264,6 +266,7 @@ pub async fn get_status(
         squash_msg_found: is_squash_msg_set(&git_dir).await,
         rebase_internal_state,
         is_cherry_picking_head_found: is_cherry_pick_head_found(&git_dir).await,
+        is_reverting_head_found: is_revert_head_found(&git_dir).await,
         files,
         do_conflicted_files_exist: !conflicted_paths.is_empty(),
     }))

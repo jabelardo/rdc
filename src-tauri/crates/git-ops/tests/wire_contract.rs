@@ -302,6 +302,7 @@ fn status_result_matches_the_expected_wire_shape() {
         squash_msg_found: false,
         rebase_internal_state: None,
         is_cherry_picking_head_found: false,
+        is_reverting_head_found: false,
         files: vec![StatusFileChange {
             path: "foo.txt".to_owned(),
             status: AppFileStatus::Modified {
@@ -346,6 +347,7 @@ fn absent_optional_fields_are_omitted_rather_than_null() {
         squash_msg_found: false,
         rebase_internal_state: None,
         is_cherry_picking_head_found: false,
+        is_reverting_head_found: false,
         files: Vec::new(),
         do_conflicted_files_exist: false,
     };
@@ -375,6 +377,7 @@ fn status_result_round_trips() {
         squash_msg_found: false,
         rebase_internal_state: None,
         is_cherry_picking_head_found: false,
+        is_reverting_head_found: false,
         files: vec![StatusFileChange {
             path: "conflicted".to_owned(),
             status: AppFileStatus::Conflicted(ConflictedFileStatus::WithMarkers {
@@ -497,6 +500,7 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
             squash_msg_found: false,
             rebase_internal_state: None,
             is_cherry_picking_head_found: false,
+            is_reverting_head_found: false,
             files: vec![StatusFileChange {
                 path: "src/thing.ts".to_owned(),
                 status: AppFileStatus::Modified {
@@ -518,6 +522,7 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
             squash_msg_found: false,
             rebase_internal_state: None,
             is_cherry_picking_head_found: false,
+            is_reverting_head_found: false,
             files: Vec::new(),
             do_conflicted_files_exist: false,
         }),

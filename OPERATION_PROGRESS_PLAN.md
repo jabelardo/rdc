@@ -1093,6 +1093,10 @@ On repository load, inspect at least:
 - operation recovery markers owned by rdc;
 - stale app-owned clone temporary destinations.
 
+First increment: native repository status now reports the optional `isRevertingHeadFound` fact
+when Git leaves `REVERT_HEAD`; the field is omitted for clean repositories so existing wire
+consumers remain compatible. Rust status and wire-contract tests cover the new marker fact.
+
 Do not claim the original process is still running after an app restart. Present the detected
 repository state as recovery-required and offer the operation-specific continue/abort path.
 

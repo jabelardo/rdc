@@ -59,6 +59,8 @@ export interface IStatusResult {
   readonly squashMsgFound: boolean;
   readonly rebaseInternalState?: IRebaseInternalState;
   readonly isCherryPickingHeadFound: boolean;
+  /** Whether Git left `REVERT_HEAD` while a revert awaits recovery after restart. */
+  readonly isRevertingHeadFound?: boolean;
   readonly files: ReadonlyArray<IStatusFileChange>;
   readonly doConflictedFilesExist: boolean;
 }

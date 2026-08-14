@@ -32,6 +32,11 @@ pub async fn is_cherry_pick_head_found(git_dir: impl AsRef<Path>) -> bool {
     path_exists(git_dir.as_ref().join("CHERRY_PICK_HEAD")).await
 }
 
+/// Whether a revert is in progress (`REVERT_HEAD` exists).
+pub async fn is_revert_head_found(git_dir: impl AsRef<Path>) -> bool {
+    path_exists(git_dir.as_ref().join("REVERT_HEAD")).await
+}
+
 /// Whether a rebase is in progress (`REBASE_HEAD` exists).
 pub async fn is_rebase_head_set(git_dir: impl AsRef<Path>) -> bool {
     path_exists(git_dir.as_ref().join("REBASE_HEAD")).await
@@ -114,6 +119,7 @@ mod tests {
         assert!(!is_merge_head_set(&git_dir).await);
         assert!(!is_squash_msg_set(&git_dir).await);
         assert!(!is_cherry_pick_head_found(&git_dir).await);
+        assert!(!is_revert_head_found(&git_dir).await);
         assert!(!is_rebase_head_set(&git_dir).await);
         assert_eq!(get_rebase_internal_state(&git_dir).await, None);
     }
