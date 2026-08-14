@@ -673,7 +673,7 @@ export function AppDialogs({
           progress={cloneState.progress}
           error={cloneState.error}
           operationViewModel={
-            cloneState.nativeOperation === null
+            cloneState.nativeOperation == null
               ? undefined
               : operationProgressViewModel(
                   cloneState.nativeOperation,

@@ -900,6 +900,8 @@ window disappears; observers with a live owner remain read-only. Recovery failur
 repository recovery is required before continuing.
 Retry is now an explicit opt-in capability in the view model; recoverable errors do not imply retry
 is safe, and the shared dialog renders Retry only when both the capability and callback are present.
+Legacy/debug clone states that predate native-operation hydration remain supported when the optional
+record is absent.
 CloneStore now hydrates the native clone-destination operation after invocation starts and follows
 only that operation ID through the global event stream. Native lifecycle tracking is presentation
 enrichment rather than a prerequisite for cloning, and stale/reset clone callbacks remain rejected.
