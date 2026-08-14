@@ -1135,15 +1135,16 @@ re-enabled after the terminal event, proving that the native lock and refresh pa
 The multi-window E2E also checks the retained terminal event from the matching repository window,
 so completion is observable independently of the owner window's history refresh. This closes the
 generic terminal-event routing assertion; Push's unknown-outcome stop remains the operation-specific
-E2E gap.
+E2E gap. The deterministic local-bare Push journey now covers that gap: a blocked `pre-push` hook
+is cancelled before acknowledgement, and the terminal event reports `cancelled` with `unknown`
+outcome while the remote branch remains unchanged.
 
 The deterministic resilience coverage already proves the next boundaries: Clone timeout publishes
 the typed `timedOut` error and removes only its staging directory; the native watchdog retains the
 scope lock until termination finishes; recovery failures publish `recoveryFailed`/unknown and keep
 the write lock; and late-stop tests for Commit, Merge, Rebase, Cherry-pick, Revert, Squash and
 Reorder classify an already-completed mutation as completed. The matching multi-window terminal
-event assertion is now complete; Push's explicitly unknown stop result remains the
-operation-specific E2E gap.
+event assertion and Push's explicitly unknown stop result are now covered by deterministic E2E.
 Push's native recovery path already distinguishes an accepted branch update from an unreadable or
 unconfirmed remote result: the former finishes as completed, while the latter emits a typed
 cancelled/timed-out error with `unknown` outcome and retains the lock until reconciliation finishes.
