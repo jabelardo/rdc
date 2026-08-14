@@ -993,11 +993,12 @@ Migrate incrementally to the operation record and shared presentation:
    visual QA and broader Cherry-pick/Revert E2E coverage. Shared presentation tests now cover
    native Cherry-pick/Revert labels, progress, owner cancellation controls, and terminal recovery
    presentation, including terminal focus restoration and close behavior. The remaining E2E gap is
-   documented as a real native-command journey rather than a browser-side IPC shortcut. Before
-   closing this item, add that journey through the existing test harness or a supported debug-only
-   native command seam: prepare a disposable repository, execute Cherry-pick and Revert through the
-   same command/channel boundary as production, assert operation records and progress UI, and
-   cover the conflict/recovery boundary without exposing a production-only shortcut.
+   documented as a real native-command journey rather than a browser-side IPC shortcut. A
+   debug-only QA-driver seam now selects the repository and invokes the production IPC wrappers,
+   preserving their real progress channels; its ordering contract is covered by frontend tests.
+   Before closing this item, use that seam in the existing harness to prepare a disposable
+   repository, execute Cherry-pick and Revert, assert operation records and progress UI, and cover
+   the conflict/recovery boundary without exposing a production-only shortcut.
 
 Remote-store compatibility is now closed. `RemoteStore` continues to own remote selection,
 post-operation refresh sequencing, boolean action results and remote-management error

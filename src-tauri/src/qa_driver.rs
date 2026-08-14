@@ -26,12 +26,12 @@ use std::{
     time::Duration,
 };
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
 /// The whole driver state, debug-only. Optional fields leave the corresponding
 /// concern untouched when absent.
-#[derive(Debug, Default, Clone, PartialEq, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", default)]
 struct QaState {
     width: Option<f64>,
@@ -40,6 +40,16 @@ struct QaState {
     view: Option<String>,
     sidebar_collapsed: Option<bool>,
     repository: Option<String>,
+    history_operation: Option<QaHistoryOperation>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", default)]
+struct QaHistoryOperation {
+    kind: Option<String>,
+    commit: Option<String>,
+    summary: Option<String>,
+    parent_count: Option<usize>,
 }
 
 /// The event name delivered to the webview. Keep in sync with the frontend hook.
@@ -116,6 +126,7 @@ fn apply_full(app: &AppHandle, state: &QaState) -> Result<(), String> {
         "view": state.view,
         "sidebarCollapsed": state.sidebar_collapsed,
         "repository": state.repository,
+        "historyOperation": state.history_operation,
     });
     app.emit(QA_DRIVE_EVENT, payload)
         .map_err(|e| format!("emit qa-drive: {e}"))

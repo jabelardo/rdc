@@ -13,6 +13,12 @@ type QaDrivePayload = {
   readonly view: "changes" | "history" | null;
   readonly sidebarCollapsed: boolean | null;
   readonly repository: string | null;
+  readonly historyOperation?: {
+    readonly kind: "cherryPick" | "revert";
+    readonly commit: string;
+    readonly summary: string | null;
+    readonly parentCount: number | null;
+  } | null;
 };
 
 type DriveHandlers = {
@@ -20,6 +26,9 @@ type DriveHandlers = {
   setRepositoryView: (view: "changes" | "history") => void;
   setSidebarCollapsed: (collapsed: boolean) => void;
   selectRepositoryByPath: (path: string) => Promise<boolean>;
+  startHistoryOperation: (
+    operation: NonNullable<QaDrivePayload["historyOperation"]>,
+  ) => Promise<void>;
 };
 
 /**
@@ -41,6 +50,9 @@ export async function applyQaState(
   }
   if (repository !== null) {
     await handlers.selectRepositoryByPath(repository);
+  }
+  if (payload.historyOperation != null) {
+    await handlers.startHistoryOperation(payload.historyOperation);
   }
 }
 

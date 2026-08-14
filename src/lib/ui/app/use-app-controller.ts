@@ -8,13 +8,7 @@ import { isContiguousSelection, orderSelectedCommits } from "../../history-opera
 import { getMergedBranches } from "../../branch-ipc";
 import { initRepository } from "../../git-ipc";
 import { abortRevert, revertCommit } from "../../misc-ipc";
-import {
-  abortCherryPick,
-  cherryPick,
-  continueCherryPick,
-  reorder,
-  squash,
-} from "../../stash-ipc";
+import { abortCherryPick, cherryPick, continueCherryPick, reorder, squash } from "../../stash-ipc";
 import { installApplicationMenu } from "../../menu/application-menu";
 import { showContextMenu } from "../../platform/menu";
 import { dismissAllTooltips } from "../tooltip";
@@ -509,7 +503,8 @@ export function useAppController() {
       replaceMenu();
     });
     const unsubscribeOperation = operationStore.onDidUpdate((state) => {
-      latestOperationActive = state.operation !== null && !isTerminalOperation(state.operation.state);
+      latestOperationActive =
+        state.operation !== null && !isTerminalOperation(state.operation.state);
       replaceMenu();
     });
     const unsubscribePreferences = preferencesStore.onDidUpdate((state) => {
@@ -518,13 +513,13 @@ export function useAppController() {
     });
 
     void installApplicationMenu({
-        initialMenu: buildRepositoryMenu(
-          latestState,
-          platform,
-          latestRemoteState,
-          latestPreferencesState,
-          latestOperationActive,
-        ),
+      initialMenu: buildRepositoryMenu(
+        latestState,
+        platform,
+        latestRemoteState,
+        latestPreferencesState,
+        latestOperationActive,
+      ),
       executeMenuEvent,
     })
       .then(async (installedController) => {
@@ -558,7 +553,15 @@ export function useAppController() {
       unsubscribePreferences();
       controller?.dispose();
     };
-  }, [appStore, branchStore, cloneStore, historyStore, operationStore, preferencesStore, remoteStore]);
+  }, [
+    appStore,
+    branchStore,
+    cloneStore,
+    historyStore,
+    operationStore,
+    preferencesStore,
+    remoteStore,
+  ]);
   // oxlint-enable react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -1218,7 +1221,11 @@ export function useAppController() {
     );
   }
 
-  async function openCommitContextMenu(commit: import("../../../models/commit").Commit, x: number, y: number) {
+  async function openCommitContextMenu(
+    commit: import("../../../models/commit").Commit,
+    x: number,
+    y: number,
+  ) {
     const repository = appState.selectedRepository;
     if (repository === null) {
       return;
@@ -1288,8 +1295,9 @@ export function useAppController() {
       return;
     }
     const lastRetained =
-      historyState.commits[historyState.commits.findIndex((commit) => commit.sha === squashOnto.sha) + 1]
-        ?.sha ?? null;
+      historyState.commits[
+        historyState.commits.findIndex((commit) => commit.sha === squashOnto.sha) + 1
+      ]?.sha ?? null;
     if (!window.confirm(`Squash ${ordered.length} commits into ${squashOnto.summary}?`)) {
       return;
     }
@@ -1314,10 +1322,7 @@ export function useAppController() {
     if (lastSelected === undefined) {
       return;
     }
-    if (
-      before !== null &&
-      commits.some((commit) => commit.sha === before.sha)
-    ) {
+    if (before !== null && commits.some((commit) => commit.sha === before.sha)) {
       return;
     }
     if (
@@ -1779,6 +1784,17 @@ export function useAppController() {
       }
       await appStore.addRepository(path);
       return true;
+    },
+    startHistoryOperation: async ({ kind, commit, summary, parentCount }) => {
+      const repository = appStore.state.selectedRepository;
+      if (repository === null) {
+        return;
+      }
+      if (kind === "cherryPick") {
+        await cherryPick(repository.path, [{ sha: commit, summary: summary ?? "QA cherry-pick" }]);
+      } else {
+        await revertCommit(repository.path, commit, parentCount ?? 1);
+      }
     },
   });
 
