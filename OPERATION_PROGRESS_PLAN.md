@@ -1141,11 +1141,16 @@ The deterministic resilience coverage already proves the next boundaries: Clone 
 the typed `timedOut` error and removes only its staging directory; the native watchdog retains the
 scope lock until termination finishes; recovery failures publish `recoveryFailed`/unknown and keep
 the write lock; and late-stop tests for Commit, Merge, Rebase, Cherry-pick, Revert, Squash and
-Reorder classify an already-completed mutation as completed. Slice 19 still needs the matching
-multi-window E2E assertions for those terminal outcomes and Push's explicitly unknown stop result.
+Reorder classify an already-completed mutation as completed. The matching multi-window terminal
+event assertion is now complete; Push's explicitly unknown stop result remains the
+operation-specific E2E gap.
 Push's native recovery path already distinguishes an accepted branch update from an unreadable or
 unconfirmed remote result: the former finishes as completed, while the latter emits a typed
 cancelled/timed-out error with `unknown` outcome and retains the lock until reconciliation finishes.
+
+Remote progress is rendered in the toolbar's embedded, non-modal surface for Fetch, Push and Pull,
+so a background Fetch does not block unrelated repository work. An automated background-task
+presentation assertion remains part of the final resilience coverage.
 
 Add automated coverage for this matrix:
 
