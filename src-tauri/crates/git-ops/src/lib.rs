@@ -85,10 +85,11 @@ pub use branch::{
     get_branches_pointed_at, get_merged_branches, rename_branch,
 };
 pub use checkout::{
-    checkout_branch, checkout_branch_with_progress, checkout_commit, checkout_commit_with_progress,
-    checkout_conflicted_file, checkout_paths, get_checkout_snapshot, restore_checkout_snapshot,
-    CheckoutFileMetadata, CheckoutProgress, CheckoutProgressKind, CheckoutSnapshot, CheckoutTarget,
-    CheckoutUntrackedEntry, CheckoutUntrackedKind, ManualConflictResolution,
+    checkout_branch, checkout_branch_with_progress, checkout_branch_with_progress_controlled,
+    checkout_commit, checkout_commit_with_progress, checkout_conflicted_file, checkout_paths,
+    get_checkout_snapshot, restore_checkout_snapshot, CheckoutFileMetadata, CheckoutProgress,
+    CheckoutProgressKind, CheckoutSnapshot, CheckoutTarget, CheckoutUntrackedEntry,
+    CheckoutUntrackedKind, ManualConflictResolution,
 };
 pub use checkout_index::checkout_index;
 pub use cherry_pick::{

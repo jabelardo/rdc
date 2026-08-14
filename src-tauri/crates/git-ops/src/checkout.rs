@@ -24,7 +24,9 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::error::GitError;
-use crate::exec::{git, git_with_stderr_and_lfs, GitOptions};
+use crate::exec::{
+    git, git_with_stderr_and_lfs, git_with_stderr_and_lfs_controlled, ExecutionControl, GitOptions,
+};
 use crate::progress::{GitLfsProgressParser, GitProgress};
 
 /// Repository state that must survive an interrupted checkout.
@@ -632,7 +634,20 @@ pub async fn checkout_branch(
 pub async fn checkout_branch_with_progress<F>(
     repository: impl AsRef<Path>,
     target: CheckoutTarget<'_>,
+    on_progress: F,
+) -> Result<(), GitError>
+where
+    F: FnMut(CheckoutProgress) + Send,
+{
+    checkout_branch_with_progress_controlled(repository, target, on_progress, None).await
+}
+
+/// Checks out a branch with optional process cancellation.
+pub async fn checkout_branch_with_progress_controlled<F>(
+    repository: impl AsRef<Path>,
+    target: CheckoutTarget<'_>,
     mut on_progress: F,
+    control: Option<ExecutionControl>,
 ) -> Result<(), GitError>
 where
     F: FnMut(CheckoutProgress) + Send,
@@ -671,11 +686,12 @@ where
     let regular_progress = Arc::clone(&progress);
     let lfs_progress = Arc::clone(&progress);
     let mut lfs_parser = GitLfsProgressParser::default();
-    git_with_stderr_and_lfs(
+    git_with_stderr_and_lfs_controlled(
         &args,
         repository,
         "checkoutBranch",
         GitOptions::default(),
+        control,
         |chunk| {
             for (value, description) in parser.push(chunk) {
                 // Scaled into the first 90%; submodules own the rest.
@@ -1117,6 +1133,90 @@ mod tests {
                     && message.contains("new untracked path appeared")
         ));
         assert!(repo.path().join("new.txt").exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn controlled_checkout_can_stop_at_the_post_checkout_boundary() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "file.txt", "main\n", "main");
+        git(
+            &["checkout", "-b", "topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("topic branch should be created");
+        commit_file(&repo.path(), "file.txt", "topic\n", "topic");
+        git(
+            &["checkout", "main"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("main should be restored");
+
+        let git_dir = crate::rev_parse::resolve_git_dir(repo.path())
+            .await
+            .expect("git directory should resolve");
+        let control_dir = tempfile::tempdir().expect("control directory should be created");
+        let ready = control_dir.path().join("ready");
+        let release = control_dir.path().join("release");
+        let hook = git_dir.join("hooks/post-checkout");
+        std::fs::write(
+            &hook,
+            format!(
+                "#!/bin/sh\n: > '{}'\nwhile [ ! -e '{}' ]; do sleep 0.01; done\n",
+                ready.display(),
+                release.display()
+            ),
+        )
+        .expect("post-checkout hook should be written");
+        let mut permissions = std::fs::metadata(&hook)
+            .expect("hook metadata should exist")
+            .permissions();
+        permissions.set_mode(0o700);
+        std::fs::set_permissions(&hook, permissions).expect("hook should be executable");
+
+        let control = ExecutionControl::new();
+        let task = tokio::spawn({
+            let repository = repo.path();
+            let control = control.clone();
+            async move {
+                checkout_branch_with_progress_controlled(
+                    repository,
+                    CheckoutTarget::Local("topic"),
+                    |_| {},
+                    Some(control),
+                )
+                .await
+            }
+        });
+        tokio::time::timeout(std::time::Duration::from_secs(2), async {
+            while !ready.exists() {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("post-checkout hook should reach its barrier");
+        control.cancel(crate::error::TerminationReason::Cancelled);
+        let result = tokio::time::timeout(std::time::Duration::from_secs(2), task)
+            .await
+            .expect("checkout cancellation should terminate")
+            .expect("checkout task should not panic");
+
+        assert!(matches!(
+            result,
+            Err(GitError::OperationTerminated {
+                name,
+                reason: crate::error::TerminationReason::Cancelled,
+                ..
+            }) if name == "checkoutBranch"
+        ));
     }
 
     #[cfg(unix)]

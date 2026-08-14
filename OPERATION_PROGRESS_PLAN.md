@@ -826,8 +826,9 @@ Implementation order:
   restoration now recreates file contents, Unix modes or Windows readonly state, and symlinks after
   safely replacing changed or missing paths. Recovery refuses to proceed when a new untracked path
   appears after the snapshot, preserving an unknown outcome instead of deleting user data.
-  Command integration and late-stop race coverage remain pending, so cancellation is still
-  unavailable.
+  A controlled branch-checkout runner now terminates at a blocked `post-checkout` hook and reports
+  the native cancellation reason. Command-layer snapshot ownership, recovery classification, and
+  late-stop race coverage remain pending, so the UI cancellation capability is still unavailable.
 - The pre-operation snapshot must capture the symbolic `HEAD` target (or detached SHA), the complete
   index including staged modes/content, the tracked worktree patch including binary files and modes,
   and the inventory/content of untracked paths that checkout could overwrite. A `HEAD` SHA alone is
