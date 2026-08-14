@@ -6,7 +6,7 @@ import type { Repository } from "../../../models/repository";
 import { getCloneDirectoryName } from "../../clone-destination";
 import { isContiguousSelection, orderSelectedCommits } from "../../history-operation-selection";
 import { getMergedBranches } from "../../branch-ipc";
-import { initRepository } from "../../git-ipc";
+import { abortRebase, continueRebase, initRepository } from "../../git-ipc";
 import { abortRevert, revertCommit } from "../../misc-ipc";
 import { abortCherryPick, cherryPick, continueCherryPick, reorder, squash } from "../../stash-ipc";
 import { installApplicationMenu } from "../../menu/application-menu";
@@ -1304,6 +1304,24 @@ export function useAppController() {
     }
   }
 
+  async function continueRebaseRecovery(): Promise<void> {
+    const repository = appState.selectedRepository;
+    if (repository === null || !conflictState.rebaseInProgress || conflictState.files.length > 0) {
+      return;
+    }
+    await continueRebase(repository.path, []);
+    await conflictStore.load(repository.path);
+  }
+
+  async function abortRebaseRecovery(): Promise<void> {
+    const repository = appState.selectedRepository;
+    if (repository === null || !conflictState.rebaseInProgress) {
+      return;
+    }
+    await abortRebase(repository.path);
+    await conflictStore.load(repository.path);
+  }
+
   async function squashSelectedCommits(commits: ReadonlyArray<Commit>): Promise<void> {
     const repository = appState.selectedRepository;
     if (repository === null || commits.length < 2 || operationStateForRepositoryActive()) {
@@ -1918,6 +1936,8 @@ export function useAppController() {
     openCommitContextMenu,
     continueHistoryRecovery,
     abortHistoryRecovery,
+    continueRebaseRecovery,
+    abortRebaseRecovery,
     squashSelectedCommits,
     reorderSelectedCommits,
     mergePickerOpen,

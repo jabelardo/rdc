@@ -114,6 +114,8 @@ export function AppShell({ controller }: AppShellProps) {
     openBranchContextMenu,
     continueHistoryRecovery,
     abortHistoryRecovery,
+    continueRebaseRecovery,
+    abortRebaseRecovery,
     squashSelectedCommits,
     reorderSelectedCommits,
     mergePickerOpen,
@@ -336,6 +338,8 @@ export function AppShell({ controller }: AppShellProps) {
                 }
                 onContinueRecovery={() => void continueHistoryRecovery()}
                 onAbortRecovery={() => void abortHistoryRecovery()}
+                onContinueRebase={() => void continueRebaseRecovery()}
+                onAbortRebase={() => void abortRebaseRecovery()}
               />
             )}
             <ChangesWorkspace

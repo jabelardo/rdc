@@ -8,6 +8,8 @@ type MergeConflictsProps = {
   readonly recoveryOperation?: "cherryPick" | "revert";
   readonly onContinueRecovery?: () => void;
   readonly onAbortRecovery?: () => void;
+  readonly onContinueRebase?: () => void;
+  readonly onAbortRebase?: () => void;
 };
 
 /** In-progress merge state and resolved-file staging controls. */
@@ -19,6 +21,8 @@ export function MergeConflicts({
   recoveryOperation,
   onContinueRecovery,
   onAbortRecovery,
+  onContinueRebase,
+  onAbortRebase,
 }: MergeConflictsProps) {
   const recoveryVisible = recoveryOperation !== undefined;
   if (
@@ -133,6 +137,20 @@ export function MergeConflicts({
               Abort {recoveryOperation === "cherryPick" ? "cherry-pick" : "revert"}
             </button>
           )}
+        </div>
+      )}
+      {state.rebaseInProgress && (
+        <div className="mt-4 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={state.loading || state.stagingPath !== null || state.files.length > 0}
+            onClick={onContinueRebase}
+          >
+            Continue rebase
+          </button>
+          <button type="button" disabled={state.loading} onClick={onAbortRebase}>
+            Abort rebase
+          </button>
         </div>
       )}
     </section>

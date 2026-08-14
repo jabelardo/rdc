@@ -1100,7 +1100,9 @@ The conflict store now hydrates Cherry-pick/Revert recovery from those marker fa
 operation record survives the restart, and the recovery banner's abort/continue actions use that
 hydrated operation kind. Focused restart E2E passes after this hydration path is loaded.
 It also retains interrupted rebase state from `rebaseInternalState` and presents explicit recovery
-guidance after reload; rebase continue/abort controls remain the next Slice 18 increment.
+guidance after reload. The recovery surface now exposes native Continue rebase and Abort rebase
+actions, with continuation gated until conflicted files are staged; focused restart E2E passes
+after the handlers are wired through AppShell.
 
 Do not claim the original process is still running after an app restart. Present the detected
 repository state as recovery-required and offer the operation-specific continue/abort path.
