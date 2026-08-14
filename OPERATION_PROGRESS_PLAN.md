@@ -987,8 +987,9 @@ Migrate incrementally to the operation record and shared presentation:
    model. Squash validates contiguous ranges, and Reorder supports an explicit target or end of
    history. The History workspace now has focused interaction coverage for selection, Squash and
    explicit Reorder targets; real-shell E2E now verifies contiguous selection and executes both
-   Reorder and Squash against a disposable repository; remaining work is visual QA and broader
-   Cherry-pick/Revert E2E coverage.
+   Reorder and Squash against a disposable repository. Recovery coverage verifies Cherry-pick
+   continuation is gated on staged resolutions and Revert remains abort-only; remaining work is
+   visual QA and broader Cherry-pick/Revert E2E coverage.
 
 Remote-store compatibility is now closed. `RemoteStore` continues to own remote selection,
 post-operation refresh sequencing, boolean action results and remote-management error
@@ -1042,7 +1043,8 @@ callbacks no longer publish progress or operation-error state.
 Latest verification after this removal: the complete frontend suite passes (136 files, 1,205
 tests); focused remote and operation tests remain green; and the Linux-container E2E suite passes
 39 tests across 17 suites, including the History interactive-controls journey; the focused History
-E2E passes 3 tests including Git-verified Reorder and Squash mutations.
+E2E passes 3 tests including Git-verified Reorder and Squash mutations; focused recovery tests pass
+3 tests.
 
 Coordinator acceptance boundary:
 

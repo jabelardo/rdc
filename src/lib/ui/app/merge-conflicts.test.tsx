@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ConflictState, ConflictStore } from "../../stores/conflict-store";
+import { AppFileStatusKind, GitStatusEntry, UnmergedEntrySummary } from "../../../models/status";
 import { MergeConflicts } from "./merge-conflicts";
 
 const state: ConflictState = {
@@ -54,5 +55,73 @@ describe("MergeConflicts recovery presentation", () => {
     expect(screen.getByRole("region", { name: "Revert recovery" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Continue cherry-pick" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Abort revert" })).toBeInTheDocument();
+  });
+
+  it("keeps Cherry-pick continuation disabled until every resolved file is staged", () => {
+    const onContinue = vi.fn();
+    const onStageResolved = vi.fn();
+    const unresolvedState: ConflictState = {
+      ...state,
+      files: [
+        {
+          path: "conflicted.txt",
+          status: {
+            kind: AppFileStatusKind.Conflicted,
+            entry: {
+              kind: "conflicted",
+              action: UnmergedEntrySummary.BothModified,
+              us: GitStatusEntry.UpdatedButUnmerged,
+              them: GitStatusEntry.UpdatedButUnmerged,
+            },
+            conflictMarkerCount: 1,
+          },
+          resolvedInWorkingTree: false,
+        },
+      ],
+    };
+    const view = render(
+      <MergeConflicts
+        repositoryPath="/repo"
+        state={unresolvedState}
+        store={store}
+        onStageResolved={onStageResolved}
+        recoveryOperation="cherryPick"
+        onContinueRecovery={onContinue}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Continue cherry-pick" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Stage resolution for conflicted.txt" }),
+    ).toBeDisabled();
+
+    view.rerender(
+      <MergeConflicts
+        repositoryPath="/repo"
+        state={{
+          ...unresolvedState,
+          files: [{ ...unresolvedState.files[0], resolvedInWorkingTree: true }],
+        }}
+        store={store}
+        onStageResolved={onStageResolved}
+        recoveryOperation="cherryPick"
+        onContinueRecovery={onContinue}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Stage resolution for conflicted.txt" }));
+    expect(onStageResolved).toHaveBeenCalledWith("conflicted.txt");
+
+    view.rerender(
+      <MergeConflicts
+        repositoryPath="/repo"
+        state={{ ...unresolvedState, files: [] }}
+        store={store}
+        onStageResolved={onStageResolved}
+        recoveryOperation="cherryPick"
+        onContinueRecovery={onContinue}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Continue cherry-pick" }));
+    expect(onContinue).toHaveBeenCalledOnce();
   });
 });
