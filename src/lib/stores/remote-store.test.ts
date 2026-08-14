@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Branch, BranchType } from "../../models/branch";
 import type { IFetchProgress, IPullProgress, IPushProgress } from "../../models/progress";
 import type { IRemote } from "../../models/remote";
+import type { OperationRecord } from "../../models/operation";
 import { RemoteStore } from "./remote-store";
 
 const origin: IRemote = {
@@ -158,6 +159,9 @@ describe("RemoteStore", () => {
           value: 0.5,
           description: "Receiving objects",
         });
+        return {
+          refresh: { remoteNames: ["upstream"], repositoryFacts: true },
+        } as unknown as OperationRecord;
       },
     );
     const updateRemoteHEAD = vi.fn(async () => undefined);
@@ -180,7 +184,8 @@ describe("RemoteStore", () => {
       expect.any(Function),
       false,
     );
-    expect(updateRemoteHEAD).toHaveBeenCalledTimes(2);
+    expect(updateRemoteHEAD).toHaveBeenCalledWith("/repo", "upstream", false);
+    expect(updateRemoteHEAD).toHaveBeenCalledTimes(1);
   });
 
   it("pushes the current branch to its tracked branch and refreshes the remote", async () => {

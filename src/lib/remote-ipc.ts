@@ -24,6 +24,7 @@ import { Channel, invoke } from "@tauri-apps/api/core";
 import { hookFailureChannel, type IHookProgress } from "./hook-ipc";
 import type { IHookOptions } from "./git-ipc";
 import type { IRemote } from "../models/remote";
+import type { OperationRecord } from "../models/operation";
 import type {
   ICloneProgress,
   IFetchProgress,
@@ -132,10 +133,10 @@ export async function fetchWorkflow(
   remoteNames: ReadonlyArray<string>,
   progressCallback?: (progress: IFetchProgress) => void,
   isBackgroundTask = false,
-): Promise<void> {
+): Promise<OperationRecord> {
   const onProgress = new Channel<IFetchProgress>(progressCallback);
 
-  return invoke<void>("fetch_workflow", {
+  return invoke<OperationRecord>("fetch_workflow", {
     repositoryPath,
     remoteNames,
     isBackgroundTask,

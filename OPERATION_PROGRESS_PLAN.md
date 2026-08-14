@@ -1016,7 +1016,8 @@ transport outcome. `RemoteStore` now consumes it for the real IPC dependency and
 store-owned remote-head/facts refresh follow-up until the command publishes that terminal refresh
 requirement. Test doubles that replace the single-remote transport continue to use the compatibility
 loop explicitly. The native record now carries an optional `refresh` requirement so peer windows
-receive the same post-transport contract as the initiating controller.
+receive the same post-transport contract as the initiating controller, and the store consumes the
+returned record when choosing remote-head refreshes.
 
 Coordinator acceptance boundary:
 

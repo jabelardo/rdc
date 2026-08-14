@@ -1,6 +1,7 @@
 import { BranchType, type Branch, type ITrackingBranch } from "../../models/branch";
 import type { IFetchProgress, IPullProgress, IPushProgress, Progress } from "../../models/progress";
 import type { IRemote } from "../../models/remote";
+import type { OperationRecord } from "../../models/operation";
 import { getBranches, getBranchesDifferingFromUpstream } from "../branch-ipc";
 import { getStatus, type IStatusResult } from "../git-ipc";
 import { describeError } from "../format-error";
@@ -58,7 +59,7 @@ type RemoteStoreDependencies = {
     remoteNames: ReadonlyArray<string>,
     progressCallback?: (progress: IFetchProgress) => void,
     isBackgroundTask?: boolean,
-  ) => Promise<void>;
+  ) => Promise<OperationRecord | void>;
   readonly updateRemoteHEAD: typeof updateRemoteHEAD;
   readonly push: (
     repositoryPath: string,
@@ -370,19 +371,22 @@ export class RemoteStore {
       };
 
       if (this.dependencies.fetchWorkflow !== undefined) {
-        await this.dependencies.fetchWorkflow(
+        const nativeRecord = await this.dependencies.fetchWorkflow(
           repositoryPath,
           relevantRemotes.map((remote) => remote.name),
           updateProgress,
           false,
         );
+        const refreshRemotes =
+          nativeRecord?.refresh?.remoteNames ?? relevantRemotes.map((remote) => remote.name);
+        for (const remoteName of refreshRemotes) {
+          await this.updateRemoteHeadQuietly(repositoryPath, remoteName);
+        }
       } else {
         for (const remote of relevantRemotes) {
           await this.dependencies.fetch(repositoryPath, remote.name, updateProgress, false);
+          await this.updateRemoteHeadQuietly(repositoryPath, remote.name);
         }
-      }
-      for (const remote of relevantRemotes) {
-        await this.updateRemoteHeadQuietly(repositoryPath, remote.name);
       }
 
       if (!this.isCurrentOperation(requestID, operationID)) {

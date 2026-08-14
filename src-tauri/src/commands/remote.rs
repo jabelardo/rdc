@@ -21,7 +21,7 @@ use super::CommandError;
 use crate::hook_state::{support_for_operation, HookFailurePrompt, HookRegistry};
 use crate::operation::{
     GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationProgress,
-    OperationRefresh, OperationState,
+    OperationRecord, OperationRefresh, OperationState,
 };
 use crate::operation_registry::OperationRegistry;
 use crate::trampoline_state::{RemoteSession, TrampolineState};
@@ -619,7 +619,7 @@ pub async fn fetch_workflow(
     remote_names: Vec<String>,
     is_background_task: Option<bool>,
     on_progress: Channel<FetchProgress>,
-) -> Result<(), CommandError> {
+) -> Result<OperationRecord, CommandError> {
     if remote_names.is_empty() {
         return Err(CommandError::message(
             "Fetch workflow requires at least one remote",
@@ -660,9 +660,11 @@ pub async fn fetch_workflow(
     }
 
     let operation_id = operation.id.clone();
+    let result_operation_id = operation_id.clone();
     let operation_registry = registry.inner().clone();
+    let task_registry = operation_registry.clone();
     tauri::async_runtime::spawn(async move {
-        let watchdog = operation_registry.spawn_watchdog(
+        let watchdog = task_registry.spawn_watchdog(
             operation_id.clone(),
             crate::operation_registry::WatchdogPolicy::default(),
         );
@@ -673,7 +675,7 @@ pub async fn fetch_workflow(
         let total = sessions.len() as f64;
         let mut result = Ok(());
         for (index, (remote_name, remote)) in sessions.into_iter().enumerate() {
-            let progress_registry = operation_registry.clone();
+            let progress_registry = task_registry.clone();
             let progress_operation_id = operation_id.clone();
             let fetch_result = git_ops::fetch::fetch_controlled(
                 &repository_path,
@@ -699,7 +701,7 @@ pub async fn fetch_workflow(
                 Ok(_) => {}
                 Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
                     result = Err(recover_terminated_fetch(
-                        &operation_registry,
+                        &task_registry,
                         &operation_id,
                         &repository_path,
                         reason,
@@ -709,7 +711,7 @@ pub async fn fetch_workflow(
                 }
                 Err(error) => {
                     let command_error = remote_error(&remote, error);
-                    let _ = operation_registry.finish(
+                    let _ = task_registry.finish(
                         &operation_id,
                         OperationState::Failed,
                         OperationOutcome::Unknown,
@@ -726,14 +728,14 @@ pub async fn fetch_workflow(
         }
         watchdog.abort();
         if result.is_ok() {
-            let _ = operation_registry.set_refresh(
+            let _ = task_registry.set_refresh(
                 &operation_id,
                 OperationRefresh {
                     remote_names: refresh_remote_names,
                     repository_facts: true,
                 },
             );
-            let _ = operation_registry.publish_progress(
+            let _ = task_registry.publish_progress(
                 &operation_id,
                 OperationProgress {
                     value: 0.9,
@@ -741,7 +743,7 @@ pub async fn fetch_workflow(
                     description: Some("Remote fetches complete".to_owned()),
                 },
             );
-            let _ = operation_registry.finish(
+            let _ = task_registry.finish(
                 &operation_id,
                 OperationState::Completed,
                 OperationOutcome::Completed,
@@ -751,7 +753,11 @@ pub async fn fetch_workflow(
         result
     })
     .await
-    .map_err(|error| CommandError::message(format!("Fetch workflow task failed: {error}")))?
+    .map_err(|error| CommandError::message(format!("Fetch workflow task failed: {error}")))??;
+
+    operation_registry.get(&result_operation_id).ok_or_else(|| {
+        CommandError::message("Fetch workflow completed without an operation record")
+    })
 }
 
 #[cfg(test)]
