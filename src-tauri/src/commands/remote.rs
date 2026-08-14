@@ -605,6 +605,144 @@ pub async fn fetch(
     .map_err(|error| CommandError::message(format!("Fetch task failed: {error}")))?
 }
 
+/// Fetches several remotes under one repository-scoped operation.
+///
+/// The frontend uses this for the tracked remote plus the default remote. Keeping the transport
+/// loop here means another window sees one lock, one cancellation capability and one terminal
+/// outcome instead of a sequence of unrelated Fetch records.
+#[tauri::command]
+pub async fn fetch_workflow(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    state: State<'_, TrampolineState>,
+    repository_path: String,
+    remote_names: Vec<String>,
+    is_background_task: Option<bool>,
+    on_progress: Channel<FetchProgress>,
+) -> Result<(), CommandError> {
+    if remote_names.is_empty() {
+        return Err(CommandError::message(
+            "Fetch workflow requires at least one remote",
+        ));
+    }
+
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Fetch,
+        "Cancel fetch",
+    )
+    .await?;
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let background = is_background_task.unwrap_or(false);
+    let mut sessions = Vec::with_capacity(remote_names.len());
+    for remote_name in remote_names {
+        match state.session_for(&repository_path, background).await {
+            Ok(remote) => sessions.push((remote_name, remote)),
+            Err(error) => {
+                let command_error = bind_error(error);
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Failed,
+                    OperationOutcome::Unknown,
+                    Some(OperationError {
+                        kind: OperationErrorKind::Failed,
+                        message: command_error.message.clone(),
+                        recoverable: true,
+                    }),
+                );
+                return Err(command_error);
+            }
+        }
+    }
+
+    let operation_id = operation.id.clone();
+    let operation_registry = registry.inner().clone();
+    tauri::async_runtime::spawn(async move {
+        let watchdog = operation_registry.spawn_watchdog(
+            operation_id.clone(),
+            crate::operation_registry::WatchdogPolicy::default(),
+        );
+        let total = sessions.len() as f64;
+        let mut result = Ok(());
+        for (index, (remote_name, remote)) in sessions.into_iter().enumerate() {
+            let progress_registry = operation_registry.clone();
+            let progress_operation_id = operation_id.clone();
+            let fetch_result = git_ops::fetch::fetch_controlled(
+                &repository_path,
+                &remote_name,
+                &remote.env,
+                Some(|progress: FetchProgress| {
+                    let value = ((index as f64 + progress.value) / total) * 0.9;
+                    let _ = progress_registry.publish_progress(
+                        &progress_operation_id,
+                        OperationProgress {
+                            value,
+                            title: Some(format!("Fetching {remote_name}")),
+                            description: progress.description.clone(),
+                        },
+                    );
+                    let _ = on_progress.send(progress);
+                }),
+                Some(control.clone()),
+            )
+            .await;
+
+            match fetch_result {
+                Ok(_) => {}
+                Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
+                    result = Err(recover_terminated_fetch(
+                        &operation_registry,
+                        &operation_id,
+                        &repository_path,
+                        reason,
+                    )
+                    .await);
+                    break;
+                }
+                Err(error) => {
+                    let command_error = remote_error(&remote, error);
+                    let _ = operation_registry.finish(
+                        &operation_id,
+                        OperationState::Failed,
+                        OperationOutcome::Unknown,
+                        Some(OperationError {
+                            kind: OperationErrorKind::Failed,
+                            message: command_error.message.clone(),
+                            recoverable: true,
+                        }),
+                    );
+                    result = Err(command_error);
+                    break;
+                }
+            }
+        }
+        watchdog.abort();
+        if result.is_ok() {
+            let _ = operation_registry.publish_progress(
+                &operation_id,
+                OperationProgress {
+                    value: 0.9,
+                    title: Some("Refreshing repository".to_owned()),
+                    description: Some("Remote fetches complete".to_owned()),
+                },
+            );
+            let _ = operation_registry.finish(
+                &operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+        }
+        result
+    })
+    .await
+    .map_err(|error| CommandError::message(format!("Fetch workflow task failed: {error}")))?
+}
+
 #[cfg(test)]
 mod fetch_cancellation_tests {
     use std::process::Command;

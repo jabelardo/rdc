@@ -37,6 +37,7 @@ const {
   push,
   deleteRemoteBranch,
   fetch,
+  fetchWorkflow,
   fetchRefspec,
   pull,
   fastForwardBranches,
@@ -189,6 +190,19 @@ describe("the remote commands", () => {
       "fetch",
       expect.objectContaining({ isBackgroundTask: true }),
     );
+  });
+
+  it("fetchWorkflow sends all remotes through one native command", async () => {
+    const callback = vi.fn();
+    await fetchWorkflow(REPO, ["upstream", "origin"], callback, true);
+
+    expect(invoke).toHaveBeenCalledWith("fetch_workflow", {
+      repositoryPath: REPO,
+      remoteNames: ["upstream", "origin"],
+      isBackgroundTask: true,
+      onProgress: expect.anything(),
+    });
+    expect(channelInstances[0].handler).toBe(callback);
   });
 
   it("deleteRemoteBranch sends no Channel, since a deletion has no progress", async () => {

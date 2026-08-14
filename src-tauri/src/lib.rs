@@ -267,6 +267,7 @@ pub fn run() {
             commands::remote::push,
             commands::remote::delete_remote_branch,
             commands::remote::fetch,
+            commands::remote::fetch_workflow,
             commands::remote::fetch_refspec,
             commands::remote::pull,
             commands::remote::fast_forward_branches,

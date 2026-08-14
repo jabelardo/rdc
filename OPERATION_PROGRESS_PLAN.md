@@ -1010,6 +1010,11 @@ coverage; the coordinator still needs to consume that helper and own the workflo
 after that coordinator is consumed by the controller can the store-owned lifecycle fields be
 removed safely.
 
+The first native producer is now available as `fetch_workflow`: it owns the repository lock,
+watchdog, cancellation, multi-remote transport loop, weighted native progress, and terminal
+transport outcome. `RemoteStore` does not consume it yet because the command still needs to publish
+the terminal remote-head/facts refresh requirement before the store can stop owning that follow-up.
+
 Coordinator acceptance boundary:
 
 - one repository-scoped native operation spans every selected Fetch transport and the Push/Pull

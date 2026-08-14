@@ -126,6 +126,23 @@ export async function fetch(
   });
 }
 
+/** Fetches several remotes under one native repository operation. */
+export async function fetchWorkflow(
+  repositoryPath: string,
+  remoteNames: ReadonlyArray<string>,
+  progressCallback?: (progress: IFetchProgress) => void,
+  isBackgroundTask = false,
+): Promise<void> {
+  const onProgress = new Channel<IFetchProgress>(progressCallback);
+
+  return invoke<void>("fetch_workflow", {
+    repositoryPath,
+    remoteNames,
+    isBackgroundTask,
+    onProgress,
+  });
+}
+
 /**
  * Fetches a single `refspec` from `remoteName`.
  *
