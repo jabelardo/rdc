@@ -1,9 +1,9 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slices 1–10 complete; Slice 11 next
-**Recorded:** 2026-08-11  
-**Primary milestone:** finish through Slice 10 (Fetch cancellation) before expanding cancellation to
-history-changing operations.
+**Status:** Slices 1–14 complete; Slice 15 next
+**Recorded:** 2026-08-14  
+**Primary milestone:** define truthful cancellation and timeout policies for the remaining
+progress-producing operations before completing the unified progress presentation.
 
 This document is the implementation plan for consolidating Git-operation progress while preserving
 rdc's multi-window behavior. It is written as instructions for an implementation agent. Follow the
