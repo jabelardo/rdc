@@ -1,20 +1,29 @@
 import type { ICloneProgress } from "../../models/progress";
+import type { OperationEventEnvelope, OperationRecord } from "../../models/operation";
+import {
+  getActiveOperationForCloneDestination,
+  listenToOperationEvents,
+} from "../operation-ipc";
 import { clone as cloneRepository } from "../remote-ipc";
 import { describeRemoteError } from "../remote-error";
 
 export type CloneState = {
   readonly operation: "clone" | null;
   readonly progress: ICloneProgress | null;
+  readonly nativeOperation: OperationRecord | null;
   readonly error: string | null;
 };
 
 type CloneStoreDependencies = {
   readonly clone: typeof cloneRepository;
+  readonly getActive: typeof getActiveOperationForCloneDestination;
+  readonly listen: (callback: (event: OperationEventEnvelope) => void) => Promise<() => void>;
 };
 
 const EmptyState: CloneState = {
   operation: null,
   progress: null,
+  nativeOperation: null,
   error: null,
 };
 
@@ -34,6 +43,8 @@ export class CloneStore {
   public constructor(dependencies: Partial<CloneStoreDependencies> = {}) {
     this.dependencies = {
       clone: cloneRepository,
+      getActive: getActiveOperationForCloneDestination,
+      listen: listenToOperationEvents,
       ...dependencies,
     };
   }
@@ -74,11 +85,26 @@ export class CloneStore {
         title: `Cloning into ${path}`,
         value: 0,
       },
+      nativeOperation: null,
       error: null,
     });
 
+    let trackedNativeOperationID: string | undefined;
+    let unlisten: (() => void) | undefined;
     try {
-      await this.dependencies.clone(
+      try {
+        unlisten = await this.dependencies.listen((event) => {
+          if (
+            operationID === this.operationID &&
+            trackedNativeOperationID === event.record.id
+          ) {
+            this.update({ ...this.currentState, nativeOperation: event.record });
+          }
+        });
+      } catch {
+        // Native lifecycle tracking enriches presentation but must not prevent cloning.
+      }
+      const clone = this.dependencies.clone(
         url,
         path,
         null,
@@ -93,6 +119,20 @@ export class CloneStore {
         },
         false,
       );
+      try {
+        const active = await this.dependencies.getActive(path);
+        if (
+          operationID === this.operationID &&
+          active?.operation === "clone" &&
+          active.scope.kind === "cloneDestination"
+        ) {
+          trackedNativeOperationID = active.id;
+          this.update({ ...this.currentState, nativeOperation: active });
+        }
+      } catch {
+        // Keep the existing clone progress model when lifecycle hydration is unavailable.
+      }
+      await clone;
       if (operationID !== this.operationID) {
         return null;
       }
@@ -103,10 +143,13 @@ export class CloneStore {
         this.update({
           operation: null,
           progress: null,
+          nativeOperation: null,
           error: describeRemoteError(error),
         });
       }
       return null;
+    } finally {
+      unlisten?.();
     }
   }
 

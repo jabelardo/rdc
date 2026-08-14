@@ -16,6 +16,14 @@ export function getActiveOperationForRepository(
   return invoke<OperationRecord | null>("get_active_operation_for_repository", { repositoryPath });
 }
 
+export function getActiveOperationForCloneDestination(
+  destinationPath: string,
+): Promise<OperationRecord | null> {
+  return invoke<OperationRecord | null>("get_active_operation_for_clone_destination", {
+    destinationPath,
+  });
+}
+
 export function getOperationScopeForRepository(
   repositoryPath: string,
 ): Promise<OperationScope | null> {
