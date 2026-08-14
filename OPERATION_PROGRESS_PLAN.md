@@ -58,6 +58,10 @@ These are settled. Do not silently reinterpret them during implementation.
 10. **Background work stays non-modal.** User-initiated operations use the unified progress dialog.
     Scheduled/background fetch uses the same operation model and progress body in an embedded
     presentation.
+11. **Slices produce automated evidence, never human sign-off.** Human visual, accessibility and
+    platform verification belongs to the Phase 8b cycle; a slice contributes rows to a
+    `qa/phase-8b/` checklist and closes on its automated gates. See “Where QA happens” in
+    `COMPONENT_MIGRATION_PROCESS.md`.
 
 ## Target ownership model
 
@@ -1020,7 +1024,7 @@ Migrate incrementally to the operation record and shared presentation:
    to the native repository lock before deriving remote-action enablement.
 7. Checkout. **Complete:** the branch sidebar renders native Checkout progress through the shared
    body; branch-store state remains the refresh/error compatibility path.
-8. Cherry-pick/Revert. **Functional migration complete; Slice 20 owns QA closure:** the History commit context menu now starts the native
+8. Cherry-pick/Revert. **Functional migration complete; Slice 20 writes its QA rows:** the History commit context menu now starts the native
    Cherry-pick and Revert commands, and their operation records mount the unified progress dialog.
    The conflict surface now identifies Cherry-pick/Revert recovery, stages resolutions, offers
    Cherry-pick continuation and explicit abort for both operations. Interactive Squash/Reorder
@@ -1235,19 +1239,31 @@ native or Linux-container tests. Background-task E2E remains a follow-up attache
 production background scheduler; no such producer exists yet, and the IPC flag is already covered
 by unit tests.
 
-## Slice 20 — Documentation, QA and closure
+## Slice 20 — Documentation and closure
+
+This slice closes the plan. It does not perform QA — see “Where QA happens” in
+`COMPONENT_MIGRATION_PROCESS.md`. Everything a human must look at is *written down* here and
+*walked* in the Phase 8b cycle.
 
 Before closing the work:
 
 1. Update `MIGRATION_PLAN.md` with landed slices and measured behavior.
 2. Update `MIGRATION_MAP.md` paths, deliberate departures and remaining unsupported cancellation.
 3. Update `COMPONENT_MIGRATION_PROCESS.md` with the final dialog/embedded presentation contract.
-4. Own all remaining QA for migrated dialogs and progress surfaces, including Slice 17's
-   Light/Dark, compact viewport, owner/observer, timeout and recovery rows. Slice 17 supplies the
-   functional evidence; Slice 20 records human visual sign-off and platform evidence.
-5. Record platform evidence for process-tree termination on Linux and macOS; Windows remains governed
-   by the Phase 10 target but its seam must compile when introduced.
-6. Run the store-surface measurement when command additions/removals settle; copy numbers from the
+4. Leave complete QA rows in `qa/phase-8b/dialog-migration-checklist.md` for every progress surface
+   this plan touched: Light/Dark and compact viewport for the unified dialog and the shared progress
+   body, and the owner/observer/adopted-control, slow-operation, timeout, recovery-required and
+   terminal-error states. Slices 1–19 supply the automated evidence; these rows are what the cycle
+   walks that automation cannot see. Write them specifically enough to follow without rereading this
+   plan — which operation, which window, what the screen should say.
+5. Add the multi-window rows the cycle needs to a repository-level checklist: two repositories in
+   two windows, a peer window on one repository, and owner-window loss. `qa/phase-8b/` has no
+   multi-window platform checklist today, so this slice creates one or extends an existing one; the
+   fixture requirements belong in `fixture-scenarios.md` so Phase 8a can prepare them rather than a
+   person building state by hand.
+6. Note process-tree termination as a Linux and macOS row for the cycle. Windows remains governed by
+   the Phase 10 target; its seam must compile when introduced.
+7. Run the store-surface measurement when command additions/removals settle; copy numbers from the
    script output, never by hand.
 
 Run the complete repository gate set before every commit:

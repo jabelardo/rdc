@@ -337,10 +337,13 @@ against the new primitives — they should, since the accessible-name queries ar
 Each dialog migration changes padding (`p-6`→`p-4`), border (`border`→`ring-1`), backdrop
 (`42%`→`10%`+blur), max-width, and header alignment. None of these are caught by the automated
 gate set — a wrong shade or misaligned header is invisible to every test. So **every migrated
-dialog gets a human visual check in Light and Dark before its sub-slice closes**, recorded in
-`qa/phase-8b/dialog-migration-checklist.md` (created in sub-slice 2.0). The check is per-dialog,
-not per-phase: a dialog is not "done" until both the gates are green *and* the visual check is
-signed off.
+dialog gets a human visual check in Light and Dark**, and every sub-slice **adds that dialog's rows**
+to `qa/phase-8b/dialog-migration-checklist.md` (created in sub-slice 2.0) as part of its own work.
+
+The check itself runs in the Phase 8b cycle, not as a gate on the sub-slice: a sub-slice is done when
+its automated gates are green and its rows are written. See “Where QA happens” in
+`COMPONENT_MIGRATION_PROCESS.md`. The rows stay per-dialog — that granularity is what makes the cycle
+walkable — but a dialog does not wait on a signature to be considered migrated.
 
 What to verify per dialog, in Light and Dark:
 

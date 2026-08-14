@@ -33,11 +33,41 @@ to make divergence a choice rather than an accident.
    convention below — no decision), or `DECIDE` (genuine divergence).
 3. **Resolve every `DECIDE` row** with the user, and record the rationale.
 4. **Promote anything reusable** into "Settled conventions" below.
-5. **Implement**, then run the visual pass in
-   [`qa/phase-8b/dialog-migration-checklist.md`](./qa/phase-8b/dialog-migration-checklist.md).
+5. **Implement**, then **add the component's rows** to
+   [`qa/phase-8b/dialog-migration-checklist.md`](./qa/phase-8b/dialog-migration-checklist.md) —
+   see the QA-placement rule immediately below. Writing the rows is development work; walking them
+   is not.
 
 The payoff compounds: each component only needs review of what is *new*. By the third or fourth
 dialog most rows should read `SETTLED`, and the table shrinks to the genuine deltas.
+
+### Where QA happens
+
+**A development slice never blocks on human sign-off.** Its exit criteria are automated: unit,
+component, native and container-E2E evidence. What it owes the human cycle is *rows* — the specific
+things a person must look at, written down while the author still remembers what changed.
+
+Human visual, accessibility and platform verification belongs to `MIGRATION_PLAN.md` Phase 8b, which
+is deliberately **one consolidated iterative QA cycle** rather than a sign-off gate attached to each
+slice. Phase 8a prepares the fixtures and checklists; 8b runs them, finds defects, and loops through
+fixes until no agreed blocker remains.
+
+So, concretely:
+
+- A slice may not list "human Light/Dark check" or "visual sign-off" among its exit criteria.
+- A slice **must** leave its rows in the right `qa/phase-8b/` checklist, specific enough to walk
+  without rediscovering the feature.
+- A development plan may *reference* the QA cycle; it may not *own* it. "Slice N records human
+  sign-off" is the shape to avoid.
+- If a design question genuinely cannot be answered without looking at the running app, that is an
+  **open decision with an empirical check**, not QA. Name it, say exactly what observation settles
+  it, and block the dependent slice on the answer — see `MESSAGE_SYSTEM_PLAN.md`'s in-dialog
+  failure decision for the worked example. The difference matters: an open decision blocks *design*
+  and is cheap to answer; QA sign-off blocks *shipping* and costs a full cycle.
+
+This rule exists because QA attached to individual slices fragments the cycle: the same fixture gets
+built repeatedly, a person is pulled in mid-development to approve something still expected to
+change, and the recorded result is invalidated by the next slice touching the same surface.
 
 ### Dimensions to compare
 

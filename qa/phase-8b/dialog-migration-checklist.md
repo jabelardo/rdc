@@ -1,12 +1,14 @@
 # Dialog Migration — Per-Dialog Visual Validation Checklist
 
-**Policy:** Every migrated dialog gets a human Light/Dark visual check *before* its sub-slice closes. The automated gate set (1015 tests, tsc, lint, format, bundle-boundary, build) catches behavior, not appearance. A wrong shade, misaligned header, or clipped `<pre>` is invisible to every automated gate.
+**Policy:** Every migrated dialog gets a human Light/Dark visual check, and it happens **in the Phase 8b cycle** — not as a gate on the sub-slice that built it. The automated gate set catches behavior, not appearance: a wrong shade, misaligned header, or clipped `<pre>` is invisible to every automated gate, which is why these rows exist at all.
+
+What a development slice owes this file is its **rows**, written while the author still remembers what changed. What it does not owe is a signature. See "Where QA happens" in [`COMPONENT_MIGRATION_PROCESS.md`](../../COMPONENT_MIGRATION_PROCESS.md) for why: sign-off attached to individual slices fragments the cycle, pulls a person in to approve surfaces still expected to change, and is invalidated by the next slice touching the same dialog.
 
 Record the result for each dialog, in each theme, at the normal 715×356 floor and compact widths.
 
 How to open each dialog: **Help → Show Dialog** (dev/test builds only). Validate in **Light** and **Dark** via Preferences → Theme. (System mode delegates to the OS and cannot be controlled during a visual pass — infrastructure is in place via `resolveSystemTheme()` → Tauri's `window.theme()`; no spike needed.)
 
-**Current migration status (2026-08-14; QA owned by Slice 20).** The component-migration queue is complete. Preferences is
+**Current migration status (2026-08-14; rows contributed by OPERATION_PROGRESS_PLAN.md Slice 20, walked in this cycle).** The component-migration queue is complete. Preferences is
 now extracted as a Radix dialog; its Light/Dark visual sign-off remains. Rebase, Clone, Commit,
 Merge, Cherry-pick and Revert use the shared category-1 blocking progress dialog. Fetch, Push,
 Pull and Checkout show operation text/percentages in their existing controls; their compact
