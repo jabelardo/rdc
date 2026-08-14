@@ -61,6 +61,7 @@ const operationRecord: OperationRecord = {
   lastActivityAt: 1_723_379_200_000,
   outcome: "unchanged",
   error: null,
+  refresh: { remoteNames: ["origin"], repositoryFacts: true },
 };
 
 const modifiedSubmodule: AppFileStatus = {

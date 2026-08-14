@@ -283,6 +283,12 @@
       "title": "Fetching origin",
       "value": 0.45
     },
+    "refresh": {
+      "remoteNames": [
+        "origin"
+      ],
+      "repositoryFacts": true
+    },
     "scope": {
       "kind": "repository",
       "lockKey": "/repo/.git",

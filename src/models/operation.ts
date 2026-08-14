@@ -48,6 +48,12 @@ export type OperationProgress = {
   readonly description?: string;
 };
 
+/** Repository work the controller must perform after native transport completes. */
+export type OperationRefresh = {
+  readonly remoteNames: ReadonlyArray<string>;
+  readonly repositoryFacts: boolean;
+};
+
 export type OperationHook = {
   readonly id: number;
   readonly hook: string;
@@ -67,6 +73,7 @@ export type OperationRecord = {
   readonly lastActivityAt: number;
   readonly outcome: OperationOutcome | null;
   readonly error: OperationError | null;
+  readonly refresh?: OperationRefresh;
 };
 
 export type OperationEvent =

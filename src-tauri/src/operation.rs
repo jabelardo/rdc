@@ -100,6 +100,13 @@ pub struct OperationProgress {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct OperationRefresh {
+    pub remote_names: Vec<String>,
+    pub repository_facts: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OperationHook {
     pub id: u64,
     pub hook: String,
@@ -121,6 +128,8 @@ pub struct OperationRecord {
     pub last_activity_at: u64,
     pub outcome: Option<OperationOutcome>,
     pub error: Option<OperationError>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh: Option<OperationRefresh>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

@@ -15,7 +15,7 @@ use serde::Serialize;
 use crate::operation::{
     CancellationCapability, GitOperationKind, OperationError, OperationEvent,
     OperationEventEnvelope, OperationHook, OperationLifecycleState, OperationOutcome,
-    OperationProgress, OperationRecord, OperationScope, OperationState,
+    OperationProgress, OperationRecord, OperationRefresh, OperationScope, OperationState,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, thiserror::Error)]
@@ -120,6 +120,7 @@ impl OperationRegistry {
             last_activity_at: now_millis(),
             outcome: None,
             error: None,
+            refresh: None,
         };
         inner.locks.insert(lock_key, id.clone());
         inner.controls.insert(id.clone(), ExecutionControl::new());
@@ -207,6 +208,18 @@ impl OperationRegistry {
         })?;
         self.control(operation_id)?.touch();
         Ok(record)
+    }
+
+    /// Records repository refresh work that must follow a successful native workflow.
+    pub fn set_refresh(
+        &self,
+        operation_id: &str,
+        refresh: OperationRefresh,
+    ) -> Result<OperationRecord, OperationRegistryError> {
+        self.update(operation_id, |record, _| {
+            record.refresh = Some(refresh.clone());
+            record.last_activity_at = now_millis();
+        })
     }
 
     /// Suspends inactivity timeout while the user is expected to answer an explicit prompt.

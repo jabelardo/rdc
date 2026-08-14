@@ -1015,7 +1015,8 @@ watchdog, cancellation, multi-remote transport loop, weighted native progress, a
 transport outcome. `RemoteStore` now consumes it for the real IPC dependency and retains the
 store-owned remote-head/facts refresh follow-up until the command publishes that terminal refresh
 requirement. Test doubles that replace the single-remote transport continue to use the compatibility
-loop explicitly.
+loop explicitly. The native record now carries an optional `refresh` requirement so peer windows
+receive the same post-transport contract as the initiating controller.
 
 Coordinator acceptance boundary:
 

@@ -77,7 +77,7 @@ use serde_json::json;
 mod operation;
 use operation::{
     CancellationCapability, GitOperationKind, OperationOutcome, OperationProgress, OperationRecord,
-    OperationScope, OperationState,
+    OperationRefresh, OperationScope, OperationState,
 };
 
 // Platform commands live in the Tauri app rather than git-ops. Include the shared wire model from
@@ -1076,6 +1076,10 @@ fn emits_the_wire_snapshot_the_frontend_checks_itself_against() {
             last_activity_at: 1_723_379_200_000,
             outcome: Some(OperationOutcome::Unchanged),
             error: None,
+            refresh: Some(OperationRefresh {
+                remote_names: vec!["origin".to_owned()],
+                repository_facts: true,
+            }),
         }),
     );
 
