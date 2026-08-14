@@ -29,6 +29,7 @@ describe("operation windows", () => {
   let differentRepositoryWindow;
   let linkedWorktree;
   let linkedWorktreeWindow;
+  let peerCommitOperationId;
 
   before(async () => {
     fixture = createFixtureRoot();
@@ -157,18 +158,19 @@ describe("operation windows", () => {
     await driver.wait(until.elementLocated(By.css("#commit-message")), 10_000);
     await driver.findElement(By.css("#commit-message")).sendKeys("Peer lock coverage");
     await driver.findElement(By.css('.commit-form button[type="submit"]')).click();
-    await driver.wait(
+    const ownerCommit = await driver.wait(
       async () => {
         const active = await driver.executeAsyncScript((repositoryPath, done) => {
           window.__TAURI_INTERNALS__
             .invoke("get_active_operation_for_repository", { repositoryPath })
             .then(done, (error) => done({ error: String(error) }));
         }, fixture.canonical);
-        return active?.operation === "commit";
+        return active?.operation === "commit" ? active : false;
       },
       5_000,
       "the owner commit did not acquire its repository lock",
     );
+    peerCommitOperationId = ownerCommit.id;
 
     await driver.switchTo().window(sameRepositoryWindow);
     const peerNativeOperation = await driver.executeAsyncScript((repositoryPath, done) => {
@@ -236,6 +238,18 @@ describe("operation windows", () => {
       15_000,
       "the owner commit did not finish",
     );
+    await driver.switchTo().window(sameRepositoryWindow);
+    const peerTerminalEvent = await driver.executeAsyncScript((operationId, done) => {
+      window.__TAURI_INTERNALS__
+        .invoke("get_latest_operation_event", { operationId })
+        .then(done, (error) => done({ error: String(error) }));
+    }, peerCommitOperationId);
+    assert.equal(
+      peerTerminalEvent?.kind,
+      "finished",
+      "the matching repository window did not observe the terminal operation event",
+    );
+    await driver.switchTo().window(mainWindow);
   });
 
   it("keeps the commit running when its owner window closes", async () => {
