@@ -1149,9 +1149,10 @@ unconfirmed remote result: the former finishes as completed, while the latter em
 cancelled/timed-out error with `unknown` outcome and retains the lock until reconciliation finishes.
 
 Remote progress is now routed through the shared modal `OperationProgressDialog` for Fetch, Push
-and Pull; the toolbar retains only action state and peer-window status. This removes the obsolete
-embedded progress presentation. An automated background-task presentation assertion remains part
-of the final resilience coverage.
+and Pull; the toolbar retains only action state, peer-window status, and lightweight activity
+animations. This removes the obsolete embedded progress presentation. Shared-dialog tests cover
+Fetch progress and cancellation/adoption; an end-to-end background-task presentation assertion
+remains part of the final resilience coverage.
 
 Add automated coverage for this matrix:
 
