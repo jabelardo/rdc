@@ -986,6 +986,13 @@ Migrate incrementally to the operation record and shared presentation:
    history. The History workspace now has focused interaction coverage for selection, Squash and
    explicit Reorder targets; remaining work is visual QA and broader E2E coverage.
 
+Remote-store compatibility is intentionally still open. `RemoteStore` continues to own remote
+selection, multi-remote Fetch aggregation, post-operation refresh sequencing, boolean action
+results and remote/authentication error classification. The native operation record is already
+authoritative for toolbar/menu presentation and repository locking. Remove the legacy
+`operation`/`progress` fields only after those store responsibilities have native-event consumers
+and their refresh/error tests no longer depend on callback progress.
+
 Remove duplicated operation/progress fields only after their final consumer migrates. Preserve stale
 callback rejection by operation ID. Keep domain-store post-operation refresh behavior intact.
 
