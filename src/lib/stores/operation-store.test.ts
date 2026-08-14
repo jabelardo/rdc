@@ -46,6 +46,22 @@ describe("OperationStore", () => {
     expect(store.state.progress?.value).toBe(0.5);
   });
 
+  it("exposes the native terminal refresh requirement", async () => {
+    const operation = {
+      ...record("operation-1", "window-a", "completed"),
+      refresh: { remoteNames: ["origin"], repositoryFacts: true },
+    };
+    const store = new OperationStore("window-a", {
+      getScope: vi.fn().mockResolvedValue(operation.scope),
+      getActive: vi.fn().mockResolvedValue(operation),
+      listen: vi.fn().mockResolvedValue(() => {}),
+    });
+
+    await store.selectRepository("/repo-a");
+
+    expect(store.state.refresh).toEqual({ remoteNames: ["origin"], repositoryFacts: true });
+  });
+
   it("subscribes before hydration and preserves an event that arrives before the snapshot", async () => {
     let receive: ((event: OperationEventEnvelope) => void) | undefined;
     let resolveActive: ((record: OperationRecord | null) => void) | undefined;

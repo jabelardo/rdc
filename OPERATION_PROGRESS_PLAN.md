@@ -1002,20 +1002,18 @@ events directly; `RemoteState.operationError` remains until its remote-specific 
 a native equivalent. Preserve stale callback rejection by operation ID and keep domain-store
 post-operation refresh behavior intact.
 
-The next implementation boundary is a native remote-workflow coordinator: it must represent the
-complete multi-remote Fetch sequence and Push/Pull follow-up refreshes as one operation-owned
-workflow, publish terminal refresh requirements, and preserve remote-specific error classification.
-The progress-weighting portion is now isolated in `remote-operation-progress.ts` with focused
-coverage; the coordinator still needs to consume that helper and own the workflow lifecycle. Only
-after that coordinator is consumed by the controller can the store-owned lifecycle fields be
-removed safely.
+The native remote-workflow coordinator boundary is now partially implemented: multi-remote Fetch
+and Push/Pull transport phases run under one operation-owned workflow, publish terminal refresh
+requirements, and preserve remote-specific error classification. The progress-weighting portion is
+isolated in `remote-operation-progress.ts` with focused coverage. Remaining work is to move the
+last refresh/error consumers to native events before removing the store-owned lifecycle fields.
 
 The first native producer is now available as `fetch_workflow`: it owns the repository lock,
 watchdog, cancellation, multi-remote transport loop, weighted native progress, and terminal
 transport outcome. `RemoteStore` now consumes it for the real IPC dependency and retains the
-store-owned remote-head/facts refresh follow-up until the command publishes that terminal refresh
-requirement. Test doubles that replace the single-remote transport continue to use the compatibility
-loop explicitly. The native record now carries an optional `refresh` requirement so peer windows
+store-owned remote-head/facts refresh follow-up after consuming that terminal requirement. Test
+doubles that replace the single-remote transport continue to use the compatibility loop explicitly.
+The native record carries an optional `refresh` requirement so peer windows
 receive the same post-transport contract as the initiating controller, and the store consumes the
 returned record when choosing remote-head refreshes.
 
@@ -1049,7 +1047,9 @@ Coordinator acceptance boundary:
 User-initiated operations mount the unified dialog. Scheduled/background Fetch mounts the shared
 progress body in its non-modal control and never opens a surprise dialog.
 
-**Exit:** no production progress producer uses a second ad-hoc lifecycle model.
+**Exit:** every migrated production progress producer uses the native operation record for lifecycle
+and shared presentation; the remaining RemoteStore callback fields have documented refresh/error
+consumers and are removed only when their native equivalents are complete.
 
 ## Slice 18 — Restart and abandoned-operation recovery
 
