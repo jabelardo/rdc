@@ -27,7 +27,7 @@ type HistoryWorkspaceProps = {
   readonly store: HistoryStore;
   readonly onCommitContextMenu?: (commit: Commit, x: number, y: number) => void;
   readonly onSquashSelected?: (commits: ReadonlyArray<Commit>) => void;
-  readonly onReorderSelected?: (commits: ReadonlyArray<Commit>) => void;
+  readonly onReorderSelected?: (commits: ReadonlyArray<Commit>, before: Commit | null) => void;
 };
 
 /** Commit list, details, changed files, and the selected historical diff. */
@@ -45,6 +45,7 @@ export function HistoryWorkspace({
   const [changedFilesWidth, setChangedFilesWidth] = useState(240);
   const [copyStatus, setCopyStatus] = useState("");
   const [selectedCommitSHAs, setSelectedCommitSHAs] = useState<ReadonlySet<string>>(new Set());
+  const [reorderBeforeSHA, setReorderBeforeSHA] = useState("");
   const selectedCommit =
     state.commits.find((commit) => commit.sha === state.selectedCommitSHA) ?? null;
   const selectedFile =
@@ -86,11 +87,35 @@ export function HistoryWorkspace({
                     Squash selected
                   </button>
                 )}
-                {onReorderSelected !== undefined && (
-                  <button type="button" onClick={() => onReorderSelected(selectedCommits)}>
-                    Move selected to end
+              {onReorderSelected !== undefined && (
+                <>
+                  <select
+                    aria-label="Move selected before"
+                    value={reorderBeforeSHA}
+                    onChange={(event) => setReorderBeforeSHA(event.target.value)}
+                  >
+                    <option value="">End of history</option>
+                    {state.commits
+                      .filter((commit) => !selectedCommitSHAs.has(commit.sha))
+                      .map((commit) => (
+                        <option key={commit.sha} value={commit.sha}>
+                          Before {commit.summary}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onReorderSelected(
+                        selectedCommits,
+                        state.commits.find((commit) => commit.sha === reorderBeforeSHA) ?? null,
+                      )
+                    }
+                  >
+                    Reorder selected
                   </button>
-                )}
+                </>
+              )}
               </div>
             )}
             <ul className="history-commits" aria-label="Commits" data-keyboard-list>

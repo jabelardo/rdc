@@ -980,8 +980,8 @@ Migrate incrementally to the operation record and shared presentation:
    Cherry-pick continuation and explicit abort for both operations. Interactive Squash/Reorder
    now have initial selection/execution controls: selected commits can be squashed into the oldest
    selected commit or moved to the end of history, with native progress shown through the shared
-   model. Range validation, arbitrary reorder targets and dedicated interactive-history polish
-   remain pending.
+   model. Squash validates contiguous ranges, and Reorder supports an explicit target or end of
+   history. Dedicated interactive-history keyboard/visual polish remains pending.
 
 Remove duplicated operation/progress fields only after their final consumer migrates. Preserve stale
 callback rejection by operation ID. Keep domain-store post-operation refresh behavior intact.

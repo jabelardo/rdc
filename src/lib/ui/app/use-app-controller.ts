@@ -4,6 +4,7 @@ import { BranchType, type Branch } from "../../../models/branch";
 import type { Commit } from "../../../models/commit";
 import type { Repository } from "../../../models/repository";
 import { getCloneDirectoryName } from "../../clone-destination";
+import { isContiguousSelection, orderSelectedCommits } from "../../history-operation-selection";
 import { getMergedBranches } from "../../branch-ipc";
 import { initRepository } from "../../git-ipc";
 import { abortRevert, revertCommit } from "../../misc-ipc";
@@ -1254,7 +1255,11 @@ export function useAppController() {
     if (repository === null || commits.length < 2 || operationStateForRepositoryActive()) {
       return;
     }
-    const ordered = historyState.commits.filter((commit) => commits.some((item) => item.sha === commit.sha));
+    const ordered = orderSelectedCommits(historyState.commits, commits);
+    if (!isContiguousSelection(historyState.commits, commits)) {
+      window.alert("Select a contiguous history range to squash.");
+      return;
+    }
     const squashOnto = ordered.at(-1);
     if (squashOnto === undefined) {
       return;
@@ -1273,23 +1278,36 @@ export function useAppController() {
     );
   }
 
-  async function reorderSelectedCommits(commits: ReadonlyArray<Commit>): Promise<void> {
+  async function reorderSelectedCommits(
+    commits: ReadonlyArray<Commit>,
+    before: Commit | null,
+  ): Promise<void> {
     const repository = appState.selectedRepository;
     if (repository === null || commits.length === 0 || operationStateForRepositoryActive()) {
       return;
     }
-    const ordered = historyState.commits.filter((commit) => commits.some((item) => item.sha === commit.sha));
+    const ordered = orderSelectedCommits(historyState.commits, commits);
     const lastSelected = ordered.at(-1);
     if (lastSelected === undefined) {
       return;
     }
-    if (!window.confirm(`Move ${ordered.length} selected commits to the end of history?`)) {
+    if (
+      before !== null &&
+      commits.some((commit) => commit.sha === before.sha)
+    ) {
+      return;
+    }
+    if (
+      !window.confirm(
+        `Move ${ordered.length} selected commits ${before === null ? "to the end of history" : `before ${before.summary}`}?`,
+      )
+    ) {
       return;
     }
     await reorder(
       repository.path,
       ordered.map((commit) => commit.sha),
-      null,
+      before?.sha ?? null,
       lastSelected.parentSHAs[0] ?? null,
     );
   }
