@@ -879,9 +879,11 @@ outcome-unknown policy; none silently inherits a generic Cancel button.
 owner/observer cancellation capability and recovery/error status from the native `OperationRecord`.
 `OperationProgressDialog` accepts that model and renders cancellation, recovery, terminal error and
 close affordances while preserving the legacy prop adapter for dialogs that have not yet migrated.
-The Commit progress surface is now wired to the selected window's native operation record, while
-clone/merge/rebase retain their existing operation-specific initiation boundaries. Focused
-presentation and operation-store tests cover owner cancellation and the recovering state.
+Commit, Merge and Rebase progress surfaces are now wired to the selected window's native operation
+record while retaining their operation-specific initiation and current-commit details. Native
+operation-specific cancellation labels flow through the shared model, and only the owner window gets
+the action; observers remain read-only. Clone retains its destination-scoped initiation boundary.
+Focused presentation, dialog and operation-store tests cover owner cancellation and recovery.
 
 Refactor `src/lib/ui/dialogs/operation-progress-dialog.tsx` to consume an operation view model rather
 than loose operation-specific props. Extract a shared progress body so background operations can use

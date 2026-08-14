@@ -13,6 +13,7 @@ export type OperationProgressViewModel = {
   readonly progress: OperationProgress;
   readonly role: OperationPresentationRole;
   readonly cancellationAvailable: boolean;
+  readonly cancellationLabel: string | null;
   readonly statusText: string;
   readonly error: OperationError | null;
   readonly outcome: OperationRecord["outcome"];
@@ -92,6 +93,8 @@ export function operationProgressViewModel(
       role === "owner" &&
       record.cancellation.kind === "available" &&
       (record.state === "running" || record.state === "takingLongerThanExpected"),
+    cancellationLabel:
+      record.cancellation.kind === "available" ? record.cancellation.label : null,
     statusText: lifecycleStatus(record),
     error: record.error,
     outcome: record.outcome,

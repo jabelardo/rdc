@@ -65,7 +65,8 @@ type AppDialogsProps = {
   readonly runningHook: RunningHookState | null;
   readonly commitLoading: boolean;
   readonly commitTerminalOutput: string;
-  readonly commitOperationViewModel: OperationProgressViewModel | undefined;
+  readonly operationViewModel: OperationProgressViewModel | undefined;
+  readonly onCancelOperation: () => void;
   readonly workingTreeStore: WorkingTreeStore;
   readonly repositoryToRemove: Repository | null;
   readonly showAboutDialog: boolean;
@@ -169,7 +170,8 @@ export function AppDialogs({
   runningHook,
   commitLoading,
   commitTerminalOutput,
-  commitOperationViewModel,
+  operationViewModel,
+  onCancelOperation,
   workingTreeStore,
   repositoryToRemove,
   showAboutDialog,
@@ -252,9 +254,10 @@ export function AppDialogs({
     <>
       {commitLoading && hookFailure === null && (
         <OperationProgressDialog
-          viewModel={commitOperationViewModel}
+          viewModel={operationViewModel?.operation === "commit" ? operationViewModel : undefined}
           operation="Committing"
           progress={{ value: 0, title: "Committing changes" }}
+          onCancel={onCancelOperation}
         >
           {runningHook != null && (
             <button type="button" onClick={() => void workingTreeStore.stopHook()}>
@@ -392,6 +395,10 @@ export function AppDialogs({
           onStrategyChange={onMergeStrategyChange}
           onConfirm={onConfirmMerge}
           onCancel={onCancelMerge}
+          operationViewModel={
+            operationViewModel?.operation === "merge" ? operationViewModel : undefined
+          }
+          onCancelOperation={onCancelOperation}
         />
       )}
 
@@ -409,6 +416,10 @@ export function AppDialogs({
           onSelect={(branch) => onRebaseTargetChange(branch.name)}
           onConfirm={onConfirmRebase}
           onCancel={onCancelRebase}
+          operationViewModel={
+            operationViewModel?.operation === "rebase" ? operationViewModel : undefined
+          }
+          onCancelOperation={onCancelOperation}
         />
       )}
 

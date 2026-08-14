@@ -14,6 +14,7 @@ import { formatNumber } from "../../format-number";
 import { BranchPicker } from "./branch-picker";
 import { DialogMessage, type DialogMessageTone } from "./dialog-message";
 import { OperationProgressDialog } from "./operation-progress-dialog";
+import type { OperationProgressViewModel } from "../../operation-presentation";
 
 const MessageID = "rebase-branch-message";
 
@@ -35,6 +36,8 @@ type RebaseBranchDialogProps = {
   readonly running: boolean;
   readonly progress: IMultiCommitOperationProgress | null;
   readonly failure: string | null;
+  readonly operationViewModel?: OperationProgressViewModel;
+  readonly onCancelOperation?: () => void;
   readonly onSelect: (branch: Branch) => void;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
@@ -50,6 +53,8 @@ export function RebaseBranchDialog({
   running,
   progress,
   failure,
+  operationViewModel,
+  onCancelOperation,
   onSelect,
   onConfirm,
   onCancel,
@@ -57,8 +62,10 @@ export function RebaseBranchDialog({
   if (running) {
     return (
       <OperationProgressDialog
+        viewModel={operationViewModel}
         operation="Rebasing"
         progress={progress ?? { value: 0 }}
+        onCancel={onCancelOperation}
         currentCommit={
           progress === null
             ? undefined

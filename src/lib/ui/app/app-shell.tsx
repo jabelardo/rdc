@@ -42,6 +42,7 @@ export function AppShell({ controller }: AppShellProps) {
     workingTreeStore,
     repositoryView,
     operationState,
+    operationStore,
     setRepositoryView,
     sidebarCollapsed,
     setSidebarCollapsed,
@@ -169,6 +170,14 @@ export function AppShell({ controller }: AppShellProps) {
       : undefined;
   const historyOperationActive =
     operationLockActive && isHistoryMovingOperation(operationState.operation!.operation);
+  const operationViewModel =
+    operationState.operation === null
+      ? undefined
+      : operationProgressViewModel(
+          operationState.operation,
+          "",
+          operationState.role ?? "observer",
+        );
 
   return (
     <main
@@ -337,15 +346,8 @@ export function AppShell({ controller }: AppShellProps) {
         runningHook={workingTreeState.runningHook}
         commitLoading={workingTreeState.commitLoading}
         commitTerminalOutput={commitTerminalOutput}
-        commitOperationViewModel={
-          operationState.operation?.operation === "commit"
-            ? operationProgressViewModel(
-                operationState.operation,
-                "",
-                operationState.role ?? "observer",
-              )
-            : undefined
-        }
+        operationViewModel={operationViewModel}
+        onCancelOperation={() => void operationStore.requestCancellation()}
         workingTreeStore={workingTreeStore}
         repositoryToRemove={repositoryToRemove}
         showAboutDialog={showAboutDialog}

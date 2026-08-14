@@ -67,6 +67,7 @@ describe("operation progress view model", () => {
 
     expect(owner.operationLabel).toBe("Fetch");
     expect(owner.cancellationAvailable).toBe(true);
+    expect(owner.cancellationLabel).toBe("Cancel fetch");
     expect(observer.cancellationAvailable).toBe(false);
   });
 

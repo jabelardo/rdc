@@ -45,7 +45,15 @@ function legacyViewModel(
   progress: OperationProgressDialogProps["progress"],
 ): Pick<
   OperationProgressViewModel,
-  "operationLabel" | "state" | "progress" | "statusText" | "cancellationAvailable" | "error" | "outcome" | "role"
+  | "operationLabel"
+  | "state"
+  | "progress"
+  | "statusText"
+  | "cancellationAvailable"
+  | "cancellationLabel"
+  | "error"
+  | "outcome"
+  | "role"
 > {
   return {
     operationLabel: operation,
@@ -54,6 +62,7 @@ function legacyViewModel(
     statusText:
       progress?.description ?? progress?.title ?? `${operation} in progress`,
     cancellationAvailable: false,
+    cancellationLabel: null,
     error: null,
     outcome: null,
     role: "owner",
@@ -127,7 +136,7 @@ export function OperationProgressDialog({
             <div className="flex justify-end gap-2">
               {model.cancellationAvailable && onCancel !== undefined && (
                 <Button type="button" onClick={onCancel} disabled={model.state === "cancelling"}>
-                  Cancel
+                  {model.cancellationLabel ?? "Cancel"}
                 </Button>
               )}
               {terminal && onClose !== undefined && (

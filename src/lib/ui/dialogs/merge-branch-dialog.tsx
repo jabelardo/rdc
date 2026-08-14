@@ -12,6 +12,7 @@ import { formatNumber } from "../../format-number";
 import { BranchPicker } from "./branch-picker";
 import { DialogMessage, type DialogMessageTone } from "./dialog-message";
 import { OperationProgressDialog } from "./operation-progress-dialog";
+import type { OperationProgressViewModel } from "../../operation-presentation";
 import { ChevronDown } from "lucide-react";
 import { Button } from "../../../components/ui/button";
 import { DialogFooter } from "../../../components/ui/dialog";
@@ -155,6 +156,8 @@ type MergeBranchDialogProps = {
   readonly running: boolean;
   readonly progress: IGenericProgress | null;
   readonly failure: string | null;
+  readonly operationViewModel?: OperationProgressViewModel;
+  readonly onCancelOperation?: () => void;
   readonly onSelect: (branch: Branch) => void;
   readonly onStrategyChange: (strategy: MergeStrategy) => void;
   readonly onConfirm: () => void;
@@ -173,6 +176,8 @@ export function MergeBranchDialog({
   running,
   progress,
   failure,
+  operationViewModel,
+  onCancelOperation,
   onSelect,
   onStrategyChange,
   onConfirm,
@@ -181,8 +186,10 @@ export function MergeBranchDialog({
   if (running) {
     return (
       <OperationProgressDialog
+        viewModel={operationViewModel}
         operation={strategy === "squash" ? "Squashing" : "Merging"}
         progress={progress ?? { value: 0 }}
+        onCancel={onCancelOperation}
       />
     );
   }

@@ -84,7 +84,7 @@ describe("OperationProgressDialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Cancel fetch" }));
 
     expect(onCancel).toHaveBeenCalledOnce();
   });
@@ -98,6 +98,6 @@ describe("OperationProgressDialog", () => {
     );
 
     expect(screen.getByRole("status")).toHaveTextContent("Recovering repository…");
-    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel fetch" })).not.toBeInTheDocument();
   });
 });
