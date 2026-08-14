@@ -1010,6 +1010,20 @@ coverage; the coordinator still needs to consume that helper and own the workflo
 after that coordinator is consumed by the controller can the store-owned lifecycle fields be
 removed safely.
 
+Coordinator acceptance boundary:
+
+- one repository-scoped native operation spans every selected Fetch transport and the Push/Pull
+  transport, follow-up Fetch, and repository-refresh phases;
+- cancellation and watchdog timeout stop the active transport and finish the same operation with the
+  existing cancelled/timed-out recovery classification;
+- progress events identify the active remote and phase while preserving the shared 0–1 weighting;
+- completion publishes whether remote-head and repository facts must be refreshed, so the controller
+  can perform that work without recreating a second lifecycle;
+- authentication, network, cancellation, timeout, and recovery failures retain their existing
+  user-facing classification and terminal operation state;
+- tests cover multiple remotes, a transport failure before refresh, a refresh failure after a
+  successful transport, stale observer windows, cancellation, and watchdog timeout.
+
 User-initiated operations mount the unified dialog. Scheduled/background Fetch mounts the shared
 progress body in its non-modal control and never opens a surprise dialog.
 
