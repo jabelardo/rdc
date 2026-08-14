@@ -318,23 +318,35 @@ pub async fn checkout_branch(
     name: String,
     on_progress: Channel<CheckoutProgress>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    // Snapshot before reserving the cancellable operation: an unavailable snapshot must not expose
+    // a stop button that cannot restore the repository. The command remains locked by the normal
+    // operation start immediately after this read; a later increment will close this small setup
+    // race by making snapshot acquisition part of reservation.
+    let snapshot = git_ops::checkout::get_checkout_snapshot(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
         GitOperationKind::Checkout,
+        "Cancel checkout",
     )
     .await?;
-    let result = git_ops::checkout::checkout_branch_with_progress(
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
+    let result = git_ops::checkout::checkout_branch_with_progress_controlled(
         &repository_path,
         CheckoutTarget::Local(&name),
         move |progress| {
-            // A closed webview must not cancel the git operation. There is no recipient anymore,
-            // but checkout still needs to finish and leave the repository consistent.
             let _ = on_progress.send(progress);
         },
+        Some(control),
     )
     .await;
+    watchdog.abort();
     match result {
         Ok(()) => {
             let _ = registry.finish(
@@ -344,6 +356,16 @@ pub async fn checkout_branch(
                 None,
             );
             Ok(())
+        }
+        Err(git_ops::GitError::OperationTerminated { reason, .. }) => {
+            recover_checkout_termination(
+                &registry,
+                &operation.id,
+                &repository_path,
+                &snapshot,
+                reason,
+            )
+            .await
         }
         Err(error) => {
             let command_error = CommandError::from(error);
@@ -355,6 +377,58 @@ pub async fn checkout_branch(
                     kind: OperationErrorKind::Failed,
                     message: command_error.message.clone(),
                     recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
+}
+
+async fn recover_checkout_termination(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    repository_path: &str,
+    snapshot: &git_ops::checkout::CheckoutSnapshot,
+    reason: git_ops::TerminationReason,
+) -> Result<(), CommandError> {
+    let (state, kind, verb) = match reason {
+        git_ops::TerminationReason::Cancelled => (
+            OperationState::Cancelled,
+            OperationErrorKind::Cancelled,
+            "cancelled",
+        ),
+        git_ops::TerminationReason::TimedOut => (
+            OperationState::TimedOut,
+            OperationErrorKind::TimedOut,
+            "timed out",
+        ),
+    };
+    let _ = registry.enter_recovery(operation_id);
+    match git_ops::checkout::restore_checkout_snapshot(repository_path, snapshot).await {
+        Ok(()) => {
+            let message = format!("Checkout {verb} and recovered");
+            let _ = registry.finish(
+                operation_id,
+                state,
+                OperationOutcome::Recovered,
+                Some(OperationError {
+                    kind,
+                    message: message.clone(),
+                    recoverable: true,
+                }),
+            );
+            Err(CommandError::message(message))
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                operation_id,
+                state,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::RecoveryFailed,
+                    message: command_error.message.clone(),
+                    recoverable: false,
                 }),
             );
             Err(command_error)
@@ -2020,5 +2094,115 @@ mod merge_recovery_tests {
                 repository_path: repository_path.clone(),
             })
             .is_some());
+    }
+}
+
+#[cfg(test)]
+mod checkout_recovery_tests {
+    use super::*;
+    use crate::operation::{CancellationCapability, OperationScope};
+    use std::path::Path;
+    use std::process::Command;
+
+    fn run_git(repository: &Path, args: &[&str]) {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(repository)
+            .output()
+            .expect("git should start");
+        assert!(
+            output.status.success(),
+            "git {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn start_checkout_operation(registry: &OperationRegistry, repository_path: &str) -> String {
+        let scope = OperationScope::Repository {
+            lock_key: repository_path.to_owned(),
+            repository_path: repository_path.to_owned(),
+        };
+        registry
+            .start(
+                scope,
+                Some("checkout-test".to_owned()),
+                GitOperationKind::Checkout,
+                CancellationCapability::Available {
+                    label: "Cancel checkout".to_owned(),
+                },
+            )
+            .expect("checkout should reserve the repository")
+            .id
+    }
+
+    #[tokio::test]
+    async fn command_recovery_restores_checkout_snapshot_and_releases_the_lock() {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        run_git(directory.path(), &["init", "-q", "-b", "main"]);
+        run_git(directory.path(), &["config", "user.name", "Checkout Test"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "checkout@example.com"],
+        );
+        std::fs::write(directory.path().join("tracked.txt"), "base\n")
+            .expect("tracked fixture should be written");
+        run_git(directory.path(), &["add", "tracked.txt"]);
+        run_git(directory.path(), &["commit", "-m", "base"]);
+        run_git(directory.path(), &["checkout", "-b", "topic"]);
+        std::fs::write(directory.path().join("extra.txt"), "topic\n")
+            .expect("topic fixture should be written");
+        run_git(directory.path(), &["add", "extra.txt"]);
+        run_git(directory.path(), &["commit", "-m", "topic"]);
+        run_git(directory.path(), &["checkout", "main"]);
+        std::fs::write(directory.path().join("extra.txt"), "local\n")
+            .expect("local untracked fixture should be written");
+
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let snapshot = git_ops::checkout::get_checkout_snapshot(&repository_path)
+            .await
+            .expect("checkout snapshot should be captured");
+        run_git(directory.path(), &["checkout", "--force", "topic"]);
+        let registry = OperationRegistry::new();
+        let operation_id = start_checkout_operation(&registry, &repository_path);
+
+        let result = recover_checkout_termination(
+            &registry,
+            &operation_id,
+            &repository_path,
+            &snapshot,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "cancellation should remain visible to Checkout"
+        );
+        assert_eq!(
+            git_ops::refs::get_symbolic_ref(&repository_path, "HEAD")
+                .await
+                .expect("HEAD should resolve")
+                .as_deref(),
+            Some("refs/heads/main")
+        );
+        assert_eq!(
+            std::fs::read_to_string(directory.path().join("extra.txt"))
+                .expect("untracked file should be restored"),
+            "local\n"
+        );
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path: repository_path.clone(),
+            })
+            .is_none());
+        assert_eq!(
+            registry
+                .get(&operation_id)
+                .expect("checkout record")
+                .outcome,
+            Some(OperationOutcome::Recovered)
+        );
     }
 }

@@ -827,8 +827,12 @@ Implementation order:
   safely replacing changed or missing paths. Recovery refuses to proceed when a new untracked path
   appears after the snapshot, preserving an unknown outcome instead of deleting user data.
   A controlled branch-checkout runner now terminates at a blocked `post-checkout` hook and reports
-  the native cancellation reason. Command-layer snapshot ownership, recovery classification, and
-  late-stop race coverage remain pending, so the UI cancellation capability is still unavailable.
+  the native cancellation reason. Local branch Checkout now owns a snapshot, watchdog and recovery
+  path in the command layer; a real test restores `HEAD`, tracked state and an untracked file that
+  the target branch overwrote, and releases the lock only after recovery. Remote-branch and detached
+  commit Checkout commands still use the non-cancellable path, and the snapshot/start reservation
+  race plus late-stop completion classification remain pending, so the UI cancellation capability
+  is still unavailable.
 - The pre-operation snapshot must capture the symbolic `HEAD` target (or detached SHA), the complete
   index including staged modes/content, the tracked worktree patch including binary files and modes,
   and the inventory/content of untracked paths that checkout could overwrite. A `HEAD` SHA alone is
