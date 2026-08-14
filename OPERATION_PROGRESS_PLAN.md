@@ -1124,6 +1124,14 @@ journal data.
 
 ## Slice 19 — Required multi-window and resilience coverage
 
+First increment: the native-window coverage now exercises same-repository and linked-worktree
+scope sharing, independent repository concurrency, peer write disabling, operation hydration in a
+second window, terminal history refresh, and owner-window loss without terminating the operation.
+The Fetch cancellation journey additionally proves that an unowned operation can be explicitly
+adopted and cancelled from a peer while an independent repository continues fetching. These are
+the baseline scenarios for the remaining timeout, recovery-failure, completion-race, and terminal
+refresh matrix below.
+
 Add automated coverage for this matrix:
 
 - operations in two different repositories run concurrently;
