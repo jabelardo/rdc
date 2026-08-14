@@ -782,8 +782,9 @@ the repository lock during recovery, and releases the lock only after Fetch reco
 Existing Pull integration and Fetch recovery tests pass. A deterministic blocked pre-merge-hook
 test now proves Pull identifies `pullMerge`, invokes Merge recovery, preserves the lock until the
 recovery boundary, and reports unchanged when cancellation happens before Git creates merge state.
-Rebase-phase Pull termination coverage remains before Pull can advertise `Stop waiting` as a fully
-supported UI action.
+A matching blocked `pre-rebase` test proves the `pullRebase` route and Rebase recovery boundary.
+Pull still needs a terminal integration-state test with actual merge/rebase metadata before
+`Stop waiting` is fully supported in the UI.
 
 Implementation order:
 
