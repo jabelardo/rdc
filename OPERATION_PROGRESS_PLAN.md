@@ -1003,7 +1003,8 @@ Migrate incrementally to the operation record and shared presentation:
    Git leaves `REVERT_HEAD`, rather than being reported as terminal command failures. The first
    container attempt found and fixed the Vite debug-build gate: `tauri build
    --debug` sets `__DEV__` false, so the E2E-only `VITE_RDC_QA_DRIVER=1` flag now enables the
-   listener while the Rust QA driver remains debug-only.
+   listener while the Rust QA driver remains debug-only. The rebuilt full Linux-container suite
+   now passes all 41 tests, including the keyboard-only rerender regression check.
 
 Remote-store compatibility is now closed. `RemoteStore` continues to own remote selection,
 post-operation refresh sequencing, boolean action results and remote-management error
