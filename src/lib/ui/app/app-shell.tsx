@@ -114,6 +114,8 @@ export function AppShell({ controller }: AppShellProps) {
     openBranchContextMenu,
     continueHistoryRecovery,
     abortHistoryRecovery,
+    squashSelectedCommits,
+    reorderSelectedCommits,
     mergePickerOpen,
     mergeTarget,
     setMergeTarget,
@@ -351,6 +353,8 @@ export function AppShell({ controller }: AppShellProps) {
               state={historyState}
               store={historyStore}
               onCommitContextMenu={openCommitContextMenu}
+              onSquashSelected={squashSelectedCommits}
+              onReorderSelected={reorderSelectedCommits}
             />
           </div>
         )}

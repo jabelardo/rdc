@@ -291,6 +291,15 @@ export function AppDialogs({
           />
         )}
 
+      {operationViewModel?.operation === "rebase" && !rebasePickerOpen && (
+        <OperationProgressDialog
+          viewModel={operationViewModel}
+          onCancel={onCancelOperation}
+          onAdoptCancellation={onAdoptCancellation}
+          onClose={onDismissOperation}
+        />
+      )}
+
       {discardFile !== null && (
         <ConfirmDialog
           title={permanentlyDiscard ? "Permanently discard changes" : "Confirm discard changes"}

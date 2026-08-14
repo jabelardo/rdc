@@ -1,12 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { join } from "@tauri-apps/api/path";
 import { BranchType, type Branch } from "../../../models/branch";
+import type { Commit } from "../../../models/commit";
 import type { Repository } from "../../../models/repository";
 import { getCloneDirectoryName } from "../../clone-destination";
 import { getMergedBranches } from "../../branch-ipc";
 import { initRepository } from "../../git-ipc";
 import { abortRevert, revertCommit } from "../../misc-ipc";
-import { abortCherryPick, cherryPick, continueCherryPick } from "../../stash-ipc";
+import {
+  abortCherryPick,
+  cherryPick,
+  continueCherryPick,
+  reorder,
+  squash,
+} from "../../stash-ipc";
 import { installApplicationMenu } from "../../menu/application-menu";
 import { showContextMenu } from "../../platform/menu";
 import { dismissAllTooltips } from "../tooltip";
@@ -1242,6 +1249,51 @@ export function useAppController() {
     }
   }
 
+  async function squashSelectedCommits(commits: ReadonlyArray<Commit>): Promise<void> {
+    const repository = appState.selectedRepository;
+    if (repository === null || commits.length < 2 || operationStateForRepositoryActive()) {
+      return;
+    }
+    const ordered = historyState.commits.filter((commit) => commits.some((item) => item.sha === commit.sha));
+    const squashOnto = ordered.at(-1);
+    if (squashOnto === undefined) {
+      return;
+    }
+    const lastRetained =
+      historyState.commits[historyState.commits.findIndex((commit) => commit.sha === squashOnto.sha) + 1]
+        ?.sha ?? null;
+    if (!window.confirm(`Squash ${ordered.length} commits into ${squashOnto.summary}?`)) {
+      return;
+    }
+    await squash(
+      repository.path,
+      ordered.slice(0, -1).map((commit) => commit.sha),
+      squashOnto.sha,
+      lastRetained,
+    );
+  }
+
+  async function reorderSelectedCommits(commits: ReadonlyArray<Commit>): Promise<void> {
+    const repository = appState.selectedRepository;
+    if (repository === null || commits.length === 0 || operationStateForRepositoryActive()) {
+      return;
+    }
+    const ordered = historyState.commits.filter((commit) => commits.some((item) => item.sha === commit.sha));
+    const lastSelected = ordered.at(-1);
+    if (lastSelected === undefined) {
+      return;
+    }
+    if (!window.confirm(`Move ${ordered.length} selected commits to the end of history?`)) {
+      return;
+    }
+    await reorder(
+      repository.path,
+      ordered.map((commit) => commit.sha),
+      null,
+      lastSelected.parentSHAs[0] ?? null,
+    );
+  }
+
   // Reactive merge preview: when mergeTarget changes, check mergeability and commit count
   useEffect(() => {
     if (!mergePickerOpen || mergeTarget === "") {
@@ -1785,6 +1837,8 @@ export function useAppController() {
     openCommitContextMenu,
     continueHistoryRecovery,
     abortHistoryRecovery,
+    squashSelectedCommits,
+    reorderSelectedCommits,
     mergePickerOpen,
     mergeTarget,
     setMergeTarget,

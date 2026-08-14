@@ -26,19 +26,30 @@ type HistoryWorkspaceProps = {
   readonly state: HistoryState;
   readonly store: HistoryStore;
   readonly onCommitContextMenu?: (commit: Commit, x: number, y: number) => void;
+  readonly onSquashSelected?: (commits: ReadonlyArray<Commit>) => void;
+  readonly onReorderSelected?: (commits: ReadonlyArray<Commit>) => void;
 };
 
 /** Commit list, details, changed files, and the selected historical diff. */
-export function HistoryWorkspace({ visible, state, store, onCommitContextMenu }: HistoryWorkspaceProps) {
+export function HistoryWorkspace({
+  visible,
+  state,
+  store,
+  onCommitContextMenu,
+  onSquashSelected,
+  onReorderSelected,
+}: HistoryWorkspaceProps) {
   const historyRef = useRef<HTMLElement>(null);
   const changeWorkspaceRef = useRef<HTMLDivElement>(null);
   const [commitListWidth, setCommitListWidth] = useState(270);
   const [changedFilesWidth, setChangedFilesWidth] = useState(240);
   const [copyStatus, setCopyStatus] = useState("");
+  const [selectedCommitSHAs, setSelectedCommitSHAs] = useState<ReadonlySet<string>>(new Set());
   const selectedCommit =
     state.commits.find((commit) => commit.sha === state.selectedCommitSHA) ?? null;
   const selectedFile =
     state.changeset?.files.find((file) => file.id === state.selectedFileID) ?? null;
+  const selectedCommits = state.commits.filter((commit) => selectedCommitSHAs.has(commit.sha));
 
   return (
     <section
@@ -63,9 +74,46 @@ export function HistoryWorkspace({ visible, state, store, onCommitContextMenu }:
         ) : state.commits.length === 0 ? (
           <p>No commits yet.</p>
         ) : (
-          <ul className="history-commits" aria-label="Commits" data-keyboard-list>
+          <>
+            {selectedCommits.length > 0 && (
+              <div className="flex gap-2 p-2" role="toolbar" aria-label="History operations">
+                {onSquashSelected !== undefined && (
+                  <button
+                    type="button"
+                    disabled={selectedCommits.length < 2}
+                    onClick={() => onSquashSelected(selectedCommits)}
+                  >
+                    Squash selected
+                  </button>
+                )}
+                {onReorderSelected !== undefined && (
+                  <button type="button" onClick={() => onReorderSelected(selectedCommits)}>
+                    Move selected to end
+                  </button>
+                )}
+              </div>
+            )}
+            <ul className="history-commits" aria-label="Commits" data-keyboard-list>
             {state.commits.map((commit, index) => (
               <li key={commit.sha}>
+                <label>
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${commit.summary}`}
+                    checked={selectedCommitSHAs.has(commit.sha)}
+                    onChange={(event) => {
+                      setSelectedCommitSHAs((current) => {
+                        const next = new Set(current);
+                        if (event.target.checked) {
+                          next.add(commit.sha);
+                        } else {
+                          next.delete(commit.sha);
+                        }
+                        return next;
+                      });
+                    }}
+                  />
+                </label>
                 <button
                   type="button"
                   data-commit-sha={commit.sha}
@@ -101,7 +149,8 @@ export function HistoryWorkspace({ visible, state, store, onCommitContextMenu }:
                 </button>
               </li>
             ))}
-          </ul>
+            </ul>
+          </>
         )}
       </div>
 
