@@ -27,17 +27,17 @@ killed it — is now fixed by bypassing muda's blocking popup on Linux entirely.
 **Cycle one's own findings — a UI foundation gap and one functionality gap — are now being closed
 before cycle two starts**, deliberately: see "Engineering, this pass" below.
 
-| Gate | State (2026-08-05) |
+| Gate | State (2026-08-15) |
 |---|---|
-| `pnpm test` (Vitest) | 993 passing |
+| `pnpm test` (Vitest) | 1,218 passing / 137 files |
 | `pnpm exec tsc --noEmit` | clean |
 | `pnpm format:check` / `pnpm lint` | clean |
-| `pnpm build` / `pnpm check:bundle-boundary` | clean; 113 browser-reachable modules, no Node built-ins |
-| `cargo test --workspace` | 1,181 passing |
+| `pnpm build` / `pnpm check:bundle-boundary` | clean; 156 browser-reachable modules, no Node built-ins |
+| `cargo test --workspace` | 1,274 passing |
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --check` | clean |
 | Windows `git-ops --all-targets` compile guard | clean |
-| `pnpm test:e2e` (Linux container) | 28 tests / 13 suites passing |
+| `pnpm test:e2e` (Linux container) | 42 tests / 19 suites passing |
 | `pnpm qualify:phase8a` | green, `"errors": []` |
 
 ---
@@ -91,24 +91,43 @@ collaborator to pick up post-MVP), not minimizing the current diff. In dependenc
 1. **[`UI_FOUNDATION_PLAN.md`](./UI_FOUNDATION_PLAN.md)** — adopt shadcn/Radix as rdc's UI
    foundation: tooling setup, a full switch to shadcn's token vocabulary (not a bridge over rdc's
    existing `--color-*` names), then Toast → Dialog → Tooltip, in that order. Toast is deliberately
-   the pilot for the whole adoption. **Stage 0 (Phase 0) and stage 1 (Phase 1 + `MESSAGE_SYSTEM_PLAN.md`
-   Slice 0 + the `useTheme()` sidebar) have landed; stage 2 = Phases 2–3 (Dialog, Tooltip) is the
-   next work**, with an execution breakdown in `UI_FOUNDATION_PLAN.md` §"Phase 2 — execution
-   breakdown" and §"Phase 3 — execution breakdown".
+   the pilot for the whole adoption. Stage 0 (Phase 0) and stage 1 (Phase 1 +
+   `MESSAGE_SYSTEM_PLAN.md` Slice 0 + the `useTheme()` sidebar) have landed. **Phase 2 (Dialog) is
+   done in production — `src/lib/ui/modal.tsx` has no importer left but its own test, so what
+   remains there is deleting it. Phase 3 (Tooltip) is genuinely outstanding: `src/lib/ui/tooltip.tsx`
+   is still hand-rolled with no `radix-ui` import.** Execution breakdown in
+   `UI_FOUNDATION_PLAN.md` §"Phase 3 — execution breakdown".
 2. **[`MESSAGE_SYSTEM_PLAN.md`](./MESSAGE_SYSTEM_PLAN.md)** — the unified error/warning/info toast
-   system. No such system exists today: ~7 stores each carry their own `error`/`operationError`
-   field rendered by a copy-pasted `<p className="application-error">`, there's no warning/info
-   channel at all, and a real formatting bug (`String(error)` on a raw `CommandError` rejection
-   renders `"[object Object]"`) has never been exercised by any test. Slice 0 depends on
-   `UI_FOUNDATION_PLAN.md`'s Phase 0 + Phase 1; Slices 1–7 don't. **Slice 0 has landed (stage 1);
-   Slices 1–7 are stage 3, after the Dialog primitive they consume exists.**
+   system, and **the current recommendation for what to do next**. ~7 stores each carry their own
+   `error`/`operationError` field rendered by a copy-pasted `<p className="application-error">`
+   (17 references: 14 in `tsx`, 3 CSS rules), and there is no warning/info channel at all.
+
+   Phase 8b cycle 2 photographed why this matters: one `getStatus` failure on a deleted repository
+   directory renders **three times at once** — the toolbar (truncated to "failed to run git f…"),
+   the conflict banner, and the changed-files pane. The `String(error)` → `"[object Object]"` bug is
+   fixed in `remote-store`, but **15 non-test call sites still have it**.
+
+   **Unblocked as of now**: the stated dependency was the Dialog primitive, and Phase 2 has landed.
+   Slice 0.1 (message coalescing) comes first; then **Slices 5, 6 and 2 — the screenshot's three
+   panels — which are toolbar, banner and pane, not dialogs, so none of them is blocked by the open
+   in-dialog-failure decision that blocks Slice 1.**
 3. **[`BRANCH_OPERATIONS_PLAN.md`](./BRANCH_OPERATIONS_PLAN.md) Slice 4 — abort merge.** The one
    functionality gap found against the 7 MVP exit criteria: `abort_merge` exists and is tested at
    the git-ops/Tauri-command layer, but there is no `conflict-store.ts` method, no button in
    `merge-conflicts.tsx`, and no menu id at all. A user can complete a conflict but never back out
    of one in-app. Independent of items 1–2 above. **Stage 4; independent, any time.**
 
-4. **[`CODE_ORGANIZATION_PLAN.md`](./CODE_ORGANIZATION_PLAN.md) — establish a layout and enforce
+4. **[`OPERATION_PROGRESS_PLAN.md`](./OPERATION_PROGRESS_PLAN.md) Slice 20 — documentation and
+   closure.** Slices 1–19 have landed and were re-verified against the code on 2026-08-15:
+   repository-scoped native operation registry, process-tree cancellation, inactivity watchdogs,
+   multi-window routing and the unified progress presentation. What is left is documentation, the
+   store-surface measurement, and **writing this work's QA rows** — the Light/Dark and compact rows
+   for the unified dialog, the owner/observer, timeout and recovery-required states, and a
+   multi-window checklist that `qa/phase-8b/` does not have today, with its fixture requirements in
+   `fixture-scenarios.md` so Phase 8a can prepare them. **Stage 6; independent, but it must land
+   before QA cycle 2 walks those rows.**
+
+5. **[`CODE_ORGANIZATION_PLAN.md`](./CODE_ORGANIZATION_PLAN.md) — establish a layout and enforce
    it.** Scheduled **after** the dialog migration, so it moves settled code rather than code in
    flight. Dialogs currently live in four places by accident of chronology, and `src/lib/` is a
    110-file flat drawer mixing pure helpers, IPC wrappers, domain logic and desktop-plus's GitHub
@@ -124,12 +143,12 @@ collaborator to pick up post-MVP), not minimizing the current diff. In dependenc
 **LICENSE (MIT) is added**, copyright holder Jose Gutierrez. `CONTRIBUTING.md`, issue/PR templates,
 README polish and an `ARCHITECTURE.md` newcomer overview are deliberately deferred to the
 post-MVP promotion phase, once the project is actually accepting contributions — recording that as
-a decision, not an oversight. `ARCHITECTURE.md` depends on item 4: there is no point documenting a
+a decision, not an oversight. `ARCHITECTURE.md` depends on item 5: there is no point documenting a
 structure nobody chose.
 
 ### QA cycle 2
 
-4. **Native-menu-dispatch verification, on both platforms.** The branch-operations MVP blocker
+6. **Native-menu-dispatch verification, on both platforms.** The branch-operations MVP blocker
    itself is closed — `BRANCH_OPERATIONS_PLAN.md` Slices 1–3 landed rename, delete, discard-all
    (×2) and merge initiation, all gated-green and capability-parity tested across
    `macos`/`windows`/`linux`. (`update-branch-with-contribution-target-branch` stays deferred to
@@ -140,22 +159,22 @@ structure nobody chose.
    in-window DOM menu bar onto Tauri's native menu on every platform, so Linux lost its
    WebDriver-testable surface the same way macOS never had one. Run `qa/phase-8b/macos-checklist.md`
    §7 and `qa/phase-8b/linux-wayland-checklist.md`'s equivalent section to close it.
-5. **Discard-all at scale, on Fedora.** New `discardMany99` and `discardMany1000` fixture scenarios
+7. **Discard-all at scale, on Fedora.** New `discardMany99` and `discardMany1000` fixture scenarios
    plus a table in `qa/phase-8b/dialog-migration-checklist.md`. Two counts because `VirtualList`
    virtualizes past 100 rows: 99 keeps every row in the DOM, 1000 windows them, and the failure being
    guarded against is a list that looks right at 99 and is empty or unscrollable at 1000. It is
-   *only* verifiable by hand — discard-all is reachable solely from the native menu, which item 4
+   *only* verifiable by hand — discard-all is reachable solely from the native menu, which item 6
    above is about. The pass must also record the perceived duration of a confirmed 1000-file discard:
    removals are now one batched IPC call, but there is deliberately no progress indicator and no
    cancel (Convention 8 refuses every dismissal mid-operation), and that measurement is the input to
    deciding whether progress reporting is needed before MVP.
-6. **Produced-package inspection is not automated yet.** `pnpm qualify:phase8a` deliberately audits
+8. **Produced-package inspection is not automated yet.** `pnpm qualify:phase8a` deliberately audits
    inputs and reports `finalPackagesProduced: false`; no current command opens the macOS/Linux bundle
    outputs and checks identity, resources, sidecar permissions and legacy destinations. Phase 8b's
    plan explicitly requires automated metadata/resource/package smoke. Add that reproducible check
    after final icon/identifier and concrete bundle targets are chosen, before treating the manual
    `final-package-smoke.md` pass as sufficient.
-7. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
+9. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
    seams themselves are done (`AGENTS.md` rule 11): `rdc-printenvz`'s two arms now share a
    signature, `cli_installer`'s symlink is behind a per-OS `link` module with both arms real, and
    `custom_integration`'s unix code is in a gated inner module. What is left is a genuine Phase 10
