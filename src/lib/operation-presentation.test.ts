@@ -74,16 +74,12 @@ describe("operation progress view model", () => {
 
   it("maps cancellation and recovery lifecycle states to honest status text", () => {
     expect(
-      operationProgressViewModel(
-        { ...record("window-a"), state: "cancelling" },
-        "window-a",
-      ).statusText,
+      operationProgressViewModel({ ...record("window-a"), state: "cancelling" }, "window-a")
+        .statusText,
     ).toBe("Cancelling…");
     expect(
-      operationProgressViewModel(
-        { ...record("window-a"), state: "recovering" },
-        "window-a",
-      ).statusText,
+      operationProgressViewModel({ ...record("window-a"), state: "recovering" }, "window-a")
+        .statusText,
     ).toBe("Recovering repository…");
   });
 
@@ -95,6 +91,28 @@ describe("operation progress view model", () => {
       ).cancellationAvailable,
     ).toBe(false);
   });
+
+  it.each([
+    ["cherryPick", "Cherry-pick", "Cancel cherry-pick"],
+    ["revert", "Revert", "Cancel revert"],
+  ] as const)(
+    "keeps the native %s label and cancellation policy",
+    (operation, label, cancellationLabel) => {
+      const model = operationProgressViewModel(
+        {
+          ...record("window-a"),
+          operation,
+          cancellation: { kind: "available", label: cancellationLabel },
+          progress: { value: 0.4, description: `Running ${label}` },
+        },
+        "window-a",
+      );
+
+      expect(model.operationLabel).toBe(label);
+      expect(model.cancellationAvailable).toBe(true);
+      expect(model.cancellationLabel).toBe(cancellationLabel);
+    },
+  );
 
   it("shows the requested and slow lifecycle states instead of stale progress text", () => {
     expect(
@@ -178,16 +196,19 @@ describe("operation progress view model", () => {
   it.each([
     ["Cancel squash", "Squash"],
     ["Cancel reorder", "Reorder"],
-  ] as const)("keeps the native %s label for a rebase-category history operation", (label, name) => {
-    const model = operationProgressViewModel(
-      {
-        ...record("window-a"),
-        operation: "rebase",
-        cancellation: { kind: "available", label },
-      },
-      "window-a",
-    );
+  ] as const)(
+    "keeps the native %s label for a rebase-category history operation",
+    (label, name) => {
+      const model = operationProgressViewModel(
+        {
+          ...record("window-a"),
+          operation: "rebase",
+          cancellation: { kind: "available", label },
+        },
+        "window-a",
+      );
 
-    expect(model.operationLabel).toBe(name);
-  });
+      expect(model.operationLabel).toBe(name);
+    },
+  );
 });

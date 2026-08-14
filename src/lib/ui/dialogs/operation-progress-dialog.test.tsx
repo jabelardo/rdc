@@ -101,6 +101,28 @@ describe("OperationProgressDialog", () => {
     expect(screen.queryByRole("button", { name: "Cancel fetch" })).not.toBeInTheDocument();
   });
 
+  it.each([
+    ["cherryPick", "Cherry-pick", "Cherry-pick in progress"],
+    ["revert", "Revert", "Revert in progress"],
+  ] as const)("renders the shared dialog for %s", (operation, label, title) => {
+    const model = operationProgressViewModel(
+      {
+        ...operationRecord(),
+        operation,
+        cancellation: { kind: "available", label: `Cancel ${operation}` },
+        progress: { value: 0.4, description: `Applying ${label}` },
+      },
+      "window-a",
+    );
+
+    render(<OperationProgressDialog viewModel={model} onCancel={() => {}} />);
+
+    expect(screen.getByRole("alertdialog", { name: title })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(`Applying ${label}`);
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "40");
+    expect(screen.getByRole("button", { name: `Cancel ${operation}` })).toBeInTheDocument();
+  });
+
   it("renders the shared progress body without mounting a modal", () => {
     render(
       <OperationProgressBody

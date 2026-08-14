@@ -990,7 +990,8 @@ Migrate incrementally to the operation record and shared presentation:
    Reorder and Squash against a disposable repository. Recovery coverage verifies Cherry-pick
    continuation is gated on staged resolutions and Revert remains abort-only; the recovery banner
    now reflects that distinction by hiding unsupported Revert staging controls. Remaining work is
-   visual QA and broader Cherry-pick/Revert E2E coverage.
+   visual QA and broader Cherry-pick/Revert E2E coverage. Shared presentation tests now cover
+   native Cherry-pick/Revert labels, progress, and owner cancellation controls.
 
 Remote-store compatibility is now closed. `RemoteStore` continues to own remote selection,
 post-operation refresh sequencing, boolean action results and remote-management error
