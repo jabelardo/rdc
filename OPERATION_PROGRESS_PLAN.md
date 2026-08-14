@@ -966,15 +966,15 @@ Migrate incrementally to the operation record and shared presentation:
 1. Fetch pilot. **Complete:** the toolbar renders the native Fetch record through the shared
    non-modal `OperationProgressBody`; legacy remote-store state remains the refresh/error
    compatibility path.
-2. Clone.
-3. Rebase.
-4. Commit and hook handoff.
-5. Merge/squash merge.
-6. Push/Pull. **In progress:** the toolbar now uses the same native shared body for Push and Pull;
+2. Clone. **Complete.**
+3. Rebase. **Complete.**
+4. Commit and hook handoff. **Complete.**
+5. Merge/squash merge. **Complete.**
+6. Push/Pull. **Complete:** the toolbar uses the same native shared body for Push and Pull;
    legacy remote-store state remains the refresh/error compatibility path.
-7. Checkout. **In progress:** the branch sidebar now renders native Checkout progress through the
-   shared body; branch-store state remains the refresh/error compatibility path.
-8. Cherry-pick/Revert/Squash/Reorder as their UI slices land.
+7. Checkout. **Complete:** the branch sidebar renders native Checkout progress through the shared
+   body; branch-store state remains the refresh/error compatibility path.
+8. Cherry-pick/Revert/Squash/Reorder remain pending until their UI slices land.
 
 Remove duplicated operation/progress fields only after their final consumer migrates. Preserve stale
 callback rejection by operation ID. Keep domain-store post-operation refresh behavior intact.
