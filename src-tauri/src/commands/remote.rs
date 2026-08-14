@@ -930,11 +930,12 @@ pub async fn pull(
     on_hook_progress: Channel<HookProgressUpdate>,
     on_hook_failure: Channel<HookFailurePrompt>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operation::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
         GitOperationKind::Pull,
+        "Stop waiting",
     )
     .await?;
     let remote = match state
@@ -981,7 +982,17 @@ pub async fn pull(
         }
     };
 
-    let result = git_ops::pull::pull(
+    let pre_operation_head = git_ops::get_head_sha(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let watchdog = registry.spawn_watchdog(
+        operation.id.clone(),
+        crate::operation_registry::WatchdogPolicy::default(),
+    );
+    let result = git_ops::pull::pull_phased_controlled(
         &repository_path,
         &remote_name,
         &remote.env,
@@ -990,8 +1001,10 @@ pub async fn pull(
             let _ = on_progress.send(progress);
         }),
         support.as_ref(),
+        Some(control),
     )
     .await;
+    watchdog.abort();
     match result {
         Ok(_) => {
             let _ = registry.finish(
@@ -1001,6 +1014,40 @@ pub async fn pull(
                 None,
             );
             Ok(())
+        }
+        Err(git_ops::GitError::OperationTerminated { name, reason, .. }) if name == "fetch" => {
+            Err(recover_terminated_fetch(&registry, &operation.id, &repository_path, reason).await)
+        }
+        Err(git_ops::GitError::OperationTerminated { name, reason, .. }) if name == "pullMerge" => {
+            match crate::commands::git::recover_merge_termination(
+                &registry,
+                &operation.id,
+                &repository_path,
+                &pre_operation_head,
+                false,
+                reason,
+            )
+            .await
+            {
+                Ok(_) => Ok(()),
+                Err(error) => Err(error),
+            }
+        }
+        Err(git_ops::GitError::OperationTerminated { name, reason, .. })
+            if name == "pullRebase" =>
+        {
+            match crate::commands::git::recover_rebase_termination(
+                &registry,
+                &operation.id,
+                &repository_path,
+                &pre_operation_head,
+                reason,
+            )
+            .await
+            {
+                Ok(_) => Ok(()),
+                Err(error) => Err(error),
+            }
         }
         Err(error) => {
             let command_error = remote_error(&remote, error);

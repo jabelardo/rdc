@@ -775,9 +775,10 @@ integration recovery is wired and tested. The native Pull runner now:
 - Keep hook interception active across the integration phase and preserve `noVerify` behavior.
 - Report network cancellation separately from an integration conflict or recovery failure.
 
-The first two bullets are implemented and covered by the existing Pull integration tests. The
-recovery delegation and command-level phase-specific termination tests remain before Pull can
-advertise `Stop waiting`.
+The phase-specific command routing is now implemented: Fetch termination uses Fetch recovery,
+merge integration termination uses Merge recovery, and rebase integration termination uses Rebase
+recovery. Existing Pull integration tests and Fetch recovery tests pass. Dedicated command-level
+Pull termination tests remain before Pull can advertise `Stop waiting` as a supported UI action.
 
 Implementation order:
 
