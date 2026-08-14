@@ -61,4 +61,26 @@ describe("HistoryWorkspace interactive operations", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reorder selected" }));
     expect(onReorderSelected).toHaveBeenCalledWith([commits[0], commits[1]], commits[2]);
   });
+
+  it("rejects non-contiguous squash and supports reordering to the end", () => {
+    const onSquashSelected = vi.fn();
+    const onReorderSelected = vi.fn();
+    render(
+      <HistoryWorkspace
+        visible
+        state={state}
+        store={store}
+        onSquashSelected={onSquashSelected}
+        onReorderSelected={onReorderSelected}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Commit a" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Commit c" }));
+    expect(screen.getByRole("button", { name: "Squash selected" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reorder selected" }));
+    expect(onReorderSelected).toHaveBeenCalledWith([commits[0], commits[2]], null);
+    expect(onSquashSelected).not.toHaveBeenCalled();
+  });
 });

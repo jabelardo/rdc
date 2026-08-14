@@ -7,6 +7,7 @@ import { handleListNavigation } from "../list-navigation";
 import { HorizontalResizer } from "../horizontal-resizer";
 import { FileStatusIcon } from "../mvp-list-rows";
 import { Tooltip } from "../tooltip";
+import { isContiguousSelection } from "../../history-operation-selection";
 
 function diffLineClassName(type: DiffLineType): string {
   switch (type) {
@@ -81,7 +82,7 @@ export function HistoryWorkspace({
                 {onSquashSelected !== undefined && (
                   <button
                     type="button"
-                    disabled={selectedCommits.length < 2}
+                    disabled={!isContiguousSelection(state.commits, selectedCommits)}
                     onClick={() => onSquashSelected(selectedCommits)}
                   >
                     Squash selected
