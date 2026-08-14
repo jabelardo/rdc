@@ -1,6 +1,6 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slices 1–14 complete; Slice 15 next
+**Status:** Slices 1–18 complete; Slice 19 in progress
 **Recorded:** 2026-08-14  
 **Primary milestone:** define truthful cancellation and timeout policies for the remaining
 progress-producing operations before completing the unified progress presentation.
@@ -1152,8 +1152,10 @@ cancelled/timed-out error with `unknown` outcome and retains the lock until reco
 Remote progress is now routed through the shared modal `OperationProgressDialog` for Fetch, Push
 and Pull; the toolbar retains only action state, peer-window status, and lightweight activity
 animations. This removes the obsolete embedded progress presentation. Shared-dialog tests cover
-Fetch progress and cancellation/adoption; an end-to-end background-task presentation assertion
-remains part of the final resilience coverage.
+Fetch progress and cancellation/adoption. There is currently no production background-fetch
+scheduler or user-triggerable background entry point, so the `isBackgroundTask` IPC forwarding is
+covered by unit tests and its E2E presentation remains deferred until that producer exists; when
+it does, the modal is scoped to the matching window and does not block unrelated repositories.
 
 Add automated coverage for this matrix:
 
@@ -1170,7 +1172,7 @@ Add automated coverage for this matrix:
 - recovery failure retains the write lock;
 - cancellation racing completion reports completed;
 - Push stop may report outcome unknown;
-- background Fetch remains non-modal;
+- background Fetch uses the shared modal in its matching window without blocking unrelated repositories;
 - terminal events refresh every matching window and no unrelated window.
 
 E2E remains Linux-container-only. Keep one product slice per spec file and no cross-file ordering.
