@@ -8,8 +8,8 @@ import { describeRemoteError } from "../remote-error";
 import {
   aggregatePhaseProgress,
   aggregateRemoteProgress,
-  RemoteTransportWeight,
 } from "../remote-operation-progress";
+import { remoteWorkflowPhase } from "../remote-operation-workflow";
 import {
   addRemote as addRemoteCommand,
   fastForwardBranches,
@@ -336,8 +336,6 @@ export class RemoteStore {
       (remote, index, all): remote is IRemote =>
         remote !== null && all.findIndex((candidate) => candidate?.name === remote.name) === index,
     );
-    const fetchWeight = RemoteTransportWeight;
-
     try {
       for (const [index, remote] of relevantRemotes.entries()) {
         await this.dependencies.fetch(
@@ -369,7 +367,7 @@ export class RemoteStore {
           kind: "generic",
           title: "Refreshing repository",
           description: "Fast-forwarding branches",
-          value: fetchWeight,
+          value: remoteWorkflowPhase("fetch", "transport").weight,
         },
       });
 
@@ -429,8 +427,8 @@ export class RemoteStore {
       operationError: null,
     });
 
-    const pushWeight = 0.65;
-    const fetchWeight = 0.25;
+    const pushWeight = remoteWorkflowPhase("push", "transport").weight;
+    const fetchWeight = remoteWorkflowPhase("push", "fetch").weight;
     try {
       await this.dependencies.push(
         repositoryPath,
@@ -541,8 +539,8 @@ export class RemoteStore {
       operationError: null,
     });
 
-    const pullWeight = 0.65;
-    const fetchWeight = 0.25;
+    const pullWeight = remoteWorkflowPhase("pull", "transport").weight;
+    const fetchWeight = remoteWorkflowPhase("pull", "fetch").weight;
     try {
       await this.dependencies.pull(
         repositoryPath,
