@@ -1043,6 +1043,9 @@ The private lifecycle bookkeeping is now removed as well: `RemoteStore` retains 
 identity for stale-request gating and a management-operation guard. Compatibility transport
 callbacks no longer publish progress or operation-error state.
 
+Latest verification after this removal: the complete frontend suite passes (136 files, 1,205
+tests); focused remote and operation tests remain green.
+
 Coordinator acceptance boundary:
 
 - one repository-scoped native operation spans every selected Fetch transport and the Push/Pull
