@@ -328,7 +328,17 @@ impl OperationRegistry {
             )
         });
         if !retains_lock {
-            inner.locks.remove(&scope_lock_key(&record.scope));
+            // Release the scope lock only while this operation still holds it. Finishing an
+            // operation twice, or finishing one whose lock a later operation has already taken,
+            // must not hand that lock away — that would let two writers into the same repository.
+            let lock_key = scope_lock_key(&record.scope);
+            if inner
+                .locks
+                .get(&lock_key)
+                .is_some_and(|id| id == operation_id)
+            {
+                inner.locks.remove(&lock_key);
+            }
             inner.controls.remove(operation_id);
         }
         inner.activity_clocks.remove(operation_id);
@@ -1100,6 +1110,66 @@ mod tests {
             OperationState::Cancelling
         );
         watchdog.await.expect("watchdog should finish");
+    }
+
+    /// A stale `finish` must not hand away a lock a later operation already holds. Abort commands
+    /// resolve "the operation owning this repository" and finish it, so a record finished twice —
+    /// or one whose scope was re-reserved in between — would otherwise release the new owner's lock
+    /// and let a second writer into the same repository.
+    #[test]
+    fn a_stale_finish_does_not_release_the_current_holders_lock() {
+        let registry = registry();
+        let first = registry
+            .start(
+                repository_scope("repo-a"),
+                None,
+                GitOperationKind::Fetch,
+                CancellationCapability::Unavailable,
+            )
+            .expect("the first operation reserves the repository");
+        registry
+            .finish(
+                &first.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            )
+            .expect("the first operation finishes");
+
+        let second = registry
+            .start(
+                repository_scope("repo-a"),
+                None,
+                GitOperationKind::Commit,
+                CancellationCapability::Unavailable,
+            )
+            .expect("the released scope accepts a new writer");
+
+        // The stale finish of an already-terminal record must be inert for the lock.
+        registry
+            .finish(
+                &first.id,
+                OperationState::Cancelled,
+                OperationOutcome::Recovered,
+                None,
+            )
+            .expect("finishing a terminal record still returns it");
+
+        assert_eq!(
+            registry
+                .active_for_scope(&repository_scope("repo-a"))
+                .map(|record| record.id),
+            Some(second.id),
+            "the current holder must keep its lock"
+        );
+        registry
+            .start(
+                repository_scope("repo-a"),
+                None,
+                GitOperationKind::Push,
+                CancellationCapability::Unavailable,
+            )
+            .expect_err("a third writer must still be rejected");
     }
 
     #[test]
