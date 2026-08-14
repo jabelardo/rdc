@@ -875,6 +875,12 @@ outcome-unknown policy; none silently inherits a generic Cancel button.
 
 **Goal:** render one lifecycle model consistently after the backend can uphold it.
 
+**Progress:** in progress. `OperationProgressViewModel` now derives operation labels, lifecycle copy,
+owner/observer cancellation capability and recovery/error status from the native `OperationRecord`.
+`OperationProgressDialog` accepts that model and renders cancellation, recovery, terminal error and
+close affordances while preserving the legacy prop adapter for dialogs that have not yet migrated.
+Focused presentation tests cover owner cancellation and the recovering state.
+
 Refactor `src/lib/ui/dialogs/operation-progress-dialog.tsx` to consume an operation view model rather
 than loose operation-specific props. Extract a shared progress body so background operations can use
 the same content without mounting a dialog.

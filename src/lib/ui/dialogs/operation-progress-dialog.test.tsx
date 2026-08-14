@@ -1,7 +1,22 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import type { OperationRecord } from "../../../models/operation";
+import { operationProgressViewModel } from "../../operation-presentation";
 import { OperationProgressDialog } from "./operation-progress-dialog";
+
+const operationRecord = (state: OperationRecord["state"] = "running"): OperationRecord => ({
+  id: "operation-1",
+  scope: { kind: "repository", lockKey: "repo", repositoryPath: "/repo" },
+  ownerWindow: "window-a",
+  operation: "fetch",
+  state,
+  cancellation: { kind: "available", label: "Cancel fetch" },
+  progress: { value: 0.25, description: "Receiving objects" },
+  lastActivityAt: 1,
+  outcome: state === "completed" ? "completed" : null,
+  error: null,
+});
 
 function renderDialog(overrides: Partial<Parameters<typeof OperationProgressDialog>[0]> = {}) {
   return render(
@@ -57,5 +72,32 @@ describe("OperationProgressDialog", () => {
   it("clamps an out-of-range progress value", () => {
     renderDialog({ progress: { value: 1.7 } });
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
+  });
+
+  it("renders the capability-aware cancel control for the owner", async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+    render(
+      <OperationProgressDialog
+        viewModel={operationProgressViewModel(operationRecord(), "window-a")}
+        onCancel={onCancel}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onCancel).toHaveBeenCalledOnce();
+  });
+
+  it("shows recovery status and no cancel control while recovering", () => {
+    render(
+      <OperationProgressDialog
+        viewModel={operationProgressViewModel(operationRecord("recovering"), "window-a")}
+        onCancel={() => {}}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Recovering repository…");
+    expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
   });
 });

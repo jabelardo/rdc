@@ -1,8 +1,22 @@
 import type {
   GitOperationKind,
+  OperationError,
+  OperationProgress,
   OperationPresentationRole,
   OperationRecord,
 } from "../models/operation";
+
+export type OperationProgressViewModel = {
+  readonly operation: GitOperationKind;
+  readonly operationLabel: string;
+  readonly state: OperationRecord["state"];
+  readonly progress: OperationProgress;
+  readonly role: OperationPresentationRole;
+  readonly cancellationAvailable: boolean;
+  readonly statusText: string;
+  readonly error: OperationError | null;
+  readonly outcome: OperationRecord["outcome"];
+};
 
 export function operationPresentationRole(
   record: OperationRecord,
@@ -21,4 +35,63 @@ export function isHistoryMovingOperation(operation: GitOperationKind): boolean {
 
 export function isTerminalOperation(state: OperationRecord["state"]): boolean {
   return ["completed", "cancelled", "timedOut", "failed"].includes(state);
+}
+
+function operationLabel(operation: GitOperationKind): string {
+  const labels: Record<GitOperationKind, string> = {
+    fetch: "Fetch",
+    push: "Push",
+    pull: "Pull",
+    checkout: "Checkout",
+    clone: "Clone",
+    commit: "Commit",
+    merge: "Merge",
+    rebase: "Rebase",
+    cherryPick: "Cherry-pick",
+    revert: "Revert",
+  };
+  return labels[operation];
+}
+
+function lifecycleStatus(record: OperationRecord): string {
+  switch (record.state) {
+    case "cancelling":
+      return "Cancelling…";
+    case "recovering":
+      return "Recovering repository…";
+    case "timedOut":
+      return record.error?.message ?? "Operation timed out";
+    case "cancelled":
+      return record.outcome === "completed"
+        ? "Completed before cancellation"
+        : (record.error?.message ?? "Operation cancelled");
+    case "failed":
+      return record.error?.message ?? "Operation failed";
+    case "completed":
+      return record.outcome === "unknown" ? "Outcome unknown" : "Operation completed";
+    case "takingLongerThanExpected":
+      return record.progress?.description ?? record.progress?.title ?? "Taking longer than expected";
+    case "running":
+      return record.progress?.description ?? record.progress?.title ?? "Operation in progress";
+  }
+}
+
+export function operationProgressViewModel(
+  record: OperationRecord,
+  windowLabel: string,
+): OperationProgressViewModel {
+  return {
+    operation: record.operation,
+    operationLabel: operationLabel(record.operation),
+    state: record.state,
+    progress: record.progress ?? { value: 0 },
+    role: operationPresentationRole(record, windowLabel),
+    cancellationAvailable:
+      operationPresentationRole(record, windowLabel) === "owner" &&
+      record.cancellation.kind === "available" &&
+      (record.state === "running" || record.state === "takingLongerThanExpected"),
+    statusText: lifecycleStatus(record),
+    error: record.error,
+    outcome: record.outcome,
+  };
 }

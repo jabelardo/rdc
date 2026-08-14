@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
 import type { IProgress } from "../../../models/progress";
+import type { OperationProgressViewModel } from "../../operation-presentation";
+import type { OperationState } from "../../../models/operation";
+import { Button } from "../../../components/ui/button";
 import { Progress } from "../../../components/ui/progress";
 import {
   AlertDialog,
@@ -19,16 +22,43 @@ export type OperationProgressCommit = {
   readonly summary: string;
 };
 
-type OperationProgressDialogProps = {
+export type OperationProgressDialogProps = {
+  /** The native operation view model. New consumers should pass this instead of loose props. */
+  readonly viewModel?: OperationProgressViewModel;
   /** Capitalized operation name; the title reads "<operation> in progress". */
-  readonly operation: string;
+  readonly operation?: string;
   /** Any git progress event: a 0–1 value plus title and description where git provides them. */
-  readonly progress: Pick<IProgress, "value"> & Partial<Pick<IProgress, "title" | "description">>;
+  readonly progress?: Pick<IProgress, "value"> &
+    Partial<Pick<IProgress, "title" | "description">>;
   /** Which commit a multi-commit operation is applying, shown as "commit N of M" + summary. */
   readonly currentCommit?: OperationProgressCommit;
   /** Extra content mounted under the status, e.g. hook terminal output for a commit. */
   readonly children?: ReactNode;
+  /** Requests cancellation through the owning operation store. */
+  readonly onCancel?: () => void;
+  /** Closes a terminal operation after its recovery/outcome is understood. */
+  readonly onClose?: () => void;
 };
+
+function legacyViewModel(
+  operation: string,
+  progress: OperationProgressDialogProps["progress"],
+): Pick<
+  OperationProgressViewModel,
+  "operationLabel" | "state" | "progress" | "statusText" | "cancellationAvailable" | "error" | "outcome" | "role"
+> {
+  return {
+    operationLabel: operation,
+    state: "running" as OperationState,
+    progress: progress ?? { value: 0 },
+    statusText:
+      progress?.description ?? progress?.title ?? `${operation} in progress`,
+    cancellationAvailable: false,
+    error: null,
+    outcome: null,
+    role: "owner",
+  };
+}
 
 /**
  * The shared progress dialog every category-1 operation mounts (category 1 = the operation is the
@@ -44,17 +74,24 @@ type OperationProgressDialogProps = {
  * component; `children` is the per-operation extension point.
  */
 export function OperationProgressDialog({
+  viewModel,
   operation,
   progress,
   currentCommit,
   children,
+  onCancel,
+  onClose,
 }: OperationProgressDialogProps) {
-  const value = Math.max(0, Math.min(1, progress.value));
+  const model =
+    viewModel ?? legacyViewModel(operation ?? "Operation", progress);
+  const value = Math.max(0, Math.min(1, model.progress.value));
   const statusLine = currentCommit
     ? `Commit ${currentCommit.position} of ${currentCommit.totalCommitCount}${
         currentCommit.summary === "" ? "" : ` — ${currentCommit.summary}`
       }`
-    : (progress.description ?? progress.title ?? `${operation} in progress`);
+    : model.statusText;
+  const terminal = ["completed", "cancelled", "timedOut", "failed"].includes(model.state);
+  const title = terminal ? `${model.operationLabel}` : `${model.operationLabel} in progress`;
 
   return (
     <AlertDialog
@@ -73,14 +110,33 @@ export function OperationProgressDialog({
         onEscapeKeyDown={(event) => event.preventDefault()}
       >
         <div className="grid gap-3">
-          <AlertDialogTitle>{operation} in progress</AlertDialogTitle>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
           {/* One element is both the accessible description (announced on open, via
            * aria-describedby) and the live region (re-announced as git reports progress). */}
           <div id={StatusID} role="status" aria-live="polite" className="grid gap-2">
             <Progress value={value * 100} />
             <p className="text-muted-foreground text-xs">{statusLine}</p>
+            {model.error !== null && (
+              <p role="alert" className="text-destructive text-xs">
+                {model.error.message}
+              </p>
+            )}
           </div>
           {children}
+          {(model.cancellationAvailable || (terminal && onClose !== undefined)) && (
+            <div className="flex justify-end gap-2">
+              {model.cancellationAvailable && onCancel !== undefined && (
+                <Button type="button" onClick={onCancel} disabled={model.state === "cancelling"}>
+                  Cancel
+                </Button>
+              )}
+              {terminal && onClose !== undefined && (
+                <Button type="button" onClick={onClose}>
+                  Close
+                </Button>
+              )}
+            </div>
+          )}
         </div>
       </AlertDialogContent>
     </AlertDialog>

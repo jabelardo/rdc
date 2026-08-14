@@ -3,6 +3,7 @@ import type { OperationRecord } from "../models/operation";
 import {
   isHistoryMovingOperation,
   isTerminalOperation,
+  operationProgressViewModel,
   operationPresentationRole,
 } from "./operation-presentation";
 
@@ -56,5 +57,40 @@ describe("terminal operation presentation policy", () => {
     expect(isTerminalOperation("failed")).toBe(true);
     expect(isTerminalOperation("running")).toBe(false);
     expect(isTerminalOperation("recovering")).toBe(false);
+  });
+});
+
+describe("operation progress view model", () => {
+  it("gives only the owner an available cancellation control", () => {
+    const owner = operationProgressViewModel(record("window-a"), "window-a");
+    const observer = operationProgressViewModel(record("window-a"), "window-b");
+
+    expect(owner.operationLabel).toBe("Fetch");
+    expect(owner.cancellationAvailable).toBe(true);
+    expect(observer.cancellationAvailable).toBe(false);
+  });
+
+  it("maps cancellation and recovery lifecycle states to honest status text", () => {
+    expect(
+      operationProgressViewModel(
+        { ...record("window-a"), state: "cancelling" },
+        "window-a",
+      ).statusText,
+    ).toBe("Cancelling…");
+    expect(
+      operationProgressViewModel(
+        { ...record("window-a"), state: "recovering" },
+        "window-a",
+      ).statusText,
+    ).toBe("Recovering repository…");
+  });
+
+  it("does not offer cancellation for terminal records", () => {
+    expect(
+      operationProgressViewModel(
+        { ...record("window-a"), state: "completed", outcome: "completed" },
+        "window-a",
+      ).cancellationAvailable,
+    ).toBe(false);
   });
 });
