@@ -1839,6 +1839,7 @@ pub async fn clone(
             "Clone destination already exists; choose a new path",
         ));
     }
+    cleanup_stale_clone_destinations(&destination)?;
     let temporary_destination = temporary_clone_destination(&destination, "pending")?;
     let lock_key = git_ops::operation_identity::clone_destination_lock_key(&destination);
     let operation = registry
@@ -2018,6 +2019,50 @@ fn remove_temporary_clone(path: &std::path::Path) -> std::io::Result<()> {
     } else {
         Ok(())
     }
+}
+
+/// Removes staging directories left by an earlier process for this exact destination.
+///
+/// The operation registry is deliberately process-local, so a restarted app cannot know whether
+/// an old clone record is still active. The final destination check above and the exact app-owned
+/// prefix make it safe to discard only abandoned staging siblings before starting a new clone;
+/// unrelated user directories and other destination names are untouched.
+fn cleanup_stale_clone_destinations(destination: &std::path::Path) -> Result<(), CommandError> {
+    let parent = destination
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .ok_or_else(|| {
+            CommandError::message("Clone destination must include a parent directory")
+        })?;
+    let name = destination
+        .file_name()
+        .ok_or_else(|| CommandError::message("Clone destination must include a directory name"))?
+        .to_string_lossy();
+    let suffix = format!("-{name}");
+
+    let entries = std::fs::read_dir(parent).map_err(|error| {
+        CommandError::message(format!(
+            "Could not inspect the clone destination directory: {error}"
+        ))
+    })?;
+    for entry in entries {
+        let entry = entry.map_err(|error| {
+            CommandError::message(format!(
+                "Could not inspect a clone staging directory: {error}"
+            ))
+        })?;
+        let path = entry.path();
+        let file_name = entry.file_name();
+        let file_name = file_name.to_string_lossy();
+        if file_name.starts_with(".rdc-clone-") && file_name.ends_with(&suffix) && path.is_dir() {
+            std::fs::remove_dir_all(&path).map_err(|error| {
+                CommandError::message(format!(
+                    "Could not remove stale clone staging directory: {error}"
+                ))
+            })?;
+        }
+    }
+    Ok(())
 }
 
 /// Lists a repository's remotes, alphabetically.
@@ -2214,4 +2259,27 @@ pub async fn get_remote_head(
     git_ops::remote::get_remote_head(&repository_path, &name)
         .await
         .map_err(CommandError::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cleanup_stale_clone_destinations;
+
+    #[test]
+    fn removes_only_stale_staging_directories_for_the_requested_destination() {
+        let parent = tempfile::tempdir().expect("temporary parent");
+        let destination = parent.path().join("project");
+        let stale = parent.path().join(".rdc-clone-operation-7-project");
+        let other_destination = parent.path().join(".rdc-clone-operation-8-other");
+        let unrelated = parent.path().join(".rdc-clone-not-app-owned");
+        std::fs::create_dir(&stale).expect("stale staging directory");
+        std::fs::create_dir(&other_destination).expect("other staging directory");
+        std::fs::create_dir(&unrelated).expect("unrelated directory");
+
+        cleanup_stale_clone_destinations(&destination).expect("cleanup succeeds");
+
+        assert!(!stale.exists());
+        assert!(other_destination.exists());
+        assert!(unrelated.exists());
+    }
 }
