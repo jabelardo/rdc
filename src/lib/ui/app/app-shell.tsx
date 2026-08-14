@@ -319,7 +319,8 @@ export function AppShell({ controller }: AppShellProps) {
               onSelectView={setRepositoryView}
             />
             {(repositoryView === "changes" ||
-              (operationLockActive && operationViewModel?.state === "recovering")) && (
+              (operationLockActive && operationViewModel?.state === "recovering") ||
+              conflictState.recoveryOperation !== null) && (
               <MergeConflicts
                 repositoryPath={appState.selectedRepository.path}
                 state={conflictState}
@@ -331,7 +332,7 @@ export function AppShell({ controller }: AppShellProps) {
                   (operationViewModel.operation === "cherryPick" ||
                     operationViewModel.operation === "revert")
                     ? operationViewModel.operation
-                    : undefined
+                    : conflictState.recoveryOperation ?? undefined
                 }
                 onContinueRecovery={() => void continueHistoryRecovery()}
                 onAbortRecovery={() => void abortHistoryRecovery()}

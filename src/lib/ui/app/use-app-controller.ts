@@ -1282,7 +1282,8 @@ export function useAppController() {
   async function continueHistoryRecovery(): Promise<void> {
     const repository = appState.selectedRepository;
     const operation = operationStore.state.operation;
-    if (repository === null || operation?.operation !== "cherryPick") {
+    const recoveryOperation = operation?.operation ?? conflictState.recoveryOperation;
+    if (repository === null || recoveryOperation !== "cherryPick") {
       return;
     }
     const files = conflictStore.state.files.map((file) => [file.path, file.status] as const);
@@ -1295,9 +1296,10 @@ export function useAppController() {
     if (repository === null) {
       return;
     }
-    if (operation?.operation === "cherryPick") {
+    const recoveryOperation = operation?.operation ?? conflictState.recoveryOperation;
+    if (recoveryOperation === "cherryPick") {
       await abortCherryPick(repository.path);
-    } else if (operation?.operation === "revert") {
+    } else if (recoveryOperation === "revert") {
       await abortRevert(repository.path);
     }
   }

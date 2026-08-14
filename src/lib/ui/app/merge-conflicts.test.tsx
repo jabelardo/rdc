@@ -6,6 +6,7 @@ import { MergeConflicts } from "./merge-conflicts";
 
 const state: ConflictState = {
   repositoryPath: "/repo",
+  recoveryOperation: null,
   mergeInProgress: false,
   files: [],
   loading: false,

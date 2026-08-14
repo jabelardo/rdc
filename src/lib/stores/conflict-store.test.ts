@@ -9,6 +9,7 @@ function status(conflictMarkerCount: number, mergeHeadFound = true): IStatusResu
     mergeHeadFound,
     squashMsgFound: false,
     isCherryPickingHeadFound: false,
+    isRevertingHeadFound: false,
     doConflictedFilesExist: true,
     files: [
       {
@@ -50,6 +51,20 @@ describe("ConflictStore", () => {
       error: null,
     });
     expect(store.state.files[0].resolvedInWorkingTree).toBe(false);
+  });
+
+  it("hydrates Cherry-pick and Revert recovery markers without a live operation", async () => {
+    const cherryPickStore = new ConflictStore({
+      getStatus: vi.fn(async () => ({ ...status(0, false), isCherryPickingHeadFound: true })),
+    });
+    await cherryPickStore.load("/repo");
+    expect(cherryPickStore.state.recoveryOperation).toBe("cherryPick");
+
+    const revertStore = new ConflictStore({
+      getStatus: vi.fn(async () => ({ ...status(0, false), isRevertingHeadFound: true })),
+    });
+    await revertStore.load("/repo");
+    expect(revertStore.state.recoveryOperation).toBe("revert");
   });
 
   it("stages a marker-free resolution with its exact index entries and refreshes", async () => {

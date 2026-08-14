@@ -1096,6 +1096,9 @@ On repository load, inspect at least:
 First increment: native repository status now reports the optional `isRevertingHeadFound` fact
 when Git leaves `REVERT_HEAD`; the field is omitted for clean repositories so existing wire
 consumers remain compatible. Rust status and wire-contract tests cover the new marker fact.
+The conflict store now hydrates Cherry-pick/Revert recovery from those marker facts when no live
+operation record survives the restart, and the recovery banner's abort/continue actions use that
+hydrated operation kind. Focused restart E2E passes after this hydration path is loaded.
 
 Do not claim the original process is still running after an app restart. Present the detected
 repository state as recovery-required and offer the operation-specific continue/abort path.

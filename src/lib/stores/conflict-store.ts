@@ -19,6 +19,8 @@ export type ConflictFile = {
 
 export type ConflictState = {
   readonly repositoryPath: string | null;
+  /** A Git recovery marker found during repository load, even when no live operation exists. */
+  readonly recoveryOperation: "cherryPick" | "revert" | null;
   readonly mergeInProgress: boolean;
   readonly files: ReadonlyArray<ConflictFile>;
   readonly loading: boolean;
@@ -39,6 +41,7 @@ const defaultDependencies: ConflictStoreDependencies = {
 
 const EmptyState: ConflictState = {
   repositoryPath: null,
+  recoveryOperation: null,
   mergeInProgress: false,
   files: [],
   loading: false,
@@ -96,6 +99,7 @@ export class ConflictStore {
     this.operationID++;
     this.update({
       repositoryPath,
+      recoveryOperation: null,
       mergeInProgress: false,
       files: [],
       loading: true,
@@ -115,6 +119,7 @@ export class ConflictStore {
       }
       this.update({
         repositoryPath,
+        recoveryOperation: null,
         mergeInProgress: false,
         files: [],
         loading: false,
@@ -184,6 +189,12 @@ export class ConflictStore {
   private stateFromStatus(repositoryPath: string, status: IStatusResult | null): ConflictState {
     return {
       repositoryPath,
+      recoveryOperation:
+        status?.isCherryPickingHeadFound === true
+          ? "cherryPick"
+          : status?.isRevertingHeadFound === true
+            ? "revert"
+            : null,
       mergeInProgress: status?.mergeHeadFound ?? false,
       files: conflictFiles(status?.files ?? []),
       loading: false,
