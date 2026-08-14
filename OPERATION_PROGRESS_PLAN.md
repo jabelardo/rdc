@@ -566,7 +566,7 @@ being serialized as snake_case instead of the frontend's camelCase contract.
 The container build passes TypeScript compilation, frontend bundling, and native linking with the
 E2E harness's constrained-memory settings (`CARGO_BUILD_JOBS=1` and Rust debuginfo disabled). The
 complete Linux-container suite passes all 33 tests after updating the migrated Preferences dialog's
-stale legacy title-ID selector.
+stale existing title-ID selector.
 The E2E foundation also verifies that the commit reaches `HEAD` after its owner window closes,
 while the same-repository peer remains usable.
 After completion, the peer now switches to History and verifies the new commit is visible, covering
@@ -878,7 +878,8 @@ outcome-unknown policy; none silently inherits a generic Cancel button.
 **Progress:** complete. `OperationProgressViewModel` now derives operation labels, lifecycle copy,
 owner/observer cancellation capability and recovery/error status from the native `OperationRecord`.
 `OperationProgressDialog` accepts that model and renders cancellation, recovery, terminal error and
-close affordances while preserving the legacy prop adapter for dialogs that have not yet migrated.
+close affordances while preserving the compatibility prop adapter for dialogs that have not yet
+migrated.
 Commit, Merge and Rebase progress surfaces are now wired to the selected window's native operation
 record while retaining their operation-specific initiation and current-commit details. Native
 operation-specific cancellation labels flow through the shared model, and only the owner window gets
@@ -900,7 +901,7 @@ window disappears; observers with a live owner remain read-only. Recovery failur
 repository recovery is required before continuing.
 Retry is now an explicit opt-in capability in the view model; recoverable errors do not imply retry
 is safe, and the shared dialog renders Retry only when both the capability and callback are present.
-Legacy/debug clone states that predate native-operation hydration remain supported when the optional
+Debug/test clone states that predate native-operation hydration remain supported when the optional
 record is absent.
 CloneStore now hydrates the native clone-destination operation after invocation starts and follows
 only that operation ID through the global event stream. Native lifecycle tracking is presentation
@@ -964,14 +965,14 @@ Accessibility:
 Migrate incrementally to the operation record and shared presentation:
 
 1. Fetch pilot. **Complete:** the toolbar renders the native Fetch record through the shared
-   non-modal `OperationProgressBody`; legacy remote-store state remains the refresh/error
+   non-modal `OperationProgressBody`; store-owned remote state remains the refresh/error
    compatibility path.
 2. Clone. **Complete.**
 3. Rebase. **Complete.**
 4. Commit and hook handoff. **Complete.**
 5. Merge/squash merge. **Complete.**
 6. Push/Pull. **Complete:** the toolbar uses the same native shared body for Push and Pull and
-   prefers the native operation record for action labels/icons; legacy remote-store state remains
+   prefers the native operation record for action labels/icons; store-owned remote state remains
    the orchestration, refresh and error compatibility path. Application menus now also subscribe
    to the native repository lock before deriving remote-action enablement.
 7. Checkout. **Complete:** the branch sidebar renders native Checkout progress through the shared
@@ -989,7 +990,7 @@ Migrate incrementally to the operation record and shared presentation:
 Remote-store compatibility is intentionally still open. `RemoteStore` continues to own remote
 selection, multi-remote Fetch aggregation, post-operation refresh sequencing, boolean action
 results and remote/authentication error classification. The native operation record is already
-authoritative for toolbar/menu presentation and repository locking. Remove the legacy
+authoritative for toolbar/menu presentation and repository locking. Remove the store-owned
 `operation`/`progress` fields only after those store responsibilities have native-event consumers
 and their refresh/error tests no longer depend on callback progress.
 
