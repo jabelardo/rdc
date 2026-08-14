@@ -73,8 +73,12 @@ export function RepositoryToolbar({
     operationViewModel?.operation === "pull"
       ? operationViewModel.operation
       : null;
-  const status = remoteState.error;
-  const statusIsError = remoteState.error !== null;
+  // The store's `error` field is the *management* channel — Add/Remove Remote and the like. While a
+  // native Fetch/Push/Pull record owns the repository, the transport error belongs to the modal
+  // progress dialog, and showing the store's copy here would either duplicate it or, on a stale
+  // callback, contradict it.
+  const status = displayedRemoteOperation === null ? remoteState.error : null;
+  const statusIsError = status !== null;
   const statusElement = (
     <p
       className={`repository-toolbar-status${statusIsError ? " is-error" : ""}`}

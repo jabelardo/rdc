@@ -42,7 +42,35 @@ describe("RepositoryToolbar progress presentation", () => {
     expect(screen.getByRole("button", { name: "Fetch" })).toBeDisabled();
   });
 
-  it("prefers a native remote error over the store error fallback", () => {
+  it("renders a remote management error when no native remote operation owns the repository", () => {
+    render(
+      <RepositoryToolbar
+        remoteState={{ ...remoteState, error: "Could not add the remote" }}
+        canFetch={false}
+        canPush={false}
+        canPull={false}
+        hasEditor={false}
+        hasShell={false}
+        repositoryView="changes"
+        onCreateRepository={vi.fn()}
+        onAddExistingRepository={vi.fn()}
+        onCloneRepository={vi.fn()}
+        onShowFiles={vi.fn()}
+        onOpenEditor={vi.fn()}
+        onOpenShell={vi.fn()}
+        onFetch={vi.fn()}
+        onPull={vi.fn()}
+        onPush={vi.fn()}
+        onSelectView={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Could not add the remote")).toBeInTheDocument();
+  });
+
+  // Remote progress moved to the modal `OperationProgressDialog`, which renders the record's
+  // terminal error; the toolbar must not present a second, possibly stale, copy of it.
+  it("leaves a failed native remote operation's error to the modal dialog", () => {
     const operation: OperationRecord = {
       id: "fetch-1",
       scope: { kind: "repository", lockKey: "repo", repositoryPath: "/repo" },
@@ -78,7 +106,7 @@ describe("RepositoryToolbar progress presentation", () => {
       />,
     );
 
-    expect(screen.getByText("Native fetch failed")).toBeInTheDocument();
+    expect(screen.queryByText("Native fetch failed")).not.toBeInTheDocument();
     expect(screen.queryByText("Store fetch failed")).not.toBeInTheDocument();
   });
 
