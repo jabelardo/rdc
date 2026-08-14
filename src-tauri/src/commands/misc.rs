@@ -255,11 +255,99 @@ fn finish_revert_recovery_failure(
 }
 
 /// Aborts an interrupted revert, restoring the branch, index and worktree when Git has revert state.
+///
+/// A conflicted revert enters recovery and deliberately keeps its repository write lock, so this is
+/// the command that ends that operation. Releasing the lock only after Git has actually cleaned up
+/// is what stops the repository from looking idle while `REVERT_HEAD` is still on disk; a failed
+/// abort keeps the lock and records `recoveryFailed`, matching rebase and cherry-pick.
 #[tauri::command]
-pub async fn abort_revert(repository_path: String) -> Result<(), CommandError> {
-    git_ops::revert::abort_revert(&repository_path)
+pub async fn abort_revert(
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+) -> Result<(), CommandError> {
+    abort_revert_operation(&registry, &repository_path).await
+}
+
+async fn abort_revert_operation(
+    registry: &OperationRegistry,
+    repository_path: &str,
+) -> Result<(), CommandError> {
+    // `REVERT_HEAD` can outlive its operation record — a revert started outside rdc, or one that
+    // survived an app restart — so the lock holder is not necessarily this revert. Ending someone
+    // else's Fetch here would release a lock while its transport is still running.
+    let active =
+        crate::commands::operation::active_repository_operation(registry, repository_path).await?;
+    if let Some(record) = &active {
+        if record.operation != GitOperationKind::Revert {
+            return Err(CommandError::message(format!(
+                "cannot abort a revert while a {:?} operation owns this repository",
+                record.operation
+            )));
+        }
+    }
+    let operation = active;
+
+    // `git revert --abort` exits 128 when there is nothing to abort, and treating that as a
+    // recovery failure would retain the write lock with no way for the user to clear it — the
+    // recovery panel's only action is this command, so every retry would fail identically. An
+    // already-resolved revert instead ends the operation and releases the lock. Whether the user
+    // finished or abandoned it outside rdc is genuinely unknown, so say so rather than guess.
+    let in_progress = git_ops::revert::is_revert_in_progress(repository_path)
         .await
-        .map_err(CommandError::from)
+        .map_err(|error| {
+            if let Some(operation) = &operation {
+                return finish_revert_recovery_failure(registry, &operation.id, error);
+            }
+            CommandError::from(error)
+        })?;
+    if !in_progress {
+        if let Some(operation) = &operation {
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Cancelled,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Cancelled,
+                    message: "The revert was no longer in progress; its repository lock has been \
+                              released"
+                        .to_owned(),
+                    recoverable: true,
+                }),
+            );
+        }
+        return Ok(());
+    }
+
+    let result = git_ops::revert::abort_revert(repository_path).await;
+    match result {
+        Ok(()) => {
+            if let Some(operation) = operation {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Cancelled,
+                    OperationOutcome::Recovered,
+                    None,
+                );
+            }
+            Ok(())
+        }
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            if let Some(operation) = operation {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Failed,
+                    OperationOutcome::Unknown,
+                    Some(OperationError {
+                        kind: OperationErrorKind::RecoveryFailed,
+                        message: command_error.message.clone(),
+                        recoverable: false,
+                    }),
+                );
+            }
+            Err(command_error)
+        }
+    }
 }
 
 /// The most recently checked-out branches, newest first.
@@ -877,5 +965,171 @@ mod revert_recovery_tests {
                 repository_path: repository_path.clone(),
             })
             .is_none());
+    }
+
+    /// A conflicted revert deliberately keeps its lock, so the user-driven abort is the only thing
+    /// that can end that operation. Before this was wired up the repository stayed write-locked for
+    /// the rest of the session even though Git had been cleaned up.
+    #[tokio::test]
+    async fn aborting_a_conflicted_revert_releases_the_retained_lock() {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        run_git(directory.path(), &["init", "-q", "-b", "main"]);
+        run_git(directory.path(), &["config", "user.name", "Slice 13 Test"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "slice13@example.test"],
+        );
+        std::fs::write(directory.path().join("conflict.txt"), "one\n")
+            .expect("base file should be written");
+        run_git(directory.path(), &["add", "."]);
+        run_git(directory.path(), &["commit", "-qm", "base"]);
+        std::fs::write(directory.path().join("conflict.txt"), "two\n")
+            .expect("target file should be written");
+        run_git(directory.path(), &["commit", "-qam", "target change"]);
+        let target_commit = run_git(directory.path(), &["rev-parse", "HEAD"]);
+        std::fs::write(directory.path().join("conflict.txt"), "three\n")
+            .expect("later file should be written");
+        run_git(directory.path(), &["commit", "-qam", "later change"]);
+        let original_head = run_git(directory.path(), &["rev-parse", "HEAD"]);
+        let revert = Command::new("git")
+            .args(["revert", &target_commit])
+            .current_dir(directory.path())
+            .output()
+            .expect("revert should start");
+        assert!(
+            !revert.status.success(),
+            "revert should stop with a conflict"
+        );
+
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation = crate::commands::operation::start_cancellable_repository_operation(
+            &registry,
+            &repository_path,
+            Some("test-window".to_owned()),
+            GitOperationKind::Revert,
+            "Cancel revert",
+        )
+        .await
+        .expect("operation should reserve the repository");
+        registry
+            .enter_recovery(&operation.id)
+            .expect("a conflicted revert enters recovery holding its lock");
+        assert!(
+            registry.active_for_scope(&operation.scope).is_some(),
+            "recovery retains the repository lock"
+        );
+
+        abort_revert_operation(&registry, &repository_path)
+            .await
+            .expect("aborting a conflicted revert succeeds");
+
+        assert_eq!(
+            run_git(directory.path(), &["rev-parse", "HEAD"]),
+            original_head
+        );
+        let finished = registry
+            .get(&operation.id)
+            .expect("the finished record remains queryable");
+        assert_eq!(finished.state, OperationState::Cancelled);
+        assert_eq!(finished.outcome, Some(OperationOutcome::Recovered));
+        assert!(
+            registry.active_for_scope(&operation.scope).is_none(),
+            "a successful abort releases the repository lock"
+        );
+    }
+
+    /// `git revert --abort` exits 128 when there is nothing to abort. Recording that as a recovery
+    /// failure would retain the write lock, and the recovery panel's only action is this command —
+    /// so every retry would fail the same way and the repository would stay locked for good.
+    #[tokio::test]
+    async fn aborting_an_already_resolved_revert_still_releases_the_lock() {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        run_git(directory.path(), &["init", "-q", "-b", "main"]);
+        run_git(directory.path(), &["config", "user.name", "Slice 13 Test"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "slice13@example.test"],
+        );
+        std::fs::write(directory.path().join("a.txt"), "one\n").expect("file should be written");
+        run_git(directory.path(), &["add", "."]);
+        run_git(directory.path(), &["commit", "-qm", "base"]);
+
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation = crate::commands::operation::start_cancellable_repository_operation(
+            &registry,
+            &repository_path,
+            Some("test-window".to_owned()),
+            GitOperationKind::Revert,
+            "Cancel revert",
+        )
+        .await
+        .expect("operation should reserve the repository");
+        registry
+            .enter_recovery(&operation.id)
+            .expect("the operation holds its lock while recovering");
+
+        // No REVERT_HEAD: the user resolved or abandoned the revert outside rdc.
+        abort_revert_operation(&registry, &repository_path)
+            .await
+            .expect("an already-resolved revert is not a recovery failure");
+
+        let finished = registry
+            .get(&operation.id)
+            .expect("the finished record remains queryable");
+        assert_eq!(finished.state, OperationState::Cancelled);
+        assert_eq!(finished.outcome, Some(OperationOutcome::Unknown));
+        assert!(
+            registry.active_for_scope(&operation.scope).is_none(),
+            "the repository lock must not survive an abort with nothing to abort"
+        );
+    }
+
+    /// A revert marker can outlive its record, so the lock holder is not necessarily this revert.
+    #[tokio::test]
+    async fn aborting_a_revert_refuses_to_end_another_operation() {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        run_git(directory.path(), &["init", "-q", "-b", "main"]);
+        run_git(directory.path(), &["config", "user.name", "Slice 13 Test"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "slice13@example.test"],
+        );
+        std::fs::write(directory.path().join("a.txt"), "one\n").expect("file should be written");
+        run_git(directory.path(), &["add", "."]);
+        run_git(directory.path(), &["commit", "-qm", "base"]);
+
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let fetch = crate::commands::operation::start_cancellable_repository_operation(
+            &registry,
+            &repository_path,
+            Some("test-window".to_owned()),
+            GitOperationKind::Fetch,
+            "Cancel fetch",
+        )
+        .await
+        .expect("the fetch should reserve the repository");
+
+        abort_revert_operation(&registry, &repository_path)
+            .await
+            .expect_err("a revert abort must not end an unrelated operation");
+
+        let untouched = registry
+            .get(&fetch.id)
+            .expect("the unrelated operation must still exist");
+        assert_eq!(
+            untouched.state,
+            OperationState::Running,
+            "the unrelated operation must not be finished by a revert abort"
+        );
+        assert_eq!(
+            registry
+                .active_for_scope(&fetch.scope)
+                .map(|record| record.id),
+            Some(fetch.id),
+            "the unrelated operation must keep its repository lock"
+        );
     }
 }
