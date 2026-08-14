@@ -887,6 +887,9 @@ the action; observers remain read-only. Clone retains its destination-scoped ini
 the modal shell, so embedded toolbar/sidebar surfaces can consume the same lifecycle rendering.
 Terminal errors are not announced twice. Focused presentation, dialog and operation-store tests cover
 owner cancellation, recovery, terminal errors and non-modal body rendering.
+Cancellation requests now override stale Git progress immediately, the slow-operation warning cannot
+be hidden by an old progress description, and observer/unowned windows identify their ownership
+context without inheriting the owner's controls.
 
 Refactor `src/lib/ui/dialogs/operation-progress-dialog.tsx` to consume an operation view model rather
 than loose operation-specific props. Extract a shared progress body so background operations can use

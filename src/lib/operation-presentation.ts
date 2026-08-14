@@ -15,6 +15,7 @@ export type OperationProgressViewModel = {
   readonly cancellationAvailable: boolean;
   readonly cancellationLabel: string | null;
   readonly statusText: string;
+  readonly contextText: string | null;
   readonly error: OperationError | null;
   readonly outcome: OperationRecord["outcome"];
 };
@@ -55,6 +56,9 @@ function operationLabel(operation: GitOperationKind): string {
 }
 
 function lifecycleStatus(record: OperationRecord): string {
+  if (record.cancellation.kind === "requested") {
+    return "Cancelling…";
+  }
   switch (record.state) {
     case "cancelling":
       return "Cancelling…";
@@ -71,7 +75,7 @@ function lifecycleStatus(record: OperationRecord): string {
     case "completed":
       return record.outcome === "unknown" ? "Outcome unknown" : "Operation completed";
     case "takingLongerThanExpected":
-      return record.progress?.description ?? record.progress?.title ?? "Taking longer than expected";
+      return "Taking longer than expected";
     case "running":
       return record.progress?.description ?? record.progress?.title ?? "Operation in progress";
   }
@@ -96,6 +100,12 @@ export function operationProgressViewModel(
     cancellationLabel:
       record.cancellation.kind === "available" ? record.cancellation.label : null,
     statusText: lifecycleStatus(record),
+    contextText:
+      role === "observer"
+        ? "Started in another window"
+        : role === "unowned"
+          ? "The window that started this operation is no longer open"
+          : null,
     error: record.error,
     outcome: record.outcome,
   };

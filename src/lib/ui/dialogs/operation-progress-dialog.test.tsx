@@ -113,6 +113,17 @@ describe("OperationProgressDialog", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
+  it("identifies an observer window without offering the owner's control", () => {
+    render(
+      <OperationProgressBody
+        viewModel={operationProgressViewModel(operationRecord(), "window-b")}
+      />,
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent("Started in another window");
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("does not repeat a terminal error already used as the lifecycle status", () => {
     const failed: OperationRecord = {
       ...operationRecord("failed"),

@@ -43,7 +43,7 @@ export type OperationProgressDialogProps = {
 export type OperationProgressBodyProps = {
   readonly viewModel: Pick<
     OperationProgressViewModel,
-    "operationLabel" | "progress" | "statusText" | "error"
+    "operationLabel" | "progress" | "statusText" | "contextText" | "error"
   >;
   readonly currentCommit?: OperationProgressCommit;
   readonly children?: ReactNode;
@@ -59,6 +59,7 @@ function legacyViewModel(
   | "state"
   | "progress"
   | "statusText"
+  | "contextText"
   | "cancellationAvailable"
   | "cancellationLabel"
   | "error"
@@ -71,6 +72,7 @@ function legacyViewModel(
     progress: progress ?? { value: 0 },
     statusText:
       progress?.description ?? progress?.title ?? `${operation} in progress`,
+    contextText: null,
     cancellationAvailable: false,
     cancellationLabel: null,
     error: null,
@@ -107,6 +109,9 @@ export function OperationProgressBody({
       <div id={statusID} role="status" aria-live="polite" className="grid gap-2">
         <Progress value={value * 100} />
         <p className="text-muted-foreground text-xs">{statusLine}</p>
+        {viewModel.contextText !== null && (
+          <p className="text-muted-foreground text-xs">{viewModel.contextText}</p>
+        )}
         {showSeparateError && (
           <p role="alert" className="text-destructive text-xs">
             {viewModel.error?.message}

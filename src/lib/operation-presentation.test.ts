@@ -69,6 +69,7 @@ describe("operation progress view model", () => {
     expect(owner.cancellationAvailable).toBe(true);
     expect(owner.cancellationLabel).toBe("Cancel fetch");
     expect(observer.cancellationAvailable).toBe(false);
+    expect(observer.contextText).toBe("Started in another window");
   });
 
   it("maps cancellation and recovery lifecycle states to honest status text", () => {
@@ -93,5 +94,24 @@ describe("operation progress view model", () => {
         "window-a",
       ).cancellationAvailable,
     ).toBe(false);
+  });
+
+  it("shows the requested and slow lifecycle states instead of stale progress text", () => {
+    expect(
+      operationProgressViewModel(
+        { ...record("window-a"), cancellation: { kind: "requested" } },
+        "window-a",
+      ).statusText,
+    ).toBe("Cancelling…");
+    expect(
+      operationProgressViewModel(
+        {
+          ...record("window-a"),
+          state: "takingLongerThanExpected",
+          progress: { value: 0.5, description: "Receiving objects" },
+        },
+        "window-a",
+      ).statusText,
+    ).toBe("Taking longer than expected");
   });
 });
