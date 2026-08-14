@@ -86,8 +86,9 @@ pub use branch::{
 };
 pub use checkout::{
     checkout_branch, checkout_branch_with_progress, checkout_commit, checkout_commit_with_progress,
-    checkout_conflicted_file, checkout_paths, get_checkout_snapshot, CheckoutProgress,
-    CheckoutProgressKind, CheckoutSnapshot, CheckoutTarget, ManualConflictResolution,
+    checkout_conflicted_file, checkout_paths, get_checkout_snapshot, restore_checkout_snapshot,
+    CheckoutProgress, CheckoutProgressKind, CheckoutSnapshot, CheckoutTarget,
+    ManualConflictResolution,
 };
 pub use checkout_index::checkout_index;
 pub use cherry_pick::{

@@ -15,6 +15,7 @@
 //! What remains is the checkout itself, which is what everything above decorates.
 
 use std::ffi::OsStr;
+use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -81,6 +82,97 @@ pub async fn get_checkout_snapshot(
         index,
         tracked_worktree_patch,
     })
+}
+
+/// Restores the tracked portion of a checkout snapshot.
+///
+/// Callers must stop the checkout process and hold the repository operation lock first. This does
+/// not restore untracked paths, so it is not yet sufficient to advertise Checkout cancellation.
+pub async fn restore_checkout_snapshot(
+    repository: impl AsRef<Path>,
+    snapshot: &CheckoutSnapshot,
+) -> Result<(), GitError> {
+    let repository = repository.as_ref();
+    if let Some(symbolic_head) = &snapshot.symbolic_head {
+        git(
+            &["symbolic-ref", "HEAD", symbolic_head],
+            repository,
+            "restoreCheckoutHead",
+            GitOptions::default(),
+        )
+        .await?;
+        git(
+            &["reset", "--hard", &snapshot.head_sha],
+            repository,
+            "restoreCheckoutHead",
+            GitOptions::default(),
+        )
+        .await?;
+    } else {
+        git(
+            &["checkout", "--detach", "--force", &snapshot.head_sha, "--"],
+            repository,
+            "restoreCheckoutHead",
+            GitOptions::default(),
+        )
+        .await?;
+    }
+
+    restore_checkout_index(repository, snapshot.index.as_deref()).await?;
+    if !snapshot.tracked_worktree_patch.is_empty() {
+        git(
+            &["apply", "--binary", "--whitespace=nowarn", "-"],
+            repository,
+            "restoreCheckoutWorktree",
+            GitOptions::default().with_stdin(snapshot.tracked_worktree_patch.clone()),
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+async fn restore_checkout_index(repository: &Path, index: Option<&[u8]>) -> Result<(), GitError> {
+    let git_dir = crate::rev_parse::resolve_git_dir(repository).await?;
+    let index_path = git_dir.join("index");
+    let Some(index) = index else {
+        match tokio::fs::remove_file(&index_path).await {
+            Ok(()) => return Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(source) => {
+                return Err(GitError::Spawn {
+                    name: "restoreCheckoutIndex".to_owned(),
+                    path: index_path,
+                    source,
+                });
+            }
+        }
+    };
+
+    let mut temporary = tempfile::Builder::new()
+        .prefix("rdc-checkout-index-")
+        .tempfile_in(&git_dir)
+        .map_err(|source| GitError::Spawn {
+            name: "restoreCheckoutIndex".to_owned(),
+            path: index_path.clone(),
+            source,
+        })?;
+    temporary
+        .write_all(index)
+        .and_then(|()| temporary.as_file().sync_all())
+        .map_err(|source| GitError::Spawn {
+            name: "restoreCheckoutIndex".to_owned(),
+            path: index_path.clone(),
+            source,
+        })?;
+    temporary
+        .persist(&index_path)
+        .map_err(|error| GitError::Spawn {
+            name: "restoreCheckoutIndex".to_owned(),
+            path: index_path,
+            source: error.error,
+        })?;
+    Ok(())
 }
 
 /// A checkout progress update sent to the frontend.
@@ -569,6 +661,86 @@ mod tests {
 
         assert_eq!(snapshot.symbolic_head, None);
         assert_eq!(snapshot.head_sha, first);
+    }
+
+    #[tokio::test]
+    async fn checkout_snapshot_restores_branch_index_and_tracked_worktree() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "file.txt", "base\n", "base");
+        git(
+            &["checkout", "-b", "topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("topic branch should be created");
+        commit_file(&repo.path(), "file.txt", "topic\n", "topic");
+        git(
+            &["checkout", "main"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("main should be restored");
+        std::fs::write(repo.path().join("file.txt"), "staged\n")
+            .expect("staged contents should be written");
+        git(
+            &["add", "file.txt"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("staged contents should be indexed");
+        std::fs::write(repo.path().join("file.txt"), "worktree\n")
+            .expect("worktree contents should be written");
+        let snapshot = get_checkout_snapshot(repo.path())
+            .await
+            .expect("checkout state should be captured");
+        git(
+            &["checkout", "--force", "topic"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("the interrupted checkout state should be simulated");
+
+        restore_checkout_snapshot(repo.path(), &snapshot)
+            .await
+            .expect("tracked checkout state should restore");
+
+        assert_eq!(current_branch(&repo.path()).await.as_deref(), Some("main"));
+        assert_eq!(
+            git(
+                &["show", ":file.txt"],
+                repo.path(),
+                "test",
+                GitOptions::default(),
+            )
+            .await
+            .expect("staged file should be readable")
+            .stdout,
+            b"staged\n"
+        );
+        assert_eq!(
+            std::fs::read(repo.path().join("file.txt")).expect("worktree file should be readable"),
+            b"worktree\n"
+        );
+        assert_eq!(
+            git(
+                &["status", "--porcelain", "--", "file.txt"],
+                repo.path(),
+                "test",
+                GitOptions::default(),
+            )
+            .await
+            .expect("status should be readable")
+            .stdout_trimmed(),
+            "MM file.txt"
+        );
     }
 
     #[tokio::test]
