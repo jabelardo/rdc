@@ -17,7 +17,7 @@ function remoteState(overrides: Partial<RemoteState> = {}): RemoteState {
       upstream: "origin/main",
     } as RemoteState["currentBranch"],
     loading: false,
-    error: null,
+    managementError: null,
     ...overrides,
   };
 }

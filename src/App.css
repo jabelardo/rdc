@@ -679,10 +679,6 @@
   white-space: nowrap;
 }
 
-.repository-toolbar-status.is-error {
-  color: var(--error-text);
-}
-
 .repository-toolbar-status:empty {
   display: none;
 }

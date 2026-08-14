@@ -24,3 +24,15 @@ export function describeError(error: unknown): string {
 export function reportError(error: unknown): void {
   getDefaultMessageStore().push("error", describeError(error));
 }
+
+/**
+ * Reports an already-formatted message, for callers that own domain-specific classification.
+ *
+ * `remote-store.ts` is the case this exists for: `describeRemoteError` turns a `GitErrorKind` into
+ * product-reviewed recovery prose (non-fast-forward, merge conflicts, auth failure, the PAC/proxy
+ * fallback) that the generic `describeError` cannot produce and the controller has no business
+ * knowing. Classification stays with the store; only the reporting is shared.
+ */
+export function reportErrorMessage(text: string): void {
+  getDefaultMessageStore().push("error", text);
+}

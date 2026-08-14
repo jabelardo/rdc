@@ -285,9 +285,30 @@ repeating it:
 | 2 | `working-tree-store.ts` | `error`, `commitError`, `diffError` | `changes-workspace.tsx` (3 render sites) |
 | 3 | `history-store.ts` | `error`, `detailsError`, `diffError` | `history-workspace.tsx` (3 render sites) |
 | 4 | `branch-store.ts` | `error`, `operationError` (including the inline name-validation paths) | `repository-sidebar.tsx`, rename/delete/merge dialogs already touched in Slice 1 keep working, this slice removes the field they were reading around |
-| 5 | `remote-store.ts` | `error` only — `operationError` no longer exists (`OPERATION_PROGRESS_PLAN.md` Slice 17 removed it along with `operation`/`progress`) | `repository-toolbar.tsx` — the status paragraph is already split: it renders `remoteState.error` only while no native Fetch/Push/Pull record owns the repository. This slice removes that paragraph entirely; the toolbar keeps action state and peer-window status, and the native record keeps the transport error. **This is the `[object Object]` in the screenshot** |
+| 5 | `remote-store.ts` | `error` → **landed**, but see below | `repository-toolbar.tsx` — **landed**: the error paragraph is gone entirely. The toolbar keeps action state and peer-window status only |
 | 6 | `conflict-store.ts` | `error`, `operationError` | `merge-conflicts.tsx` |
 | 7 | `clone-store.ts` + `preferences-store.ts` | `error` (×2) | `app-dialogs.tsx` clone dialog, preferences dialog |
+
+#### Slice 5, as landed — and the one deviation
+
+`load`, `fetch`, `push` and `pull` failures now go to the message store through
+`reportErrorMessage(describeRemoteError(error))`, and the toolbar's error paragraph is deleted. That
+slot could never have worked: it is `white-space: nowrap` with an ellipsis, which is why the Phase 8b
+screenshot shows `failed to run git f…`. An error message does not belong in a strip sized for a
+status word.
+
+**The field is not fully gone: `error` became `managementError`, carrying Add/Remove Remote failures
+only.** Removing it outright would have silently answered the open decision above — the Manage
+Remotes dialog renders that text inline, and routing it to a toast *is* option two. The interim rule
+says dialogs keep their failure inline until the decision is made, so the field was narrowed to
+exactly that one consumer and renamed so the remaining scope is visible rather than implied. It
+disappears with Slice 1, when the decision it belongs to is settled.
+
+`reportErrorMessage` was added alongside `reportError` for this: `describeRemoteError` turns a
+`GitErrorKind` into product-reviewed recovery prose that `describeError` cannot produce and the
+controller has no business knowing, so classification stays in the store and only the reporting is
+shared. The plan's "controller catches and calls `reportError`" shape still holds for the stores
+whose methods carry no domain classification.
 
 **Recommended order: 5, 6, 2, then 3, 4, 7.** The numbering above is kept stable because
 `REMAINING.md` and other documents reference it, but the *order to implement* should be led by the

@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { RemoteState } from "../../stores/remote-store";
-import type { OperationRecord } from "../../../models/operation";
-import { operationProgressViewModel } from "../../operation-presentation";
 import { RepositoryToolbar } from "./repository-toolbar";
 
 const remoteState: RemoteState = {
@@ -11,7 +9,7 @@ const remoteState: RemoteState = {
   currentRemote: { name: "origin", url: "/remote.git" },
   currentBranch: { name: "main", upstream: "origin/main" } as RemoteState["currentBranch"],
   loading: false,
-  error: null,
+  managementError: null,
 };
 
 describe("RepositoryToolbar progress presentation", () => {
@@ -42,10 +40,14 @@ describe("RepositoryToolbar progress presentation", () => {
     expect(screen.getByRole("button", { name: "Fetch" })).toBeDisabled();
   });
 
-  it("renders a remote management error when no native remote operation owns the repository", () => {
+  // The toolbar renders no error text at all any more. Transport failures belong to the modal
+  // progress dialog (they are the terminal state of an operation the user is watching); everything
+  // else goes to the toast. The slot that used to hold this could not fit a sentence anyway — the
+  // Phase 8b screenshot shows it truncated to "failed to run git f…".
+  it("renders no remote error, whatever the stores are carrying", () => {
     render(
       <RepositoryToolbar
-        remoteState={{ ...remoteState, error: "Could not add the remote" }}
+        remoteState={{ ...remoteState, managementError: "Could not add the remote" }}
         canFetch={false}
         canPush={false}
         canPull={false}
@@ -65,28 +67,15 @@ describe("RepositoryToolbar progress presentation", () => {
       />,
     );
 
-    expect(screen.getByText("Could not add the remote")).toBeInTheDocument();
+    expect(screen.queryByText("Could not add the remote")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  // Remote progress moved to the modal `OperationProgressDialog`, which renders the record's
-  // terminal error; the toolbar must not present a second, possibly stale, copy of it.
-  it("leaves a failed native remote operation's error to the modal dialog", () => {
-    const operation: OperationRecord = {
-      id: "fetch-1",
-      scope: { kind: "repository", lockKey: "repo", repositoryPath: "/repo" },
-      ownerWindow: "window-a",
-      operation: "fetch",
-      state: "failed",
-      cancellation: { kind: "unavailable" },
-      progress: { value: 0.5, description: "Receiving objects" },
-      lastActivityAt: 1,
-      outcome: "unknown",
-      error: { kind: "failed", message: "Native fetch failed", recoverable: true },
-    };
+  it("still identifies an operation running in a peer window", () => {
     render(
       <RepositoryToolbar
-        remoteState={{ ...remoteState, error: "Store fetch failed" }}
-        operationViewModel={operationProgressViewModel(operation, "window-a")}
+        remoteState={remoteState}
+        operationPeerMessage="fetch in progress — Started in another window"
         canFetch={false}
         canPush={false}
         canPull={false}
@@ -106,46 +95,6 @@ describe("RepositoryToolbar progress presentation", () => {
       />,
     );
 
-    expect(screen.queryByText("Native fetch failed")).not.toBeInTheDocument();
-    expect(screen.queryByText("Store fetch failed")).not.toBeInTheDocument();
-  });
-
-  it("does not render a store operation error while a native remote record owns the operation", () => {
-    const operation: OperationRecord = {
-      id: "fetch-1",
-      scope: { kind: "repository", lockKey: "repo", repositoryPath: "/repo" },
-      ownerWindow: "window-a",
-      operation: "fetch",
-      state: "running",
-      cancellation: { kind: "available", label: "Cancel fetch" },
-      progress: { value: 0.5, description: "Receiving objects" },
-      lastActivityAt: 1,
-      outcome: null,
-      error: null,
-    };
-    render(
-      <RepositoryToolbar
-        remoteState={{ ...remoteState, error: "Stale callback error" }}
-        operationViewModel={operationProgressViewModel(operation, "window-a")}
-        canFetch={false}
-        canPush={false}
-        canPull={false}
-        hasEditor={false}
-        hasShell={false}
-        repositoryView="changes"
-        onCreateRepository={vi.fn()}
-        onAddExistingRepository={vi.fn()}
-        onCloneRepository={vi.fn()}
-        onShowFiles={vi.fn()}
-        onOpenEditor={vi.fn()}
-        onOpenShell={vi.fn()}
-        onFetch={vi.fn()}
-        onPull={vi.fn()}
-        onPush={vi.fn()}
-        onSelectView={vi.fn()}
-      />,
-    );
-
-    expect(screen.queryByText("Stale callback error")).not.toBeInTheDocument();
+    expect(screen.getByText("fetch in progress — Started in another window")).toBeInTheDocument();
   });
 });

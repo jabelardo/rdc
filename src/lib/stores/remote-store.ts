@@ -4,7 +4,7 @@ import type { IRemote } from "../../models/remote";
 import type { OperationRecord } from "../../models/operation";
 import { getBranches, getBranchesDifferingFromUpstream } from "../branch-ipc";
 import { getStatus, type IStatusResult } from "../git-ipc";
-import { describeError } from "../format-error";
+import { describeError, reportErrorMessage } from "../format-error";
 import { describeRemoteError } from "../remote-error";
 import {
   addRemote as addRemoteCommand,
@@ -26,7 +26,15 @@ export type RemoteState = {
   readonly currentRemote: IRemote | null;
   readonly currentBranch: Branch | null;
   readonly loading: boolean;
-  readonly error: string | null;
+  /**
+   * Add/Remove Remote failure text, for the Manage Remotes dialog only.
+   *
+   * Not a second error channel by accident: where an in-dialog failure belongs is an open decision
+   * in MESSAGE_SYSTEM_PLAN.md that blocks its Slice 1, and the interim rule is that dialogs keep
+   * their failure inline. Transport and load failures do go to the message system; when that
+   * decision is settled this field goes with it.
+   */
+  readonly managementError: string | null;
 };
 
 type RemoteFactsStatus = Pick<IStatusResult, "currentBranch">;
@@ -100,7 +108,7 @@ const EmptyState: RemoteState = {
   currentRemote: null,
   currentBranch: null,
   loading: false,
-  error: null,
+  managementError: null,
 };
 
 type RemoteFacts = {
@@ -179,7 +187,7 @@ export class RemoteStore {
       currentRemote: null,
       currentBranch: null,
       loading: true,
-      error: null,
+      managementError: null,
     });
 
     try {
@@ -191,19 +199,20 @@ export class RemoteStore {
         repositoryPath,
         ...facts,
         loading: false,
-        error: null,
+        managementError: null,
       });
     } catch (error) {
       if (requestID !== this.requestID) {
         return;
       }
+      reportErrorMessage(describeError(error));
       this.update({
         repositoryPath,
         remotes: [],
         currentRemote: null,
         currentBranch: null,
         loading: false,
-        error: describeError(error),
+        managementError: null,
       });
     }
   }
@@ -243,7 +252,7 @@ export class RemoteStore {
         repositoryPath,
         ...facts,
         loading: false,
-        error: null,
+        managementError: null,
       });
       this.managementOperationActive = false;
       return true;
@@ -251,7 +260,7 @@ export class RemoteStore {
       if (this.isCurrentOperation(requestID, operationID)) {
         this.update({
           ...this.currentState,
-          error: describeRemoteError(error),
+          managementError: describeRemoteError(error),
         });
       }
       this.managementOperationActive = false;
@@ -287,7 +296,7 @@ export class RemoteStore {
         repositoryPath,
         ...facts,
         loading: false,
-        error: null,
+        managementError: null,
       });
       this.managementOperationActive = false;
       return true;
@@ -295,7 +304,7 @@ export class RemoteStore {
       if (this.isCurrentOperation(requestID, operationID)) {
         this.update({
           ...this.currentState,
-          error: describeRemoteError(error),
+          managementError: describeRemoteError(error),
         });
       }
       this.managementOperationActive = false;
@@ -319,7 +328,6 @@ export class RemoteStore {
     this.activeOperation = "fetch";
     this.update({
       ...this.currentState,
-      error: null,
     });
 
     const defaultRemote = findDefaultRemote(remotes);
@@ -366,16 +374,13 @@ export class RemoteStore {
         repositoryPath,
         ...facts,
         loading: false,
-        error: null,
+        managementError: null,
       });
       this.activeOperation = null;
       return true;
     } catch (error) {
       if (this.isCurrentOperation(requestID, operationID)) {
-        this.update({
-          ...this.currentState,
-          error: describeRemoteError(error),
-        });
+        reportErrorMessage(describeRemoteError(error));
         this.activeOperation = null;
       }
       return false;
@@ -399,7 +404,6 @@ export class RemoteStore {
     this.activeOperation = "push";
     this.update({
       ...this.currentState,
-      error: null,
     });
 
     try {
@@ -417,7 +421,6 @@ export class RemoteStore {
       if (this.dependencies.push === pushRemote) {
         this.update({
           ...this.currentState,
-          error: null,
         });
       } else {
         await this.dependencies.fetch(repositoryPath, currentRemote.name, () => undefined, false);
@@ -440,16 +443,13 @@ export class RemoteStore {
         repositoryPath,
         ...facts,
         loading: false,
-        error: null,
+        managementError: null,
       });
       this.activeOperation = null;
       return true;
     } catch (error) {
       if (this.isCurrentOperation(requestID, operationID)) {
-        this.update({
-          ...this.currentState,
-          error: describeRemoteError(error),
-        });
+        reportErrorMessage(describeRemoteError(error));
         this.activeOperation = null;
       }
       return false;
@@ -474,7 +474,6 @@ export class RemoteStore {
     this.activeOperation = "pull";
     this.update({
       ...this.currentState,
-      error: null,
     });
 
     try {
@@ -504,16 +503,13 @@ export class RemoteStore {
         repositoryPath,
         ...facts,
         loading: false,
-        error: null,
+        managementError: null,
       });
       this.activeOperation = null;
       return true;
     } catch (error) {
       if (this.isCurrentOperation(requestID, operationID)) {
-        this.update({
-          ...this.currentState,
-          error: describeRemoteError(error),
-        });
+        reportErrorMessage(describeRemoteError(error));
         this.activeOperation = null;
       }
       return false;

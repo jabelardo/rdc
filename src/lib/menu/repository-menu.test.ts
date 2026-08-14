@@ -28,7 +28,7 @@ const remoteState = {
     upstream: "origin/main",
   } as RemoteState["currentBranch"],
   loading: false,
-  error: null,
+  managementError: null,
 } satisfies RemoteState;
 
 const preferencesState = {

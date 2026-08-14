@@ -1,9 +1,32 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Branch, BranchType } from "../../models/branch";
 import type { IFetchProgress, IPullProgress, IPushProgress } from "../../models/progress";
 import type { IRemote } from "../../models/remote";
 import type { OperationRecord } from "../../models/operation";
 import { RemoteStore } from "./remote-store";
+import { getDefaultMessageStore } from "./default-message-store";
+
+/**
+ * Transport and load failures are reported to the shared message store, not held on the remote
+ * store — see MESSAGE_SYSTEM_PLAN.md Slice 5. The store is a per-webview singleton, so each test
+ * clears it rather than reading messages another test left behind.
+ */
+function reportedMessages(): ReadonlyArray<string> {
+  return getDefaultMessageStore().state.messages.map((message) => message.text);
+}
+
+function lastReportedMessage(): string {
+  const messages = reportedMessages();
+  return messages[messages.length - 1] ?? "";
+}
+
+beforeEach(() => {
+  const store = getDefaultMessageStore();
+  // `dismiss` replaces the array rather than mutating it, so iterating the captured one is safe.
+  for (const message of store.state.messages) {
+    store.dismiss(message.id);
+  }
+});
 
 const origin: IRemote = {
   name: "origin",
@@ -38,7 +61,7 @@ describe("RemoteStore", () => {
 
     await store.load("/repo");
 
-    expect(store.state.error).toBe("remote status unavailable");
+    expect(reportedMessages()).toEqual(["remote status unavailable"]);
   });
 
   it("selects the current branches tracked remote ahead of origin", async () => {
@@ -55,7 +78,7 @@ describe("RemoteStore", () => {
       remotes: [origin, upstream],
       currentRemote: upstream,
       loading: false,
-      error: null,
+      managementError: null,
     });
   });
 
@@ -355,8 +378,8 @@ describe("RemoteStore", () => {
     await store.load("/repo");
 
     expect(await store.pull()).toBe(false);
-    expect(store.state.error).toMatch(/merge conflicts.*Resolve.*commit/s);
-    expect(store.state.error).not.toMatch(/proxy|certificate/);
+    expect(lastReportedMessage()).toMatch(/merge conflicts.*Resolve.*commit/s);
+    expect(lastReportedMessage()).not.toMatch(/proxy|certificate/);
   });
 
   it("explains a non-fast-forward rejection without offering force push", async () => {
@@ -375,8 +398,8 @@ describe("RemoteStore", () => {
     await store.load("/repo");
 
     expect(await store.push()).toBe(false);
-    expect(store.state.error).toMatch(/updated since.*Fetch and pull.*pushing again/s);
-    expect(store.state.error).not.toMatch(/force/i);
+    expect(lastReportedMessage()).toMatch(/updated since.*Fetch and pull.*pushing again/s);
+    expect(lastReportedMessage()).not.toMatch(/force/i);
   });
 
   it("cannot push a detached or unborn HEAD", async () => {
@@ -447,9 +470,11 @@ describe("RemoteStore", () => {
     await store.load("/repo");
 
     expect(await store.fetch()).toBe(false);
-    expect(store.state.error).toMatch(/Authentication failed.*credential helper.*SSH agent/s);
+    expect(lastReportedMessage()).toMatch(/Authentication failed.*credential helper.*SSH agent/s);
     expect(await store.fetch()).toBe(false);
-    expect(store.state.error).toMatch(/SSL certificate problem.*system Git.*proxy.*certificate/s);
+    expect(lastReportedMessage()).toMatch(
+      /SSL certificate problem.*system Git.*proxy.*certificate/s,
+    );
   });
 
   it("ignores a slow load after the repository changes", async () => {
@@ -537,6 +562,8 @@ describe("RemoteStore", () => {
     await store.load("/repo");
 
     await expect(store.addRemote("origin", "/x")).resolves.toBe(false);
-    expect(store.state.error).not.toBeNull();
+    // Add/Remove Remote failures stay inline in the Manage Remotes dialog until
+    // MESSAGE_SYSTEM_PLAN.md's in-dialog-failure decision is settled.
+    expect(store.state.managementError).not.toBeNull();
   });
 });
