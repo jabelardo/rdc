@@ -134,6 +134,16 @@ pub async fn revert_commit(
             .await
         }
         Err(error) => {
+            // A conflicted revert is a recoverable operation boundary, not a terminal command
+            // failure. Git reports the conflict as a non-zero exit and leaves REVERT_HEAD for the
+            // user-driven recovery flow, just as cherry-pick leaves its sequencer marker.
+            if git_ops::revert::is_revert_in_progress(&repository_path)
+                .await
+                .unwrap_or(false)
+            {
+                let _ = registry.enter_recovery(&operation.id);
+                return Ok(());
+            }
             let message = error.to_string();
             let command_error = CommandError::from(error);
             let _ = registry.finish(
