@@ -1153,6 +1153,56 @@ mod tests {
     }
 
     #[test]
+    fn terminal_refresh_requirement_survives_finish() {
+        let registry = registry();
+        let operation = registry
+            .start(
+                repository_scope("repo-a"),
+                Some("window-a".to_owned()),
+                GitOperationKind::Fetch,
+                CancellationCapability::Available {
+                    label: "Cancel fetch".to_owned(),
+                },
+            )
+            .expect("operation should reserve");
+
+        registry
+            .set_refresh(
+                &operation.id,
+                OperationRefresh {
+                    remote_names: vec!["origin".to_owned()],
+                    repository_facts: true,
+                },
+            )
+            .expect("refresh requirement should be recorded");
+        let finished = registry
+            .finish(
+                &operation.id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            )
+            .expect("operation should finish");
+
+        assert_eq!(
+            finished.refresh,
+            Some(OperationRefresh {
+                remote_names: vec!["origin".to_owned()],
+                repository_facts: true,
+            })
+        );
+        assert_eq!(
+            registry.latest_event(&operation.id),
+            Some(OperationEvent::Finished {
+                operation_id: operation.id,
+                state: OperationState::Completed,
+                outcome: OperationOutcome::Completed,
+                error: None,
+            })
+        );
+    }
+
+    #[test]
     fn recovered_cancellation_releases_the_repository_lock() {
         let registry = registry();
         let record = registry

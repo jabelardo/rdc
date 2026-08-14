@@ -1029,6 +1029,8 @@ Native Push and Pull now also publish `OperationRefresh` metadata on successful 
 peer windows receive the same remote-head and repository-facts refresh requirement as Fetch.
 The operation store exposes that metadata and the terminal refresh coordinator honors its
 `repositoryFacts` flag, retaining the broad refresh fallback for operations without metadata.
+The operation registry also verifies that the refresh requirement survives terminal completion and
+remains available to observers.
 
 Coordinator acceptance boundary:
 
