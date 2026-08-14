@@ -981,7 +981,8 @@ Migrate incrementally to the operation record and shared presentation:
    now have initial selection/execution controls: selected commits can be squashed into the oldest
    selected commit or moved to the end of history, with native progress shown through the shared
    model. Squash validates contiguous ranges, and Reorder supports an explicit target or end of
-   history. Dedicated interactive-history keyboard/visual polish remains pending.
+   history. The History workspace now has focused interaction coverage for selection, Squash and
+   explicit Reorder targets; remaining work is visual QA and broader E2E coverage.
 
 Remove duplicated operation/progress fields only after their final consumer migrates. Preserve stale
 callback rejection by operation ID. Keep domain-store post-operation refresh behavior intact.
