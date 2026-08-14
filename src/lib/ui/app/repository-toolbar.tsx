@@ -78,6 +78,9 @@ export function RepositoryToolbar({
     operationViewModel?.operation === "fetch" ||
     operationViewModel?.operation === "push" ||
     operationViewModel?.operation === "pull";
+  const displayedRemoteOperation = nativeRemoteOperation
+    ? operationViewModel.operation
+    : remoteState.operation;
   const status =
     remoteState.operationError ??
     remoteState.error ??
@@ -177,11 +180,11 @@ export function RepositoryToolbar({
               onClick={onFetch}
             >
               <ArrowDownToLine
-                className={remoteState.operation === "fetch" ? "animate-spin" : undefined}
+                className={displayedRemoteOperation === "fetch" ? "animate-spin" : undefined}
                 aria-hidden="true"
               />
               <span className="sr-only">
-                {remoteState.operation === "fetch" ? "Fetching…" : "Fetch"}
+                {displayedRemoteOperation === "fetch" ? "Fetching…" : "Fetch"}
               </span>
             </button>
           </Tooltip>
@@ -193,11 +196,11 @@ export function RepositoryToolbar({
               onClick={onPull}
             >
               <CloudDownload
-                className={remoteState.operation === "pull" ? "animate-bounce" : undefined}
+                className={displayedRemoteOperation === "pull" ? "animate-bounce" : undefined}
                 aria-hidden="true"
               />
               <span className="sr-only">
-                {remoteState.operation === "pull" ? "Pulling…" : "Pull"}
+                {displayedRemoteOperation === "pull" ? "Pulling…" : "Pull"}
               </span>
             </button>
           </Tooltip>
@@ -209,11 +212,11 @@ export function RepositoryToolbar({
               onClick={onPush}
             >
               <CloudUpload
-                className={remoteState.operation === "push" ? "animate-bounce" : undefined}
+                className={displayedRemoteOperation === "push" ? "animate-bounce" : undefined}
                 aria-hidden="true"
               />
               <span className="sr-only">
-                {remoteState.operation === "push" ? "Pushing…" : "Push"}
+                {displayedRemoteOperation === "push" ? "Pushing…" : "Push"}
               </span>
             </button>
           </Tooltip>
