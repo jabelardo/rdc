@@ -56,7 +56,7 @@ function operationLabel(operation: GitOperationKind): string {
 }
 
 function lifecycleStatus(record: OperationRecord): string {
-  if (record.cancellation.kind === "requested") {
+  if (record.cancellation.kind === "requested" && !isTerminalOperation(record.state)) {
     return "Cancelling…";
   }
   switch (record.state) {
@@ -71,9 +71,16 @@ function lifecycleStatus(record: OperationRecord): string {
         ? "Completed before cancellation"
         : (record.error?.message ?? "Operation cancelled");
     case "failed":
-      return record.error?.message ?? "Operation failed";
+      return record.outcome === "unknown"
+        ? "Outcome unknown"
+        : (record.error?.message ?? "Operation failed");
     case "completed":
-      return record.outcome === "unknown" ? "Outcome unknown" : "Operation completed";
+      if (record.outcome === "unknown") {
+        return "Outcome unknown";
+      }
+      return record.cancellation.kind === "requested"
+        ? "Completed before cancellation"
+        : "Operation completed";
     case "takingLongerThanExpected":
       return "Taking longer than expected";
     case "running":

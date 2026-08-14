@@ -114,4 +114,37 @@ describe("operation progress view model", () => {
       ).statusText,
     ).toBe("Taking longer than expected");
   });
+
+  it.each([
+    ["completed", "completed", "Operation completed"],
+    ["cancelled", "recovered", "Operation cancelled"],
+    ["timedOut", "unchanged", "Operation timed out"],
+    ["failed", "unknown", "Outcome unknown"],
+  ] as const)("maps %s/%s to its terminal status", (state, outcome, expected) => {
+    expect(
+      operationProgressViewModel(
+        {
+          ...record("window-a"),
+          state,
+          outcome,
+          cancellation: { kind: "unavailable" },
+        },
+        "window-a",
+      ).statusText,
+    ).toBe(expected);
+  });
+
+  it("lets completion win a late cancellation request", () => {
+    expect(
+      operationProgressViewModel(
+        {
+          ...record("window-a"),
+          state: "completed",
+          outcome: "completed",
+          cancellation: { kind: "requested" },
+        },
+        "window-a",
+      ).statusText,
+    ).toBe("Completed before cancellation");
+  });
 });

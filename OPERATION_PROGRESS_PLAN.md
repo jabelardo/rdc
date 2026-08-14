@@ -892,6 +892,9 @@ be hidden by an old progress description, and observer/unowned windows identify 
 context without inheriting the owner's controls.
 The modal renders no empty action row when a callback is unavailable, and focus moves to Close when
 an in-flight cancellation reaches a terminal state.
+Terminal state takes precedence over a stale cancellation request: completion races render
+`Completed before cancellation`, failed unknown outcomes render `Outcome unknown` alongside their
+error, and the completed/cancelled/timed-out/failed matrix has focused coverage.
 CloneStore now hydrates the native clone-destination operation after invocation starts and follows
 only that operation ID through the global event stream. Native lifecycle tracking is presentation
 enrichment rather than a prerequisite for cloning, and stale/reset clone callbacks remain rejected.
