@@ -6,11 +6,13 @@ Record the result for each dialog, in each theme, at the normal 715×356 floor a
 
 How to open each dialog: **Help → Show Dialog** (dev/test builds only). Validate in **Light** and **Dark** via Preferences → Theme. (System mode delegates to the OS and cannot be controlled during a visual pass — infrastructure is in place via `resolveSystemTheme()` → Tauri's `window.theme()`; no spike needed.)
 
-**Current migration status (2026-08-10).** The component-migration queue is complete. Preferences is
-now extracted as a Radix dialog; its Light/Dark visual sign-off remains. Rebase, Clone, Commit and Merge use the shared category-1 blocking
-progress dialog. Fetch, Push, Pull and Checkout show operation text/percentages in their existing
-controls; their compact progress bars are still pending. Cherry-pick and Revert are planned
-category-1 consumers, while interactive squash/reorder remains deferred with interactive rebase.
+**Current migration status (2026-08-14).** The component-migration queue is complete. Preferences is
+now extracted as a Radix dialog; its Light/Dark visual sign-off remains. Rebase, Clone, Commit,
+Merge, Cherry-pick and Revert use the shared category-1 blocking progress dialog. Fetch, Push,
+Pull and Checkout show operation text/percentages in their existing controls; their compact
+progress bars are still pending. Interactive squash/reorder remains deferred with interactive
+rebase. The functional Linux-container E2E gate currently passes 41/41; the checkbox rows below
+remain human visual-signoff records rather than automated claims.
 
 ## Multi-window and operation progress
 
