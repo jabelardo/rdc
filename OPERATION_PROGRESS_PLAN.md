@@ -996,9 +996,10 @@ Migrate incrementally to the operation record and shared presentation:
    documented as a real native-command journey rather than a browser-side IPC shortcut. A
    debug-only QA-driver seam now selects the repository and invokes the production IPC wrappers,
    preserving their real progress channels; its ordering contract is covered by frontend tests.
-   Before closing this item, use that seam in the existing harness to prepare a disposable
-   repository, execute Cherry-pick and Revert, assert operation records and progress UI, and cover
-   the conflict/recovery boundary without exposing a production-only shortcut.
+   A real `history-recovery.test.mjs` journey now prepares a disposable conflicting repository,
+   starts Cherry-pick through that seam, verifies native recovery and the disabled continuation
+   control, then aborts through the production UI. It still needs the Linux-container run before
+   the broader Cherry-pick/Revert E2E requirement can close; Revert coverage remains to be added.
 
 Remote-store compatibility is now closed. `RemoteStore` continues to own remote selection,
 post-operation refresh sequencing, boolean action results and remote-management error

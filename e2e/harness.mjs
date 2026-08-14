@@ -76,6 +76,14 @@ export function createFixtureRoot() {
   };
 }
 
+/** Writes one state transition for the debug-only native QA driver. */
+export function writeQaDriverState(state) {
+  writeFileSync(
+    process.env.RDC_QA_DRIVER ?? "/tmp/rdc-qa-driver.json",
+    `${JSON.stringify(state)}\n`,
+  );
+}
+
 /**
  * Removes a fixture tree. Call from `after`.
  *

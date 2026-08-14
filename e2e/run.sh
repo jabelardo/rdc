@@ -6,6 +6,7 @@ set -euo pipefail
 export DISPLAY=:99
 export XDG_CONFIG_HOME=/tmp/rdc-e2e-config
 export XDG_DATA_HOME=/tmp/rdc-e2e-data
+export RDC_QA_DRIVER=/tmp/rdc-e2e-qa-driver.json
 # Keep the native debug link within the memory budget of the CI container. Callers can
 # override this for larger runners when parallel compilation is useful.
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}"
