@@ -1029,6 +1029,8 @@ Push implementation; injected transports continue to exercise the older two-call
 
 Native Push and Pull now also publish `OperationRefresh` metadata on successful completion, so
 peer windows receive the same remote-head and repository-facts refresh requirement as Fetch.
+The operation store exposes that metadata and the terminal refresh coordinator honors its
+`repositoryFacts` flag, retaining the broad refresh fallback for operations without metadata.
 
 Coordinator acceptance boundary:
 

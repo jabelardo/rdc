@@ -24,6 +24,7 @@ export type OperationStoreState = {
   readonly recovering: boolean;
   readonly outcome: OperationRecord["outcome"];
   readonly error: OperationRecord["error"];
+  readonly refresh: OperationRecord["refresh"];
 };
 
 type Listen = (callback: (event: OperationEventEnvelope) => void) => Promise<() => void>;
@@ -45,6 +46,7 @@ const emptyState: OperationStoreState = {
   recovering: false,
   outcome: null,
   error: null,
+  refresh: undefined,
 };
 
 const defaultDependencies: OperationStoreDependencies = {
@@ -208,6 +210,7 @@ export class OperationStore {
       recovering: record.state === "recovering",
       outcome: record.outcome,
       error: record.error,
+      refresh: record.refresh,
     });
   }
 

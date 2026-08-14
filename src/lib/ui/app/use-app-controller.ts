@@ -294,7 +294,9 @@ export function useAppController() {
     refreshedTerminalOperationID.current = operation.id;
     void Promise.all([
       branchStore.load(repository.path),
-      remoteStore.load(repository.path),
+      operation.refresh?.repositoryFacts === false
+        ? Promise.resolve()
+        : remoteStore.load(repository.path),
       workingTreeStore.load(repository.path),
       conflictStore.load(repository.path),
       historyStore.state.repositoryPath === repository.path
