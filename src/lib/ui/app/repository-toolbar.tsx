@@ -72,15 +72,9 @@ export function RepositoryToolbar({
     operationViewModel?.operation === "fetch" ||
     operationViewModel?.operation === "push" ||
     operationViewModel?.operation === "pull";
-  const displayedRemoteOperation = nativeRemoteOperation
-    ? operationViewModel.operation
-    : remoteState.operation;
-  const status = nativeRemoteOperation
-    ? remoteState.error
-    : (remoteState.operationError ?? remoteState.error);
-  const statusIsError = nativeRemoteOperation
-    ? remoteState.error !== null
-    : remoteState.operationError !== null || remoteState.error !== null;
+  const displayedRemoteOperation = nativeRemoteOperation ? operationViewModel.operation : null;
+  const status = nativeRemoteOperation ? null : remoteState.error;
+  const statusIsError = !nativeRemoteOperation && remoteState.error !== null;
   const statusElement = (
     <p
       className={`repository-toolbar-status${statusIsError ? " is-error" : ""}`}

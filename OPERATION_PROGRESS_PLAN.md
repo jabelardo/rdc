@@ -1035,6 +1035,10 @@ The toolbar no longer renders `RemoteState.operationError` while a native Fetch/
 present; that field remains reserved for remote-management compatibility errors such as Add/Remove
 Remote until those commands have an equivalent native operation contract.
 
+The public `RemoteState` contract now removes `operation`, `progress`, and `operationError`. Native
+operation records own those lifecycle concerns; the store retains only private callback bookkeeping
+for compatibility transports and maps management failures into the public `error` field.
+
 Coordinator acceptance boundary:
 
 - one repository-scoped native operation spans every selected Fetch transport and the Push/Pull

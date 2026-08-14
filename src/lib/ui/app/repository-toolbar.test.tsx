@@ -12,14 +12,6 @@ const remoteState: RemoteState = {
   currentBranch: { name: "main", upstream: "origin/main" } as RemoteState["currentBranch"],
   loading: false,
   error: null,
-  operation: "fetch",
-  progress: {
-    kind: "fetch",
-    remote: "origin",
-    value: 0.5,
-    description: "Receiving objects",
-  },
-  operationError: null,
 };
 
 describe("RepositoryToolbar progress presentation", () => {
@@ -65,7 +57,7 @@ describe("RepositoryToolbar progress presentation", () => {
     };
     render(
       <RepositoryToolbar
-        remoteState={{ ...remoteState, operationError: "Store fetch failed" }}
+        remoteState={{ ...remoteState, error: "Store fetch failed" }}
         operationViewModel={operationProgressViewModel(operation, "window-a")}
         canFetch={false}
         canPush={false}
@@ -105,7 +97,7 @@ describe("RepositoryToolbar progress presentation", () => {
     };
     render(
       <RepositoryToolbar
-        remoteState={{ ...remoteState, operationError: "Stale callback error" }}
+        remoteState={{ ...remoteState, error: "Stale callback error" }}
         operationViewModel={operationProgressViewModel(operation, "window-a")}
         canFetch={false}
         canPush={false}

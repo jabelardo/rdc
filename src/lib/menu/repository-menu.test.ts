@@ -29,9 +29,6 @@ const remoteState = {
   } as RemoteState["currentBranch"],
   loading: false,
   error: null,
-  operation: null,
-  progress: null,
-  operationError: null,
 } satisfies RemoteState;
 
 const preferencesState = {
@@ -118,7 +115,9 @@ describe("repository application menu", () => {
         selectedRepository: repository,
       },
       "linux",
-      { ...remoteState, operation: "fetch" },
+      remoteState,
+      undefined,
+      true,
     );
     const byId = (menu: typeof enabled, id: string) =>
       menu.items

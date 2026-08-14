@@ -1666,8 +1666,8 @@ export function useAppController() {
       setAddRemoteName("");
       setAddRemoteURL("");
       await branchStore.load(repository.path);
-    } else if (remoteStore.state.operationError !== null) {
-      setManageRemoteError(remoteStore.state.operationError);
+    } else if (remoteStore.state.error !== null) {
+      setManageRemoteError(remoteStore.state.error);
     }
   }
 
@@ -1685,8 +1685,8 @@ export function useAppController() {
     setManageRunning(false);
     if (removed) {
       await branchStore.load(repository.path);
-    } else if (remoteStore.state.operationError !== null) {
-      setManageRemoteError(remoteStore.state.operationError);
+    } else if (remoteStore.state.error !== null) {
+      setManageRemoteError(remoteStore.state.error);
     }
   }
 

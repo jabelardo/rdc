@@ -32,9 +32,10 @@ export type RemoteState = {
   readonly currentBranch: Branch | null;
   readonly loading: boolean;
   readonly error: string | null;
+};
+
+type RemoteInternalState = RemoteState & {
   readonly operation: RemoteOperation | null;
-  /** Store-owned callback progress retained for refresh/error compatibility. Native operation
-   * events are authoritative for toolbar, menu and cross-window lifecycle presentation. */
   readonly progress: Progress | null;
   readonly operationError: string | null;
 };
@@ -104,7 +105,7 @@ const defaultDependencies: RemoteStoreDependencies = {
   removeRemote: removeRemoteCommand,
 };
 
-const EmptyState: RemoteState = {
+const EmptyState: RemoteInternalState = {
   repositoryPath: null,
   remotes: [],
   currentRemote: null,
@@ -171,7 +172,12 @@ export class RemoteStore {
   }
 
   public get state(): RemoteState {
-    return this.currentState;
+    const { operation: _operation, progress: _progress, operationError: _operationError, ...state } =
+      this.currentState;
+    return {
+      ...state,
+      error: state.error ?? this.currentState.operationError,
+    };
   }
 
   public onDidUpdate(listener: (state: RemoteState) => void): () => void {
@@ -695,10 +701,19 @@ export class RemoteStore {
     return requestID === this.requestID && operationID === this.operationID;
   }
 
-  private update(state: RemoteState): void {
+  private update(state: RemoteInternalState): void {
     this.currentState = state;
+    const {
+      operation: _operation,
+      progress: _progress,
+      operationError: _operationError,
+      ...publicState
+    } = state;
     for (const listener of this.listeners) {
-      listener(state);
+      listener({
+        ...publicState,
+        error: publicState.error ?? state.operationError,
+      });
     }
   }
 }

@@ -116,12 +116,6 @@ describe("RemoteStore", () => {
       getBranchesDifferingFromUpstream,
       fastForwardBranches,
     });
-    const observedProgress: number[] = [];
-    store.onDidUpdate((state) => {
-      if (state.progress !== null) {
-        observedProgress.push(state.progress.value);
-      }
-    });
     await store.load("/repo");
 
     await expect(store.fetch()).resolves.toBe(true);
@@ -134,15 +128,11 @@ describe("RemoteStore", () => {
       ["/repo", "upstream", false],
       ["/repo", "origin", false],
     ]);
-    expect(observedProgress).toContain(0.225);
     expect(fastForwardBranches).toHaveBeenCalledWith("/repo", [
       ["refs/remotes/origin/main", "refs/heads/main"],
     ]);
     expect(getRemotes).toHaveBeenCalledTimes(2);
     expect(store.state).toMatchObject({
-      operation: null,
-      progress: null,
-      operationError: null,
     });
   });
 
@@ -230,12 +220,6 @@ describe("RemoteStore", () => {
       getBranchesDifferingFromUpstream: vi.fn(async () => []),
       fastForwardBranches: vi.fn(async () => undefined),
     });
-    const progressKinds: string[] = [];
-    store.onDidUpdate((state) => {
-      if (state.progress !== null) {
-        progressKinds.push(state.progress.kind);
-      }
-    });
     await store.load("/repo");
 
     await expect(store.push()).resolves.toBe(true);
@@ -251,9 +235,6 @@ describe("RemoteStore", () => {
       false,
     );
     expect(fetch).toHaveBeenCalledWith("/repo", "upstream", expect.any(Function), false);
-    expect(progressKinds).toContain("push");
-    expect(progressKinds).toContain("fetch");
-    expect(store.state.operation).toBeNull();
   });
 
   it("does not turn a remote HEAD refresh failure into a failed fetch", async () => {
@@ -272,9 +253,6 @@ describe("RemoteStore", () => {
 
     await expect(store.fetch()).resolves.toBe(true);
     expect(store.state).toMatchObject({
-      operation: null,
-      progress: null,
-      operationError: null,
     });
   });
 
@@ -334,19 +312,11 @@ describe("RemoteStore", () => {
       getBranchesDifferingFromUpstream: vi.fn(async () => []),
       fastForwardBranches: vi.fn(async () => undefined),
     });
-    const progressKinds: string[] = [];
-    store.onDidUpdate((state) => {
-      if (state.progress !== null) {
-        progressKinds.push(state.progress.kind);
-      }
-    });
     await store.load("/repo");
 
     await expect(store.pull()).resolves.toBe(true);
 
     expect(pull).toHaveBeenCalledWith("/repo", "origin", expect.any(Function), false, false);
-    expect(progressKinds).toContain("pull");
-    expect(store.state.operation).toBeNull();
   });
 
   it("does not pull an unpublished, detached, or unborn branch", async () => {
@@ -387,8 +357,8 @@ describe("RemoteStore", () => {
     await store.load("/repo");
 
     expect(await store.pull()).toBe(false);
-    expect(store.state.operationError).toMatch(/merge conflicts.*Resolve.*commit/s);
-    expect(store.state.operationError).not.toMatch(/proxy|certificate/);
+    expect(store.state.error).toMatch(/merge conflicts.*Resolve.*commit/s);
+    expect(store.state.error).not.toMatch(/proxy|certificate/);
   });
 
   it("explains a non-fast-forward rejection without offering force push", async () => {
@@ -407,8 +377,8 @@ describe("RemoteStore", () => {
     await store.load("/repo");
 
     expect(await store.push()).toBe(false);
-    expect(store.state.operationError).toMatch(/updated since.*Fetch and pull.*pushing again/s);
-    expect(store.state.operationError).not.toMatch(/force/i);
+    expect(store.state.error).toMatch(/updated since.*Fetch and pull.*pushing again/s);
+    expect(store.state.error).not.toMatch(/force/i);
   });
 
   it("cannot push a detached or unborn HEAD", async () => {
@@ -479,11 +449,11 @@ describe("RemoteStore", () => {
     await store.load("/repo");
 
     expect(await store.fetch()).toBe(false);
-    expect(store.state.operationError).toMatch(
+    expect(store.state.error).toMatch(
       /Authentication failed.*credential helper.*SSH agent/s,
     );
     expect(await store.fetch()).toBe(false);
-    expect(store.state.operationError).toMatch(
+    expect(store.state.error).toMatch(
       /SSL certificate problem.*system Git.*proxy.*certificate/s,
     );
   });
@@ -573,6 +543,6 @@ describe("RemoteStore", () => {
     await store.load("/repo");
 
     await expect(store.addRemote("origin", "/x")).resolves.toBe(false);
-    expect(store.state.operationError).not.toBeNull();
+    expect(store.state.error).not.toBeNull();
   });
 });

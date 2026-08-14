@@ -18,9 +18,6 @@ function remoteState(overrides: Partial<RemoteState> = {}): RemoteState {
     } as RemoteState["currentBranch"],
     loading: false,
     error: null,
-    operation: null,
-    progress: null,
-    operationError: null,
     ...overrides,
   };
 }
@@ -79,7 +76,8 @@ describe("remoteEnablement", () => {
       remoteEnablement({
         hasSelection: true,
         selectedRepositoryPath: repository.path,
-        remoteState: remoteState({ operation: "fetch" }),
+        remoteState: remoteState(),
+        repositoryOperationActive: true,
       }),
     ).toEqual({ canFetch: false, canPush: false, canPull: false });
     expect(
@@ -128,7 +126,7 @@ describe("remoteEnablement", () => {
     const cases: ReadonlyArray<RemoteState> = [
       remoteState(),
       remoteState({ currentRemote: null }),
-      remoteState({ operation: "fetch" }),
+      remoteState(),
       remoteState({ loading: true }),
       remoteState({ repositoryPath: "/other/repository" }),
       remoteState({ currentBranch: null }),

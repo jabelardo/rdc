@@ -21,7 +21,6 @@ export function remoteEnablement(input: RemoteEnablementInput): RemoteEnablement
     input.remoteState.repositoryPath === input.selectedRepositoryPath &&
     input.remoteState.currentRemote !== null &&
     !input.remoteState.loading &&
-    input.remoteState.operation === null &&
     input.repositoryOperationActive !== true;
   const canPush = canFetch && input.remoteState?.currentBranch !== null;
   const canPull = canPush && typeof input.remoteState?.currentBranch?.upstream === "string";
