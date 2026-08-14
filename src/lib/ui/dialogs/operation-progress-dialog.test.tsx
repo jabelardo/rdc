@@ -126,7 +126,7 @@ describe("OperationProgressDialog", () => {
   it.each([
     ["cherryPick", "Cherry-pick"],
     ["revert", "Revert"],
-  ] as const)("renders a timed-out %s as terminal and recoverable", (operation, label) => {
+  ] as const)("renders a timed-out %s as terminal and recoverable", async (operation, label) => {
     const onClose = vi.fn();
     const model = operationProgressViewModel(
       {
@@ -150,8 +150,11 @@ describe("OperationProgressDialog", () => {
     expect(
       screen.getByText("Repository recovery is required before continuing"),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+    const close = screen.getByRole("button", { name: "Close" });
+    expect(close).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Cancel/ })).not.toBeInTheDocument();
+    await userEvent.setup().click(close);
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it("renders the shared progress body without mounting a modal", () => {

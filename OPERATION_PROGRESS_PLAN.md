@@ -992,8 +992,8 @@ Migrate incrementally to the operation record and shared presentation:
    now reflects that distinction by hiding unsupported Revert staging controls. Remaining work is
    visual QA and broader Cherry-pick/Revert E2E coverage. Shared presentation tests now cover
    native Cherry-pick/Revert labels, progress, owner cancellation controls, and terminal recovery
-   presentation. The remaining E2E gap is documented as a real native-command journey rather than
-   a browser-side IPC shortcut.
+   presentation, including terminal focus restoration and close behavior. The remaining E2E gap is
+   documented as a real native-command journey rather than a browser-side IPC shortcut.
 
 Remote-store compatibility is now closed. `RemoteStore` continues to own remote selection,
 post-operation refresh sequencing, boolean action results and remote-management error
