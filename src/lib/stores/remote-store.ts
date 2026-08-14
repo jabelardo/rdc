@@ -14,6 +14,7 @@ import {
   addRemote as addRemoteCommand,
   fastForwardBranches,
   fetch as fetchRemote,
+  fetchWorkflow as fetchWorkflowRemote,
   getRemotes,
   pull as pullRemote,
   push as pushRemote,
@@ -52,6 +53,12 @@ type RemoteStoreDependencies = {
     progressCallback?: (progress: IFetchProgress) => void,
     isBackgroundTask?: boolean,
   ) => Promise<void>;
+  readonly fetchWorkflow?: (
+    repositoryPath: string,
+    remoteNames: ReadonlyArray<string>,
+    progressCallback?: (progress: IFetchProgress) => void,
+    isBackgroundTask?: boolean,
+  ) => Promise<void>;
   readonly updateRemoteHEAD: typeof updateRemoteHEAD;
   readonly push: (
     repositoryPath: string,
@@ -86,6 +93,7 @@ const defaultDependencies: RemoteStoreDependencies = {
   getBranches,
   getStatus,
   fetch: fetchRemote,
+  fetchWorkflow: fetchWorkflowRemote,
   updateRemoteHEAD,
   push: pushRemote,
   pull: pullRemote,
@@ -152,7 +160,13 @@ export class RemoteStore {
   private readonly listeners = new Set<(state: RemoteState) => void>();
 
   public constructor(dependencies: Partial<RemoteStoreDependencies> = {}) {
-    this.dependencies = { ...defaultDependencies, ...dependencies };
+    const merged = { ...defaultDependencies, ...dependencies };
+    // Tests and compatibility callers that replace the single-remote transport must retain the
+    // old loop unless they explicitly provide the workflow transport as well.
+    if (dependencies.fetch !== undefined && dependencies.fetchWorkflow === undefined) {
+      merged.fetchWorkflow = undefined;
+    }
+    this.dependencies = merged;
   }
 
   public get state(): RemoteState {
@@ -337,24 +351,37 @@ export class RemoteStore {
         remote !== null && all.findIndex((candidate) => candidate?.name === remote.name) === index,
     );
     try {
-      for (const [index, remote] of relevantRemotes.entries()) {
-        await this.dependencies.fetch(
+      const updateProgress = (progress: IFetchProgress) => {
+        const index = relevantRemotes.findIndex((remote) => remote.name === progress.remote);
+        if (this.isCurrentOperation(requestID, operationID)) {
+          this.update({
+            ...this.currentState,
+            progress: {
+              ...progress,
+              title: `Fetching ${progress.remote}`,
+              value: aggregateRemoteProgress(
+                index < 0 ? 0 : index,
+                relevantRemotes.length,
+                progress.value,
+              ),
+            },
+          });
+        }
+      };
+
+      if (this.dependencies.fetchWorkflow !== undefined) {
+        await this.dependencies.fetchWorkflow(
           repositoryPath,
-          remote.name,
-          (progress) => {
-            if (this.isCurrentOperation(requestID, operationID)) {
-              this.update({
-                ...this.currentState,
-                progress: {
-                  ...progress,
-                  title: `Fetching ${remote.name}`,
-                  value: aggregateRemoteProgress(index, relevantRemotes.length, progress.value),
-                },
-              });
-            }
-          },
+          relevantRemotes.map((remote) => remote.name),
+          updateProgress,
           false,
         );
+      } else {
+        for (const remote of relevantRemotes) {
+          await this.dependencies.fetch(repositoryPath, remote.name, updateProgress, false);
+        }
+      }
+      for (const remote of relevantRemotes) {
         await this.updateRemoteHeadQuietly(repositoryPath, remote.name);
       }
 

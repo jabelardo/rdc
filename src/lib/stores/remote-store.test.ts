@@ -145,6 +145,44 @@ describe("RemoteStore", () => {
     });
   });
 
+  it("uses the native multi-remote workflow when it is available", async () => {
+    const fetchWorkflow = vi.fn(
+      async (
+        _repositoryPath: string,
+        remoteNames: ReadonlyArray<string>,
+        callback?: (progress: IFetchProgress) => void,
+      ) => {
+        callback?.({
+          kind: "fetch",
+          remote: remoteNames[0],
+          value: 0.5,
+          description: "Receiving objects",
+        });
+      },
+    );
+    const updateRemoteHEAD = vi.fn(async () => undefined);
+    const store = new RemoteStore({
+      getRemotes: vi.fn(async () => [origin, upstream]),
+      getBranches: vi.fn(async () => [branch("topic", "upstream/topic")]),
+      getStatus: vi.fn(async () => ({ currentBranch: "topic" })),
+      fetchWorkflow,
+      updateRemoteHEAD,
+      getBranchesDifferingFromUpstream: vi.fn(async () => []),
+      fastForwardBranches: vi.fn(async () => undefined),
+    });
+
+    await store.load("/repo");
+    await expect(store.fetch()).resolves.toBe(true);
+
+    expect(fetchWorkflow).toHaveBeenCalledWith(
+      "/repo",
+      ["upstream", "origin"],
+      expect.any(Function),
+      false,
+    );
+    expect(updateRemoteHEAD).toHaveBeenCalledTimes(2);
+  });
+
   it("pushes the current branch to its tracked branch and refreshes the remote", async () => {
     const pushProgress: IPushProgress = {
       kind: "push",

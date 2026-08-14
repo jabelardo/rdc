@@ -1012,8 +1012,10 @@ removed safely.
 
 The first native producer is now available as `fetch_workflow`: it owns the repository lock,
 watchdog, cancellation, multi-remote transport loop, weighted native progress, and terminal
-transport outcome. `RemoteStore` does not consume it yet because the command still needs to publish
-the terminal remote-head/facts refresh requirement before the store can stop owning that follow-up.
+transport outcome. `RemoteStore` now consumes it for the real IPC dependency and retains the
+store-owned remote-head/facts refresh follow-up until the command publishes that terminal refresh
+requirement. Test doubles that replace the single-remote transport continue to use the compatibility
+loop explicitly.
 
 Coordinator acceptance boundary:
 
