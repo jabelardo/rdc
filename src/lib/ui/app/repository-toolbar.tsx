@@ -74,7 +74,14 @@ export function RepositoryToolbar({
       : `${remoteState.progress.title ?? "Fetching"}${
           remoteState.progress.description ? ` — ${remoteState.progress.description}` : ""
         } (${Math.round(remoteState.progress.value * 100)}%)`;
-  const status = remoteState.operationError ?? remoteState.error ?? progress;
+  const nativeRemoteOperation =
+    operationViewModel?.operation === "fetch" ||
+    operationViewModel?.operation === "push" ||
+    operationViewModel?.operation === "pull";
+  const status =
+    remoteState.operationError ??
+    remoteState.error ??
+    (nativeRemoteOperation ? null : progress);
   const statusIsError = remoteState.operationError !== null || remoteState.error !== null;
   const statusElement = (
     <p
@@ -216,10 +223,10 @@ export function RepositoryToolbar({
             {operationPeerMessage}
           </p>
         )}
-        {operationViewModel?.operation === "fetch" && (
+        {nativeRemoteOperation && operationViewModel !== undefined && (
           <div
             className="repository-toolbar-progress min-w-40 max-w-64"
-            aria-label="Fetch progress"
+            aria-label={`${operationViewModel.operation} progress`}
           >
             <OperationProgressBody viewModel={operationViewModel} />
           </div>
@@ -253,7 +260,8 @@ export function RepositoryToolbar({
           </button>
         </Tooltip>
       </nav>
-      {status === null ? statusElement : <Tooltip label={status}>{statusElement}</Tooltip>}
+      {status !== null &&
+        (status === progress ? <Tooltip label={status}>{statusElement}</Tooltip> : statusElement)}
     </header>
   );
 }

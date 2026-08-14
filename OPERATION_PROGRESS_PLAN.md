@@ -963,14 +963,15 @@ Accessibility:
 
 Migrate incrementally to the operation record and shared presentation:
 
-1. Fetch pilot. **In progress:** the toolbar now renders the native Fetch record through the shared
-   non-modal `OperationProgressBody`; legacy remote-store progress remains as the refresh/error
-   compatibility path until the remaining producers migrate.
+1. Fetch pilot. **Complete:** the toolbar renders the native Fetch record through the shared
+   non-modal `OperationProgressBody`; legacy remote-store state remains the refresh/error
+   compatibility path.
 2. Clone.
 3. Rebase.
 4. Commit and hook handoff.
 5. Merge/squash merge.
-6. Push/Pull.
+6. Push/Pull. **In progress:** the toolbar now uses the same native shared body for Push and Pull;
+   legacy remote-store state remains the refresh/error compatibility path.
 7. Checkout.
 8. Cherry-pick/Revert/Squash/Reorder as their UI slices land.
 

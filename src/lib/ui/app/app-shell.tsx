@@ -276,7 +276,11 @@ export function AppShell({ controller }: AppShellProps) {
               operationLockActive={operationLockActive}
               operationPeerMessage={operationPeerMessage}
               operationViewModel={
-                operationViewModel?.operation === "fetch" ? operationViewModel : undefined
+                operationViewModel?.operation === "fetch" ||
+                operationViewModel?.operation === "push" ||
+                operationViewModel?.operation === "pull"
+                  ? operationViewModel
+                  : undefined
               }
               historyOperationActive={historyOperationActive}
               hasEditor={preferencesStore.selectedEditor !== null}
