@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::authentication::AUTHENTICATION_ERRORS;
 use crate::error::GitError;
-use crate::exec::{git, git_with_stderr_and_lfs, GitOptions};
+use crate::exec::{git, git_with_stderr_and_lfs_controlled, ExecutionControl, GitOptions};
 use crate::progress::{GitLfsProgressParser, GitProgress, ProgressLineSplitter};
 use crate::rev_parse::resolve_git_dir;
 
@@ -202,6 +202,20 @@ pub async fn update_submodules<F>(
 where
     F: FnMut(f64, String) + Send,
 {
+    update_submodules_controlled(repository, env, allow_file_protocol, on_progress, None).await
+}
+
+/// Updates submodules while allowing the owning operation to cancel the Git process.
+pub async fn update_submodules_controlled<F>(
+    repository: impl AsRef<Path>,
+    env: &HashMap<String, String>,
+    allow_file_protocol: bool,
+    on_progress: Option<F>,
+    control: Option<ExecutionControl>,
+) -> Result<(), GitError>
+where
+    F: FnMut(f64, String) + Send,
+{
     let mut args: Vec<String> = Vec::new();
     if allow_file_protocol {
         args.extend(["-c".to_owned(), "protocol.file.allow=always".to_owned()]);
@@ -219,7 +233,20 @@ where
     }
 
     let Some(on_progress) = on_progress else {
-        git(&args, repository, "updateSubmodules", options).await?;
+        if control.is_some() {
+            git_with_stderr_and_lfs_controlled(
+                &args,
+                repository,
+                "updateSubmodules",
+                options,
+                control,
+                |_| {},
+                |_| {},
+            )
+            .await?;
+        } else {
+            git(&args, repository, "updateSubmodules", options).await?;
+        }
         return Ok(());
     };
 
@@ -234,11 +261,12 @@ where
     let regular_progress = Arc::clone(&progress);
     let lfs_progress = Arc::clone(&progress);
 
-    git_with_stderr_and_lfs(
+    git_with_stderr_and_lfs_controlled(
         &args,
         repository,
         "updateSubmodules",
         options,
+        control,
         |chunk| {
             for line in splitter.push(chunk) {
                 if is_submodule_event(&line) {

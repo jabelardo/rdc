@@ -762,8 +762,8 @@ tested.
 **Progress:** in progress. Push now has a controlled runner and a `Stop waiting` capability. After
 termination, branch and requested tag pushes are reconciled with direct `ls-remote` queries: matching
 remote SHAs are reported as completed, while a failed or inconclusive query reports
-`outcome: unknown`. Pull now has the same native stop capability, while Checkout and Commit remain
-explicitly non-cancellable until their own snapshot and completion policies are implemented.
+`outcome: unknown`. Pull and Checkout now have native stop and recovery policies. Commit remains
+explicitly non-cancellable until its own snapshot and completion policy is implemented.
 
 Push policy is complete for branch and tag refs, including local-remote reconciliation coverage.
 Pull is now split internally into explicit phases, and the native Pull runner now:
@@ -792,7 +792,8 @@ Implementation order:
 
 1. Push reconciliation and typed unknown-outcome tests.
 2. Pull phase separation, delegating integration cancellation to Merge/Rebase recovery.
-3. Checkout snapshot and restoration tests for `HEAD`, index and worktree.
+3. Checkout snapshot, restoration and late-stop tests for `HEAD`, index, worktree and untracked
+   paths. **Complete at the native command layer.**
 4. Commit index snapshot and completion-race tests, while preserving the independent hook stop
    flow from Slice 12.
 
@@ -830,8 +831,9 @@ Implementation order:
   the native cancellation reason. Local, remote-branch and detached-commit Checkout commands now
   own a snapshot, watchdog and recovery path; the command test restores `HEAD`, tracked state and an
   untracked file that the target branch overwrote, and releases the lock only after recovery. The
-  snapshot/start reservation race and late-stop completion classification remain pending, so the UI
-  cancellation capability is still unavailable.
+  snapshot is acquired under the repository lock, an advanced `HEAD` is classified as completed,
+  and submodule updates use the same controlled Git process. Checkout cancellation policy is now
+  complete at the native command layer.
 - The pre-operation snapshot must capture the symbolic `HEAD` target (or detached SHA), the complete
   index including staged modes/content, the tracked worktree patch including binary files and modes,
   and the inventory/content of untracked paths that checkout could overwrite. A `HEAD` SHA alone is
@@ -842,7 +844,8 @@ Implementation order:
   recovery path rather than claiming cancellation succeeded.
 - Add fixture-backed tests for clean state, staged changes, unstaged tracked changes, untracked files,
   detached `HEAD`, and a late stop after checkout has advanced the ref.
-- Keep cancellation unavailable until real-repository tests prove restoration.
+- Keep the final unified UI presentation aligned with this native capability; no generic cancellation
+  affordance should be added to operations whose policy remains unavailable.
 
 ### Commit
 

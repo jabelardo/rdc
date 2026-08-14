@@ -684,6 +684,7 @@ where
     let regular_progress = Arc::clone(&progress);
     let lfs_progress = Arc::clone(&progress);
     let mut lfs_parser = GitLfsProgressParser::default();
+    let submodule_control = control.clone();
     git_with_stderr_and_lfs_controlled(
         &args,
         repository,
@@ -718,7 +719,13 @@ where
     // explicitly before moving on to submodules.
     on_progress(make_progress(CHECKOUT_STEP_WEIGHT, title.clone()));
 
-    update_submodules_for_checkout(repository, &mut on_progress, &make_progress).await?;
+    update_submodules_for_checkout(
+        repository,
+        &mut on_progress,
+        &make_progress,
+        submodule_control,
+    )
+    .await?;
 
     Ok(())
 }
@@ -733,12 +740,13 @@ async fn update_submodules_for_checkout<F, M>(
     repository: &Path,
     on_progress: &mut F,
     make_progress: &M,
+    control: Option<ExecutionControl>,
 ) -> Result<(), GitError>
 where
     F: FnMut(CheckoutProgress) + Send,
     M: Fn(f64, String) -> CheckoutProgress + Sync,
 {
-    let result = crate::submodule::update_submodules(
+    let result = crate::submodule::update_submodules_controlled(
         repository,
         &std::collections::HashMap::new(),
         false,
@@ -746,6 +754,7 @@ where
             let scaled = CHECKOUT_STEP_WEIGHT + value * (1.0 - CHECKOUT_STEP_WEIGHT);
             on_progress(make_progress(scaled, description));
         }),
+        control,
     )
     .await;
 

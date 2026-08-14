@@ -335,12 +335,6 @@ async fn run_cancellable_branch_checkout(
     target: CheckoutTarget<'_>,
     on_progress: Channel<CheckoutProgress>,
 ) -> Result<(), CommandError> {
-    // Snapshot before reserving the cancellable operation: an unavailable snapshot must not expose
-    // a stop button that cannot restore the repository. The reservation race is tracked in Slice 15
-    // and will be closed once snapshot acquisition is made part of operation reservation.
-    let snapshot = git_ops::checkout::get_checkout_snapshot(repository_path)
-        .await
-        .map_err(CommandError::from)?;
     let operation = crate::commands::operation::start_cancellable_repository_operation(
         registry,
         repository_path,
@@ -349,6 +343,23 @@ async fn run_cancellable_branch_checkout(
         "Cancel checkout",
     )
     .await?;
+    let snapshot = match git_ops::checkout::get_checkout_snapshot(repository_path).await {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::RecoveryFailed,
+                    message: command_error.message.clone(),
+                    recoverable: false,
+                }),
+            );
+            return Err(command_error);
+        }
+    };
     let control = registry
         .control(&operation.id)
         .map_err(|error| CommandError::message(error.to_string()))?;
@@ -420,6 +431,32 @@ async fn recover_checkout_termination(
         ),
     };
     let _ = registry.enter_recovery(operation_id);
+    match git_ops::get_head_sha(repository_path).await {
+        Ok(current_head) if current_head != snapshot.head_sha => {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            return Ok(());
+        }
+        Ok(_) => {}
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                operation_id,
+                state,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::RecoveryFailed,
+                    message: command_error.message.clone(),
+                    recoverable: false,
+                }),
+            );
+            return Err(command_error);
+        }
+    }
     match git_ops::checkout::restore_checkout_snapshot(repository_path, snapshot).await {
         Ok(()) => {
             let message = format!("Checkout {verb} and recovered");
@@ -520,9 +557,6 @@ async fn run_cancellable_commit_checkout(
     commit: &str,
     on_progress: Channel<CheckoutProgress>,
 ) -> Result<(), CommandError> {
-    let snapshot = git_ops::checkout::get_checkout_snapshot(repository_path)
-        .await
-        .map_err(CommandError::from)?;
     let operation = crate::commands::operation::start_cancellable_repository_operation(
         registry,
         repository_path,
@@ -531,6 +565,23 @@ async fn run_cancellable_commit_checkout(
         "Cancel checkout",
     )
     .await?;
+    let snapshot = match git_ops::checkout::get_checkout_snapshot(repository_path).await {
+        Ok(snapshot) => snapshot,
+        Err(error) => {
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                &operation.id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::RecoveryFailed,
+                    message: command_error.message.clone(),
+                    recoverable: false,
+                }),
+            );
+            return Err(command_error);
+        }
+    };
     let control = registry
         .control(&operation.id)
         .map_err(|error| CommandError::message(error.to_string()))?;
@@ -2184,6 +2235,10 @@ mod checkout_recovery_tests {
             .await
             .expect("checkout snapshot should be captured");
         run_git(directory.path(), &["checkout", "--force", "topic"]);
+        // The process may have stopped after changing HEAD but before the command returned. Return
+        // to the original ref to exercise the recovery branch where checkout state still needs
+        // restoration; the following operation covers the late-completion branch.
+        run_git(directory.path(), &["checkout", "--force", "main"]);
         let registry = OperationRegistry::new();
         let operation_id = start_checkout_operation(&registry, &repository_path);
 
@@ -2224,6 +2279,35 @@ mod checkout_recovery_tests {
                 .expect("checkout record")
                 .outcome,
             Some(OperationOutcome::Recovered)
+        );
+
+        run_git(directory.path(), &["checkout", "--force", "topic"]);
+        let late_operation_id = start_checkout_operation(&registry, &repository_path);
+        let late_result = recover_checkout_termination(
+            &registry,
+            &late_operation_id,
+            &repository_path,
+            &snapshot,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await;
+        assert!(
+            late_result.is_ok(),
+            "an advanced HEAD is a completed checkout"
+        );
+        assert_eq!(
+            registry
+                .get(&late_operation_id)
+                .expect("late checkout record")
+                .outcome,
+            Some(OperationOutcome::Completed)
+        );
+        assert_eq!(
+            git_ops::refs::get_symbolic_ref(&repository_path, "HEAD")
+                .await
+                .expect("late HEAD should resolve")
+                .as_deref(),
+            Some("refs/heads/topic")
         );
     }
 }
