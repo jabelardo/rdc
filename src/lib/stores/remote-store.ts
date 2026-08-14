@@ -26,6 +26,8 @@ export type RemoteState = {
   readonly loading: boolean;
   readonly error: string | null;
   readonly operation: RemoteOperation | null;
+  /** Legacy callback progress retained for refresh/error compatibility. Native operation events are
+   * authoritative for toolbar, menu and cross-window lifecycle presentation. */
   readonly progress: Progress | null;
   readonly operationError: string | null;
 };
@@ -132,9 +134,10 @@ function findCurrentRemote(
 /**
  * Owns the frontend half of remote synchronization.
  *
- * Git owns transport, credentials and ref updates. This store owns the user-level operation lock,
- * tracked/default-remote policy, aggregate progress and refresh sequence. Repository and operation
- * generations keep a slow fetch from publishing into a newly selected repository.
+ * Git owns transport, credentials and ref updates. This store owns tracked/default-remote policy,
+ * legacy aggregate progress and refresh sequencing. Native operation records own the repository lock
+ * and cross-window lifecycle; callback fields remain until multi-remote aggregation and
+ * remote-specific refresh/error handling move to native event consumers.
  */
 export class RemoteStore {
   private currentState = EmptyState;
