@@ -160,16 +160,31 @@ pub async fn get_remote_branch_sha(
     branch: &str,
     env: &HashMap<String, String>,
 ) -> Result<Option<String>, GitError> {
-    let ref_name = format!("refs/heads/{branch}");
+    get_remote_ref_sha(
+        repository,
+        remote_name,
+        &format!("refs/heads/{branch}"),
+        env,
+    )
+    .await
+}
+
+/// Reads an arbitrary advertised ref's commit directly from a remote.
+pub async fn get_remote_ref_sha(
+    repository: impl AsRef<Path>,
+    remote_name: &str,
+    ref_name: &str,
+    env: &HashMap<String, String>,
+) -> Result<Option<String>, GitError> {
     let mut options = GitOptions::default().with_expected_errors(AUTHENTICATION_ERRORS);
     for (key, value) in remote_env(env) {
         options = options.with_env(key, value);
     }
 
     let output = git(
-        &["ls-remote", remote_name, &ref_name],
+        &["ls-remote", remote_name, ref_name],
         repository,
-        "getRemoteBranchSha",
+        "getRemoteRefSha",
         options,
     )
     .await?;
@@ -460,6 +475,17 @@ mod tests {
         )
         .await
         .expect("initial push should succeed");
+        git(&["tag", "v1"], repo.path(), "test", GitOptions::default())
+            .await
+            .expect("tag should succeed");
+        git(
+            &["push", "origin", "refs/tags/v1"],
+            repo.path(),
+            "test",
+            GitOptions::default(),
+        )
+        .await
+        .expect("tag push should succeed");
 
         let expected = crate::get_head_sha(repo.path())
             .await
@@ -468,6 +494,12 @@ mod tests {
             get_remote_branch_sha(repo.path(), "origin", "main", &HashMap::new())
                 .await
                 .expect("remote query should succeed"),
+            Some(expected.clone())
+        );
+        assert_eq!(
+            get_remote_ref_sha(repo.path(), "origin", "refs/tags/v1", &HashMap::new())
+                .await
+                .expect("remote tag query should succeed"),
             Some(expected)
         );
     }

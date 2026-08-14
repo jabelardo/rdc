@@ -169,8 +169,8 @@ pub use rebase::{rebase_interactive, render_todo, TodoAction, TodoStep};
 pub use reflog::{get_branch_checkouts, get_recent_branches};
 pub use refs::{format_as_local_ref, get_symbolic_ref};
 pub use remote::{
-    add_remote, get_remote_branch_sha, get_remote_head, get_remote_url, get_remotes, remove_remote,
-    set_remote_url, update_remote_head, Remote,
+    add_remote, get_remote_branch_sha, get_remote_head, get_remote_ref_sha, get_remote_url,
+    get_remotes, remove_remote, set_remote_url, update_remote_head, Remote,
 };
 pub use reorder::{build_reorder_todo, reorder, ReorderError};
 pub use reset::{reset, reset_paths, unstage_all, ResetMode};

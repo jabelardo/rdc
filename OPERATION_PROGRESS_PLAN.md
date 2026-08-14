@@ -760,9 +760,9 @@ Do not expose cancellation for these operations until their individual policy is
 tested.
 
 **Progress:** in progress. Push now has a controlled runner and a `Stop waiting` capability. After
-termination, a branch push is reconciled with a direct `ls-remote` query: a matching remote SHA is
-reported as completed, while a failed or inconclusive query reports `outcome: unknown`. Tag pushes
-remain unknown until tag-by-tag reconciliation is implemented. Pull, Checkout and Commit remain
+termination, branch and requested tag pushes are reconciled with direct `ls-remote` queries: matching
+remote SHAs are reported as completed, while a failed or inconclusive query reports
+`outcome: unknown`. Pull, Checkout and Commit remain
 explicitly non-cancellable; none inherits the Merge/Rebase recovery policy.
 
 Implementation order:

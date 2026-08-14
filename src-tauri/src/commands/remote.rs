@@ -173,10 +173,7 @@ async fn reconcile_terminated_push(
     };
 
     let local_ref = format!("refs/heads/{local_branch}");
-    let reconciliation = async {
-        if !tags.is_empty() {
-            return Ok::<Option<bool>, git_ops::GitError>(None);
-        }
+    let reconciliation: Result<Option<bool>, git_ops::GitError> = async {
         let local_sha = git_ops::get_ref_sha(repository_path, &local_ref).await?;
         let remote_sha = git_ops::get_remote_branch_sha(
             repository_path,
@@ -185,7 +182,30 @@ async fn reconcile_terminated_push(
             &remote.env,
         )
         .await?;
-        Ok(remote_sha.map(|sha| sha == local_sha))
+        let Some(remote_sha) = remote_sha else {
+            return Ok(Some(false));
+        };
+        if remote_sha != local_sha {
+            return Ok(Some(false));
+        }
+
+        for tag in tags {
+            let tag_name = tag.strip_prefix("refs/tags/").unwrap_or(tag);
+            let local_tag_ref = format!("refs/tags/{tag_name}");
+            let local_tag_sha = git_ops::get_ref_sha(repository_path, &local_tag_ref).await?;
+            let remote_tag_sha = git_ops::get_remote_ref_sha(
+                repository_path,
+                remote_name,
+                &local_tag_ref,
+                &remote.env,
+            )
+            .await?;
+            if remote_tag_sha != Some(local_tag_sha) {
+                return Ok(Some(false));
+            }
+        }
+
+        Ok(Some(true))
     }
     .await;
 
