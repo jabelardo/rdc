@@ -162,7 +162,7 @@ export function RepositoryToolbar({
       <section
         className="remote-controls flex items-center gap-1.5"
         aria-label="Remote synchronization"
-        aria-busy={remoteState.loading || remoteState.operation !== null}
+        aria-busy={remoteState.loading || operationLockActive}
       >
         <div className="remote-actions flex items-center gap-1.5">
           <Tooltip label="Fetch from remote">

@@ -966,7 +966,8 @@ Migrate incrementally to the operation record and shared presentation:
 
 1. Fetch pilot. **Complete:** the toolbar renders the native Fetch record through the shared
    non-modal `OperationProgressBody`; store-owned remote state remains the refresh/error
-   compatibility path, and the toolbar no longer renders callback progress directly.
+   compatibility path, and the toolbar no longer renders callback progress or derives lifecycle
+   busy state directly from the store.
 2. Clone. **Complete.**
 3. Rebase. **Complete.**
 4. Commit and hook handoff. **Complete.**
