@@ -44,7 +44,22 @@ export function isTerminalOperation(state: OperationRecord["state"]): boolean {
   return ["completed", "cancelled", "timedOut", "failed"].includes(state);
 }
 
-function operationLabel(operation: GitOperationKind): string {
+function operationLabel(record: OperationRecord): string {
+  if (record.operation === "rebase") {
+    const metadata = [
+      record.cancellation.kind === "available" ? record.cancellation.label : "",
+      record.progress?.title ?? "",
+      record.progress?.description ?? "",
+    ]
+      .join(" ")
+      .toLocaleLowerCase();
+    if (metadata.includes("squash")) {
+      return "Squash";
+    }
+    if (metadata.includes("reorder")) {
+      return "Reorder";
+    }
+  }
   const labels: Record<GitOperationKind, string> = {
     fetch: "Fetch",
     push: "Push",
@@ -57,7 +72,7 @@ function operationLabel(operation: GitOperationKind): string {
     cherryPick: "Cherry-pick",
     revert: "Revert",
   };
-  return labels[operation];
+  return labels[record.operation];
 }
 
 function lifecycleStatus(record: OperationRecord): string {
@@ -102,7 +117,7 @@ export function operationProgressViewModel(
   const recoveryRequired = record.error?.kind === "recoveryFailed";
   return {
     operation: record.operation,
-    operationLabel: operationLabel(record.operation),
+    operationLabel: operationLabel(record),
     state: record.state,
     progress: record.progress ?? { value: 0 },
     role,

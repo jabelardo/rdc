@@ -174,4 +174,20 @@ describe("operation progress view model", () => {
     expect(model.contextText).toBe("Repository recovery is required before continuing");
     expect(model.retryAvailable).toBe(false);
   });
+
+  it.each([
+    ["Cancel squash", "Squash"],
+    ["Cancel reorder", "Reorder"],
+  ] as const)("keeps the native %s label for a rebase-category history operation", (label, name) => {
+    const model = operationProgressViewModel(
+      {
+        ...record("window-a"),
+        operation: "rebase",
+        cancellation: { kind: "available", label },
+      },
+      "window-a",
+    );
+
+    expect(model.operationLabel).toBe(name);
+  });
 });
