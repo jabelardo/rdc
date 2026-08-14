@@ -3,8 +3,38 @@
 **Status**: Slice 0 landed (the system itself — store, formatting, and the sonner-backed toast
 from `UI_FOUNDATION_PLAN.md` Phase 1). Zero consumers wired yet, as designed. Slices 1–7 not
 started.
-**Blocks**: Phase 8b QA cycle 2 — the accessibility/dispatch checks for whatever this produces
-belong in that cycle, so this needs to land before it, not during it.
+**Blocks**: Phase 8b QA cycle 2 — the accessibility and dispatch rows for whatever this produces are
+walked in that cycle, so this needs to land before it, not during it. This plan writes those rows;
+it does not walk them (see “Where QA happens” in `COMPONENT_MIGRATION_PROCESS.md`).
+
+## The failure this plan exists to remove
+
+One `getStatus` failure, on a repository whose directory had been deleted, produced this on macOS
+during Phase 8b cycle 2:
+
+```text
+toolbar (top right)   [object Object]
+conflict banner       failed to run git for 'getStatus' in /private/tmp/…/populated:
+                      No such file or directory (os error 2)
+changed-files pane    failed to run git for 'getStatus' in /private/tmp/…/populated:
+                      No such file or directory (os error 2)
+```
+
+Three simultaneous renderings of one event, in three visual styles, one of them unreadable. It is
+the clearest statement of the problem available, and every design decision below should be checked
+against it:
+
+1. **Duplication is the primary defect, not styling.** Three stores each refreshed the same dead
+   repository and each caught its own rejection. That is three genuine failures with one root cause,
+   and the user does not care that three code paths were involved.
+2. **Moving these to toasts does not fix it by itself.** The naive migration produces three toasts
+   instead of three panels — arguably worse, because they stack and each needs dismissing. Slice 1
+   cannot be considered done if this screenshot reproduces with toasts.
+3. `[object Object]` is the `String(error)`-on-a-`CommandError` bug described below, confirmed live
+   in **15 non-test call sites**.
+
+**Requirement, therefore: coalescing is part of the system, not a later refinement.** See
+“Coalescing” under Design.
 
 ## What is actually missing
 
@@ -57,10 +87,52 @@ tooling setup (`npx shadcn init`), the token migration every shadcn component de
 point — the store, the formatting helper, the severity/dismissal design above — is app-specific
 logic that stays exactly as designed regardless of which component renders it.
 
+**Coalescing.** `push` collapses a message that is already present rather than adding a second copy.
+Two questions have to be answered explicitly, because the screenshot above is what happens when they
+are not:
+
+- **What makes two messages the same?** Start with exact `(severity, text)` equality. It is the
+  honest minimum, it fixes the screenshot (the two readable panels carry byte-identical text), and
+  it needs no classification the frontend does not already have. Do not invent fuzzy matching.
+- **What does the user see when a message repeats?** A repeat count on the existing toast, and its
+  dismissal timer reset. Not a new toast, and not silence — silence would hide a second genuine
+  failure that happens to read the same.
+
+Exact-text equality does **not** collapse `[object Object]` against the readable copy of the same
+failure — they are different strings. That is fine and worth stating plainly: fixing the formatting
+bug is what makes them equal, so the two halves of this plan depend on each other. Slice 1 must
+verify the screenshot's scenario end to end, not each half in isolation.
+
+An open question this plan does not pre-answer: whether a repository-scoped root cause — the
+directory is gone, the repository is no longer a repository — deserves recognition as *one*
+condition rather than N identical messages. Exact-text coalescing already collapses it in the
+observed case. If a later scenario produces differently-worded messages from one root cause, that is
+the point to add a `MessageKey` for the cause rather than the text; do not build that machinery
+speculatively.
+
 **Explicitly out of scope**: ongoing operation progress (fetch/push/pull/clone percentages,
 "Pushing to origin…" text). That is live state for the duration of an operation, not a point-in-
 time event — it stays exactly as it is today, rendered by its own store's `progress` field. This
 system is for things that happened, not things that are happening.
+
+**Also out of scope: native operation lifecycle errors.** Since this plan was written,
+`OPERATION_PROGRESS_PLAN.md` landed a repository-scoped native operation registry, and
+`OperationRecord.error` (`models/operation.ts`) now owns the terminal outcome of Fetch, Push, Pull,
+Clone, Commit, Merge, Rebase, Cherry-pick, Revert and Checkout — including cancellation, timeout and
+recovery-required states. Those are rendered by `OperationProgressDialog` and must stay there: they
+are the terminal state of a *specific, identified* operation the user is watching, they carry
+recovery meaning, and a peer window showing the same repository has to see them too.
+
+The boundary is therefore:
+
+| Owner | Covers | Surface |
+|---|---|---|
+| `OperationRecord.error` | terminal state of a tracked native operation | `OperationProgressDialog` / shared progress body |
+| this message system | everything else that failed | toast |
+
+`remote-store.ts` is the worked example: it already gave up `operation`, `progress` and
+`operationError` to the native record and kept `error` for *management* failures (Add/Remove/Set-URL
+remote). Slice 5 below inherits that split rather than re-litigating it.
 
 **State** — `src/lib/stores/message-store.ts`, following the exact convention every other store
 already uses (`preferences-store.ts:136-180`: a plain class, a `listeners: Set<(state) => void>`,
@@ -69,15 +141,27 @@ in this codebase, so this doesn't introduce one either):
 
 ```ts
 export type MessageSeverity = 'error' | 'warning' | 'info'
-export type Message = { readonly id: string; readonly severity: MessageSeverity; readonly text: string }
+export type Message = {
+  readonly id: string
+  readonly severity: MessageSeverity
+  readonly text: string
+  /** 1 for a first occurrence; incremented when an identical message is pushed again. */
+  readonly count: number
+}
 export type MessageState = { readonly messages: ReadonlyArray<Message> }
 
 export class MessageStore {
+  /** Collapses onto an existing message with the same severity and text, incrementing its count. */
   public push(severity: MessageSeverity, text: string): void
   public dismiss(id: string): void
   public onDidUpdate(listener: (state: MessageState) => void): () => void
 }
 ```
+
+`count` is the landed store's one required change. Slice 0 shipped without it because it shipped
+without consumers; the screenshot is what the first three consumers produce if it stays absent.
+A collapsed `info` message restarts its auto-dismiss timer, so a repeating background event stays
+visible while it is still happening.
 
 Instantiated once alongside the other top-level stores, wired into `use-app-controller.ts` with the
 same `useState` + `useEffect(() => store.onDidUpdate(setState), [store])` pattern already used for
@@ -136,6 +220,11 @@ The three candidates, and what each costs:
 | **Toast, dialog closes** | One error channel app-wide, which is this plan's whole premise | Context is gone — retrying a discard means re-selecting the files |
 | **Toast, dialog stays open** | One channel *and* retryable | A toast fired from behind a modal can be overlapped by it, or read as unrelated to the dialog in front of you. Needs verification against the real `sonner` z-index and the Radix overlay, not reasoning |
 
+This is the worked example `COMPONENT_MIGRATION_PROCESS.md` cites for the difference between an open
+decision and QA: it needs a person to look at the running app exactly once, it names the observation
+that settles it, and it blocks a specific slice's design. It is not a sign-off, and it does not wait
+for the Phase 8b cycle.
+
 Note that the third option's risk is **empirically checkable** and should be checked before deciding:
 mount a toast while an `AlertDialog` is open and look at it. Radix renders its overlay in a portal
 on `document.body`, and `MessageToasts` portals `<Toaster>` to `document.body` too, so which one
@@ -158,6 +247,17 @@ document's own `message-store.ts` and `format-error.ts`. Fully unit-tested in is
 dismiss/auto-dismiss-timing/severity-rendering). Zero consumers wired yet — no behavior change to
 the running app. This is the slice to get the store API and the toast's visual design right before
 repeating the store-migration pattern six more times in Slices 2–7.
+
+### Slice 0.1 — Coalescing, before any consumer exists
+
+An amendment to the landed Slice 0, and a prerequisite for every slice below. Add `count` to
+`Message`, collapse on `(severity, text)` in `push`, render the count in the toast, and reset the
+`info` auto-dismiss timer on collapse. Unit-tested in isolation, exactly as the rest of Slice 0 was:
+identical pushes collapse and increment; different severities with identical text do not collapse;
+dismissing a collapsed message removes it once; a collapsed `info` message's timer restarts.
+
+Kept separate from Slice 1 for the reason Slice 0 was kept separate from its consumers — get the
+store API right before six slices depend on it.
 
 ### Slice 1 — Top-level error, and the three known-broken dialogs
 
@@ -185,9 +285,16 @@ repeating it:
 | 2 | `working-tree-store.ts` | `error`, `commitError`, `diffError` | `changes-workspace.tsx` (3 render sites) |
 | 3 | `history-store.ts` | `error`, `detailsError`, `diffError` | `history-workspace.tsx` (3 render sites) |
 | 4 | `branch-store.ts` | `error`, `operationError` (including the inline name-validation paths) | `repository-sidebar.tsx`, rename/delete/merge dialogs already touched in Slice 1 keep working, this slice removes the field they were reading around |
-| 5 | `remote-store.ts` | `error`, `operationError` | `repository-toolbar.tsx` (merge the error text out of the status paragraph, keep the progress text) |
+| 5 | `remote-store.ts` | `error` only — `operationError` no longer exists (`OPERATION_PROGRESS_PLAN.md` Slice 17 removed it along with `operation`/`progress`) | `repository-toolbar.tsx` — the status paragraph is already split: it renders `remoteState.error` only while no native Fetch/Push/Pull record owns the repository. This slice removes that paragraph entirely; the toolbar keeps action state and peer-window status, and the native record keeps the transport error. **This is the `[object Object]` in the screenshot** |
 | 6 | `conflict-store.ts` | `error`, `operationError` | `merge-conflicts.tsx` |
 | 7 | `clone-store.ts` + `preferences-store.ts` | `error` (×2) | `app-dialogs.tsx` clone dialog, preferences dialog |
+
+**Recommended order: 5, 6, 2, then 3, 4, 7.** The numbering above is kept stable because
+`REMAINING.md` and other documents reference it, but the *order to implement* should be led by the
+screenshot: its three panels come from `remote-store` (5), `conflict-store` (6) and
+`working-tree-store` (2). Until all three land, the duplication this plan exists to remove is still
+on screen, and Slice 5 alone removes the `[object Object]`. Slices 3, 4 and 7 are the same pattern
+applied to surfaces that do not co-fire, so they carry less risk and can follow.
 
 Each slice: remove the field from the store's `State` type, change the store method to throw
 instead of catching-and-setting, update the store's own unit tests (which today assert
@@ -207,7 +314,21 @@ Same gate set `BRANCH_OPERATIONS_PLAN.md` already established:
 
 Plus, per slice: confirm (by grep, not by memory) that no `.application-error` render site remains
 for that slice's stores, and that the store's own test file no longer asserts on a removed `error`/
-`operationError` field.
+`operationError` field. There are **17 `.application-error` references today**: 14 in `tsx` across
+eight components, plus 3 rules in `App.css`. The number must only go down, and the CSS rules go last
+— they are dead the moment the fourteenth render site does.
+
+**The duplication check, once slices 2, 5 and 6 have all landed.** Reproduce the motivating failure
+and confirm it now produces exactly one message. It is automatable and should be automated rather
+than left to the QA cycle: delete (or rename) a selected repository's directory out from under the
+running app, trigger a refresh, and assert that `messageStore.state.messages` has length 1 with the
+readable text — not three entries, and no `[object Object]` anywhere. A component-level test with
+three stores rejecting the same `CommandError` is the cheap version; the E2E version belongs in the
+Linux container with a real deleted fixture.
+
+Also grep for `String(error)` — **15 non-test call sites today**. Each one is a latent
+`[object Object]`, and the count must reach zero by Slice 7. `describeError` is the replacement in
+every case.
 
 ## Read before implementing
 
@@ -228,6 +349,14 @@ store).
   `describeError` first, then apply the existing special-casing unchanged), not a rewrite.
 - **A toast is a new kind of transient, auto-dismissing UI surface** — screen-reader and keyboard
   behavior for it has no precedent elsewhere in rdc to copy exactly (the existing `role="alert"`/
-  `role="status"` sites are all persistent-until-cleared, not auto-dismissing). Get this right in
-  Slice 0 with real assistive-technology testing before repeating the component six times; do not
-  treat the unit tests alone as sufficient proof for this specific concern.
+  `role="status"` sites are all persistent-until-cleared, not auto-dismissing). Unit tests are not
+  sufficient proof for this specific concern, so write the assistive-technology rows into the Phase
+  8b accessibility checklist as part of Slice 0.1 — including what a *collapsed* message should
+  announce, which is the new question `count` introduces. Per “Where QA happens”, walking those rows
+  is the cycle's job, not a gate on this plan; if the announcement design turns out to need an
+  answer before Slices 2–7 can be written, raise it as an open decision with a named observation
+  rather than waiting for a sign-off.
+- **Coalescing can hide a real second failure.** Two genuinely different problems that happen to
+  render identical text will collapse into one message with `count: 2`. That is the accepted
+  trade-off — the alternative is the screenshot — but it is the reason the count is *shown* rather
+  than silently swallowed, and the reason matching stays exact rather than fuzzy.
