@@ -857,6 +857,8 @@ Implementation order:
   releases the repository lock, while a late HEAD advance returns the committed SHA without rollback.
   A native controlled-runner test also proves termination is surfaced before commit completion without
   advancing `HEAD`.
+  Recovery now fails closed when Git state cannot be inspected, retaining the repository lock; this
+  boundary is covered by a command-level test.
   The user-facing Commit cancellation capability remains unavailable until a native blocked-process
   test covers the actual watchdog/termination path and recovery-failure handling.
 - After termination, inspect whether `HEAD` advanced before deciding to restore.

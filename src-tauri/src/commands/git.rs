@@ -2011,6 +2011,44 @@ mod commit_recovery_tests {
             })
             .is_none());
     }
+
+    #[tokio::test]
+    async fn command_recovery_retains_the_lock_when_commit_state_cannot_be_read() {
+        let directory = repository();
+        std::fs::write(directory.path().join("file.txt"), "changed\n")
+            .expect("changed file should be written");
+        let snapshot = git_ops::commit::get_commit_snapshot(directory.path())
+            .await
+            .expect("commit snapshot should succeed");
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation_id = start_commit_operation(&registry, &repository_path);
+        std::fs::rename(
+            directory.path().join(".git"),
+            directory.path().join("git-metadata"),
+        )
+        .expect("git metadata should be moved to simulate an unreadable repository");
+
+        let result = finish_commit_termination(
+            &registry,
+            &operation_id,
+            &repository_path,
+            &snapshot,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "unreadable state must be reported as an error"
+        );
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path,
+            })
+            .is_some());
+    }
 }
 
 #[cfg(test)]
