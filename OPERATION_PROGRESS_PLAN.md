@@ -1179,6 +1179,13 @@ E2E remains Linux-container-only. Keep one product slice per spec file and no cr
 Use deterministic blocking helper processes or local repositories; never depend on real network
 latency to create a cancellation race.
 
+**Exit:** complete against the current architecture. Multi-window isolation, hydration, owner loss,
+explicit cancellation adoption, timeout/recovery lock semantics, completion races, terminal event
+routing, Fetch lock clearing, Clone cleanup, and Push unknown-outcome cancellation are covered by
+native or Linux-container tests. Background-task E2E remains a follow-up attached to the first
+production background scheduler; no such producer exists yet, and the IPC flag is already covered
+by unit tests.
+
 ## Slice 20 — Documentation, QA and closure
 
 Before closing the work:
