@@ -17,7 +17,7 @@ describe("MessageStore", () => {
     store.push("error", "Could not rename branch");
 
     expect(store.state.messages).toEqual([
-      { id: expect.any(String), severity: "error", text: "Could not rename branch" },
+      { id: expect.any(String), severity: "error", text: "Could not rename branch", count: 1 },
     ]);
   });
 
@@ -52,7 +52,7 @@ describe("MessageStore", () => {
 
     store.dismiss(remove);
 
-    expect(store.state.messages).toEqual([{ id: keep, severity: "error", text: "keep" }]);
+    expect(store.state.messages).toEqual([{ id: keep, severity: "error", text: "keep", count: 1 }]);
   });
 
   it("does nothing when dismissing an id that is not present", () => {
@@ -106,6 +106,95 @@ describe("MessageStore", () => {
     vi.advanceTimersByTime(60_000);
 
     expect(store.state.messages).toHaveLength(2);
+  });
+
+  // Coalescing — the reason this exists is in MESSAGE_SYSTEM_PLAN.md: one deleted repository
+  // directory makes three stores fail and report the same sentence at the same moment.
+  it("collapses an identical message instead of stacking a second copy", () => {
+    const store = new MessageStore();
+
+    const first = store.push("error", "failed to run git for 'getStatus'");
+    const second = store.push("error", "failed to run git for 'getStatus'");
+
+    expect(second).toEqual(first);
+    expect(store.state.messages).toEqual([
+      {
+        id: first,
+        severity: "error",
+        text: "failed to run git for 'getStatus'",
+        count: 2,
+      },
+    ]);
+  });
+
+  it("keeps counting past two", () => {
+    const store = new MessageStore();
+
+    store.push("error", "same");
+    store.push("error", "same");
+    store.push("error", "same");
+
+    expect(store.state.messages).toHaveLength(1);
+    expect(store.state.messages[0]?.count).toEqual(3);
+  });
+
+  it("does not collapse the same text reported at a different severity", () => {
+    const store = new MessageStore();
+
+    store.push("warning", "disk is nearly full");
+    store.push("error", "disk is nearly full");
+
+    expect(store.state.messages.map((message) => message.severity)).toEqual(["warning", "error"]);
+    expect(store.state.messages.every((message) => message.count === 1)).toEqual(true);
+  });
+
+  it("does not collapse onto a message that has already been dismissed", () => {
+    const store = new MessageStore();
+    const first = store.push("error", "transient");
+
+    store.dismiss(first);
+    const second = store.push("error", "transient");
+
+    expect(second).not.toEqual(first);
+    expect(store.state.messages).toEqual([
+      { id: second, severity: "error", text: "transient", count: 1 },
+    ]);
+  });
+
+  it("collapses in place rather than moving the message to the end", () => {
+    const store = new MessageStore();
+    store.push("error", "first");
+    store.push("error", "second");
+
+    store.push("error", "first");
+
+    expect(store.state.messages.map((message) => message.text)).toEqual(["first", "second"]);
+  });
+
+  it("dismissing a collapsed message removes it once, however many times it repeated", () => {
+    const store = new MessageStore();
+    const id = store.push("error", "repeated");
+    store.push("error", "repeated");
+    store.push("error", "repeated");
+
+    store.dismiss(id);
+
+    expect(store.state.messages).toEqual([]);
+  });
+
+  it("restarts an info message's auto-dismiss timer when it repeats", () => {
+    const store = new MessageStore();
+
+    store.push("info", "Fetched origin");
+    vi.advanceTimersByTime(4_000);
+    store.push("info", "Fetched origin");
+
+    // The original deadline passes; the message survives because the repeat reset it.
+    vi.advanceTimersByTime(2_000);
+    expect(store.state.messages).toHaveLength(1);
+
+    vi.advanceTimersByTime(3_000);
+    expect(store.state.messages).toHaveLength(0);
   });
 
   it("clears an info message's pending timer when dismissed early, so it cannot double-fire", () => {

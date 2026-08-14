@@ -26,6 +26,17 @@ function show(severity: MessageSeverity, text: string, id: string, onDismiss: ()
 }
 
 /**
+ * The text a repeated message shows.
+ *
+ * The count is part of the toast's own text rather than a separate badge so that it reaches screen
+ * readers: sonner re-announces a toast when its content changes, and a silent visual-only counter
+ * would leave a non-sighted user unable to tell one failure from five.
+ */
+export function messageText({ text, count }: Pick<Message, "text" | "count">): string {
+  return count > 1 ? `${text} (${count}×)` : text;
+}
+
+/**
  * Bridges MessageStore's reactive state into sonner's imperative toast API.
  *
  * `MessageStore` owns dismissal timing (its own timer for `info`, an explicit call for
@@ -47,20 +58,24 @@ function show(severity: MessageSeverity, text: string, id: string, onDismiss: ()
  */
 export function MessageToasts({ messages, onDismiss }: MessageToastsProps) {
   const { resolvedTheme } = useTheme();
-  const shown = useRef(new Set<string>());
+  // Keyed by message id, valued by the count last rendered — a Set of ids would show the first
+  // occurrence and then never update the toast when the same message repeats.
+  const shown = useRef(new Map<string, number>());
 
   useEffect(() => {
     const currentIDs = new Set(messages.map((message) => message.id));
 
     for (const message of messages) {
-      if (shown.current.has(message.id)) {
+      if (shown.current.get(message.id) === message.count) {
         continue;
       }
-      shown.current.add(message.id);
-      show(message.severity, message.text, message.id, () => onDismiss(message.id));
+      shown.current.set(message.id, message.count);
+      // Calling `toast.*` again with the same id updates that toast in place rather than stacking
+      // a second one, which is what makes a repeat a re-announcement instead of a new message.
+      show(message.severity, messageText(message), message.id, () => onDismiss(message.id));
     }
 
-    for (const id of shown.current) {
+    for (const id of shown.current.keys()) {
       if (!currentIDs.has(id)) {
         shown.current.delete(id);
         toast.dismiss(id);
