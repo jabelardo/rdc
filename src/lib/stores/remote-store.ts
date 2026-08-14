@@ -6,6 +6,11 @@ import { getStatus, type IStatusResult } from "../git-ipc";
 import { describeError } from "../format-error";
 import { describeRemoteError } from "../remote-error";
 import {
+  aggregatePhaseProgress,
+  aggregateRemoteProgress,
+  RemoteTransportWeight,
+} from "../remote-operation-progress";
+import {
   addRemote as addRemoteCommand,
   fastForwardBranches,
   fetch as fetchRemote,
@@ -331,8 +336,7 @@ export class RemoteStore {
       (remote, index, all): remote is IRemote =>
         remote !== null && all.findIndex((candidate) => candidate?.name === remote.name) === index,
     );
-    const fetchWeight = 0.9;
-    const remoteWeight = fetchWeight / relevantRemotes.length;
+    const fetchWeight = RemoteTransportWeight;
 
     try {
       for (const [index, remote] of relevantRemotes.entries()) {
@@ -346,7 +350,7 @@ export class RemoteStore {
                 progress: {
                   ...progress,
                   title: `Fetching ${remote.name}`,
-                  value: index * remoteWeight + progress.value * remoteWeight,
+                  value: aggregateRemoteProgress(index, relevantRemotes.length, progress.value),
                 },
               });
             }
@@ -442,7 +446,7 @@ export class RemoteStore {
               progress: {
                 ...progress,
                 title: `Pushing to ${currentRemote.name}`,
-                value: progress.value * pushWeight,
+                value: aggregatePhaseProgress(0, pushWeight, progress.value),
               },
             });
           }
@@ -460,7 +464,7 @@ export class RemoteStore {
               progress: {
                 ...progress,
                 title: `Fetching ${currentRemote.name}`,
-                value: pushWeight + progress.value * fetchWeight,
+                value: aggregatePhaseProgress(pushWeight, fetchWeight, progress.value),
               },
             });
           }
@@ -550,7 +554,7 @@ export class RemoteStore {
               progress: {
                 ...progress,
                 title: `Pulling ${currentRemote.name}`,
-                value: progress.value * pullWeight,
+                value: aggregatePhaseProgress(0, pullWeight, progress.value),
               },
             });
           }
@@ -569,7 +573,7 @@ export class RemoteStore {
               progress: {
                 ...progress,
                 title: `Fetching ${currentRemote.name}`,
-                value: pullWeight + progress.value * fetchWeight,
+                value: aggregatePhaseProgress(pullWeight, fetchWeight, progress.value),
               },
             });
           }

@@ -1005,7 +1005,9 @@ post-operation refresh behavior intact.
 The next implementation boundary is a native remote-workflow coordinator: it must represent the
 complete multi-remote Fetch sequence and Push/Pull follow-up refreshes as one operation-owned
 workflow, publish terminal refresh requirements, and preserve remote-specific error classification.
-Only after that coordinator is consumed by the controller can the store-owned lifecycle fields be
+The progress-weighting portion is now isolated in `remote-operation-progress.ts` with focused
+coverage; the coordinator still needs to consume that helper and own the workflow lifecycle. Only
+after that coordinator is consumed by the controller can the store-owned lifecycle fields be
 removed safely.
 
 User-initiated operations mount the unified dialog. Scheduled/background Fetch mounts the shared
