@@ -52,7 +52,10 @@ describe("keyboard-only journey", () => {
       5_000,
     );
 
-    const include = await changedFile.findElement(
+    const refreshedChangedFile = await driver.findElement(
+      By.css('[data-changed-file-path="keyboard-only.txt"]'),
+    );
+    const include = await refreshedChangedFile.findElement(
       By.css('[aria-label="Include keyboard-only.txt"]'),
     );
     assert.equal(await include.isSelected(), true);

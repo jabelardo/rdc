@@ -8,6 +8,7 @@ import { By, until } from "selenium-webdriver";
 import {
   commitWorkingTreeBaseline,
   createFixtureRoot,
+  git,
   initCanonicalRepository,
   openSeededRepository,
   removeFixtureRoot,
@@ -23,6 +24,24 @@ describe("history", () => {
     fixture = createFixtureRoot();
     initCanonicalRepository(fixture);
     head = commitWorkingTreeBaseline(fixture);
+    git(
+      fixture.canonical,
+      "commit",
+      "--quiet",
+      "--allow-empty",
+      "--no-verify",
+      "-m",
+      "History operation middle",
+    );
+    git(
+      fixture.canonical,
+      "commit",
+      "--quiet",
+      "--allow-empty",
+      "--no-verify",
+      "-m",
+      "History operation newest",
+    );
     driver = await startApplication();
     await openSeededRepository(driver, fixture.canonical);
   });
@@ -42,6 +61,7 @@ describe("history", () => {
       until.elementLocated(By.css(`[data-commit-sha="${head}"]`)),
       10_000,
     );
+    await driver.executeScript((element) => element.click(), committedHistoryItem);
     assert.match(
       await driver.executeScript((element) => element.textContent, committedHistoryItem),
       /Commit from the real shell.*rdc E2E/s,
@@ -113,6 +133,36 @@ describe("history", () => {
       until.elementLocated(By.xpath("//p[normalize-space()='No local changes.']")),
       5_000,
       "the changes workspace did not come back after leaving history",
+    );
+  });
+
+  it("exposes the interactive history controls for a contiguous selection", async () => {
+    const historyView = await driver.findElement(
+      By.xpath("//nav[@aria-label='Repository views']//button[normalize-space()='History']"),
+    );
+    await driver.executeScript((element) => element.click(), historyView);
+
+    await driver.wait(
+      until.elementLocated(By.css('[aria-label="Select History operation newest"]')),
+      10_000,
+    );
+    await driver.findElement(By.css('[aria-label="Select History operation newest"]')).click();
+    await driver.findElement(By.css('[aria-label="Select History operation middle"]')).click();
+
+    const squash = await driver.findElement(
+      By.xpath("//button[normalize-space()='Squash selected']"),
+    );
+    assert.equal(await squash.getText(), "Squash selected");
+
+    const reorderTarget = await driver.findElement(By.css('[aria-label="Move selected before"]'));
+    const options = await reorderTarget.findElements(By.css("option"));
+    assert.equal(await options[0].getText(), "End of history");
+    assert.match(await options[1].getText(), /Before Commit from the real shell/);
+    assert.equal(
+      await driver
+        .findElement(By.xpath("//button[normalize-space()='Reorder selected']"))
+        .isEnabled(),
+      true,
     );
   });
 });
