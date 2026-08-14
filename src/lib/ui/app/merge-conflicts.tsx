@@ -24,6 +24,7 @@ export function MergeConflicts({
   if (
     !recoveryVisible &&
     !state.mergeInProgress &&
+    !state.rebaseInProgress &&
     state.files.length === 0 &&
     state.error === null
   ) {
@@ -36,7 +37,9 @@ export function MergeConflicts({
       aria-label={
         recoveryVisible
           ? `${recoveryOperation === "cherryPick" ? "Cherry-pick" : "Revert"} recovery`
-          : state.mergeInProgress
+          : state.rebaseInProgress
+            ? "Rebase recovery"
+            : state.mergeInProgress
             ? "Merge conflicts"
             : "Repository conflicts"
       }
@@ -46,13 +49,17 @@ export function MergeConflicts({
           <h3>
             {recoveryVisible
               ? `${recoveryOperation === "cherryPick" ? "Cherry-pick" : "Revert"} recovery`
-              : state.mergeInProgress
+              : state.rebaseInProgress
+                ? "Rebase recovery"
+                : state.mergeInProgress
                 ? "Merge in progress"
                 : "Repository conflicts"}
           </h3>
           <p>
             {recoveryOperation === "revert"
               ? "Resolve files in your editor, then refresh the conflict state. Revert can only be aborted from here."
+              : state.rebaseInProgress
+                ? "A rebase was interrupted. Resolve files in your editor, then continue or abort the rebase from a terminal."
               : "Resolve files in your editor, then refresh and stage each resolution."}
           </p>
         </div>

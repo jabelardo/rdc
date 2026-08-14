@@ -1099,6 +1099,8 @@ consumers remain compatible. Rust status and wire-contract tests cover the new m
 The conflict store now hydrates Cherry-pick/Revert recovery from those marker facts when no live
 operation record survives the restart, and the recovery banner's abort/continue actions use that
 hydrated operation kind. Focused restart E2E passes after this hydration path is loaded.
+It also retains interrupted rebase state from `rebaseInternalState` and presents explicit recovery
+guidance after reload; rebase continue/abort controls remain the next Slice 18 increment.
 
 Do not claim the original process is still running after an app restart. Present the detected
 repository state as recovery-required and offer the operation-specific continue/abort path.

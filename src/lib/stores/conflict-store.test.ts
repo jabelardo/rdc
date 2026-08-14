@@ -7,6 +7,7 @@ function status(conflictMarkerCount: number, mergeHeadFound = true): IStatusResu
   return {
     currentBranch: "main",
     mergeHeadFound,
+    rebaseInternalState: undefined,
     squashMsgFound: false,
     isCherryPickingHeadFound: false,
     isRevertingHeadFound: false,
@@ -65,6 +66,21 @@ describe("ConflictStore", () => {
     });
     await revertStore.load("/repo");
     expect(revertStore.state.recoveryOperation).toBe("revert");
+  });
+
+  it("retains an interrupted rebase as explicit recovery state", async () => {
+    const store = new ConflictStore({
+      getStatus: vi.fn(async () => ({
+        ...status(0, false),
+        rebaseInternalState: {
+          targetBranch: "main",
+          baseBranchTip: "base",
+          originalBranchTip: "original",
+        },
+      })),
+    });
+    await store.load("/repo");
+    expect(store.state.rebaseInProgress).toBe(true);
   });
 
   it("stages a marker-free resolution with its exact index entries and refreshes", async () => {

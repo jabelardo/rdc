@@ -22,6 +22,7 @@ export type ConflictState = {
   /** A Git recovery marker found during repository load, even when no live operation exists. */
   readonly recoveryOperation: "cherryPick" | "revert" | null;
   readonly mergeInProgress: boolean;
+  readonly rebaseInProgress: boolean;
   readonly files: ReadonlyArray<ConflictFile>;
   readonly loading: boolean;
   readonly error: string | null;
@@ -43,6 +44,7 @@ const EmptyState: ConflictState = {
   repositoryPath: null,
   recoveryOperation: null,
   mergeInProgress: false,
+  rebaseInProgress: false,
   files: [],
   loading: false,
   error: null,
@@ -101,6 +103,7 @@ export class ConflictStore {
       repositoryPath,
       recoveryOperation: null,
       mergeInProgress: false,
+      rebaseInProgress: false,
       files: [],
       loading: true,
       error: null,
@@ -121,6 +124,7 @@ export class ConflictStore {
         repositoryPath,
         recoveryOperation: null,
         mergeInProgress: false,
+        rebaseInProgress: false,
         files: [],
         loading: false,
         error: describeError(error),
@@ -196,6 +200,7 @@ export class ConflictStore {
             ? "revert"
             : null,
       mergeInProgress: status?.mergeHeadFound ?? false,
+      rebaseInProgress: status?.rebaseInternalState !== undefined,
       files: conflictFiles(status?.files ?? []),
       loading: false,
       error: null,

@@ -8,6 +8,7 @@ const state: ConflictState = {
   repositoryPath: "/repo",
   recoveryOperation: null,
   mergeInProgress: false,
+  rebaseInProgress: false,
   files: [],
   loading: false,
   error: null,
