@@ -388,6 +388,13 @@ pub async fn push(
     watchdog.abort();
     match result {
         Ok(_) => {
+            let _ = registry.set_refresh(
+                &operation.id,
+                OperationRefresh {
+                    remote_names: vec![remote_name.clone()],
+                    repository_facts: true,
+                },
+            );
             let _ = registry.finish(
                 &operation.id,
                 OperationState::Completed,
@@ -1680,6 +1687,13 @@ pub async fn pull(
     watchdog.abort();
     match result {
         Ok(_) => {
+            let _ = registry.set_refresh(
+                &operation.id,
+                OperationRefresh {
+                    remote_names: vec![remote_name.clone()],
+                    repository_facts: true,
+                },
+            );
             let _ = registry.finish(
                 &operation.id,
                 OperationState::Completed,

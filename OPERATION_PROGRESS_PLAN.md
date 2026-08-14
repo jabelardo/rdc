@@ -1027,6 +1027,9 @@ Native Push now owns its follow-up Fetch under the same Push operation and publi
 through the operation registry. `RemoteStore` skips its compatibility Fetch only for the real IPC
 Push implementation; injected transports continue to exercise the older two-call path.
 
+Native Push and Pull now also publish `OperationRefresh` metadata on successful completion, so
+peer windows receive the same remote-head and repository-facts refresh requirement as Fetch.
+
 Coordinator acceptance boundary:
 
 - one repository-scoped native operation spans every selected Fetch transport and the Push/Pull
