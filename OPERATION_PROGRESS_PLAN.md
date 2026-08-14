@@ -978,7 +978,7 @@ Migrate incrementally to the operation record and shared presentation:
    to the native repository lock before deriving remote-action enablement.
 7. Checkout. **Complete:** the branch sidebar renders native Checkout progress through the shared
    body; branch-store state remains the refresh/error compatibility path.
-8. Cherry-pick/Revert. **In progress:** the History commit context menu now starts the native
+8. Cherry-pick/Revert. **Functional migration complete; Slice 20 owns QA closure:** the History commit context menu now starts the native
    Cherry-pick and Revert commands, and their operation records mount the unified progress dialog.
    The conflict surface now identifies Cherry-pick/Revert recovery, stages resolutions, offers
    Cherry-pick continuation and explicit abort for both operations. Interactive Squash/Reorder
@@ -989,8 +989,7 @@ Migrate incrementally to the operation record and shared presentation:
    explicit Reorder targets; real-shell E2E now verifies contiguous selection and executes both
    Reorder and Squash against a disposable repository. Recovery coverage verifies Cherry-pick
    continuation is gated on staged resolutions and Revert remains abort-only; the recovery banner
-   now reflects that distinction by hiding unsupported Revert staging controls. Remaining work is
-   visual QA and broader Cherry-pick/Revert E2E coverage. Shared presentation tests now cover
+   now reflects that distinction by hiding unsupported Revert staging controls. Shared presentation tests now cover
    native Cherry-pick/Revert labels, progress, owner cancellation controls, and terminal recovery
    presentation, including terminal focus restoration and close behavior. The independent native
    command journeys now cover both recovery paths rather than using browser-side IPC shortcuts. A
@@ -1134,7 +1133,9 @@ Before closing the work:
 1. Update `MIGRATION_PLAN.md` with landed slices and measured behavior.
 2. Update `MIGRATION_MAP.md` paths, deliberate departures and remaining unsupported cancellation.
 3. Update `COMPONENT_MIGRATION_PROCESS.md` with the final dialog/embedded presentation contract.
-4. Add Light/Dark, compact viewport, owner/observer, timeout and recovery rows to the QA checklist.
+4. Own all remaining QA for migrated dialogs and progress surfaces, including Slice 17's
+   Light/Dark, compact viewport, owner/observer, timeout and recovery rows. Slice 17 supplies the
+   functional evidence; Slice 20 records human visual sign-off and platform evidence.
 5. Record platform evidence for process-tree termination on Linux and macOS; Windows remains governed
    by the Phase 10 target but its seam must compile when introduced.
 6. Run the store-surface measurement when command additions/removals settle; copy numbers from the

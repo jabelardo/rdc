@@ -3379,7 +3379,8 @@ no longer uses a tuned constant at all.
 component-migration process (`COMPONENT_MIGRATION_PROCESS.md`) ran its three-way review — rdc /
 desktop-plus / shadcn — through ten dialogs: hook failure, About, discard file, discard all, delete
 branch (+ the "cannot delete" notice), remove repository, manage remotes, add remote, rename branch
-and merge. **Preferences is now extracted and migrated; only its visual QA sign-off remains.** Rebase
+and merge. **Preferences is now extracted and migrated; only its visual QA sign-off remains, owned
+by Slice 20's closure pass.** Rebase
 and Clone were subsequently migrated, and Rebase, Clone, Commit and Merge now consume the shared blocking
 progress dialog. Fetch, Push, Pull and Checkout expose embedded text/percentage progress, but still
 need the shared compact progress-bar presentation. Cherry-pick and Revert history-operation
