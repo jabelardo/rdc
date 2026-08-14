@@ -26,6 +26,7 @@ describe("history recovery", () => {
   let fixture;
   let mainBranch;
   let incomingCommit;
+  let mainConflictCommit;
 
   before(async () => {
     fixture = createFixtureRoot();
@@ -43,6 +44,7 @@ describe("history recovery", () => {
     writeFileSync(`${fixture.canonical}/working-tree.txt`, "main line\n");
     git(fixture.canonical, "add", "working-tree.txt");
     git(fixture.canonical, "commit", "--quiet", "--no-verify", "-m", "Main conflict");
+    mainConflictCommit = git(fixture.canonical, "rev-parse", "HEAD");
 
     driver = await startApplication();
     await openSeededRepository(driver, fixture.canonical);
@@ -96,5 +98,61 @@ describe("history recovery", () => {
       "aborting Cherry-pick did not clear the sequencer marker",
     );
     assert.equal(git(fixture.canonical, "branch", "--show-current"), mainBranch);
+
+    await driver.executeScript(
+      (element) => element.click(),
+      await driver.wait(
+        until.elementLocated(By.xpath("//button[normalize-space()='Close']")),
+        10_000,
+      ),
+    );
+  });
+
+  it("starts Revert through the native QA seam and exposes abort-only recovery", async () => {
+    writeFileSync(`${fixture.canonical}/working-tree.txt`, "follow-up line\n");
+    git(fixture.canonical, "add", "working-tree.txt");
+    git(fixture.canonical, "commit", "--quiet", "--no-verify", "-m", "Follow-up conflict");
+    const followUpCommit = git(fixture.canonical, "rev-parse", "HEAD");
+
+    writeQaDriverState({
+      repository: fixture.canonical,
+      view: "changes",
+      historyOperation: {
+        kind: "revert",
+        commit: mainConflictCommit,
+        summary: "Main conflict",
+        parentCount: 1,
+      },
+    });
+
+    await driver.wait(
+      async () => {
+        const operation = await activeOperation(driver, fixture.canonical);
+        return operation?.operation === "revert" && operation.state === "recovering";
+      },
+      10_000,
+      "Revert did not reach native recovery",
+    );
+
+    const recovery = await driver.wait(
+      until.elementLocated(By.css('[aria-label="Revert recovery"]')),
+      10_000,
+    );
+    assert.match(await recovery.getText(), /abort/i);
+    assert.equal(
+      (await driver.findElements(By.xpath("//button[normalize-space()='Continue cherry-pick']")))
+        .length,
+      0,
+    );
+    await driver.executeScript(
+      (element) => element.click(),
+      await driver.findElement(By.xpath("//button[normalize-space()='Abort revert']")),
+    );
+    await driver.wait(
+      () => !existsSync(`${fixture.canonical}/.git/REVERT_HEAD`),
+      10_000,
+      "aborting Revert did not clear the revert marker",
+    );
+    assert.equal(git(fixture.canonical, "rev-parse", "HEAD"), followUpCommit);
   });
 });

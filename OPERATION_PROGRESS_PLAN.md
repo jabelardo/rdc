@@ -998,8 +998,10 @@ Migrate incrementally to the operation record and shared presentation:
    preserving their real progress channels; its ordering contract is covered by frontend tests.
    A real `history-recovery.test.mjs` journey now prepares a disposable conflicting repository,
    starts Cherry-pick through that seam, verifies native recovery and the disabled continuation
-   control, then aborts through the production UI. It still needs the Linux-container run before
-   the broader Cherry-pick/Revert E2E requirement can close; Revert coverage remains to be added.
+   control, then aborts through the production UI. The same journey now covers Revert's abort-only
+   recovery and verifies that its `REVERT_HEAD` marker and post-operation `HEAD` are restored. It
+   still needs the Linux-container run before the broader Cherry-pick/Revert E2E requirement can
+   close.
 
 Remote-store compatibility is now closed. `RemoteStore` continues to own remote selection,
 post-operation refresh sequencing, boolean action results and remote-management error
