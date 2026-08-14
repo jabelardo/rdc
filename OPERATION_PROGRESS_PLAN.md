@@ -1132,6 +1132,13 @@ adopted and cancelled from a peer while an independent repository continues fetc
 the baseline scenarios for the remaining timeout, recovery-failure, completion-race, and terminal
 refresh matrix below.
 
+The deterministic resilience coverage already proves the next boundaries: Clone timeout publishes
+the typed `timedOut` error and removes only its staging directory; the native watchdog retains the
+scope lock until termination finishes; recovery failures publish `recoveryFailed`/unknown and keep
+the write lock; and late-stop tests for Commit, Merge, Rebase, Cherry-pick, Revert, Squash and
+Reorder classify an already-completed mutation as completed. Slice 19 still needs the matching
+multi-window E2E assertions for those terminal outcomes and Push's explicitly unknown stop result.
+
 Add automated coverage for this matrix:
 
 - operations in two different repositories run concurrently;
