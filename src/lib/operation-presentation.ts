@@ -19,6 +19,8 @@ export type OperationProgressViewModel = {
   readonly statusText: string;
   readonly contextText: string | null;
   readonly recoveryRequired: boolean;
+  /** Retry is opt-in per operation policy; recoverable errors do not imply it is safe. */
+  readonly retryAvailable: boolean;
   readonly error: OperationError | null;
   readonly outcome: OperationRecord["outcome"];
 };
@@ -125,6 +127,7 @@ export function operationProgressViewModel(
           ? "The window that started this operation is no longer open"
           : null,
     recoveryRequired,
+    retryAvailable: false,
     error: record.error,
     outcome: record.outcome,
   };

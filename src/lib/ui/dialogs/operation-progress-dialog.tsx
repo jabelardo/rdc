@@ -38,6 +38,8 @@ export type OperationProgressDialogProps = {
   readonly onCancel?: () => void;
   /** Explicitly adopts cancellation authority after the original owner is gone. */
   readonly onAdoptCancellation?: () => void;
+  /** Retries only when the operation policy explicitly marks retry as safe. */
+  readonly onRetry?: () => void;
   /** Closes a terminal operation after its recovery/outcome is understood. */
   readonly onClose?: () => void;
 };
@@ -70,6 +72,7 @@ function legacyViewModel(
     | "outcome"
     | "role"
     | "recoveryRequired"
+    | "retryAvailable"
 > {
   return {
     operationLabel: operation,
@@ -86,6 +89,7 @@ function legacyViewModel(
     outcome: null,
     role: "owner",
     recoveryRequired: false,
+    retryAvailable: false,
   };
 }
 
@@ -152,6 +156,7 @@ export function OperationProgressDialog({
   children,
   onCancel,
   onAdoptCancellation,
+  onRetry,
   onClose,
 }: OperationProgressDialogProps) {
   const model =
@@ -166,6 +171,7 @@ export function OperationProgressDialog({
   }, [onClose, terminal]);
   const showCancel = model.cancellationAvailable && onCancel !== undefined;
   const showAdopt = model.adoptionAvailable && onAdoptCancellation !== undefined;
+  const showRetry = model.retryAvailable && onRetry !== undefined;
   const showClose = terminal && onClose !== undefined;
 
   return (
@@ -194,7 +200,7 @@ export function OperationProgressDialog({
           >
             {children}
           </OperationProgressBody>
-          {(showCancel || showAdopt || showClose) && (
+          {(showCancel || showAdopt || showRetry || showClose) && (
             <div className="flex justify-end gap-2">
               {showCancel && (
                 <Button type="button" onClick={onCancel} disabled={model.state === "cancelling"}>
@@ -209,6 +215,11 @@ export function OperationProgressDialog({
                   disabled={model.state === "cancelling"}
                 >
                   {model.adoptionLabel ?? "Take control and cancel"}
+                </Button>
+              )}
+              {showRetry && (
+                <Button type="button" variant="outline" onClick={onRetry}>
+                  Retry
                 </Button>
               )}
               {showClose && (

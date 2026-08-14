@@ -898,6 +898,8 @@ error, and the completed/cancelled/timed-out/failed matrix has focused coverage.
 An unowned operation now exposes an explicit `Take control and cancel` action only after the owner
 window disappears; observers with a live owner remain read-only. Recovery failures identify that
 repository recovery is required before continuing.
+Retry is now an explicit opt-in capability in the view model; recoverable errors do not imply retry
+is safe, and the shared dialog renders Retry only when both the capability and callback are present.
 CloneStore now hydrates the native clone-destination operation after invocation starts and follows
 only that operation ID through the global event stream. Native lifecycle tracking is presentation
 enrichment rather than a prerequisite for cloning, and stale/reset clone callbacks remain rejected.

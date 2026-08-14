@@ -143,6 +143,28 @@ describe("OperationProgressDialog", () => {
     expect(screen.queryByRole("button", { name: "Cancel fetch" })).not.toBeInTheDocument();
   });
 
+  it("renders Retry only when the operation policy explicitly enables it", async () => {
+    const user = userEvent.setup();
+    const onRetry = vi.fn();
+    const model = {
+      ...operationProgressViewModel(
+        {
+          ...operationRecord("failed"),
+          cancellation: { kind: "unavailable" },
+          outcome: "unknown",
+          error: { kind: "failed", message: "temporary failure", recoverable: true },
+        },
+        "window-a",
+      ),
+      retryAvailable: true,
+    };
+    render(<OperationProgressDialog viewModel={model} onRetry={onRetry} />);
+
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+
   it("does not repeat a terminal error already used as the lifecycle status", () => {
     const failed: OperationRecord = {
       ...operationRecord("failed"),
@@ -159,6 +181,7 @@ describe("OperationProgressDialog", () => {
 
     expect(screen.getAllByText("Remote rejected the operation")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
   });
 
   it("moves focus to Close when cancellation reaches a terminal state", () => {

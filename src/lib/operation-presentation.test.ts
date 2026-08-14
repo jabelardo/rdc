@@ -172,5 +172,6 @@ describe("operation progress view model", () => {
 
     expect(model.recoveryRequired).toBe(true);
     expect(model.contextText).toBe("Repository recovery is required before continuing");
+    expect(model.retryAvailable).toBe(false);
   });
 });
