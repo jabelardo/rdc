@@ -5,8 +5,8 @@ import type { Repository } from "../../../models/repository";
 import { getCloneDirectoryName } from "../../clone-destination";
 import { getMergedBranches } from "../../branch-ipc";
 import { initRepository } from "../../git-ipc";
-import { revertCommit } from "../../misc-ipc";
-import { cherryPick } from "../../stash-ipc";
+import { abortRevert, revertCommit } from "../../misc-ipc";
+import { abortCherryPick, cherryPick, continueCherryPick } from "../../stash-ipc";
 import { installApplicationMenu } from "../../menu/application-menu";
 import { showContextMenu } from "../../platform/menu";
 import { dismissAllTooltips } from "../tooltip";
@@ -1219,6 +1219,29 @@ export function useAppController() {
     return operation !== null && !isTerminalOperation(operation.state);
   }
 
+  async function continueHistoryRecovery(): Promise<void> {
+    const repository = appState.selectedRepository;
+    const operation = operationStore.state.operation;
+    if (repository === null || operation?.operation !== "cherryPick") {
+      return;
+    }
+    const files = conflictStore.state.files.map((file) => [file.path, file.status] as const);
+    await continueCherryPick(repository.path, files);
+  }
+
+  async function abortHistoryRecovery(): Promise<void> {
+    const repository = appState.selectedRepository;
+    const operation = operationStore.state.operation;
+    if (repository === null) {
+      return;
+    }
+    if (operation?.operation === "cherryPick") {
+      await abortCherryPick(repository.path);
+    } else if (operation?.operation === "revert") {
+      await abortRevert(repository.path);
+    }
+  }
+
   // Reactive merge preview: when mergeTarget changes, check mergeability and commit count
   useEffect(() => {
     if (!mergePickerOpen || mergeTarget === "") {
@@ -1760,6 +1783,8 @@ export function useAppController() {
     deleteCurrentBranch,
     openBranchContextMenu,
     openCommitContextMenu,
+    continueHistoryRecovery,
+    abortHistoryRecovery,
     mergePickerOpen,
     mergeTarget,
     setMergeTarget,

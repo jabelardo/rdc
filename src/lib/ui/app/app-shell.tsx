@@ -112,6 +112,8 @@ export function AppShell({ controller }: AppShellProps) {
     confirmDelete,
     cancelDelete,
     openBranchContextMenu,
+    continueHistoryRecovery,
+    abortHistoryRecovery,
     mergePickerOpen,
     mergeTarget,
     setMergeTarget,
@@ -313,12 +315,23 @@ export function AppShell({ controller }: AppShellProps) {
               onPush={() => void refreshAfterPush()}
               onSelectView={setRepositoryView}
             />
-            {repositoryView === "changes" && (
+            {(repositoryView === "changes" ||
+              (operationLockActive && operationViewModel?.state === "recovering")) && (
               <MergeConflicts
                 repositoryPath={appState.selectedRepository.path}
                 state={conflictState}
                 store={conflictStore}
                 onStageResolved={(path) => void stageResolvedConflict(path)}
+                recoveryOperation={
+                  operationLockActive &&
+                  operationViewModel?.state === "recovering" &&
+                  (operationViewModel.operation === "cherryPick" ||
+                    operationViewModel.operation === "revert")
+                    ? operationViewModel.operation
+                    : undefined
+                }
+                onContinueRecovery={() => void continueHistoryRecovery()}
+                onAbortRecovery={() => void abortHistoryRecovery()}
               />
             )}
             <ChangesWorkspace
