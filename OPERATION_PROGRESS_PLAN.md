@@ -813,7 +813,16 @@ Implementation order:
 ### Checkout
 
 - No `checkout --abort` exists.
-- Design a pre-operation snapshot and restoration strategy for `HEAD`, index and worktree.
+- The pre-operation snapshot must capture the symbolic `HEAD` target (or detached SHA), the complete
+  index including staged modes/content, the tracked worktree patch including binary files and modes,
+  and the inventory/content of untracked paths that checkout could overwrite. A `HEAD` SHA alone is
+  not a safe restore point.
+- Restore in this order: stop the Git process, verify whether `HEAD` advanced, restore the ref state,
+  restore the index, then restore tracked and untracked worktree content. If any part is ambiguous or
+  cannot be restored exactly, finish with `outcome: unknown` and retain the repository lock for the
+  recovery path rather than claiming cancellation succeeded.
+- Add fixture-backed tests for clean state, staged changes, unstaged tracked changes, untracked files,
+  detached `HEAD`, and a late stop after checkout has advanced the ref.
 - Keep cancellation unavailable until real-repository tests prove restoration.
 
 ### Commit
