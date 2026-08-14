@@ -998,10 +998,13 @@ Migrate incrementally to the operation record and shared presentation:
    preserving their real progress channels; its ordering contract is covered by frontend tests.
    A real `history-recovery.test.mjs` journey now prepares a disposable conflicting repository,
    starts Cherry-pick through that seam, verifies native recovery and the disabled continuation
-   control, then aborts through the production UI. The same journey now covers Revert's abort-only
-   recovery and verifies that its `REVERT_HEAD` marker and post-operation `HEAD` are restored. It
-   still needs the Linux-container run before the broader Cherry-pick/Revert E2E requirement can
-   close.
+   control, then aborts through the production UI. The focused Linux-container journey passes the
+   Cherry-pick recovery path. Revert's abort-only recovery remains covered by native command and
+   focused UI tests; its second-operation QA-driver journey is deferred because the shared
+   container session does not reliably submit that operation. The first container attempt found
+   and fixed the Vite debug-build gate: `tauri build
+   --debug` sets `__DEV__` false, so the E2E-only `VITE_RDC_QA_DRIVER=1` flag now enables the
+   listener while the Rust QA driver remains debug-only.
 
 Remote-store compatibility is now closed. `RemoteStore` continues to own remote selection,
 post-operation refresh sequencing, boolean action results and remote-management error

@@ -80,7 +80,7 @@ export function useQaStateDriver(handlers: DriveHandlers): void {
   handlersRef.current = handlers;
 
   useEffect(() => {
-    if (!__DEV__ || !isRunningInTauri()) {
+    if ((!__DEV__ && import.meta.env.VITE_RDC_QA_DRIVER !== "1") || !isRunningInTauri()) {
       return;
     }
 

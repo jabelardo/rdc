@@ -104,6 +104,7 @@ export function useAppController() {
   const activeRepositoryView = useRef<RepositoryView>("changes");
   const pendingRepositoryView = useRef<RepositoryView | null>(null);
   const repositoryViewTransitionID = useRef(0);
+  const refreshedRecoveryOperationID = useRef<string | null>(null);
   const refreshedTerminalOperationID = useRef<string | null>(null);
   // The debug clone preview's frame timer, cleared on teardown so it never fires against an
   // unmounted controller.
@@ -308,6 +309,27 @@ export function useAppController() {
     remoteStore,
     workingTreeStore,
   ]);
+
+  useEffect(() => {
+    const operation = operationState.operation;
+    const repository = appState.selectedRepository;
+    if (
+      operation === null ||
+      repository === null ||
+      operation.state !== "recovering" ||
+      (operation.operation !== "cherryPick" && operation.operation !== "revert") ||
+      refreshedRecoveryOperationID.current === operation.id
+    ) {
+      return;
+    }
+    // The operation can enter recovery before the status event that created the conflict files
+    // reaches the renderer. Refresh here so recovery controls never infer that every file is
+    // resolved from the repository-selection snapshot.
+    refreshedRecoveryOperationID.current = operation.id;
+    void conflictStore.load(repository.path).catch((error) => {
+      log.error("Failed to refresh history recovery conflicts", error);
+    });
+  }, [appState.selectedRepository, conflictStore, operationState.operation]);
 
   useEffect(() => {
     let disposed = false;
