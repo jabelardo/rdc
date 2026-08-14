@@ -1107,6 +1107,11 @@ merge action and explains that the staged resolutions can be completed by commit
 the abort handler refreshes the native conflict state after Git cleans up. Clone startup now
 removes only app-owned stale staging siblings for the requested destination after a restart;
 the cleanup is covered by a native test that preserves unrelated destinations.
+The operation registry remains process-local by design: the supported restart states are all
+reconstructed from Git markers or deterministic clone staging paths, so startup never rehydrates a
+stale `Running` record and falsely presents an operation as active. A persistent rdc journal is
+therefore not required for the current operation set; add one only when a future recovery state
+cannot be reconstructed from Git, and reconcile it against Git before exposing it.
 
 Do not claim the original process is still running after an app restart. Present the detected
 repository state as recovery-required and offer the operation-specific continue/abort path.
