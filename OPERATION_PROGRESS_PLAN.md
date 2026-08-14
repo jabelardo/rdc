@@ -1019,6 +1019,10 @@ loop explicitly. The native record now carries an optional `refresh` requirement
 receive the same post-transport contract as the initiating controller, and the store consumes the
 returned record when choosing remote-head refreshes.
 
+Pull no longer starts a second Fetch from `RemoteStore`: native `pull_phased_controlled` already
+owns the Fetch/integration sequence, leaving the store responsible only for its post-operation
+remote-head and repository-facts refresh.
+
 Coordinator acceptance boundary:
 
 - one repository-scoped native operation spans every selected Fetch transport and the Push/Pull

@@ -325,13 +325,11 @@ describe("RemoteStore", () => {
         callback?: (progress: IPullProgress) => void,
       ) => callback?.(pullProgress),
     );
-    const fetch = vi.fn(async () => undefined);
     const store = new RemoteStore({
       getRemotes: vi.fn(async () => [origin]),
       getBranches: vi.fn(async () => [branch("main", "origin/main")]),
       getStatus: vi.fn(async () => ({ currentBranch: "main" })),
       pull,
-      fetch,
       updateRemoteHEAD: vi.fn(async () => undefined),
       getBranchesDifferingFromUpstream: vi.fn(async () => []),
       fastForwardBranches: vi.fn(async () => undefined),
@@ -347,7 +345,6 @@ describe("RemoteStore", () => {
     await expect(store.pull()).resolves.toBe(true);
 
     expect(pull).toHaveBeenCalledWith("/repo", "origin", expect.any(Function), false, false);
-    expect(fetch).toHaveBeenCalledWith("/repo", "origin", expect.any(Function), false);
     expect(progressKinds).toContain("pull");
     expect(store.state.operation).toBeNull();
   });

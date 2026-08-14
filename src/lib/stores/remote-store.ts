@@ -570,8 +570,9 @@ export class RemoteStore {
       operationError: null,
     });
 
-    const pullWeight = remoteWorkflowPhase("pull", "transport").weight;
-    const fetchWeight = remoteWorkflowPhase("pull", "fetch").weight;
+    // Native Pull already owns its Fetch and integration phases. Keep one compatibility progress
+    // phase here while the terminal refresh remains store-owned.
+    const pullWeight = 0.9;
     try {
       await this.dependencies.pull(
         repositoryPath,
@@ -592,23 +593,6 @@ export class RemoteStore {
         false,
       );
 
-      await this.dependencies.fetch(
-        repositoryPath,
-        currentRemote.name,
-        (progress) => {
-          if (this.isCurrentOperation(requestID, operationID)) {
-            this.update({
-              ...this.currentState,
-              progress: {
-                ...progress,
-                title: `Fetching ${currentRemote.name}`,
-                value: aggregatePhaseProgress(pullWeight, fetchWeight, progress.value),
-              },
-            });
-          }
-        },
-        false,
-      );
       await this.updateRemoteHeadQuietly(repositoryPath, currentRemote.name);
 
       if (!this.isCurrentOperation(requestID, operationID)) {
@@ -620,7 +604,7 @@ export class RemoteStore {
           kind: "generic",
           title: "Refreshing repository",
           description: "Fast-forwarding branches",
-          value: pullWeight + fetchWeight,
+          value: pullWeight,
         },
       });
       await this.fastForwardEligibleBranches(repositoryPath);
