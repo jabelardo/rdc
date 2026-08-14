@@ -14,6 +14,7 @@
 //!
 //! What remains is the checkout itself, which is what everything above decorates.
 
+use std::collections::HashSet;
 use std::ffi::OsStr;
 use std::io::Write;
 use std::path::Path;
@@ -59,6 +60,7 @@ pub enum CheckoutUntrackedKind {
     },
     Symlink {
         target: std::path::PathBuf,
+        target_is_directory: bool,
     },
 }
 
@@ -103,18 +105,7 @@ pub async fn get_checkout_snapshot(
     )
     .await?
     .stdout;
-    let untracked_paths = git(
-        &["ls-files", "--others", "-z", "--"],
-        repository,
-        "getCheckoutUntrackedPaths",
-        GitOptions::default(),
-    )
-    .await?
-    .stdout
-    .split(|byte| *byte == 0)
-    .filter(|path| !path.is_empty())
-    .map(git_path::from_bytes)
-    .collect::<Result<Vec<_>, _>>()?;
+    let untracked_paths = get_untracked_paths(repository).await?;
     let untracked_entries = capture_untracked_entries(
         repository,
         untracked_paths,
@@ -130,6 +121,21 @@ pub async fn get_checkout_snapshot(
         tracked_worktree_patch,
         untracked_entries,
     })
+}
+
+async fn get_untracked_paths(repository: &Path) -> Result<Vec<std::path::PathBuf>, GitError> {
+    git(
+        &["ls-files", "--others", "-z", "--"],
+        repository,
+        "getCheckoutUntrackedPaths",
+        GitOptions::default(),
+    )
+    .await?
+    .stdout
+    .split(|byte| *byte == 0)
+    .filter(|path| !path.is_empty())
+    .map(git_path::from_bytes)
+    .collect::<Result<Vec<_>, _>>()
 }
 
 async fn capture_untracked_entries(
@@ -159,7 +165,14 @@ async fn capture_untracked_entries(
             let target = tokio::fs::read_link(&absolute_path)
                 .await
                 .map_err(|source| checkout_snapshot_io_error(&absolute_path, source))?;
-            CheckoutUntrackedKind::Symlink { target }
+            let target_is_directory = tokio::fs::metadata(&absolute_path)
+                .await
+                .map(|metadata| metadata.is_dir())
+                .unwrap_or(false);
+            CheckoutUntrackedKind::Symlink {
+                target,
+                target_is_directory,
+            }
         } else if metadata.is_file() {
             captured_bytes =
                 captured_bytes
@@ -222,6 +235,50 @@ mod file_metadata {
             readonly: metadata.permissions().readonly(),
         }
     }
+
+    #[cfg(unix)]
+    pub fn restore(path: &std::path::Path, metadata: CheckoutFileMetadata) -> std::io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let CheckoutFileMetadata::Unix { mode } = metadata else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Windows file metadata cannot be restored on Unix",
+            ));
+        };
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode))
+    }
+
+    #[cfg(windows)]
+    pub fn restore(path: &std::path::Path, metadata: CheckoutFileMetadata) -> std::io::Result<()> {
+        let CheckoutFileMetadata::Windows { readonly } = metadata else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Unix file metadata cannot be restored on Windows",
+            ));
+        };
+        let mut permissions = std::fs::metadata(path)?.permissions();
+        permissions.set_readonly(readonly);
+        std::fs::set_permissions(path, permissions)
+    }
+}
+
+mod symlink {
+    use std::path::Path;
+
+    #[cfg(unix)]
+    pub fn create(target: &Path, path: &Path, _target_is_directory: bool) -> std::io::Result<()> {
+        std::os::unix::fs::symlink(target, path)
+    }
+
+    #[cfg(windows)]
+    pub fn create(target: &Path, path: &Path, target_is_directory: bool) -> std::io::Result<()> {
+        if target_is_directory {
+            std::os::windows::fs::symlink_dir(target, path)
+        } else {
+            std::os::windows::fs::symlink_file(target, path)
+        }
+    }
 }
 
 mod git_path {
@@ -248,15 +305,32 @@ mod git_path {
     }
 }
 
-/// Restores the tracked portion of a checkout snapshot.
+/// Restores a checkout snapshot.
 ///
 /// Callers must stop the checkout process and hold the repository operation lock first. This does
-/// not restore untracked paths, so it is not yet sufficient to advertise Checkout cancellation.
+/// not restore files created after the snapshot, so callers must treat an error as an unknown
+/// outcome and retain the recovery lock.
 pub async fn restore_checkout_snapshot(
     repository: impl AsRef<Path>,
     snapshot: &CheckoutSnapshot,
 ) -> Result<(), GitError> {
     let repository = repository.as_ref();
+    let expected_untracked: HashSet<&Path> = snapshot
+        .untracked_entries
+        .iter()
+        .map(|entry| entry.path.as_path())
+        .collect();
+    for path in get_untracked_paths(repository).await? {
+        if !expected_untracked.contains(path.as_path()) {
+            return Err(GitError::Parse {
+                context: "checkout restoration".to_owned(),
+                message: format!(
+                    "new untracked path appeared after the snapshot: {}",
+                    path.display()
+                ),
+            });
+        }
+    }
     if let Some(symbolic_head) = &snapshot.symbolic_head {
         git(
             &["symbolic-ref", "HEAD", symbolic_head],
@@ -292,8 +366,84 @@ pub async fn restore_checkout_snapshot(
         )
         .await?;
     }
+    restore_untracked_entries(repository, &snapshot.untracked_entries).await?;
 
     Ok(())
+}
+
+async fn restore_untracked_entries(
+    repository: &Path,
+    entries: &[CheckoutUntrackedEntry],
+) -> Result<(), GitError> {
+    for entry in entries {
+        let path = repository.join(&entry.path);
+        remove_existing_path_if_safe(&path).await?;
+        if let Some(parent) = path.parent() {
+            tokio::fs::create_dir_all(parent)
+                .await
+                .map_err(|source| checkout_restore_io_error(&path, source))?;
+        }
+        match &entry.kind {
+            CheckoutUntrackedKind::File { contents, metadata } => {
+                tokio::fs::write(&path, contents)
+                    .await
+                    .map_err(|source| checkout_restore_io_error(&path, source))?;
+                file_metadata::restore(&path, *metadata)
+                    .map_err(|source| checkout_restore_io_error(&path, source))?;
+            }
+            CheckoutUntrackedKind::Symlink {
+                target,
+                target_is_directory,
+            } => {
+                symlink::create(target, &path, *target_is_directory)
+                    .map_err(|source| checkout_restore_io_error(&path, source))?;
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn remove_existing_path_if_safe(path: &Path) -> Result<(), GitError> {
+    let metadata = match tokio::fs::symlink_metadata(path).await {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(source) => return Err(checkout_restore_io_error(path, source)),
+    };
+    if metadata.is_dir() && !metadata.file_type().is_symlink() {
+        let mut directory = tokio::fs::read_dir(path)
+            .await
+            .map_err(|source| checkout_restore_io_error(path, source))?;
+        if directory
+            .next_entry()
+            .await
+            .map_err(|source| checkout_restore_io_error(path, source))?
+            .is_some()
+        {
+            return Err(GitError::Parse {
+                context: "checkout restoration".to_owned(),
+                message: format!(
+                    "cannot replace non-empty directory without risking new files: {}",
+                    path.display()
+                ),
+            });
+        }
+        tokio::fs::remove_dir(path)
+            .await
+            .map_err(|source| checkout_restore_io_error(path, source))?;
+    } else {
+        tokio::fs::remove_file(path)
+            .await
+            .map_err(|source| checkout_restore_io_error(path, source))?;
+    }
+    Ok(())
+}
+
+fn checkout_restore_io_error(path: &Path, source: std::io::Error) -> GitError {
+    GitError::Spawn {
+        name: "restoreCheckoutUntrackedPath".to_owned(),
+        path: path.to_owned(),
+        source,
+    }
 }
 
 async fn restore_checkout_index(repository: &Path, index: Option<&[u8]>) -> Result<(), GitError> {
@@ -907,6 +1057,92 @@ mod tests {
                 if context == "checkout untracked snapshot"
                     && message.contains("exceeds the snapshot limit")
         ));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn checkout_snapshot_restores_untracked_content_and_mode() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "tracked.txt", "tracked\n", "tracked fixture");
+        let path = repo.path().join("ordinary.txt");
+        std::fs::write(&path, "original\n").expect("untracked file should be written");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+            .expect("untracked mode should be set");
+        let snapshot = get_checkout_snapshot(repo.path())
+            .await
+            .expect("untracked state should be captured");
+
+        std::fs::write(&path, "replacement\n").expect("replacement should be written");
+        restore_checkout_snapshot(repo.path(), &snapshot)
+            .await
+            .expect("untracked state should restore");
+
+        assert_eq!(
+            std::fs::read(&path).expect("restored file should be readable"),
+            b"original\n"
+        );
+        assert_eq!(
+            std::fs::metadata(&path)
+                .expect("restored metadata should be readable")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o755
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn checkout_snapshot_refuses_to_restore_after_a_new_untracked_path_appears() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "tracked.txt", "tracked\n", "tracked fixture");
+        std::fs::write(repo.path().join("ordinary.txt"), "original\n")
+            .expect("untracked file should be written");
+        let snapshot = get_checkout_snapshot(repo.path())
+            .await
+            .expect("untracked state should be captured");
+        std::fs::write(repo.path().join("new.txt"), "new\n")
+            .expect("new untracked file should be written");
+
+        let error = restore_checkout_snapshot(repo.path(), &snapshot)
+            .await
+            .expect_err("new untracked content must make recovery unknown");
+
+        assert!(matches!(
+            error,
+            GitError::Parse { context, message }
+                if context == "checkout restoration"
+                    && message.contains("new untracked path appeared")
+        ));
+        assert!(repo.path().join("new.txt").exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn checkout_snapshot_restores_an_untracked_symlink() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "tracked.txt", "tracked\n", "tracked fixture");
+        std::fs::write(repo.path().join("target.txt"), "target\n")
+            .expect("symlink target should be written");
+        std::os::unix::fs::symlink("target.txt", repo.path().join("link.txt"))
+            .expect("symlink should be created");
+        let snapshot = get_checkout_snapshot(repo.path())
+            .await
+            .expect("symlink state should be captured");
+        std::fs::remove_file(repo.path().join("link.txt"))
+            .expect("symlink should be removed to simulate checkout");
+
+        restore_checkout_snapshot(repo.path(), &snapshot)
+            .await
+            .expect("symlink state should restore");
+
+        assert_eq!(
+            std::fs::read_link(repo.path().join("link.txt"))
+                .expect("restored symlink should be readable"),
+            std::path::PathBuf::from("target.txt")
+        );
     }
 
     #[tokio::test]

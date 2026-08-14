@@ -823,7 +823,11 @@ Implementation order:
   and failing closed on invalid Windows path encoding. Ordinary and ignored file contents now carry
   platform metadata, symlinks have a distinct target representation, and capture is bounded to
   10,000 entries and 64 MiB so an ignored build tree cannot consume unbounded memory. Untracked
-  restoration remains pending, so cancellation is still unavailable.
+  restoration now recreates file contents, Unix modes or Windows readonly state, and symlinks after
+  safely replacing changed or missing paths. Recovery refuses to proceed when a new untracked path
+  appears after the snapshot, preserving an unknown outcome instead of deleting user data.
+  Command integration and late-stop race coverage remain pending, so cancellation is still
+  unavailable.
 - The pre-operation snapshot must capture the symbolic `HEAD` target (or detached SHA), the complete
   index including staged modes/content, the tracked worktree patch including binary files and modes,
   and the inventory/content of untracked paths that checkout could overwrite. A `HEAD` SHA alone is
