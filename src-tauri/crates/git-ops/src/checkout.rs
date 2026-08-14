@@ -41,9 +41,35 @@ pub struct CheckoutSnapshot {
     pub index: Option<Vec<u8>>,
     /// Binary-safe patch representing the tracked worktree relative to `HEAD`.
     pub tracked_worktree_patch: Vec<u8>,
-    /// Git-reported untracked paths, including ignored files that checkout may overwrite.
-    pub untracked_paths: Vec<std::path::PathBuf>,
+    /// Git-reported untracked state, including ignored files that checkout may overwrite.
+    pub untracked_entries: Vec<CheckoutUntrackedEntry>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckoutUntrackedEntry {
+    pub path: std::path::PathBuf,
+    pub kind: CheckoutUntrackedKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CheckoutUntrackedKind {
+    File {
+        contents: Vec<u8>,
+        metadata: CheckoutFileMetadata,
+    },
+    Symlink {
+        target: std::path::PathBuf,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckoutFileMetadata {
+    Unix { mode: u32 },
+    Windows { readonly: bool },
+}
+
+const MAX_CHECKOUT_UNTRACKED_ENTRIES: usize = 10_000;
+const MAX_CHECKOUT_UNTRACKED_BYTES: u64 = 64 * 1024 * 1024;
 
 /// Captures the tracked repository state required to recover an interrupted checkout.
 ///
@@ -89,14 +115,113 @@ pub async fn get_checkout_snapshot(
     .filter(|path| !path.is_empty())
     .map(git_path::from_bytes)
     .collect::<Result<Vec<_>, _>>()?;
+    let untracked_entries = capture_untracked_entries(
+        repository,
+        untracked_paths,
+        MAX_CHECKOUT_UNTRACKED_ENTRIES,
+        MAX_CHECKOUT_UNTRACKED_BYTES,
+    )
+    .await?;
 
     Ok(CheckoutSnapshot {
         symbolic_head,
         head_sha,
         index,
         tracked_worktree_patch,
-        untracked_paths,
+        untracked_entries,
     })
+}
+
+async fn capture_untracked_entries(
+    repository: &Path,
+    paths: Vec<std::path::PathBuf>,
+    maximum_entries: usize,
+    maximum_bytes: u64,
+) -> Result<Vec<CheckoutUntrackedEntry>, GitError> {
+    if paths.len() > maximum_entries {
+        return Err(GitError::Parse {
+            context: "checkout untracked snapshot".to_owned(),
+            message: format!(
+                "{} untracked paths exceed the snapshot limit of {maximum_entries}",
+                paths.len()
+            ),
+        });
+    }
+
+    let mut entries = Vec::with_capacity(paths.len());
+    let mut captured_bytes = 0_u64;
+    for path in paths {
+        let absolute_path = repository.join(&path);
+        let metadata = tokio::fs::symlink_metadata(&absolute_path)
+            .await
+            .map_err(|source| checkout_snapshot_io_error(&absolute_path, source))?;
+        let kind = if metadata.file_type().is_symlink() {
+            let target = tokio::fs::read_link(&absolute_path)
+                .await
+                .map_err(|source| checkout_snapshot_io_error(&absolute_path, source))?;
+            CheckoutUntrackedKind::Symlink { target }
+        } else if metadata.is_file() {
+            captured_bytes =
+                captured_bytes
+                    .checked_add(metadata.len())
+                    .ok_or_else(|| GitError::Parse {
+                        context: "checkout untracked snapshot".to_owned(),
+                        message: "untracked content size overflowed".to_owned(),
+                    })?;
+            if captured_bytes > maximum_bytes {
+                return Err(GitError::Parse {
+                    context: "checkout untracked snapshot".to_owned(),
+                    message: format!(
+                        "untracked content exceeds the snapshot limit of {maximum_bytes} bytes"
+                    ),
+                });
+            }
+            let contents = tokio::fs::read(&absolute_path)
+                .await
+                .map_err(|source| checkout_snapshot_io_error(&absolute_path, source))?;
+            CheckoutUntrackedKind::File {
+                contents,
+                metadata: file_metadata::capture(&metadata),
+            }
+        } else {
+            return Err(GitError::Parse {
+                context: "checkout untracked snapshot".to_owned(),
+                message: format!("unsupported untracked filesystem entry: {}", path.display()),
+            });
+        };
+        entries.push(CheckoutUntrackedEntry { path, kind });
+    }
+    Ok(entries)
+}
+
+fn checkout_snapshot_io_error(path: &Path, source: std::io::Error) -> GitError {
+    GitError::Spawn {
+        name: "captureCheckoutUntrackedPath".to_owned(),
+        path: path.to_owned(),
+        source,
+    }
+}
+
+mod file_metadata {
+    use std::fs::Metadata;
+
+    use super::CheckoutFileMetadata;
+
+    #[cfg(unix)]
+    pub fn capture(metadata: &Metadata) -> CheckoutFileMetadata {
+        use std::os::unix::fs::PermissionsExt;
+
+        CheckoutFileMetadata::Unix {
+            mode: metadata.permissions().mode(),
+        }
+    }
+
+    #[cfg(windows)]
+    pub fn capture(metadata: &Metadata) -> CheckoutFileMetadata {
+        CheckoutFileMetadata::Windows {
+            readonly: metadata.permissions().readonly(),
+        }
+    }
 }
 
 mod git_path {
@@ -721,12 +846,24 @@ mod tests {
             .expect("untracked checkout state should be captured");
 
         assert_eq!(
-            snapshot.untracked_paths,
+            snapshot
+                .untracked_entries
+                .iter()
+                .map(|entry| entry.path.as_path())
+                .collect::<Vec<_>>(),
             vec![
-                std::path::PathBuf::from("ignored.dat"),
-                std::path::PathBuf::from("ordinary.txt")
+                std::path::Path::new("ignored.dat"),
+                std::path::Path::new("ordinary.txt")
             ]
         );
+        assert!(matches!(
+            &snapshot.untracked_entries[0].kind,
+            CheckoutUntrackedKind::File { contents, .. } if contents == b"ignored\n"
+        ));
+        assert!(matches!(
+            &snapshot.untracked_entries[1].kind,
+            CheckoutUntrackedKind::File { contents, .. } if contents == b"ordinary\n"
+        ));
     }
 
     #[cfg(target_os = "linux")]
@@ -745,7 +882,31 @@ mod tests {
             .await
             .expect("non-UTF-8 checkout state should be captured");
 
-        assert_eq!(snapshot.untracked_paths, vec![path]);
+        assert_eq!(snapshot.untracked_entries[0].path, path);
+    }
+
+    #[tokio::test]
+    async fn checkout_snapshot_rejects_untracked_content_over_the_bound() {
+        let repo = empty_repository().await;
+        commit_file(&repo.path(), "tracked.txt", "tracked\n", "tracked fixture");
+        std::fs::write(repo.path().join("large.dat"), b"too large")
+            .expect("untracked fixture should be written");
+
+        let error = capture_untracked_entries(
+            &repo.path(),
+            vec![std::path::PathBuf::from("large.dat")],
+            1,
+            4,
+        )
+        .await
+        .expect_err("oversized content must disable the snapshot");
+
+        assert!(matches!(
+            error,
+            GitError::Parse { context, message }
+                if context == "checkout untracked snapshot"
+                    && message.contains("exceeds the snapshot limit")
+        ));
     }
 
     #[tokio::test]

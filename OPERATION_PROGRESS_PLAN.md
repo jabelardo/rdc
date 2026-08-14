@@ -820,8 +820,10 @@ Implementation order:
   `HEAD`, then reapplies the binary worktree patch; a real-repository test proves partially staged
   and unstaged content survive a simulated checkout. The snapshot also inventories ordinary and
   ignored untracked paths using Git's NUL-delimited output, preserving arbitrary path bytes on Unix
-  and failing closed on invalid Windows path encoding. Untracked content, file-kind metadata and
-  bounded storage remain pending, so cancellation is still unavailable.
+  and failing closed on invalid Windows path encoding. Ordinary and ignored file contents now carry
+  platform metadata, symlinks have a distinct target representation, and capture is bounded to
+  10,000 entries and 64 MiB so an ignored build tree cannot consume unbounded memory. Untracked
+  restoration remains pending, so cancellation is still unavailable.
 - The pre-operation snapshot must capture the symbolic `HEAD` target (or detached SHA), the complete
   index including staged modes/content, the tracked worktree patch including binary files and modes,
   and the inventory/content of untracked paths that checkout could overwrite. A `HEAD` SHA alone is
