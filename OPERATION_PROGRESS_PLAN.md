@@ -1031,6 +1031,9 @@ The operation store exposes that metadata and the terminal refresh coordinator h
 `repositoryFacts` flag, retaining the broad refresh fallback for operations without metadata.
 The operation registry also verifies that the refresh requirement survives terminal completion and
 remains available to observers.
+The toolbar no longer renders `RemoteState.operationError` while a native Fetch/Push/Pull record is
+present; that field remains reserved for remote-management compatibility errors such as Add/Remove
+Remote until those commands have an equivalent native operation contract.
 
 Coordinator acceptance boundary:
 

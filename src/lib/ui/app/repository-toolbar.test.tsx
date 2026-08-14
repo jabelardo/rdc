@@ -89,4 +89,43 @@ describe("RepositoryToolbar progress presentation", () => {
     expect(screen.getByText("Native fetch failed")).toBeInTheDocument();
     expect(screen.queryByText("Store fetch failed")).not.toBeInTheDocument();
   });
+
+  it("does not render a store operation error while a native remote record owns the operation", () => {
+    const operation: OperationRecord = {
+      id: "fetch-1",
+      scope: { kind: "repository", lockKey: "repo", repositoryPath: "/repo" },
+      ownerWindow: "window-a",
+      operation: "fetch",
+      state: "running",
+      cancellation: { kind: "available", label: "Cancel fetch" },
+      progress: { value: 0.5, description: "Receiving objects" },
+      lastActivityAt: 1,
+      outcome: null,
+      error: null,
+    };
+    render(
+      <RepositoryToolbar
+        remoteState={{ ...remoteState, operationError: "Stale callback error" }}
+        operationViewModel={operationProgressViewModel(operation, "window-a")}
+        canFetch={false}
+        canPush={false}
+        canPull={false}
+        hasEditor={false}
+        hasShell={false}
+        repositoryView="changes"
+        onCreateRepository={vi.fn()}
+        onAddExistingRepository={vi.fn()}
+        onCloneRepository={vi.fn()}
+        onShowFiles={vi.fn()}
+        onOpenEditor={vi.fn()}
+        onOpenShell={vi.fn()}
+        onFetch={vi.fn()}
+        onPull={vi.fn()}
+        onPush={vi.fn()}
+        onSelectView={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Stale callback error")).not.toBeInTheDocument();
+  });
 });
