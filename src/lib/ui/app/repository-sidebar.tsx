@@ -15,7 +15,9 @@ import type { Repository } from "../../../models/repository";
 import type { AppStoreState } from "../../stores/app-store";
 import type { BranchState, BranchStore } from "../../stores/branch-store";
 import type { ConflictState } from "../../stores/conflict-store";
+import type { OperationProgressViewModel } from "../../operation-presentation";
 import { BranchListRow, RepositoryListRow } from "../mvp-list-rows";
+import { OperationProgressBody } from "../dialogs/operation-progress-dialog";
 import {
   MvpSidebarCapabilities,
   type SidebarSectionID,
@@ -50,6 +52,7 @@ type RepositorySidebarProps = {
   readonly appState: AppStoreState;
   readonly branchState: BranchState;
   readonly branchStore: BranchStore;
+  readonly checkoutProgressViewModel?: OperationProgressViewModel;
   readonly conflictState: ConflictState;
   readonly newBranchName: string;
   readonly showBranchCreation: boolean;
@@ -71,6 +74,7 @@ export function RepositorySidebar({
   appState,
   branchState,
   branchStore,
+  checkoutProgressViewModel,
   conflictState,
   newBranchName,
   showBranchCreation,
@@ -388,9 +392,11 @@ export function RepositorySidebar({
                               )}
                             </>
                           )}
-                          {branchState.progress !== null && (
+                          {checkoutProgressViewModel?.operation === "checkout" ? (
+                            <OperationProgressBody viewModel={checkoutProgressViewModel} />
+                          ) : branchState.progress !== null ? (
                             <p role="status">{branchState.progress.description}</p>
-                          )}
+                          ) : null}
                           {branchState.operationError !== null && (
                             <p className="application-error" role="alert">
                               {branchState.operationError}

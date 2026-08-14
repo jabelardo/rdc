@@ -972,7 +972,8 @@ Migrate incrementally to the operation record and shared presentation:
 5. Merge/squash merge.
 6. Push/Pull. **In progress:** the toolbar now uses the same native shared body for Push and Pull;
    legacy remote-store state remains the refresh/error compatibility path.
-7. Checkout.
+7. Checkout. **In progress:** the branch sidebar now renders native Checkout progress through the
+   shared body; branch-store state remains the refresh/error compatibility path.
 8. Cherry-pick/Revert/Squash/Reorder as their UI slices land.
 
 Remove duplicated operation/progress fields only after their final consumer migrates. Preserve stale

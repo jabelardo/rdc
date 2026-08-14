@@ -205,6 +205,11 @@ export function AppShell({ controller }: AppShellProps) {
         appState={appState}
         branchState={branchState}
         branchStore={branchStore}
+        checkoutProgressViewModel={
+          operationLockActive && operationViewModel?.operation === "checkout"
+            ? operationViewModel
+            : undefined
+        }
         conflictState={conflictState}
         newBranchName={newBranchName}
         showBranchCreation={showBranchCreation}
