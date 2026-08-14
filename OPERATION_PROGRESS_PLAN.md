@@ -1130,7 +1130,8 @@ second window, terminal history refresh, and owner-window loss without terminati
 The Fetch cancellation journey additionally proves that an unowned operation can be explicitly
 adopted and cancelled from a peer while an independent repository continues fetching. These are
 the baseline scenarios for the remaining timeout, recovery-failure, completion-race, and terminal
-refresh matrix below.
+refresh matrix below. The Fetch cancellation E2E now also waits for the peer's Fetch control to be
+re-enabled after the terminal event, proving that the native lock and refresh path clear in the UI.
 
 The deterministic resilience coverage already proves the next boundaries: Clone timeout publishes
 the typed `timedOut` error and removes only its staging directory; the native watchdog retains the

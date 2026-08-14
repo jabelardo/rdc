@@ -242,5 +242,17 @@ exec git-upload-pack '${fixture.remote}'
     assert.equal(terminal.outcome, "unchanged");
     assert.equal(terminal.error.kind, "cancelled");
     assert.equal(await activeOperation(driver, fixture.canonical), null);
+    const fetchAfterRecovery = await driver.wait(
+      until.elementLocated(
+        By.css('section[aria-label="Remote synchronization"] button[aria-label="Fetch"]'),
+      ),
+      5_000,
+      "the peer Fetch action did not return after cancellation recovery",
+    );
+    await driver.wait(
+      () => fetchAfterRecovery.isEnabled(),
+      5_000,
+      "the peer Fetch action remained disabled after the native lock cleared",
+    );
   });
 });
