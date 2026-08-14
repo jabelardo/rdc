@@ -18,10 +18,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::get_config_value;
 use crate::error::GitError;
-use crate::exec::GitOutput;
+use crate::exec::{git_streaming_controlled, ExecutionControl, GitOptions, GitOutput};
+use crate::fetch::{fetch_controlled, FetchProgress};
+use crate::git_error_kind::GitErrorKind;
 use crate::hooks::with_env::{with_hooks_env, HookSupport};
-use crate::progress::GitProgressParser;
-use crate::remote_progress::{run_with_progress, ContextLines, RemoteRun};
 
 /// A pull progress update.
 ///
@@ -52,6 +52,7 @@ pub enum PullProgressKind {
 /// A failure reading the config yields no arguments, matching the original: git will then produce its
 /// own message about needing a reconciliation strategy, which is more useful than rdc silently
 /// choosing one on the back of a failed lookup.
+#[cfg(test)]
 async fn default_divergent_branch_arguments(repository: &Path) -> Vec<String> {
     match get_config_value(repository, "pull.ff", false).await {
         Ok(None) => vec!["--ff".to_owned()],
@@ -85,8 +86,90 @@ pub async fn pull<F>(
 where
     F: FnMut(PullProgress) + Send,
 {
+    pull_phased_controlled(
+        repository,
+        remote_name,
+        env,
+        no_verify,
+        on_progress,
+        hooks,
+        None,
+    )
+    .await
+}
+
+/// Pulls in two explicit phases: remote Fetch, then local merge/rebase integration.
+///
+/// Keeping the phases separate is required before Pull can expose cancellation. A terminated
+/// network phase has Fetch recovery semantics; a terminated integration phase must use Merge or
+/// Rebase recovery instead. The optional control is shared by both phases for that future command
+/// boundary, while the existing public `pull` caller remains non-cancellable.
+pub async fn pull_phased_controlled<F>(
+    repository: impl AsRef<Path>,
+    remote_name: &str,
+    env: &HashMap<String, String>,
+    no_verify: bool,
+    mut on_progress: Option<F>,
+    hooks: Option<&HookSupport>,
+    control: Option<ExecutionControl>,
+) -> Result<GitOutput, GitError>
+where
+    F: FnMut(PullProgress) + Send,
+{
     let repository = repository.as_ref();
-    let interception = hooks.map(|support| {
+    let title = format!("Pulling {remote_name}");
+    if let Some(callback) = on_progress.as_mut() {
+        callback(PullProgress {
+            kind: PullProgressKind::Pull,
+            value: 0.0,
+            title: title.clone(),
+            description: Some("Fetching remote changes".to_owned()),
+            remote: remote_name.to_owned(),
+        });
+    }
+
+    let fetch_result = fetch_controlled(
+        repository,
+        remote_name,
+        env,
+        Some(|progress: FetchProgress| {
+            if let Some(callback) = on_progress.as_mut() {
+                callback(PullProgress {
+                    kind: PullProgressKind::Pull,
+                    value: progress.value,
+                    title: title.clone(),
+                    description: progress.description,
+                    remote: remote_name.to_owned(),
+                });
+            }
+        }),
+        control.clone(),
+    )
+    .await?;
+
+    if let Some(callback) = on_progress.as_mut() {
+        callback(PullProgress {
+            kind: PullProgressKind::Pull,
+            value: 1.0,
+            title: title.clone(),
+            description: Some("Integrating fetched changes".to_owned()),
+            remote: remote_name.to_owned(),
+        });
+    }
+
+    let rebase = matches!(
+        get_config_value(repository, "pull.rebase", false)
+            .await
+            .ok()
+            .flatten()
+            .as_deref(),
+        Some("true" | "1" | "merges" | "preserve" | "interactive")
+    );
+    let ff = get_config_value(repository, "pull.ff", false)
+        .await
+        .ok()
+        .flatten();
+    let integration_hooks = hooks.map(|support| {
         support.intercepting([
             "pre-merge-commit",
             "prepare-commit-msg",
@@ -97,96 +180,51 @@ where
             "post-rewrite",
         ])
     });
-
-    // Wrapped rather than threaded: the hooks server has to stay alive for the whole invocation, and this
-    // operation has more than one way out of it.
-    with_hooks_env(
+    let integration = with_hooks_env(
         repository,
-        interception.as_ref(),
-        env.clone(),
-        |env| async move { pull_impl(repository, remote_name, &env, no_verify, on_progress).await },
-    )
-    .await?
-}
-
-async fn pull_impl<F>(
-    repository: impl AsRef<Path>,
-    remote_name: &str,
-    env: &HashMap<String, String>,
-    no_verify: bool,
-    on_progress: Option<F>,
-) -> Result<GitOutput, GitError>
-where
-    F: FnMut(PullProgress) + Send,
-{
-    let repository = repository.as_ref();
-
-    let mut args = vec![
-        "-c".to_owned(),
-        "rebase.backend=merge".to_owned(),
-        "pull".to_owned(),
-    ];
-    args.extend(default_divergent_branch_arguments(repository).await);
-    args.push("--recurse-submodules".to_owned());
-
-    let title = format!("Pulling {remote_name}");
-
-    let Some(mut on_progress) = on_progress else {
-        if no_verify {
-            args.push("--no-verify".to_owned());
-        }
-        args.push(remote_name.to_owned());
-
-        return run_with_progress(
-            repository,
-            RemoteRun {
-                args: &args,
-                name: "pull",
-                env,
-                success_exit_codes: &[],
-                parser: GitProgressParser::pull(),
-                context: ContextLines::OnlyCountingObjects,
-            },
-            |_, _| {},
-        )
-        .await;
-    };
-
-    args.push("--progress".to_owned());
-    if no_verify {
-        args.push("--no-verify".to_owned());
-    }
-    args.push(remote_name.to_owned());
-
-    on_progress(PullProgress {
-        kind: PullProgressKind::Pull,
-        value: 0.0,
-        title: title.clone(),
-        description: None,
-        remote: remote_name.to_owned(),
-    });
-
-    run_with_progress(
-        repository,
-        RemoteRun {
-            args: &args,
-            name: "pull",
-            env,
-            success_exit_codes: &[],
-            parser: GitProgressParser::pull(),
-            context: ContextLines::OnlyCountingObjects,
-        },
-        |value, description| {
-            on_progress(PullProgress {
-                kind: PullProgressKind::Pull,
-                value,
-                title: title.clone(),
-                description: Some(description),
-                remote: remote_name.to_owned(),
-            });
+        integration_hooks.as_ref(),
+        HashMap::new(),
+        |hook_env| async move {
+            let mut args = vec!["-c", "rebase.backend=merge"];
+            if rebase {
+                args.extend(["rebase", "--merge", "FETCH_HEAD"]);
+            } else {
+                args.push("merge");
+                args.push("--no-edit");
+                match ff.as_deref() {
+                    Some("only") => args.push("--ff-only"),
+                    Some("false") => args.push("--no-ff"),
+                    _ => {}
+                }
+                if no_verify {
+                    args.push("--no-verify");
+                }
+                args.push("FETCH_HEAD");
+            }
+            let mut options = GitOptions::default().with_expected_errors([
+                GitErrorKind::MergeConflicts,
+                GitErrorKind::RebaseConflicts,
+            ]);
+            for (name, value) in hook_env {
+                options = options.with_env(name, value);
+            }
+            git_streaming_controlled(
+                &args,
+                repository,
+                if rebase { "pullRebase" } else { "pullMerge" },
+                options,
+                control,
+                |_| {},
+                |_| {},
+            )
+            .await
         },
     )
-    .await
+    .await?;
+
+    // Fetch's output is the useful remote result for callers that do not consume progress.
+    let _ = fetch_result;
+    integration
 }
 
 #[cfg(test)]

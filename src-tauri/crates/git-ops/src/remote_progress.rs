@@ -69,6 +69,7 @@ pub(crate) struct RemoteRun<'a> {
 ///
 /// Authentication failures are declared expected, so they arrive as
 /// [`GitOutput::git_error`] rather than an `Err` — the caller decides whether to prompt and retry.
+#[cfg(test)]
 pub(crate) async fn run_with_progress<F>(
     repository: impl AsRef<Path>,
     run: RemoteRun<'_>,

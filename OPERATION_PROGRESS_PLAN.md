@@ -766,14 +766,18 @@ remote SHAs are reported as completed, while a failed or inconclusive query repo
 explicitly non-cancellable; none inherits the Merge/Rebase recovery policy.
 
 Push policy is complete for branch and tag refs, including local-remote reconciliation coverage.
-Pull is the next implementation target. The current native Pull still invokes one monolithic
-`git pull`, so cancellation must remain unavailable until it is split into these explicit phases:
+Pull is now split internally into explicit phases, but cancellation remains unavailable until
+integration recovery is wired and tested. The native Pull runner now:
 
 - Fetch the remote with the existing controlled Fetch runner and remote progress model.
 - Reconcile the fetched integration target using the configured `pull.rebase` and `pull.ff` policy.
 - Delegate merge integration recovery to Merge and rebase integration recovery to Rebase.
 - Keep hook interception active across the integration phase and preserve `noVerify` behavior.
 - Report network cancellation separately from an integration conflict or recovery failure.
+
+The first two bullets are implemented and covered by the existing Pull integration tests. The
+recovery delegation and command-level phase-specific termination tests remain before Pull can
+advertise `Stop waiting`.
 
 Implementation order:
 
