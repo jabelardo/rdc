@@ -491,7 +491,7 @@ export function AppDialogs({
             }
           }}
         >
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-[600px]">
             <DialogTitle>Manage remotes</DialogTitle>
             <div className="manage-remotes-toolbar mt-4 flex items-center gap-2">
               <input
@@ -562,7 +562,7 @@ export function AppDialogs({
             }
           }}
         >
-          <DialogContent className="sm:max-w-sm">
+          <DialogContent className="w-[min(30rem,calc(100vw-2rem))]">
             <DialogTitle>Add a remote</DialogTitle>
             <DialogFailure error={manageRemoteError} />
             <form
