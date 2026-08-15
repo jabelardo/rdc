@@ -57,6 +57,11 @@ type RepositoryMenuEnvironment = {
   readonly debugShowRebaseDialog?: () => void;
   readonly debugShowManageRemotesDialog?: () => void;
   readonly debugShowManageRemotesLongDialog?: () => void;
+  readonly debugShowManageRemotesFailedDialog?: () => void;
+  readonly debugShowAbortMergeDialog?: () => void;
+  readonly debugShowAbortMergeFailedDialog?: () => void;
+  readonly debugShowDeleteBranchRefusalDialog?: () => void;
+  readonly debugShowPreferencesFailedDialog?: () => void;
   readonly debugShowHookFailureDialog?: () => void;
 };
 
@@ -141,6 +146,7 @@ export function buildRepositoryMenu(
   enabledByID.set("abort-merge", hasSelection && mergeInProgress);
   enabledByID.set("debug-about", true);
   enabledByID.set("debug-preferences", preferencesState !== undefined);
+  enabledByID.set("debug-preferences-failed", preferencesState !== undefined);
   enabledByID.set("debug-clone", true);
   enabledByID.set("debug-clone-progress", true);
   enabledByID.set("debug-operation-progress", true);
@@ -151,6 +157,10 @@ export function buildRepositoryMenu(
   enabledByID.set("debug-rebase-branch", hasSelection);
   enabledByID.set("debug-manage-remotes", hasSelection);
   enabledByID.set("debug-manage-remotes-long", hasSelection);
+  enabledByID.set("debug-manage-remotes-failed", hasSelection);
+  enabledByID.set("debug-abort-merge", hasSelection);
+  enabledByID.set("debug-abort-merge-failed", hasSelection);
+  enabledByID.set("debug-delete-branch-refusal", hasSelection);
   enabledByID.set("debug-hook-failure", hasSelection);
   enabledByID.set("debug-show-discard-file-dialog", hasSelection);
   enabledByID.set("debug-show-add-remote-dialog", hasSelection);
@@ -390,6 +400,21 @@ export function createRepositoryMenuEventExecutor(
         return true;
       case "debug-show-manage-remotes-long-dialog":
         environment.debugShowManageRemotesLongDialog?.();
+        return true;
+      case "debug-show-manage-remotes-failed-dialog":
+        environment.debugShowManageRemotesFailedDialog?.();
+        return true;
+      case "debug-show-abort-merge-dialog":
+        environment.debugShowAbortMergeDialog?.();
+        return true;
+      case "debug-show-abort-merge-failed-dialog":
+        environment.debugShowAbortMergeFailedDialog?.();
+        return true;
+      case "debug-show-delete-branch-refusal-dialog":
+        environment.debugShowDeleteBranchRefusalDialog?.();
+        return true;
+      case "debug-show-preferences-failed-dialog":
+        environment.debugShowPreferencesFailedDialog?.();
         return true;
       case "debug-show-hook-failure-dialog":
         environment.debugShowHookFailureDialog?.();

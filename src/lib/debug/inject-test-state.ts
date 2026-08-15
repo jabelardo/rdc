@@ -27,6 +27,7 @@ import type { IRemote } from "../../models/remote";
 import type { MergeTreeResult } from "../../models/merge";
 import type { RebasePreview } from "../../models/rebase-preview";
 import { getDefaultCloneStore } from "../stores/default-clone-store";
+import { getDefaultPreferencesStore } from "../stores/default-preferences-store";
 
 // ── Stub data factories ──────────────────────────────────────────────
 
@@ -275,6 +276,23 @@ function setStoreState<S>(store: { readonly state: S }, state: S): void {
       listener(state);
     }
   }
+}
+
+/**
+ * Puts a failure on the preferences store, or clears one, without disturbing the loaded state.
+ *
+ * The spread is deliberate, and the exception to this module's no-spread rule: everything else here
+ * builds a stub from nothing, where a spread would carry stale fields across loads. Preferences are
+ * real — the editors and shells the dialog lists were read from the machine — so replacing them
+ * with a stub would preview a dialog nobody has. Only the failure is injected.
+ *
+ * Clearing has to be possible for the same reason the hook failure is opt-in: this error lives in
+ * the store and nothing but a reload clears it, so without an explicit reset the *plain*
+ * Preferences entry would keep showing a failure injected by the other one.
+ */
+export function injectPreferencesFailure(message: string | null): void {
+  const store = getDefaultPreferencesStore();
+  setStoreState(store, { ...store.state, error: message });
 }
 
 type DebugStateOptions = {

@@ -25,8 +25,10 @@ import {
   debugRebasePreview,
   injectCloneProgress,
   injectDebugState,
+  injectPreferencesFailure,
   isDebugStateInjected,
 } from "../../debug/inject-test-state";
+import { deleteBranchRefusal } from "../../delete-branch-refusal";
 import { showFolderContents } from "../../platform/files";
 import { getAppArchitecture, type Architecture } from "../../platform/paths";
 import { installDefaultCloseRequestHandler } from "../../platform/lifetime";
@@ -493,7 +495,12 @@ export function useAppController() {
         }
       },
       debugShowAboutDialog: () => setShowAboutDialog(true),
-      debugShowPreferencesDialog: () => setShowPreferencesDialog(true),
+      debugShowPreferencesDialog: () => {
+        // Clears a failure the "(failed)" entry may have left in the store, which nothing else
+        // does — otherwise this entry would preview the other one's state.
+        injectPreferencesFailure(null);
+        setShowPreferencesDialog(true);
+      },
       debugShowCloneDialog: () => setShowCloneDialog(true),
       debugShowOperationProgressDialog: () => setDebugProgressLauncher(true),
       debugShowCloneProgressDialog: () => {
@@ -555,6 +562,34 @@ export function useAppController() {
         injectDebugState();
         deleteCurrentBranch();
       },
+      // The notice, not the confirmation. `deleteCurrentBranch` above reaches the confirm dialog
+      // because the injected state is not yet visible to this render's `branchState`, so the
+      // refusal never fires there — which left the one `NoticeDialog` in the app unpreviewable.
+      // The wording comes from the same function the real refusal uses, so it cannot drift.
+      debugShowDeleteBranchRefusalDialog: () => {
+        injectDebugState();
+        const stub = branchStore.state;
+        const refusal = deleteBranchRefusal(
+          stub.currentBranch ?? "main",
+          stub.currentBranch,
+          stub.defaultBranch,
+        );
+        if (refusal !== null) {
+          setDeleteRefusal(refusal);
+        }
+      },
+      debugShowAbortMergeDialog: () => {
+        injectDebugState();
+        setAbortMergeError(null);
+        setConfirmingAbortMerge(true);
+      },
+      // Convention 17's invariant is the thing to look at here: a dialog showing a failure must
+      // still offer an enabled way out, or a retryable dialog becomes a trap.
+      debugShowAbortMergeFailedDialog: () => {
+        injectDebugState();
+        setAbortMergeError("fatal: There is no merge to abort (MERGE_HEAD missing).");
+        setConfirmingAbortMerge(true);
+      },
       debugShowMergeDialog: () => {
         injectDebugState();
         requestMerge();
@@ -572,6 +607,16 @@ export function useAppController() {
       debugShowManageRemotesLongDialog: () => {
         injectDebugState({ manyRemotes: true });
         requestManageRemotes();
+      },
+      // `requestManageRemotes` clears the error on the way in, so the failure is set after it.
+      debugShowManageRemotesFailedDialog: () => {
+        injectDebugState();
+        requestManageRemotes();
+        setManageRemoteError('Could not remove "upstream": remote is in use by a worktree.');
+      },
+      debugShowPreferencesFailedDialog: () => {
+        injectPreferencesFailure("Could not save preferences: the settings file is read-only.");
+        setShowPreferencesDialog(true);
       },
       debugShowHookFailureDialog: () => {
         injectDebugState({ hookFailure: true });
@@ -1308,12 +1353,13 @@ export function useAppController() {
   }
 
   async function requestDelete(branch: Branch): Promise<void> {
-    if (branch.name === branchState.currentBranch || branch.name === branchState.defaultBranch) {
-      setDeleteRefusal(
-        branch.name === branchState.currentBranch
-          ? `You cannot delete the current branch '${branch.name}'.`
-          : `You cannot delete the default branch '${branch.name}'.`,
-      );
+    const refusal = deleteBranchRefusal(
+      branch.name,
+      branchState.currentBranch,
+      branchState.defaultBranch,
+    );
+    if (refusal !== null) {
+      setDeleteRefusal(refusal);
       return;
     }
     const repository = appState.selectedRepository;

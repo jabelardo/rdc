@@ -102,6 +102,11 @@ export type MenuEvent =
   | "debug-show-rebase-dialog"
   | "debug-show-manage-remotes-dialog"
   | "debug-show-manage-remotes-long-dialog"
+  | "debug-show-manage-remotes-failed-dialog"
+  | "debug-show-abort-merge-dialog"
+  | "debug-show-abort-merge-failed-dialog"
+  | "debug-show-delete-branch-refusal-dialog"
+  | "debug-show-preferences-failed-dialog"
   | "debug-show-hook-failure-dialog"
   | "debug-show-add-remote-dialog"
   | "debug-show-remove-repository-dialog";

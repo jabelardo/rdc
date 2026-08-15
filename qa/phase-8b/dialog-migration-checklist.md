@@ -52,9 +52,15 @@ judgements the automated gates cannot make.
 - [ ] **Toast severity reads at a glance** in Light and Dark: error and warning carry the
       `--error-*`/`--warning-*` surfaces, info is the neutral popover surface rather than sonner's
       default blue.
-- [ ] **A dialog-owned failure stays in its dialog, and the dialog stays escapable.** Make Remove
-      repository fail; confirm the dialog stays open, shows the failure inline, and Cancel still
-      closes it. Same for Add remote and Preferences.
+- [ ] **A dialog-owned failure stays in its dialog, and the dialog stays escapable.** Three entries
+      preview the three surfaces that can show one, one per dialog shape: **Abort merge (failed)…**
+      (the shared `ConfirmDialog`), **Manage remotes (failed)…** (a list dialog) and **Preferences
+      (failed)…** (the tabbed dialog — the failure sits outside the tabs, so confirm it stays
+      visible whichever category is selected). In each, confirm the dialog stays open, shows the
+      failure inline rather than as a toast, and still has an enabled way out. That last part is
+      Convention 17 and the reason these are previewable at all: a dialog that reports a failure
+      while refusing every exit is a trap. The `ConfirmDialog` half is also pinned by test; the
+      other two are not.
 - [ ] **`DialogFailure` under forced colors** (Windows high-contrast, and macOS Increase contrast):
       the block keeps a visible border and readable text. It carries a layout-free `dialog-failure`
       class purely so the `forced-colors` rule that `.application-error` used to own still applies.
@@ -142,6 +148,10 @@ These three were the first migrated. Validate them in **Help → Show Dialog**. 
 | Rename branch… | Dialog | Dark | | | Cancel / Rename | — | | | Migrated | |
 | Delete branch… | AlertDialog | Light | | | Close / Delete | — | | Stub state injected by debug menu | |
 | Delete branch… | AlertDialog | Dark | | | Close / Delete | — | | | |
+| Cannot delete branch… | AlertDialog | Light | | | Close only | — | | The app's only `NoticeDialog`: one action, nothing to confirm | |
+| Cannot delete branch… | AlertDialog | Dark | | | OK only | — | | | |
+| Abort merge… | AlertDialog | Light | | | Cancel / Abort merge | — | | Also check its `(failed)` entry — see Convention 17 above | |
+| Abort merge… | AlertDialog | Dark | | | Cancel / Abort merge | — | | | |
 | Merge… | Dialog | Light | | | Cancel / Merge | **Cat 1 — shared progress dialog wired** | | Stub state injected by debug menu | Migrated; progress wired |
 | Merge… | Dialog | Dark | | | Cancel / Merge | **Cat 1 — shared progress dialog wired** | | | Migrated; progress wired | |
 | Rebase… | Dialog | Light | | | Cancel / Rebase | **Cat 1 — shared progress dialog wired** | | Stub state injected by debug menu | Migrated; progress wired |

@@ -603,6 +603,11 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
           label: "Preferences",
           action: event("debug-show-preferences-dialog"),
         },
+        {
+          id: "debug-preferences-failed",
+          label: "Preferences (failed)…",
+          action: event("debug-show-preferences-failed-dialog"),
+        },
         { id: "debug-clone", label: "Clone", action: event("debug-show-clone-dialog") },
         {
           id: "debug-clone-progress",
@@ -635,6 +640,21 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
           action: event("debug-show-delete-branch-dialog"),
         },
         {
+          id: "debug-delete-branch-refusal",
+          label: "Cannot delete branch…",
+          action: event("debug-show-delete-branch-refusal-dialog"),
+        },
+        {
+          id: "debug-abort-merge",
+          label: "Abort merge…",
+          action: event("debug-show-abort-merge-dialog"),
+        },
+        {
+          id: "debug-abort-merge-failed",
+          label: "Abort merge (failed)…",
+          action: event("debug-show-abort-merge-failed-dialog"),
+        },
+        {
           id: "debug-merge-branch",
           label: "Merge branch…",
           action: event("debug-show-merge-dialog"),
@@ -653,6 +673,11 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
           id: "debug-manage-remotes-long",
           label: "Manage remotes (long list)…",
           action: event("debug-show-manage-remotes-long-dialog"),
+        },
+        {
+          id: "debug-manage-remotes-failed",
+          label: "Manage remotes (failed)…",
+          action: event("debug-show-manage-remotes-failed-dialog"),
         },
         {
           id: "debug-hook-failure",
