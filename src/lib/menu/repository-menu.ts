@@ -36,6 +36,7 @@ type RepositoryMenuEnvironment = {
   readonly decreaseActiveResizableWidth: () => void;
   readonly createBranch: () => void;
   readonly discardAllChanges: () => void | Promise<void>;
+  readonly abortMerge: () => void | Promise<void>;
   readonly permanentlyDiscardAllChanges: () => void | Promise<void>;
   readonly renameBranch: () => void;
   readonly deleteBranch: () => void;
@@ -81,6 +82,7 @@ export function buildRepositoryMenu(
   remoteState?: RemoteState,
   preferencesState?: PreferencesState,
   repositoryOperationActive = false,
+  mergeInProgress = false,
 ): IMenu {
   const hasRepositories = state.repositories.length > 0;
   const hasSelection = state.selectedRepository !== null;
@@ -132,6 +134,9 @@ export function buildRepositoryMenu(
   enabledByID.set("rename-branch", hasSelection);
   enabledByID.set("delete-branch", hasSelection);
   enabledByID.set("merge-branch", hasSelection);
+  // Only offerable when there is a merge to abandon, so the menu never advertises a recovery the
+  // repository does not need.
+  enabledByID.set("abort-merge", hasSelection && mergeInProgress);
   enabledByID.set("debug-about", true);
   enabledByID.set("debug-preferences", preferencesState !== undefined);
   enabledByID.set("debug-clone", true);
@@ -285,6 +290,12 @@ export function createRepositoryMenuEventExecutor(
           return false;
         }
         environment.createBranch();
+        return true;
+      case "abort-merge":
+        if (store.state.selectedRepository === null) {
+          return false;
+        }
+        await environment.abortMerge();
         return true;
       case "discard-all-changes":
         if (store.state.selectedRepository === null) {

@@ -88,6 +88,11 @@ type AppDialogsProps = {
   readonly onConfirmDiscard: () => void;
   readonly onCancelDiscardAll: () => void;
   readonly onConfirmDiscardAll: () => void;
+  readonly confirmingAbortMerge: boolean;
+  readonly abortingMerge: boolean;
+  readonly abortMergeError: string | null;
+  readonly onCancelAbortMerge: () => void;
+  readonly onConfirmAbortMerge: () => void;
   readonly onCancelRemoveRepository: () => void;
   readonly removeRepositoryError: string | null;
   readonly removingRepository: boolean;
@@ -198,6 +203,11 @@ export function AppDialogs({
   onConfirmDiscard,
   onCancelDiscardAll,
   onConfirmDiscardAll,
+  confirmingAbortMerge,
+  abortingMerge,
+  abortMergeError,
+  onCancelAbortMerge,
+  onConfirmAbortMerge,
   onCancelRemoveRepository,
   removeRepositoryError,
   removingRepository,
@@ -641,6 +651,24 @@ export function AppDialogs({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      )}
+
+      {confirmingAbortMerge && (
+        <ConfirmDialog
+          title="Abort merge"
+          description="Abort the in-progress merge?"
+          confirmLabel="Abort merge"
+          busyLabel="Aborting…"
+          busy={abortingMerge}
+          error={abortMergeError}
+          onConfirm={onConfirmAbortMerge}
+          onCancel={onCancelAbortMerge}
+        >
+          <p>
+            Any conflict resolutions you have not committed will be discarded, and the branch
+            returns to where it was before the merge started.
+          </p>
+        </ConfirmDialog>
       )}
 
       {repositoryToRemove !== null && (

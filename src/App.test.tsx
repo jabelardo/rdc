@@ -195,12 +195,12 @@ const conflictStore = vi.hoisted(() => ({
       resolvedInWorkingTree: boolean;
     }>,
     loading: false,
-    error: null as string | null,
+    loadFailed: false,
     stagingPath: null as string | null,
-    operationError: null as string | null,
   },
   load: vi.fn(),
   stageResolvedFile: vi.fn(),
+  abortMerge: vi.fn(),
   clear: vi.fn(),
   onDidUpdate: vi.fn(),
 }));
@@ -471,11 +471,12 @@ describe("App", () => {
       mergeInProgress: false,
       files: [],
       loading: false,
-      error: null,
+      loadFailed: false,
       stagingPath: null,
-      operationError: null,
     };
     conflictStore.load.mockReset();
+    conflictStore.abortMerge.mockReset();
+    conflictStore.abortMerge.mockResolvedValue(null);
     conflictStore.load.mockResolvedValue(undefined);
     conflictStore.stageResolvedFile.mockReset();
     conflictStore.stageResolvedFile.mockResolvedValue(false);
@@ -1222,9 +1223,8 @@ describe("App", () => {
         },
       ],
       loading: false,
-      error: null,
+      loadFailed: false,
       stagingPath: null,
-      operationError: null,
     };
     conflictStore.stageResolvedFile.mockResolvedValue(true);
     const user = userEvent.setup();
@@ -2143,6 +2143,36 @@ describe("App", () => {
     expect(screen.getByRole("alertdialog", { name: "Remove repository" })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Remove repository" }));
     expect(appStore.removeRepository).toHaveBeenCalledWith(repository);
+  });
+
+  // BRANCH_OPERATIONS_PLAN.md Slice 4. Aborting throws away uncommitted conflict resolution, so it
+  // is destructive and asks first — and the confirmation obeys Convention 17.
+  it("confirms before aborting a merge, and keeps the dialog on failure", async () => {
+    appStore.state = { repositories: [repository], selectedRepository: repository };
+    conflictStore.state = {
+      ...conflictStore.state,
+      repositoryPath: repository.path,
+      mergeInProgress: true,
+    };
+    conflictStore.abortMerge.mockResolvedValueOnce("merge is not in progress");
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("button", { name: "Abort merge" }));
+
+    const dialog = await screen.findByRole("alertdialog", { name: "Abort merge" });
+    expect(conflictStore.abortMerge).not.toHaveBeenCalled();
+    expect(dialog).toHaveTextContent(/discarded/);
+
+    await user.click(within(dialog).getByRole("button", { name: "Abort merge" }));
+
+    expect(conflictStore.abortMerge).toHaveBeenCalledOnce();
+    expect(await within(dialog).findByText("merge is not in progress")).toBeInTheDocument();
+
+    const cancel = within(dialog).getByRole("button", { name: "Cancel" });
+    expect(cancel).toBeEnabled();
+    await user.click(cancel);
+    expect(screen.queryByRole("alertdialog", { name: "Abort merge" })).not.toBeInTheDocument();
   });
 
   // Convention 17: the dialog owns the failure of the action it confirmed, so it may not dismiss

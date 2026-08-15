@@ -77,6 +77,11 @@ repeat evidence on Ubuntu specifically.
   from its row's context menu and verify both land — the context menu is also a native popup
   (`src-tauri/src/platform/context_menu.rs`), not DOM, so this is unautomatable for the same
   reason the menu bar is and needs the same manual check.
+- **Verify Abort merge dispatches from the native menu** with a conflicted merge in progress:
+  Branch → Abort merge… (Ctrl+Shift+K) must open its confirmation, and confirming must return the
+  branch to its pre-merge state and clear the conflict banner. The item must be **disabled** when no
+  merge is in progress — it is the only Branch item gated on repository state rather than merely on
+  a selected repository.
 - Exercise native open/save dialogs, file manager, editor and terminal launch on the installed desktop;
   test one deliberately missing integration and require visible failure rather than hollow success.
 - Open two repository windows with different repositories/views. Alternate focus while invoking native

@@ -6,7 +6,7 @@ import { nameOf, type Repository } from "../../../models/repository";
 import { getCloneDirectoryName } from "../../clone-destination";
 import { isContiguousSelection, orderSelectedCommits } from "../../history-operation-selection";
 import { getMergedBranches } from "../../branch-ipc";
-import { abortMerge, abortRebase, continueRebase, initRepository } from "../../git-ipc";
+import { abortRebase, continueRebase, initRepository } from "../../git-ipc";
 import { abortRevert, getRepositoryType, revertCommit } from "../../misc-ipc";
 import { repositoryAvailability } from "../../repository-availability";
 import { reportErrorMessage } from "../../format-error";
@@ -230,6 +230,9 @@ export function useAppController() {
   const [appArchitecture, setAppArchitecture] = useState<Architecture | null>(null);
   const [showPreferencesDialog, setShowPreferencesDialog] = useState(false);
   const [repositoryToRemove, setRepositoryToRemove] = useState<Repository | null>(null);
+  const [confirmingAbortMerge, setConfirmingAbortMerge] = useState(false);
+  const [abortingMerge, setAbortingMerge] = useState(false);
+  const [abortMergeError, setAbortMergeError] = useState<string | null>(null);
   const [removeRepositoryError, setRemoveRepositoryError] = useState<string | null>(null);
   const [removingRepository, setRemovingRepository] = useState(false);
   const [cloneURL, setCloneURL] = useState("");
@@ -452,6 +455,7 @@ export function useAppController() {
       decreaseActiveResizableWidth,
       createBranch,
       discardAllChanges: () => requestDiscardAll(false),
+      abortMerge: requestAbortMerge,
       permanentlyDiscardAllChanges: () => requestDiscardAll(true),
       renameBranch: renameCurrentBranch,
       deleteBranch: deleteCurrentBranch,
@@ -1437,13 +1441,45 @@ export function useAppController() {
     await conflictStore.load(repository.path);
   }
 
-  async function abortMergeRecovery(): Promise<void> {
-    const repository = appState.selectedRepository;
-    if (repository === null || !conflictState.mergeInProgress) {
+  /** Opens the confirmation. Aborting throws away uncommitted resolution work, so it is destructive. */
+  function requestAbortMerge(): void {
+    if (appState.selectedRepository === null || !conflictState.mergeInProgress) {
       return;
     }
-    await abortMerge(repository.path);
-    await conflictStore.load(repository.path);
+    setAbortMergeError(null);
+    setConfirmingAbortMerge(true);
+  }
+
+  function cancelAbortMerge(): void {
+    if (abortingMerge) {
+      return;
+    }
+    setConfirmingAbortMerge(false);
+    setAbortMergeError(null);
+  }
+
+  /**
+   * Abandons the merge after the user has confirmed.
+   *
+   * The dialog stays open until the abort settles and keeps its failure inline — Convention 17 —
+   * and Cancel stays enabled whenever the abort is not in flight. On success the working tree and
+   * branches are reloaded too: aborting moves `HEAD` and the index, not just the conflict state.
+   */
+  async function confirmAbortMerge(): Promise<void> {
+    const repository = appState.selectedRepository;
+    if (repository === null || abortingMerge) {
+      return;
+    }
+    setAbortMergeError(null);
+    setAbortingMerge(true);
+    const failure = await conflictStore.abortMerge();
+    setAbortingMerge(false);
+    if (failure !== null) {
+      setAbortMergeError(failure);
+      return;
+    }
+    setConfirmingAbortMerge(false);
+    await Promise.all([workingTreeStore.load(repository.path), branchStore.load(repository.path)]);
   }
 
   async function squashSelectedCommits(commits: ReadonlyArray<Commit>): Promise<void> {
@@ -2064,7 +2100,12 @@ export function useAppController() {
     abortHistoryRecovery,
     continueRebaseRecovery,
     abortRebaseRecovery,
-    abortMergeRecovery,
+    requestAbortMerge,
+    cancelAbortMerge,
+    confirmAbortMerge,
+    confirmingAbortMerge,
+    abortingMerge,
+    abortMergeError,
     squashSelectedCommits,
     reorderSelectedCommits,
     mergePickerOpen,

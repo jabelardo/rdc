@@ -18,6 +18,7 @@ export type MenuIDs =
   | "preferences"
   | "update-branch-with-contribution-target-branch"
   | "merge-branch"
+  | "abort-merge"
   | "squash-and-merge-branch"
   | "rebase-branch"
   | "view-repository-on-github"

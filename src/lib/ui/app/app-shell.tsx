@@ -114,7 +114,12 @@ export function AppShell({ controller }: AppShellProps) {
     abortHistoryRecovery,
     continueRebaseRecovery,
     abortRebaseRecovery,
-    abortMergeRecovery,
+    requestAbortMerge,
+    cancelAbortMerge,
+    confirmAbortMerge,
+    confirmingAbortMerge,
+    abortingMerge,
+    abortMergeError,
     squashSelectedCommits,
     reorderSelectedCommits,
     mergePickerOpen,
@@ -329,7 +334,7 @@ export function AppShell({ controller }: AppShellProps) {
                 onAbortRecovery={() => void abortHistoryRecovery()}
                 onContinueRebase={() => void continueRebaseRecovery()}
                 onAbortRebase={() => void abortRebaseRecovery()}
-                onAbortMerge={() => void abortMergeRecovery()}
+                onAbortMerge={requestAbortMerge}
               />
             )}
             <ChangesWorkspace
@@ -387,6 +392,11 @@ export function AppShell({ controller }: AppShellProps) {
         onConfirmDiscard={() => void confirmDiscard()}
         onCancelDiscardAll={cancelDiscardAll}
         onConfirmDiscardAll={() => void confirmDiscardAll()}
+        confirmingAbortMerge={confirmingAbortMerge}
+        abortingMerge={abortingMerge}
+        abortMergeError={abortMergeError}
+        onCancelAbortMerge={cancelAbortMerge}
+        onConfirmAbortMerge={() => void confirmAbortMerge()}
         onCancelRemoveRepository={cancelRemoveRepository}
         removeRepositoryError={removeRepositoryError}
         removingRepository={removingRepository}

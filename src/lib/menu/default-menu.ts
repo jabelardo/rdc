@@ -484,6 +484,11 @@ export function buildDefaultMenu(
         action: event("squash-and-merge-branch"),
       },
       {
+        label: mac ? "Abort Merge…" : "&Abort merge…",
+        id: "abort-merge",
+        action: event("abort-merge"),
+      },
+      {
         label: mac ? "Rebase Current Branch…" : "R&ebase current branch…",
         id: "rebase-branch",
         action: event("rebase-branch"),

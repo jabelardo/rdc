@@ -88,6 +88,12 @@ native acceptance record; do not label it automated.
   branch, and surface a conflicting one through the conflict-recovery surface; Repository → Manage
   Remotes… must list/add/remove remotes. Rename/Delete a **non-current** branch from its row's
   context menu and verify both land.
+- **Verify Abort merge dispatches from the native menu** with a conflicted merge in progress:
+  Branch → Abort merge… (Cmd+Shift+K) must open its confirmation, and confirming must return the
+  branch to its pre-merge state and clear the conflict banner. The item must be **disabled** when no
+  merge is in progress — it is the only Branch item gated on repository state rather than merely on
+  a selected repository. Same provenance as the items above: the unit tests prove an executor and
+  the enablement rule, but native dispatch is only provable by hand.
 - Open a second repository window, give each window a different selected repository/view, and repeat
   menu, context-menu and close actions while alternating focus. State and commands must remain scoped
   to the focused window; closing one must not destroy or retarget the other.

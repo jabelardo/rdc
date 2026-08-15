@@ -26,6 +26,7 @@ export type MenuEvent =
   | "update-branch-with-contribution-target-branch"
   | "compare-to-branch"
   | "merge-branch"
+  | "abort-merge"
   | "squash-and-merge-branch"
   | "rebase-branch"
   | "show-repository-settings"

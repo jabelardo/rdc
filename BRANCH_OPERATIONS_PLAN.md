@@ -1,8 +1,7 @@
 # Branch operations — closing the MVP menu gap
 
 **Status**: Slices 1–3 (discard-all ×2, rename + delete, merge initiation) are landed and promoted
-in the menu baseline — code-complete and gated-green. **Slice 4 (abort merge) is planned, not
-started** — a real gap found checking the MVP exit criteria against the actual code, not a scope
+in the menu baseline — code-complete and gated-green. **Slice 4 (abort merge) landed 2026-08-15** — a real gap found checking the MVP exit criteria against the actual code, not a scope
 change to what Slices 1–3 already closed. `update-from-default remains deferred to Phase 7f` by
 the scope decision. Supersedes the "expected disposition" paragraph of F-MENU-001 in
 `qa/phase-8b/evidence/menu-mvp-alignment-findings.md`. Native-menu-dispatch verification for every
@@ -239,6 +238,35 @@ against every combo in `COMMON_DEFAULTS`, `src-tauri/src/platform/keybindings.rs
 native-menu-only action, so — per the pattern already established for Slices 1–3 — no new E2E is
 possible; native-dispatch verification joins the same `qa/phase-8b/macos-checklist.md` §7 /
 `linux-wayland-checklist.md` line as the other five, tracked in `REMAINING.md`'s QA-cycle-2 item.
+
+**Landed 2026-08-15.** Some of it had arrived early and by another route:
+`OPERATION_PROGRESS_PLAN.md` Slice 18's restart recovery added the `Abort merge` button to
+`merge-conflicts.tsx` and a controller handler that called the IPC directly. What this slice added
+was the rest — and the confirmation the plan asked for, which that early arrival did not have.
+
+- **Store.** `conflictStore.abortMerge()` returns the failure text rather than reporting it, because
+  the confirmation dialog owns the action (Convention 17). It refreshes from the resulting status,
+  and the controller reloads the working tree and branches too: aborting moves `HEAD` and the index,
+  not just conflict state.
+- **Confirmation.** Destructive, so it asks first and says what is lost. It stays open until the
+  abort settles, renders a failure inline, and keeps Cancel enabled whenever the abort is not in
+  flight.
+- **Menu.** New id, event, item, executor, and enablement gated on `mergeInProgress` — the only
+  Branch item gated on repository state rather than merely on a selected repository.
+  `CmdOrCtrl+Shift+K`, which was free among the defaults.
+
+Two things the existing tests caught, both worth keeping in mind for the next menu addition:
+
+- The Windows/Linux label `A&bort merge…` collided on access key `b` with `New &branch…`. The
+  duplicate-access-key test found it immediately; the label is `&Abort merge…`.
+- Two keybinding tests used `Shift+K` as an arbitrary custom binding, so the conflict detector
+  correctly refused the new default. They now use `Shift+J`, with a note saying why. The
+  binding-count assertions moved 50 → 51: rdc now has one binding upstream has no equivalent for,
+  which is the point of this slice.
+
+Native dispatch is unautomatable as ever, so the row joins the other five in
+`qa/phase-8b/macos-checklist.md` §7 and the Linux equivalent — including that the item must be
+*disabled* with no merge in progress.
 
 ## Deferred — Update from default branch
 

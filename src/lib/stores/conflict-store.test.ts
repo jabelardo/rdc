@@ -215,6 +215,61 @@ describe("ConflictStore", () => {
     expect(message?.count).toBe(3);
   });
 
+  describe("abortMerge", () => {
+    it("abandons the merge and refreshes from the resulting status", async () => {
+      const abortMerge = vi.fn(async () => undefined);
+      const getStatus = vi
+        .fn()
+        .mockResolvedValueOnce(status(1))
+        // What the repository looks like once the merge is abandoned: no merge, no conflicts.
+        .mockResolvedValueOnce({
+          ...status(0, false),
+          files: [],
+          doConflictedFilesExist: false,
+        });
+      const store = new ConflictStore({ getStatus, abortMerge });
+      await store.load("/repo");
+      expect(store.state.mergeInProgress).toBe(true);
+
+      await expect(store.abortMerge()).resolves.toBeNull();
+
+      expect(abortMerge).toHaveBeenCalledWith("/repo");
+      expect(store.state.mergeInProgress).toBe(false);
+      expect(store.state.files).toEqual([]);
+    });
+
+    // The failure is returned rather than reported: the confirmation dialog owns this action and
+    // renders it inline — Convention 17.
+    it("returns the failure instead of reporting it, and keeps the conflict state", async () => {
+      const store = new ConflictStore({
+        getStatus: vi.fn(async () => status(1)),
+        abortMerge: vi.fn(async () => {
+          throw new Error("merge is not in progress");
+        }),
+      });
+      await store.load("/repo");
+
+      await expect(store.abortMerge()).resolves.toBe("merge is not in progress");
+
+      expect(store.state.mergeInProgress).toBe(true);
+      expect(store.state.loading).toBe(false);
+      expect(getDefaultMessageStore().state.messages).toEqual([]);
+    });
+
+    it("does nothing when there is no merge to abandon", async () => {
+      const abortMerge = vi.fn(async () => undefined);
+      const store = new ConflictStore({
+        getStatus: vi.fn(async () => ({ ...status(0), mergeHeadFound: false })),
+        abortMerge,
+      });
+      await store.load("/repo");
+
+      await expect(store.abortMerge()).resolves.toBeNull();
+
+      expect(abortMerge).not.toHaveBeenCalled();
+    });
+  });
+
   it("ignores stale status after switching repositories", async () => {
     let resolveOld: ((status: IStatusResult) => void) | undefined;
     const oldStatus = new Promise<IStatusResult>((resolve) => {

@@ -4,6 +4,7 @@ import {
   type ConflictedFileStatus,
 } from "../../models/status";
 import {
+  abortMerge,
   getStatus,
   stageResolvedConflictFiles,
   type IStatusFileChange,
@@ -39,11 +40,13 @@ export type ConflictState = {
 
 type ConflictStoreDependencies = {
   readonly getStatus: typeof getStatus;
+  readonly abortMerge: typeof abortMerge;
   readonly stageResolvedConflictFiles: typeof stageResolvedConflictFiles;
 };
 
 const defaultDependencies: ConflictStoreDependencies = {
   getStatus,
+  abortMerge,
   stageResolvedConflictFiles,
 };
 
@@ -136,6 +139,38 @@ export class ConflictStore {
         loadFailed: true,
         stagingPath: null,
       });
+    }
+  }
+
+  /**
+   * Abandons an in-progress merge, discarding whatever conflict resolution is uncommitted.
+   *
+   * Returns the failure text rather than reporting it, because the caller is the confirmation
+   * dialog that owns this action — Convention 17 in `COMPONENT_MIGRATION_PROCESS.md`. `null` means
+   * the merge was aborted, and the caller can close.
+   */
+  public async abortMerge(): Promise<string | null> {
+    const repositoryPath = this.currentState.repositoryPath;
+    if (repositoryPath === null || !this.currentState.mergeInProgress) {
+      return null;
+    }
+
+    const requestID = this.requestID;
+    const operationID = ++this.operationID;
+    this.update({ ...this.currentState, loading: true });
+    try {
+      await this.dependencies.abortMerge(repositoryPath);
+      const status = await this.dependencies.getStatus(repositoryPath, true);
+      if (!this.isCurrentOperation(requestID, operationID)) {
+        return null;
+      }
+      this.update(this.stateFromStatus(repositoryPath, status));
+      return null;
+    } catch (error) {
+      if (this.isCurrentOperation(requestID, operationID)) {
+        this.update({ ...this.currentState, loading: false });
+      }
+      return describeError(error);
     }
   }
 

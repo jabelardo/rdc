@@ -8,7 +8,7 @@ use thiserror::Error;
 
 const CONFIG_FILE_NAME: &str = "keybindings.json";
 
-const COMMON_DEFAULTS: [(&str, &str); 48] = [
+const COMMON_DEFAULTS: [(&str, &str); 49] = [
     ("preferences", "CmdOrCtrl+,"),
     ("repository-preferences", "CmdOrCtrl+Shift+,"),
     ("new-repository", "CmdOrCtrl+N"),
@@ -54,6 +54,7 @@ const COMMON_DEFAULTS: [(&str, &str); 48] = [
     ),
     ("compare-to-branch", "CmdOrCtrl+Shift+B"),
     ("merge-branch", "CmdOrCtrl+Shift+M"),
+    ("abort-merge", "CmdOrCtrl+Shift+K"),
     ("squash-and-merge-branch", "CmdOrCtrl+Shift+H"),
     ("rebase-branch", "CmdOrCtrl+Shift+E"),
     ("compare-on-github", "CmdOrCtrl+Shift+C"),
@@ -371,17 +372,19 @@ mod tests {
     use std::collections::BTreeMap;
 
     #[test]
-    fn extracts_fifty_unique_logical_bindings_from_upstreams_fifty_two_declarations() {
-        // The local source audit checks all 52 declarations item-for-item. The runtime map has 50
-        // keys because preferences and repository-preferences each occur once in the macOS app menu
-        // and once in the non-macOS File menu with identical defaults.
-        assert_eq!(COMMON_DEFAULTS.len() + 2 + 2, 52);
+    fn extracts_fifty_one_unique_logical_bindings_from_upstreams_fifty_two_declarations() {
+        // The local source audit checks all 52 upstream declarations item-for-item. The runtime map
+        // has 51 keys: 50 from upstream — preferences and repository-preferences each occur once in
+        // the macOS app menu and once in the non-macOS File menu with identical defaults, so the
+        // 52 declarations collapse to 50 — plus rdc's own `abort-merge`, which upstream has no
+        // equivalent for (BRANCH_OPERATIONS_PLAN.md Slice 4).
+        assert_eq!(COMMON_DEFAULTS.len() + 2 + 2, 53);
         for platform in [
             BindingPlatform::MacOs,
             BindingPlatform::Windows,
             BindingPlatform::Other,
         ] {
-            assert_eq!(default_keybindings(platform).len(), 50);
+            assert_eq!(default_keybindings(platform).len(), 51);
         }
     }
 
@@ -408,9 +411,11 @@ mod tests {
     #[tokio::test]
     async fn persists_only_overrides_and_merges_them_with_defaults() {
         let directory = tempfile::tempdir().expect("temp directory");
+        // Any unused combo will do; Shift+J rather than Shift+K because `abort-merge` now owns
+        // Shift+K and the conflict detector rightly refuses it.
         let custom = Keybinding {
             modifiers: vec![KeybindingModifier::Shift, KeybindingModifier::Control],
-            key: "KeyK".to_owned(),
+            key: "KeyJ".to_owned(),
         };
 
         let updated = set_keybinding(directory.path(), BindingPlatform::Other, "pull", custom)
@@ -420,7 +425,7 @@ mod tests {
             updated["pull"].modifiers,
             [KeybindingModifier::Control, KeybindingModifier::Shift]
         );
-        assert_eq!(updated.len(), 50);
+        assert_eq!(updated.len(), 51);
 
         let persisted: BTreeMap<String, Keybinding> = serde_json::from_slice(
             &tokio::fs::read(directory.path().join("keybindings.json"))
@@ -493,7 +498,7 @@ mod tests {
             "pull",
             Keybinding {
                 modifiers: vec![KeybindingModifier::Meta, KeybindingModifier::Shift],
-                key: "KeyK".to_owned(),
+                key: "KeyJ".to_owned(),
             },
         )
         .await
