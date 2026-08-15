@@ -88,15 +88,13 @@ Deliberately sequenced ahead of the QA-cycle-2 item below: rdc is greenfield and
 date, so the priority right now is architectural foundation (easy for a future open-source
 collaborator to pick up post-MVP), not minimizing the current diff. In dependency order:
 
-1. **[`UI_FOUNDATION_PLAN.md`](./UI_FOUNDATION_PLAN.md)** — adopt shadcn/Radix as rdc's UI
-   foundation: tooling setup, a full switch to shadcn's token vocabulary (not a bridge over rdc's
-   existing `--color-*` names), then Toast → Dialog → Tooltip, in that order. Toast is deliberately
-   the pilot for the whole adoption. Stage 0 (Phase 0) and stage 1 (Phase 1 +
-   `MESSAGE_SYSTEM_PLAN.md` Slice 0 + the `useTheme()` sidebar) have landed. **Phase 2 (Dialog) is
-   done in production — `src/lib/ui/modal.tsx` has no importer left but its own test, so what
-   remains there is deleting it. Phase 3 (Tooltip) is genuinely outstanding: `src/lib/ui/tooltip.tsx`
-   is still hand-rolled with no `radix-ui` import.** Execution breakdown in
-   `UI_FOUNDATION_PLAN.md` §"Phase 3 — execution breakdown".
+1. **[`UI_FOUNDATION_PLAN.md`](./UI_FOUNDATION_PLAN.md) — complete.** shadcn/Radix is rdc's UI
+   foundation: tooling, the full token migration, the sonner-backed toast, every dialog on Radix
+   with the hand-rolled `Modal` deleted, and the Tooltip rebuilt on Radix's primitive. Phase 3's
+   boundary clearance is a computed `sideOffset` rather than `collisionBoundary` — the two are
+   opposite operations, measured in the sub-slice 3.0 spike and recorded there. Delete this entry
+   once nothing else references it.
+
 2. **[`MESSAGE_SYSTEM_PLAN.md`](./MESSAGE_SYSTEM_PLAN.md)** — the unified error/warning/info toast
    system, and **the current recommendation for what to do next**. ~7 stores each carry their own
    `error`/`operationError` field rendered by a copy-pasted `<p className="application-error">`
