@@ -191,6 +191,7 @@ export function injectCloneProgress(value: number, description: string): void {
       description,
     },
     error: null,
+    nativeOperation: null,
   });
 }
 
@@ -217,11 +218,18 @@ export function isDebugStateInjected(): boolean {
  * Directly set a store's private currentState field and fire its listeners.
  * Bypasses the private update() method entirely — works regardless of whether
  * update is accessible via `as any`.
+ *
+ * The generic is load-bearing rather than decoration. This writes a private field, so nothing else
+ * checks the shape, and when this took `unknown` every store-field rename rotted these stubs
+ * silently: they went on setting `error`/`operationError`/`diffError` long after those fields were
+ * replaced, and the previewed dialogs were rendering against state the app no longer produces.
+ * Inferring the state type from the store's own `state` getter makes the next rename a compile
+ * error here, which is the only place it can be caught.
  */
-function setStoreState(store: unknown, state: unknown): void {
-  const s = store as Record<string, unknown>;
+function setStoreState<S>(store: { readonly state: S }, state: S): void {
+  const s = store as unknown as Record<string, unknown>;
   s["currentState"] = state;
-  const listeners = s["listeners"] as Set<(state: unknown) => void> | undefined;
+  const listeners = s["listeners"] as Set<(state: S) => void> | undefined;
   if (listeners) {
     for (const listener of listeners) {
       listener(state);
@@ -308,10 +316,10 @@ export function injectDebugState(options: DebugStateOptions = {}): Repository {
     ],
     recentBranches: ["feature/update-dashboard-layout", "hotfix/critical-security-patch"],
     loading: false,
-    error: null,
+    loadFailed: false,
     operation: null,
     progress: null,
-    operationError: null,
+    dialogError: null,
   });
 
   // ── RemoteStore ──
@@ -324,10 +332,7 @@ export function injectDebugState(options: DebugStateOptions = {}): Repository {
     currentRemote: null,
     currentBranch: null,
     loading: false,
-    error: null,
-    operation: null,
-    progress: null,
-    operationError: null,
+    managementError: null,
   });
 
   // ── WorkingTreeStore ──
@@ -341,9 +346,8 @@ export function injectDebugState(options: DebugStateOptions = {}): Repository {
     selectedFileID: null,
     diff: null,
     diffLoading: false,
-    diffError: null,
+    diffFailed: false,
     commitLoading: false,
-    commitError: null,
     hookFailure:
       options.hookFailure === true
         ? {
@@ -352,8 +356,10 @@ export function injectDebugState(options: DebugStateOptions = {}): Repository {
               "$ npm run lint\n\n> rdc@0.0.0 lint\n> oxlint src/\n\nsrc/utils.ts:42:5 error: unexpected unused variable `x`\n\n1 problem (1 error, 0 warnings)\n\nnpm ERR! code ELIFECYCLE\nnpm ERR! errno 1\n",
           }
         : null,
+    runningHook: null,
     loading: false,
-    error: null,
+    loadFailed: false,
+    discardError: null,
     mergeHeadFound: false,
   });
 
