@@ -90,14 +90,16 @@ treatment · width and clipping · forced-colors.
 Rows that came up during a component's review, reach further than that component, and were
 deliberately **not** settled there. A migration may not quietly resolve one by picking an option.
 
-| Decision | Raised by | Settled in | Interim rule |
-|---|---|---|---|
-| Where an in-dialog operation failure appears — inline, or as a toast | Destructive confirmation family (Discard file/all, Delete branch, Remove repository) | `MESSAGE_SYSTEM_PLAN.md` § *Open decision*, before its Slice 1 | Keep the failure text inline; switch `.application-error` → `--error-*` tokens. Never add a new `.application-error` usage — 17 remain in `tsx` and the count only goes down. |
+| Decision | Raised by | Settled |
+|---|---|---|
+| Where an in-dialog operation failure appears — inline, or as a toast | Destructive confirmation family (Discard file/all, Delete branch, Remove repository) | **Settled 2026-08-15 → Convention 17.** Inline, in the dialog that owns the action. See `MESSAGE_SYSTEM_PLAN.md` § *Settled* for the measurements. |
 
-Deferring this one was the right call rather than a punt: the strongest option ("toast, dialog stays
-open") has a failure mode — a toast overlapped by, or read as unrelated to, the modal in front of it
-— that is *empirically checkable* against a real `sonner` toast and a real Radix overlay, and there
-is no working toast to check against until the message system is built.
+Deferring this one was the right call rather than a punt, and the deferral paid for itself. The
+strongest-looking option ("toast, dialog stays open") had a failure mode that was *empirically
+checkable* rather than arguable, and there was no working toast to check against until the message
+system existed. When it was finally checked, the feared failure — a toast overlapped by the modal —
+did not occur at all, and a different one did: behind a modal the toast is visible but inert, so it
+cannot be dismissed. Reasoning would have picked the wrong option for the wrong reason.
 
 ---
 
