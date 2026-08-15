@@ -103,12 +103,25 @@ failure — they are different strings. That is fine and worth stating plainly: 
 bug is what makes them equal, so the two halves of this plan depend on each other. Slice 1 must
 verify the screenshot's scenario end to end, not each half in isolation.
 
-An open question this plan does not pre-answer: whether a repository-scoped root cause — the
-directory is gone, the repository is no longer a repository — deserves recognition as *one*
-condition rather than N identical messages. Exact-text coalescing already collapses it in the
-observed case. If a later scenario produces differently-worded messages from one root cause, that is
-the point to add a `MessageKey` for the cause rather than the text; do not build that machinery
-speculatively.
+**Settled, by the next screenshot: coalescing is not enough on its own.** With the toolbar and
+banner migrated, the same deleted directory produced *two* toasts — `failed to run git for
+'getBranches'` from the remote store and `failed to run git for 'getStatus'` from the conflict
+store. One cause, two sentences, nothing for exact-text matching to merge.
+
+The answer chosen was neither a `MessageKey` nor fuzzier matching, both of which would have deduped
+a message the user should never have been shown. Those sentences name a git plumbing call; the
+actual condition is "this repository is gone". So the question is now asked **once, upstream of the
+loads**, in `repositoryIsAvailable` (`use-app-controller.ts`) via the `getRepositoryType` command
+that already existed for adding a repository, and worded once in
+`src/lib/repository-availability.ts`. No store discovers the deletion at all, so there is nothing
+left to coalesce — and coalescing stays as the safety net for genuinely repeated identical events.
+
+Two properties of that gate are deliberate:
+
+- **It fails open.** If the availability check itself cannot answer, the loads proceed and the
+  stores report as they did before. The gate exists to improve *reporting*; refusing to load
+  anything because the improvement is unavailable would be a worse failure than the one it prevents.
+- **It costs one `git rev-parse`** against the four or five the refresh was going to run anyway.
 
 **Explicitly out of scope**: ongoing operation progress (fetch/push/pull/clone percentages,
 "Pushing to origin…" text). That is live state for the duration of an operation, not a point-in-

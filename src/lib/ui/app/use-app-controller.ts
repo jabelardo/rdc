@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { join } from "@tauri-apps/api/path";
 import { BranchType, type Branch } from "../../../models/branch";
 import type { Commit } from "../../../models/commit";
-import type { Repository } from "../../../models/repository";
+import { nameOf, type Repository } from "../../../models/repository";
 import { getCloneDirectoryName } from "../../clone-destination";
 import { isContiguousSelection, orderSelectedCommits } from "../../history-operation-selection";
 import { getMergedBranches } from "../../branch-ipc";
 import { abortMerge, abortRebase, continueRebase, initRepository } from "../../git-ipc";
-import { abortRevert, revertCommit } from "../../misc-ipc";
+import { abortRevert, getRepositoryType, revertCommit } from "../../misc-ipc";
+import { repositoryAvailability } from "../../repository-availability";
+import { reportErrorMessage } from "../../format-error";
 import { abortCherryPick, cherryPick, continueCherryPick, reorder, squash } from "../../stash-ipc";
 import { installApplicationMenu } from "../../menu/application-menu";
 import { showContextMenu } from "../../platform/menu";
@@ -86,6 +88,50 @@ export function useAppController() {
   const [remoteStore] = useState(getDefaultRemoteStore);
   const [workingTreeStore] = useState(getDefaultWorkingTreeStore);
   const [appState, setAppState] = useState<AppStoreState>(appStore.state);
+  /**
+   * Answers "can this repository still be read?" once, before the stores that would each answer it
+   * separately.
+   *
+   * Five stores load a repository with five git commands. Delete the directory out from under the
+   * app and every one of them fails independently, in its own words — Phase 8b cycle 2 caught two
+   * toasts naming `getBranches` and `getStatus` plus an inline block, from one deleted directory.
+   * Coalescing cannot merge those, because they are not the same sentence.
+   *
+   * Asking here makes it one condition with one wording, and stops the loads rather than letting
+   * each store discover the same thing the hard way. The check costs one `git rev-parse` against
+   * the four or five the refresh was going to run anyway.
+   */
+  const repositoryIsAvailable = useCallback(
+    async (repository: Repository): Promise<boolean> => {
+      let availability;
+      try {
+        availability = repositoryAvailability(
+          nameOf(repository),
+          await getRepositoryType(repository.path),
+        );
+      } catch (error) {
+        // Fail open. This gate exists to improve how a missing repository is *reported*; if the gate
+        // itself cannot answer, refusing to load anything would be a far worse failure than the one
+        // it prevents. Let the stores run and report in their own words, as they did before.
+        log.warn("Could not check whether the repository is still available", error);
+        return true;
+      }
+      if (availability.available) {
+        return true;
+      }
+      // Identical wording every time, so the message store collapses repeat discoveries into one
+      // message with a count rather than a stack of near-duplicates.
+      reportErrorMessage(availability.message);
+      branchStore.clear();
+      conflictStore.clear();
+      remoteStore.clear();
+      workingTreeStore.clear();
+      historyStore.clear();
+      return false;
+    },
+    [branchStore, conflictStore, historyStore, remoteStore, workingTreeStore],
+  );
+
   const [operationStore] = useState(() => new OperationStore(""));
   const [operationState, setOperationState] = useState(operationStore.state);
   const [workingTreeState, setWorkingTreeState] = useState<WorkingTreeState>(
@@ -287,19 +333,26 @@ export function useAppController() {
       return;
     }
     refreshedTerminalOperationID.current = operation.id;
-    void Promise.all([
-      branchStore.load(repository.path),
-      operation.refresh?.repositoryFacts === false
-        ? Promise.resolve()
-        : remoteStore.load(repository.path),
-      workingTreeStore.load(repository.path),
-      conflictStore.load(repository.path),
-      historyStore.state.repositoryPath === repository.path
-        ? historyStore.load(repository.path)
-        : Promise.resolve(),
-    ]).catch((error) => {
-      log.error("Failed to refresh after a terminal repository operation", error);
-    });
+    void repositoryIsAvailable(repository)
+      .then(async (available) => {
+        if (!available) {
+          return;
+        }
+        await Promise.all([
+          branchStore.load(repository.path),
+          operation.refresh?.repositoryFacts === false
+            ? Promise.resolve()
+            : remoteStore.load(repository.path),
+          workingTreeStore.load(repository.path),
+          conflictStore.load(repository.path),
+          historyStore.state.repositoryPath === repository.path
+            ? historyStore.load(repository.path)
+            : Promise.resolve(),
+        ]);
+      })
+      .catch((error) => {
+        log.error("Failed to refresh after a terminal repository operation", error);
+      });
   }, [
     appState.selectedRepository,
     branchStore,
@@ -307,6 +360,7 @@ export function useAppController() {
     historyStore,
     operationState.operation,
     remoteStore,
+    repositoryIsAvailable,
     workingTreeStore,
   ]);
 
@@ -326,10 +380,12 @@ export function useAppController() {
     // reaches the renderer. Refresh here so recovery controls never infer that every file is
     // resolved from the repository-selection snapshot.
     refreshedRecoveryOperationID.current = operation.id;
-    void conflictStore.load(repository.path).catch((error) => {
-      log.error("Failed to refresh history recovery conflicts", error);
-    });
-  }, [appState.selectedRepository, conflictStore, operationState.operation]);
+    void repositoryIsAvailable(repository)
+      .then((available) => (available ? conflictStore.load(repository.path) : undefined))
+      .catch((error) => {
+        log.error("Failed to refresh history recovery conflicts", error);
+      });
+  }, [appState.selectedRepository, conflictStore, operationState.operation, repositoryIsAvailable]);
 
   useEffect(() => {
     let disposed = false;
@@ -623,16 +679,28 @@ export function useAppController() {
       remoteStore.clear();
       workingTreeStore.clear();
     } else {
-      void branchStore.load(repository.path);
-      void conflictStore.load(repository.path);
-      void remoteStore.load(repository.path);
-      void workingTreeStore.load(repository.path);
-      if (activeRepositoryView.current === "history") {
+      const wantsHistory = activeRepositoryView.current === "history";
+      if (wantsHistory) {
         // Keep a valid frame visible while preparing History for the newly selected repository.
         activeRepositoryView.current = "changes";
         setActiveRepositoryView("changes");
-        const transitionID = ++repositoryViewTransitionID.current;
+      }
+      const transitionID = ++repositoryViewTransitionID.current;
+      if (wantsHistory) {
         pendingRepositoryView.current = "history";
+      }
+      void repositoryIsAvailable(repository).then((available) => {
+        if (!available) {
+          pendingRepositoryView.current = null;
+          return;
+        }
+        void branchStore.load(repository.path);
+        void conflictStore.load(repository.path);
+        void remoteStore.load(repository.path);
+        void workingTreeStore.load(repository.path);
+        if (!wantsHistory) {
+          return;
+        }
         void historyStore.load(repository.path).then(() => {
           if (repositoryViewTransitionID.current === transitionID) {
             pendingRepositoryView.current = null;
@@ -640,7 +708,7 @@ export function useAppController() {
             setActiveRepositoryView("history");
           }
         });
-      }
+      });
     }
     return unsubscribe;
   }, [
@@ -649,6 +717,7 @@ export function useAppController() {
     conflictStore,
     historyStore,
     remoteStore,
+    repositoryIsAvailable,
     workingTreeStore,
   ]);
 
@@ -921,7 +990,7 @@ export function useAppController() {
 
   async function refreshAfterBranchChange(operation: () => Promise<boolean>): Promise<void> {
     const repository = appState.selectedRepository;
-    if (repository === null || !(await operation())) {
+    if (repository === null || !(await operation()) || !(await repositoryIsAvailable(repository))) {
       return;
     }
     await Promise.all([
@@ -936,7 +1005,11 @@ export function useAppController() {
 
   async function refreshAfterFetch(): Promise<void> {
     const repository = appStore.state.selectedRepository;
-    if (repository === null || !(await remoteStore.fetch())) {
+    if (
+      repository === null ||
+      !(await remoteStore.fetch()) ||
+      !(await repositoryIsAvailable(repository))
+    ) {
       return;
     }
     await branchStore.load(repository.path);
@@ -947,7 +1020,11 @@ export function useAppController() {
 
   async function refreshAfterPush(): Promise<void> {
     const repository = appStore.state.selectedRepository;
-    if (repository === null || !(await remoteStore.push())) {
+    if (
+      repository === null ||
+      !(await remoteStore.push()) ||
+      !(await repositoryIsAvailable(repository))
+    ) {
       return;
     }
     await Promise.all([
@@ -966,6 +1043,9 @@ export function useAppController() {
       return;
     }
     await remoteStore.pull();
+    if (!(await repositoryIsAvailable(repository))) {
+      return;
+    }
     await Promise.all([
       branchStore.load(repository.path),
       conflictStore.load(repository.path),

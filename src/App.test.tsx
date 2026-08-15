@@ -10,6 +10,15 @@ const showContextMenu = vi.hoisted(() => vi.fn());
 const showOpenDialog = vi.hoisted(() => vi.fn());
 const showSaveDialog = vi.hoisted(() => vi.fn());
 const initRepository = vi.hoisted(() => vi.fn());
+// What the controller's one repository-availability check finds. Regular unless a test says
+// otherwise; see "reports a deleted repository once".
+const repositoryType = vi.hoisted(() => ({
+  current: {
+    kind: "regular",
+    topLevelWorkingDirectory: "/projects/rdc",
+    gitDir: "/projects/rdc/.git",
+  } as { kind: "regular"; topLevelWorkingDirectory: string; gitDir: string } | { kind: "missing" },
+}));
 const showFolderContents = vi.hoisted(() => vi.fn());
 const openExternal = vi.hoisted(() => vi.fn(async () => true));
 const getAppArchitecture = vi.hoisted(() => vi.fn(async () => "arm64"));
@@ -242,6 +251,15 @@ vi.mock("./lib/git-ipc", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./lib/git-ipc")>()),
   initRepository,
 }));
+// The controller asks once whether the selected repository is still readable before loading the
+// stores. Answer it here rather than leaning on the gate's fail-open path, so these tests exercise
+// the same route the app takes.
+vi.mock("./lib/misc-ipc", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./lib/misc-ipc")>()),
+  // Reads the hoisted holder on every call rather than closing over a value, so a test can change
+  // the answer without depending on which mock instance it happens to hold a reference to.
+  getRepositoryType: vi.fn(async () => repositoryType.current),
+}));
 vi.mock("./lib/platform/config", () => ({ getMainProcessConfig }));
 vi.mock("./lib/platform/files", () => ({ showFolderContents, openExternal }));
 vi.mock("./lib/platform/paths", async (importOriginal) => ({
@@ -294,6 +312,11 @@ const repository = {
 
 describe("App", () => {
   beforeEach(() => {
+    repositoryType.current = {
+      kind: "regular",
+      topLevelWorkingDirectory: "/projects/rdc",
+      gitDir: "/projects/rdc/.git",
+    };
     installApplicationMenu.mockReset();
     replaceApplicationMenu.mockReset();
     replaceApplicationMenu.mockResolvedValue(undefined);
@@ -1007,7 +1030,7 @@ describe("App", () => {
     expect(appStore.selectRepository).not.toHaveBeenCalled();
   });
 
-  it("orders the selected-repository toolbar actions and keeps tooltips generic", () => {
+  it("orders the selected-repository toolbar actions and keeps tooltips generic", async () => {
     appStore.state = {
       repositories: [repository],
       selectedRepository: repository,
@@ -1067,9 +1090,13 @@ describe("App", () => {
       expect(label).not.toContain("main");
       expect(label).not.toContain("origin");
     }
-    expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path);
-    expect(branchStore.load).toHaveBeenCalledWith(repository.path);
-    expect(conflictStore.load).toHaveBeenCalledWith(repository.path);
+    // The stores load behind the controller's one repository-availability check, so they arrive a
+    // turn later than the render.
+    await waitFor(() => {
+      expect(workingTreeStore.load).toHaveBeenCalledWith(repository.path);
+      expect(branchStore.load).toHaveBeenCalledWith(repository.path);
+      expect(conflictStore.load).toHaveBeenCalledWith(repository.path);
+    });
   });
 
   it("routes repository creation actions from the selected-repository toolbar", async () => {
