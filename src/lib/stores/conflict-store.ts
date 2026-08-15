@@ -9,7 +9,7 @@ import {
   type IStatusFileChange,
   type IStatusResult,
 } from "../git-ipc";
-import { describeError } from "../format-error";
+import { describeError, reportErrorMessage } from "../format-error";
 
 export type ConflictFile = {
   readonly path: string;
@@ -25,9 +25,16 @@ export type ConflictState = {
   readonly rebaseInProgress: boolean;
   readonly files: ReadonlyArray<ConflictFile>;
   readonly loading: boolean;
-  readonly error: string | null;
+  /**
+   * Whether the last conflict-state read failed.
+   *
+   * A boolean rather than the message: the message itself goes to the shared message store, where
+   * it coalesces with the identical one the working-tree store reports for the same root cause.
+   * The flag stays because the banner still has to be honest — with no files and no signal it
+   * would announce "All conflict resolutions are staged." over a repository it could not read.
+   */
+  readonly loadFailed: boolean;
   readonly stagingPath: string | null;
-  readonly operationError: string | null;
 };
 
 type ConflictStoreDependencies = {
@@ -47,9 +54,8 @@ const EmptyState: ConflictState = {
   rebaseInProgress: false,
   files: [],
   loading: false,
-  error: null,
+  loadFailed: false,
   stagingPath: null,
-  operationError: null,
 };
 
 function conflictFiles(files: ReadonlyArray<IStatusFileChange>): ReadonlyArray<ConflictFile> {
@@ -106,9 +112,8 @@ export class ConflictStore {
       rebaseInProgress: false,
       files: [],
       loading: true,
-      error: null,
+      loadFailed: false,
       stagingPath: null,
-      operationError: null,
     });
     try {
       const status = await this.dependencies.getStatus(repositoryPath, true);
@@ -120,6 +125,7 @@ export class ConflictStore {
       if (requestID !== this.requestID) {
         return;
       }
+      reportErrorMessage(describeError(error));
       this.update({
         repositoryPath,
         recoveryOperation: null,
@@ -127,9 +133,8 @@ export class ConflictStore {
         rebaseInProgress: false,
         files: [],
         loading: false,
-        error: describeError(error),
+        loadFailed: true,
         stagingPath: null,
-        operationError: null,
       });
     }
   }
@@ -141,10 +146,9 @@ export class ConflictStore {
       return false;
     }
     if (!file.resolvedInWorkingTree) {
-      this.update({
-        ...this.currentState,
-        operationError: `Resolve all conflict markers before staging ${path}.`,
-      });
+      // A precondition the user can act on, reported the same way as a failure so there is one
+      // place to look. Severity stays `error` to match how it read before this slice.
+      reportErrorMessage(`Resolve all conflict markers before staging ${path}.`);
       return false;
     }
 
@@ -153,7 +157,6 @@ export class ConflictStore {
     this.update({
       ...this.currentState,
       stagingPath: path,
-      operationError: null,
     });
     try {
       const status = file.status;
@@ -174,10 +177,10 @@ export class ConflictStore {
       return true;
     } catch (error) {
       if (this.isCurrentOperation(requestID, operationID)) {
+        reportErrorMessage(describeError(error));
         this.update({
           ...this.currentState,
           stagingPath: null,
-          operationError: describeError(error),
         });
       }
       return false;
@@ -203,9 +206,8 @@ export class ConflictStore {
       rebaseInProgress: status?.rebaseInternalState !== undefined,
       files: conflictFiles(status?.files ?? []),
       loading: false,
-      error: null,
+      loadFailed: false,
       stagingPath: null,
-      operationError: null,
     };
   }
 

@@ -286,7 +286,7 @@ repeating it:
 | 3 | `history-store.ts` | `error`, `detailsError`, `diffError` | `history-workspace.tsx` (3 render sites) |
 | 4 | `branch-store.ts` | `error`, `operationError` (including the inline name-validation paths) | `repository-sidebar.tsx`, rename/delete/merge dialogs already touched in Slice 1 keep working, this slice removes the field they were reading around |
 | 5 | `remote-store.ts` | `error` → **landed**, but see below | `repository-toolbar.tsx` — **landed**: the error paragraph is gone entirely. The toolbar keeps action state and peer-window status only |
-| 6 | `conflict-store.ts` | `error`, `operationError` | `merge-conflicts.tsx` |
+| 6 | `conflict-store.ts` | `error`, `operationError` → **landed**; `error` became a `loadFailed` boolean, see below | `merge-conflicts.tsx` — **landed**: both `.application-error` blocks gone |
 | 7 | `clone-store.ts` + `preferences-store.ts` | `error` (×2) | `app-dialogs.tsx` clone dialog, preferences dialog |
 
 #### Slice 5, as landed — and the one deviation
@@ -309,6 +309,25 @@ disappears with Slice 1, when the decision it belongs to is settled.
 controller has no business knowing, so classification stays in the store and only the reporting is
 shared. The plan's "controller catches and calls `reportError`" shape still holds for the stores
 whose methods carry no domain classification.
+
+#### Slice 6, as landed — a signal is not the same as a message
+
+Both `.application-error` blocks are gone from the banner, and all three sources now report to the
+message store: the load failure, the staging failure, and the "Resolve all conflict markers before
+staging *x*" precondition (kept at `error` severity, matching how it read before).
+
+`error: string | null` did not simply disappear — it became `loadFailed: boolean`. Deleting it
+outright would have made the banner *lie*: its visibility condition tested `state.error === null`,
+and with no files and no signal a failed read renders "All conflict resolutions are staged." over a
+repository it could not read. **Removing an error field is not the same as removing the fact that
+something failed.** The message text moves out, where it coalesces; the flag stays, so the banner can
+say "Conflict state is unavailable." without repeating the sentence the toast is already showing.
+Expect the same distinction in the remaining slices wherever a component branches on an error rather
+than merely displaying it.
+
+The cross-store duplication check now exists as far as the migrated stores allow: one root cause
+reaching both the conflict and remote stores produces a single message with `count: 2`. It completes
+in Slice 2, when the working-tree store joins them and the screenshot's third panel goes.
 
 **Recommended order: 5, 6, 2, then 3, 4, 7.** The numbering above is kept stable because
 `REMAINING.md` and other documents reference it, but the *order to implement* should be led by the

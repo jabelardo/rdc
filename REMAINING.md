@@ -111,11 +111,15 @@ collaborator to pick up post-MVP), not minimizing the current diff. In dependenc
    Slice 0.1 (message coalescing) comes first; then **Slices 5, 6 and 2 — the screenshot's three
    panels — which are toolbar, banner and pane, not dialogs, so none of them is blocked by the open
    in-dialog-failure decision that blocks Slice 1.**
-3. **[`BRANCH_OPERATIONS_PLAN.md`](./BRANCH_OPERATIONS_PLAN.md) Slice 4 — abort merge.** The one
-   functionality gap found against the 7 MVP exit criteria: `abort_merge` exists and is tested at
-   the git-ops/Tauri-command layer, but there is no `conflict-store.ts` method, no button in
-   `merge-conflicts.tsx`, and no menu id at all. A user can complete a conflict but never back out
-   of one in-app. Independent of items 1–2 above. **Stage 4; independent, any time.**
+3. **[`BRANCH_OPERATIONS_PLAN.md`](./BRANCH_OPERATIONS_PLAN.md) Slice 4 — abort merge.** Recorded as
+   the one functionality gap against the 7 MVP exit criteria — a user could complete a conflict but
+   never back out of one in-app. **Most of it has since closed from an unexpected direction:**
+   `OPERATION_PROGRESS_PLAN.md` Slice 18's restart recovery added the `Abort merge` button
+   (`merge-conflicts.tsx:160-163`) wired through `abortMergeRecovery` in `use-app-controller.ts`, so
+   the exit-criteria gap itself is closed.
+   What remains is the **menu id and its dispatch** — there is still no menu route to the action —
+   and, if wanted, a `conflict-store.ts` method: the controller calls the `abortMerge` IPC directly
+   rather than going through the store like its neighbours. **Stage 4; independent, any time.**
 
 4. **[`OPERATION_PROGRESS_PLAN.md`](./OPERATION_PROGRESS_PLAN.md) Slice 20 — documentation and
    closure.** Slices 1–19 have landed and were re-verified against the code on 2026-08-15:

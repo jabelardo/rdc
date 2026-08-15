@@ -11,9 +11,8 @@ const state: ConflictState = {
   rebaseInProgress: false,
   files: [],
   loading: false,
-  error: null,
+  loadFailed: false,
   stagingPath: null,
-  operationError: null,
 };
 
 const store = { load: vi.fn() } as unknown as ConflictStore;

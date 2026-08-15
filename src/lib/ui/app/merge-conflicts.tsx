@@ -32,7 +32,7 @@ export function MergeConflicts({
     !state.mergeInProgress &&
     !state.rebaseInProgress &&
     state.files.length === 0 &&
-    state.error === null
+    !state.loadFailed
   ) {
     return null;
   }
@@ -81,10 +81,10 @@ export function MergeConflicts({
       </header>
       {state.loading ? (
         <p>Loading conflict state…</p>
-      ) : state.error !== null ? (
-        <p className="application-error" role="alert">
-          {state.error}
-        </p>
+      ) : state.loadFailed ? (
+        // The failure itself is a message, announced once; this only keeps the banner from
+        // claiming everything is staged over a repository it could not read.
+        <p>Conflict state is unavailable.</p>
       ) : state.files.length === 0 ? (
         <p>All conflict resolutions are staged.</p>
       ) : (
@@ -119,11 +119,6 @@ export function MergeConflicts({
             </li>
           ))}
         </ul>
-      )}
-      {state.operationError !== null && (
-        <p className="application-error" role="alert">
-          {state.operationError}
-        </p>
       )}
       {recoveryVisible && (
         <div className="mt-4 flex justify-end gap-2">

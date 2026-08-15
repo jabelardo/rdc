@@ -1,7 +1,25 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppFileStatusKind, GitStatusEntry, UnmergedEntrySummary } from "../../models/status";
 import type { IStatusResult } from "../git-ipc";
 import { ConflictStore } from "./conflict-store";
+import { getDefaultMessageStore } from "./default-message-store";
+import { RemoteStore } from "./remote-store";
+
+/**
+ * Conflict failures and the staging precondition are reported to the shared message store rather
+ * than held on the conflict store — see MESSAGE_SYSTEM_PLAN.md Slice 6.
+ */
+function lastReportedMessage(): string {
+  const messages = getDefaultMessageStore().state.messages;
+  return messages[messages.length - 1]?.text ?? "";
+}
+
+beforeEach(() => {
+  const store = getDefaultMessageStore();
+  for (const message of store.state.messages) {
+    store.dismiss(message.id);
+  }
+});
 
 function status(conflictMarkerCount: number, mergeHeadFound = true): IStatusResult {
   return {
@@ -49,7 +67,7 @@ describe("ConflictStore", () => {
       mergeInProgress: true,
       files: [expect.objectContaining({ path: "conflicted.txt" })],
       loading: false,
-      error: null,
+      loadFailed: false,
     });
     expect(store.state.files[0].resolvedInWorkingTree).toBe(false);
   });
@@ -113,7 +131,6 @@ describe("ConflictStore", () => {
       mergeInProgress: true,
       files: [],
       stagingPath: null,
-      operationError: null,
     });
   });
 
@@ -127,7 +144,7 @@ describe("ConflictStore", () => {
 
     expect(await store.stageResolvedFile("conflicted.txt")).toBe(false);
     expect(stageResolvedConflictFiles).not.toHaveBeenCalled();
-    expect(store.state.operationError).toBe(
+    expect(lastReportedMessage()).toBe(
       "Resolve all conflict markers before staging conflicted.txt.",
     );
   });
@@ -144,7 +161,7 @@ describe("ConflictStore", () => {
     expect(await store.stageResolvedFile("conflicted.txt")).toBe(false);
     expect(store.state.files).toHaveLength(1);
     expect(store.state.stagingPath).toBeNull();
-    expect(store.state.operationError).toBe("stage failed");
+    expect(lastReportedMessage()).toBe("stage failed");
   });
 
   it("maps a structured command error to its message", async () => {
@@ -156,7 +173,38 @@ describe("ConflictStore", () => {
 
     await store.load("/repo");
 
-    expect(store.state.error).toBe("status unavailable");
+    expect(lastReportedMessage()).toBe("status unavailable");
+    // The flag stays so the banner cannot claim everything is staged over an unreadable repository.
+    expect(store.state.loadFailed).toBe(true);
+  });
+
+  // The duplication check from MESSAGE_SYSTEM_PLAN.md, as far as the migrated stores allow. One
+  // root cause reaching two stores must produce one message, not two — this is what makes routing
+  // everything through the toast a fix rather than a relocation. Completes with Slice 2, when the
+  // working-tree store joins them.
+  it("reports one message when the same failure reaches the remote store too", async () => {
+    const failure = {
+      message: "failed to run git for 'getStatus' in /repo: No such file or directory (os error 2)",
+      isAuthFailure: false,
+    };
+    const conflicts = new ConflictStore({
+      getStatus: vi.fn(async () => {
+        throw failure;
+      }),
+    });
+    const remotes = new RemoteStore({
+      getRemotes: vi.fn(async () => {
+        throw failure;
+      }),
+    });
+
+    await conflicts.load("/repo");
+    await remotes.load("/repo");
+
+    expect(getDefaultMessageStore().state.messages).toHaveLength(1);
+    const [message] = getDefaultMessageStore().state.messages;
+    expect(message?.text).toBe(failure.message);
+    expect(message?.count).toBe(2);
   });
 
   it("ignores stale status after switching repositories", async () => {
