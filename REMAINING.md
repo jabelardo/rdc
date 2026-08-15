@@ -24,15 +24,18 @@ on every platform (see "QA cycle 2" below), and a real MVP-blocking freeze found
 killed it — is now fixed by bypassing muda's blocking popup on Linux entirely. Full account in
 `MIGRATION_PLAN.md`'s Phase 8b log, "Linux context-menu freeze, found and fixed."
 
-**Cycle one's own findings — a UI foundation gap and one functionality gap — are now being closed
-before cycle two starts**, deliberately: see "Engineering, this pass" below.
+**Cycle one's findings are closed.** The UI foundation gap and the message-system gap both landed on
+2026-08-15: shadcn/Radix is the foundation with no hand-rolled primitives left, and every store-owned
+error field has become either a toast or a dialog-owned inline failure — `.application-error` is at
+zero, from 17. One functionality gap remains, and it is now only a menu route: see "Engineering,
+this pass" below.
 
 | Gate | State (2026-08-15) |
 |---|---|
-| `pnpm test` (Vitest) | 1,234 passing / 138 files |
+| `pnpm test` (Vitest) | 1,235 passing / 138 files |
 | `pnpm exec tsc --noEmit` | clean |
 | `pnpm format:check` / `pnpm lint` | clean |
-| `pnpm build` / `pnpm check:bundle-boundary` | clean; 157 browser-reachable modules, no Node built-ins |
+| `pnpm build` / `pnpm check:bundle-boundary` | clean; 158 browser-reachable modules, no Node built-ins |
 | `cargo test --workspace` | 1,274 passing |
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --check` | clean |
@@ -84,38 +87,12 @@ items, unchanged; do not restate them here, satisfy them there.
 
 ### Engineering, this pass — before QA cycle 2
 
-Deliberately sequenced ahead of the QA-cycle-2 item below: rdc is greenfield and not racing an MVP
-date, so the priority right now is architectural foundation (easy for a future open-source
-collaborator to pick up post-MVP), not minimizing the current diff. In dependency order:
+Sequenced ahead of the QA-cycle-2 items below: rdc is greenfield and not racing an MVP date, so the
+priority is architectural foundation a future open-source collaborator can pick up, not minimizing
+the current diff. The UI foundation and the message system closed on 2026-08-15; these three are
+what remain, and none of them blocks another:
 
-1. **[`UI_FOUNDATION_PLAN.md`](./UI_FOUNDATION_PLAN.md) — complete.** shadcn/Radix is rdc's UI
-   foundation: tooling, the full token migration, the sonner-backed toast, every dialog on Radix
-   with the hand-rolled `Modal` deleted, and the Tooltip rebuilt on Radix's primitive. Phase 3's
-   boundary clearance is a computed `sideOffset` rather than `collisionBoundary` — the two are
-   opposite operations, measured in the sub-slice 3.0 spike and recorded there. Delete this entry
-   once nothing else references it.
-
-2. **[`MESSAGE_SYSTEM_PLAN.md`](./MESSAGE_SYSTEM_PLAN.md)** — the unified error/warning/info toast
-   system. **In progress.**
-
-   Phase 8b cycle 2 photographed why it matters: one `getStatus` failure on a deleted repository
-   directory rendered three times at once, in three visual styles, one of them `[object Object]`.
-
-   Landed: Slice 0.1 (message coalescing with a repeat count), Slice 5 (`remote-store` — the
-   toolbar's error paragraph is gone entirely; that slot was `nowrap` with an ellipsis and could
-   never hold a sentence), Slice 6 (`conflict-store` — both banner blocks gone), the toast severity
-   colours, and the repository-availability gate that stops five stores each discovering a deleted
-   directory in their own words.
-
-   Remaining: **Slice 2** (`working-tree-store` — the screenshot's third panel, and the one that
-   completes the cross-store duplication check), then 3, 4, 7. **Slice 1 stays blocked** on the open
-   in-dialog-failure decision; `remote-store`'s `managementError` and `conflict-store`'s
-   `loadFailed` are the deliberate remnants that go with it.
-
-   Measured now: **15** `.application-error` references (down from 17) and **15** live
-   `String(error)` sites, each a latent `[object Object]`.
-
-3. **[`BRANCH_OPERATIONS_PLAN.md`](./BRANCH_OPERATIONS_PLAN.md) Slice 4 — abort merge.** Recorded as
+1. **[`BRANCH_OPERATIONS_PLAN.md`](./BRANCH_OPERATIONS_PLAN.md) Slice 4 — abort merge.** Recorded as
    the one functionality gap against the 7 MVP exit criteria — a user could complete a conflict but
    never back out of one in-app. **Most of it has since closed from an unexpected direction:**
    `OPERATION_PROGRESS_PLAN.md` Slice 18's restart recovery added the `Abort merge` button
@@ -123,19 +100,19 @@ collaborator to pick up post-MVP), not minimizing the current diff. In dependenc
    the exit-criteria gap itself is closed.
    What remains is the **menu id and its dispatch** — there is still no menu route to the action —
    and, if wanted, a `conflict-store.ts` method: the controller calls the `abortMerge` IPC directly
-   rather than going through the store like its neighbours. **Stage 4; independent, any time.**
+   rather than going through the store like its neighbours. **Independent; any time.**
 
-4. **[`OPERATION_PROGRESS_PLAN.md`](./OPERATION_PROGRESS_PLAN.md) Slice 20 — documentation and
+2. **[`OPERATION_PROGRESS_PLAN.md`](./OPERATION_PROGRESS_PLAN.md) Slice 20 — documentation and
    closure.** Slices 1–19 have landed and were re-verified against the code on 2026-08-15:
    repository-scoped native operation registry, process-tree cancellation, inactivity watchdogs,
    multi-window routing and the unified progress presentation. What is left is documentation, the
    store-surface measurement, and **writing this work's QA rows** — the Light/Dark and compact rows
    for the unified dialog, the owner/observer, timeout and recovery-required states, and a
    multi-window checklist that `qa/phase-8b/` does not have today, with its fixture requirements in
-   `fixture-scenarios.md` so Phase 8a can prepare them. **Stage 6; independent, but it must land
-   before QA cycle 2 walks those rows.**
+   `fixture-scenarios.md` so Phase 8a can prepare them. **Independent, but it must land before QA cycle 2
+   walks those rows.**
 
-5. **[`CODE_ORGANIZATION_PLAN.md`](./CODE_ORGANIZATION_PLAN.md) — establish a layout and enforce
+3. **[`CODE_ORGANIZATION_PLAN.md`](./CODE_ORGANIZATION_PLAN.md) — establish a layout and enforce
    it.** Scheduled **after** the dialog migration, so it moves settled code rather than code in
    flight. Dialogs currently live in four places by accident of chronology, and `src/lib/` is a
    110-file flat drawer mixing pure helpers, IPC wrappers, domain logic and desktop-plus's GitHub
@@ -146,43 +123,43 @@ collaborator to pick up post-MVP), not minimizing the current diff. In dependenc
    forms a dead cluster with three models). The `src/models/` share of that number is largely a
    false positive — `import type` is erased, so type-only modules read as unreachable while being
    in use. The plan document holds the inventory and the questions; it deliberately decides
-   nothing yet. **Stage 5; after the dialog migration.**
+   nothing yet. **After the dialog migration, which has now landed — so this is unblocked.**
 
 **LICENSE (MIT) is added**, copyright holder Jose Gutierrez. `CONTRIBUTING.md`, issue/PR templates,
 README polish and an `ARCHITECTURE.md` newcomer overview are deliberately deferred to the
 post-MVP promotion phase, once the project is actually accepting contributions — recording that as
-a decision, not an oversight. `ARCHITECTURE.md` depends on item 5: there is no point documenting a
+a decision, not an oversight. `ARCHITECTURE.md` depends on item 3: there is no point documenting a
 structure nobody chose.
 
 ### QA cycle 2
 
-6. **Native-menu-dispatch verification, on both platforms.** The branch-operations MVP blocker
+4. **Native-menu-dispatch verification, on both platforms.** The branch-operations MVP blocker
    itself is closed — `BRANCH_OPERATIONS_PLAN.md` Slices 1–3 landed rename, delete, discard-all
    (×2) and merge initiation, all gated-green and capability-parity tested across
    `macos`/`windows`/`linux`. (`update-branch-with-contribution-target-branch` stays deferred to
    Phase 7f, unchanged.) What's left is proving these — plus the five capability-parity actions
-   from `qa/phase-8b/evidence/menu-mvp-alignment-findings.md` F-MENU-003, item 3's abort-merge
-   action once it lands, and the message system's toast accessibility once item 2 lands — actually
+   from `qa/phase-8b/evidence/menu-mvp-alignment-findings.md` F-MENU-003, item 1's abort-merge
+   menu route once it lands, and the message system's toast accessibility — actually
    dispatch from the *native* menu, which nothing automated can do: `17df5bf` moved Linux from an
    in-window DOM menu bar onto Tauri's native menu on every platform, so Linux lost its
    WebDriver-testable surface the same way macOS never had one. Run `qa/phase-8b/macos-checklist.md`
    §7 and `qa/phase-8b/linux-wayland-checklist.md`'s equivalent section to close it.
-7. **Discard-all at scale, on Fedora.** New `discardMany99` and `discardMany1000` fixture scenarios
+5. **Discard-all at scale, on Fedora.** New `discardMany99` and `discardMany1000` fixture scenarios
    plus a table in `qa/phase-8b/dialog-migration-checklist.md`. Two counts because `VirtualList`
    virtualizes past 100 rows: 99 keeps every row in the DOM, 1000 windows them, and the failure being
    guarded against is a list that looks right at 99 and is empty or unscrollable at 1000. It is
-   *only* verifiable by hand — discard-all is reachable solely from the native menu, which item 6
+   *only* verifiable by hand — discard-all is reachable solely from the native menu, which item 4
    above is about. The pass must also record the perceived duration of a confirmed 1000-file discard:
    removals are now one batched IPC call, but there is deliberately no progress indicator and no
    cancel (Convention 8 refuses every dismissal mid-operation), and that measurement is the input to
    deciding whether progress reporting is needed before MVP.
-8. **Produced-package inspection is not automated yet.** `pnpm qualify:phase8a` deliberately audits
+6. **Produced-package inspection is not automated yet.** `pnpm qualify:phase8a` deliberately audits
    inputs and reports `finalPackagesProduced: false`; no current command opens the macOS/Linux bundle
    outputs and checks identity, resources, sidecar permissions and legacy destinations. Phase 8b's
    plan explicitly requires automated metadata/resource/package smoke. Add that reproducible check
    after final icon/identifier and concrete bundle targets are chosen, before treating the manual
    `final-package-smoke.md` pass as sufficient.
-9. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
+7. **One Windows body remains** — `custom_integration`'s `has_execute_access`. The three platform
    seams themselves are done (`AGENTS.md` rule 11): `rdc-printenvz`'s two arms now share a
    signature, `cli_installer`'s symlink is behind a per-OS `link` module with both arms real, and
    `custom_integration`'s unix code is in a gated inner module. What is left is a genuine Phase 10
