@@ -371,7 +371,7 @@ export function AppDialogs({
             .filter((branch) => branch.type === BranchType.Local)
             .map((branch) => branch.name)}
           busy={branchState.operation === "renaming"}
-          failure={branchState.operationError}
+          failure={branchState.dialogError}
           onNameChange={onRenameNameChange}
           onConfirm={onConfirmRename}
           onCancel={onCancelRename}

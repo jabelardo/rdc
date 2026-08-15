@@ -300,11 +300,11 @@ repeating it:
 | Slice | Store | Fields removed | Consumers to update |
 |---|---|---|---|
 | 2 | `working-tree-store.ts` | `error`, `commitError`, `diffError` → **landed**; `error`/`diffError` became `loadFailed`/`diffFailed` booleans and a narrow `discardError` remains, see below | `changes-workspace.tsx` — **landed**: all three `.application-error` blocks gone |
-| 3 | `history-store.ts` | `error`, `detailsError`, `diffError` | `history-workspace.tsx` (3 render sites) |
-| 4 | `branch-store.ts` | `error`, `operationError` (including the inline name-validation paths) | `repository-sidebar.tsx`, rename/delete/merge dialogs already touched in Slice 1 keep working, this slice removes the field they were reading around |
+| 3 | `history-store.ts` | `error`, `detailsError`, `diffError` → **landed**; `error`/`diffError` became `loadFailed`/`diffFailed`, `detailsError` went outright | `history-workspace.tsx` — **landed** |
+| 4 | `branch-store.ts` | `error` → `loadFailed`; `operationError` → `dialogError`, dialogs only — **landed** | `repository-sidebar.tsx` — **landed**; the rename/delete/merge dialogs keep their inline failure until Slice 1 |
 | 5 | `remote-store.ts` | `error` → **landed**, but see below | `repository-toolbar.tsx` — **landed**: the error paragraph is gone entirely. The toolbar keeps action state and peer-window status only |
 | 6 | `conflict-store.ts` | `error`, `operationError` → **landed**; `error` became a `loadFailed` boolean, see below | `merge-conflicts.tsx` — **landed**: both `.application-error` blocks gone |
-| 7 | `clone-store.ts` + `preferences-store.ts` | `error` (×2) | `app-dialogs.tsx` clone dialog, preferences dialog |
+| 7 | `clone-store.ts` + `preferences-store.ts` | **blocked** — both fields render only in dialogs, so removing them *is* the open decision | `app-dialogs.tsx` clone dialog, preferences dialog |
 
 #### Slice 5, as landed — and the one deviation
 
@@ -384,6 +384,36 @@ instead of catching-and-setting, update the store's own unit tests (which today 
 the right value, whichever the test file's existing mocking style makes more natural), delete the
 now-dead `.application-error` render site, and confirm nothing else in that component still
 references the removed field.
+
+### Slices 3, 4 and 7, as landed — and one correction to the plan
+
+**Slice 3 (history)** is the clean case, and it produced a useful distinction. Three fields, but only
+two needed a replacement signal: a failed *details* read already clears `changeset`, so the pane
+falls through to an honest "Commit details are unavailable." on its own. `detailsError` was pure
+duplication and went outright. The list and diff reads both needed flags, for the usual reason —
+without them they claim "No commits yet." and invite you to select an already-selected file.
+
+**Slice 4 (branch)** needed the surface split made explicit. `failOperation` is shared by six
+operations, two of which start in the sidebar (create, checkout) and four in a dialog (rename,
+delete, merge, rebase). It now takes a `surface` argument, because the destination is a real
+distinction and not a formatting detail: the dialog ones must stay inline until Slice 1, the sidebar
+ones have no inline home left. One knock-on: the branch form decided whether to close itself by
+reading `operationError === null`, which stops meaning anything once failures leave the store, so
+`refreshAfterBranchChange` now returns whether the operation succeeded.
+
+**Slice 7 is not independent — it is blocked, by the same decision as Slice 1.** The plan grouped it
+with the low-risk tail, but `clone-store`'s and `preferences-store`'s `error` fields render *only* in
+dialogs. Removing them is not "the same pattern on a quieter surface"; it is the in-dialog-failure
+decision itself, made by accident. It is listed here as blocked rather than deferred silently.
+
+What Slice 7 *could* deliver now, and did: the `[object Object]` bug in both of those dialogs, plus
+`operation-store`'s terminal-error message. Five `String(error)` sites became `describeError`, which
+is independent of where the message ends up rendering. **Every remaining `String(error)` in `src/`
+is legitimate** — `format-error`'s own fallback, log formatting, and two `new Error(String(...))`
+wrappers.
+
+`.application-error` is down from 17 references to **7**: three CSS rules and four render sites, all
+four inside dialogs, all four waiting on the same decision.
 
 ## Definition of done, per slice
 

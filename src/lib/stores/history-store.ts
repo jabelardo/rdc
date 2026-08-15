@@ -3,6 +3,7 @@ import type { IDiff } from "../../models/diff";
 import type { IChangesetData } from "../log-ipc";
 import { getCommitDiff } from "../diff-ipc";
 import { getChangedFiles, getCommits } from "../log-ipc";
+import { describeError, reportErrorMessage } from "../format-error";
 
 const CommitBatchSize = 100;
 
@@ -13,12 +14,26 @@ export type HistoryState = {
   readonly changeset: IChangesetData | null;
   readonly selectedFileID: string | null;
   readonly loading: boolean;
-  readonly error: string | null;
+  /**
+   * Whether the last history read failed.
+   *
+   * A boolean, not the message: the message goes to the shared message store. The flag stays
+   * because the list *branches* on it — with no commits and no signal it would say "No commits
+   * yet." over a history it could not read.
+   */
+  readonly loadFailed: boolean;
   readonly detailsLoading: boolean;
-  readonly detailsError: string | null;
   readonly diff: IDiff | null;
   readonly diffLoading: boolean;
-  readonly diffError: string | null;
+  /**
+   * Whether the last commit-diff read failed.
+   *
+   * Needed for the same reason as `loadFailed`, and *not* needed for commit details: a failed
+   * details read already falls through to an honest "Commit details are unavailable.", because the
+   * store clears `changeset` too. A failed diff would instead invite the user to select a file that
+   * is already selected.
+   */
+  readonly diffFailed: boolean;
 };
 
 type HistoryStoreDependencies = {
@@ -40,12 +55,11 @@ const EmptyState: HistoryState = {
   changeset: null,
   selectedFileID: null,
   loading: false,
-  error: null,
+  loadFailed: false,
   detailsLoading: false,
-  detailsError: null,
   diff: null,
   diffLoading: false,
-  diffError: null,
+  diffFailed: false,
 };
 
 /**
@@ -90,12 +104,11 @@ export class HistoryStore {
       changeset: null,
       selectedFileID: null,
       loading: true,
-      error: null,
+      loadFailed: false,
       detailsLoading: false,
-      detailsError: null,
       diff: null,
       diffLoading: false,
-      diffError: null,
+      diffFailed: false,
     });
 
     try {
@@ -117,12 +130,11 @@ export class HistoryStore {
         changeset: null,
         selectedFileID: null,
         loading: false,
-        error: null,
+        loadFailed: false,
         detailsLoading: false,
-        detailsError: null,
         diff: null,
         diffLoading: false,
-        diffError: null,
+        diffFailed: false,
       });
       if (selectedCommitSHA !== null) {
         await this.loadSelectedCommitDetails(requestID, selectedCommitSHA);
@@ -131,6 +143,7 @@ export class HistoryStore {
       if (requestID !== this.requestID) {
         return;
       }
+      reportErrorMessage(describeError(error));
       this.update({
         repositoryPath,
         commits: [],
@@ -138,12 +151,11 @@ export class HistoryStore {
         changeset: null,
         selectedFileID: null,
         loading: false,
-        error: String(error),
+        loadFailed: true,
         detailsLoading: false,
-        detailsError: null,
         diff: null,
         diffLoading: false,
-        diffError: null,
+        diffFailed: false,
       });
     }
   }
@@ -160,10 +172,9 @@ export class HistoryStore {
       selectedCommitSHA: sha,
       changeset: null,
       selectedFileID: null,
-      detailsError: null,
       diff: null,
       diffLoading: false,
-      diffError: null,
+      diffFailed: false,
     });
     await this.loadSelectedCommitDetails(this.requestID, sha);
   }
@@ -179,7 +190,7 @@ export class HistoryStore {
       ...state,
       selectedFileID: id,
       diff: null,
-      diffError: null,
+      diffFailed: false,
     });
     await this.loadSelectedFileDiff(
       this.requestID,
@@ -208,10 +219,9 @@ export class HistoryStore {
       changeset: null,
       selectedFileID: null,
       detailsLoading: true,
-      detailsError: null,
       diff: null,
       diffLoading: false,
-      diffError: null,
+      diffFailed: false,
     });
 
     try {
@@ -229,7 +239,6 @@ export class HistoryStore {
         changeset,
         selectedFileID,
         detailsLoading: false,
-        detailsError: null,
       });
       if (selectedFileID !== null) {
         await this.loadSelectedFileDiff(requestID, detailsRequestID, sha, selectedFileID);
@@ -242,15 +251,15 @@ export class HistoryStore {
       ) {
         return;
       }
+      reportErrorMessage(describeError(error));
       this.update({
         ...this.currentState,
         changeset: null,
         selectedFileID: null,
         detailsLoading: false,
-        detailsError: String(error),
         diff: null,
         diffLoading: false,
-        diffError: null,
+        diffFailed: false,
       });
     }
   }
@@ -272,7 +281,7 @@ export class HistoryStore {
       ...state,
       diff: null,
       diffLoading: true,
-      diffError: null,
+      diffFailed: false,
     });
 
     try {
@@ -296,7 +305,7 @@ export class HistoryStore {
         ...this.currentState,
         diff,
         diffLoading: false,
-        diffError: null,
+        diffFailed: false,
       });
     } catch (error) {
       if (
@@ -308,11 +317,12 @@ export class HistoryStore {
       ) {
         return;
       }
+      reportErrorMessage(describeError(error));
       this.update({
         ...this.currentState,
         diff: null,
         diffLoading: false,
-        diffError: String(error),
+        diffFailed: true,
       });
     }
   }

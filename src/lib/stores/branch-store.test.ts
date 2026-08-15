@@ -1,9 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Branch, BranchType } from "../../models/branch";
 import { ComputedAction } from "../../models/computed-action";
 import type { MergeTreeResult } from "../../models/merge";
 import { MergeResult, rebaseBranch as rebaseBranchCommand, RebaseResult } from "../git-ipc";
 import { BranchStore } from "./branch-store";
+import { getDefaultMessageStore } from "./default-message-store";
+
+/** Sidebar-originated branch failures report to the shared store — MESSAGE_SYSTEM_PLAN.md Slice 4. */
+function lastReportedMessage(): string {
+  const messages = getDefaultMessageStore().state.messages;
+  return messages[messages.length - 1]?.text ?? "";
+}
+
+beforeEach(() => {
+  const store = getDefaultMessageStore();
+  for (const message of store.state.messages) {
+    store.dismiss(message.id);
+  }
+});
 
 function branch(name: string, type = BranchType.Local, upstream: string | null = null): Branch {
   return new Branch(
@@ -59,7 +73,7 @@ describe("BranchStore", () => {
       defaultBranch: "main",
       recentBranches: ["topic", "main"],
       loading: false,
-      error: null,
+      loadFailed: false,
     });
     expect(getRecentBranches).toHaveBeenCalledWith("/repo", 6);
     expect(getRemoteHEAD).toHaveBeenCalledWith("/repo", "origin");
@@ -115,7 +129,7 @@ describe("BranchStore", () => {
       currentBranch: "feature",
       operation: null,
       progress: null,
-      operationError: null,
+      dialogError: null,
     });
   });
 
@@ -149,7 +163,7 @@ describe("BranchStore", () => {
 
     expect(await store.createAndCheckout("   ")).toBe(false);
     expect(createBranch).not.toHaveBeenCalled();
-    expect(store.state.operationError).toBe("Enter a branch name.");
+    expect(lastReportedMessage()).toBe("Enter a branch name.");
   });
 
   it("publishes operation failures and keeps the loaded branch list", async () => {
@@ -165,7 +179,8 @@ describe("BranchStore", () => {
 
     expect(await store.createAndCheckout("main")).toBe(false);
     expect(store.state.branches).toEqual([main]);
-    expect(store.state.operationError).toBe("Error: branch exists");
+    // describeError unwraps the rejection where the store used to String() it.
+    expect(lastReportedMessage()).toBe("branch exists");
     expect(store.state.operation).toBeNull();
   });
 
@@ -251,7 +266,7 @@ describe("BranchStore", () => {
     await expect(store.renameBranch("other", "renamed")).resolves.toBe(true);
 
     expect(renameBranch).toHaveBeenCalledWith("/repo", "other", "renamed", undefined);
-    expect(store.state.operationError).toBeNull();
+    expect(store.state.dialogError).toBeNull();
     expect(getBranches).toHaveBeenCalledTimes(2);
   });
 
@@ -263,7 +278,7 @@ describe("BranchStore", () => {
     await expect(store.renameBranch("topic", "bad~name")).resolves.toBe(false);
 
     expect(renameBranch).not.toHaveBeenCalled();
-    expect(store.state.operationError).toContain("not a valid branch name");
+    expect(store.state.dialogError).toContain("not a valid branch name");
   });
 
   it("requires a non-empty branch name to rename", async () => {
@@ -274,7 +289,7 @@ describe("BranchStore", () => {
     await expect(store.renameBranch("topic", "   ")).resolves.toBe(false);
 
     expect(renameBranch).not.toHaveBeenCalled();
-    expect(store.state.operationError).toBe("Enter a branch name.");
+    expect(store.state.dialogError).toBe("Enter a branch name.");
   });
 
   it("rejects a rename that collides with an existing branch", async () => {
@@ -286,7 +301,7 @@ describe("BranchStore", () => {
     await expect(store.renameBranch("topic", "main")).resolves.toBe(false);
 
     expect(renameBranch).not.toHaveBeenCalled();
-    expect(store.state.operationError).toContain("already exists");
+    expect(store.state.dialogError).toContain("already exists");
   });
 
   it("deletes a non-current, non-default local branch", async () => {
@@ -312,7 +327,7 @@ describe("BranchStore", () => {
     await expect(store.deleteBranch("topic")).resolves.toBe(false);
 
     expect(deleteLocalBranch).not.toHaveBeenCalled();
-    expect(store.state.operationError).toContain("current branch");
+    expect(store.state.dialogError).toContain("current branch");
   });
 
   it("refuses to delete the default branch", async () => {
@@ -325,7 +340,7 @@ describe("BranchStore", () => {
     await expect(store.deleteBranch("main")).resolves.toBe(false);
 
     expect(deleteLocalBranch).not.toHaveBeenCalled();
-    expect(store.state.operationError).toContain("default branch");
+    expect(store.state.dialogError).toContain("default branch");
   });
 
   it("refuses to delete a branch on an unborn or detached HEAD", async () => {
@@ -337,7 +352,7 @@ describe("BranchStore", () => {
     await expect(store.deleteBranch("other")).resolves.toBe(false);
 
     expect(deleteLocalBranch).not.toHaveBeenCalled();
-    expect(store.state.operationError).toContain("unborn or detached");
+    expect(store.state.dialogError).toContain("unborn or detached");
   });
 
   it("prunes the tracking ref only when opted in", async () => {

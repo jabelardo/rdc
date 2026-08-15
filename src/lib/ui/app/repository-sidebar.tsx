@@ -64,7 +64,7 @@ type RepositorySidebarProps = {
   readonly onRepositoryContextMenu: (repository: Repository, x: number, y: number) => void;
   readonly onBranchContextMenu: (branch: Branch, x: number, y: number) => void;
   readonly onBranchNameChange: (name: string) => void;
-  readonly onBranchChange: (operation: () => Promise<boolean>) => Promise<void>;
+  readonly onBranchChange: (operation: () => Promise<boolean>) => Promise<boolean>;
 };
 
 /** Repository navigation and branch controls, independent of the active workspace view. */
@@ -261,10 +261,10 @@ export function RepositorySidebar({
                         <div className="branches-panel-content">
                           {branchState.loading ? (
                             <p>Loading branches…</p>
-                          ) : branchState.error !== null ? (
-                            <p className="application-error" role="alert">
-                              {branchState.error}
-                            </p>
+                          ) : branchState.loadFailed ? (
+                            // The failure itself is a message, announced once; this only stops the
+                            // panel presenting an empty list as though there were no branches.
+                            <p>Branches are unavailable.</p>
                           ) : (
                             <>
                               <div className="branch-filter-actions">
@@ -307,8 +307,8 @@ export function RepositorySidebar({
                                     event.preventDefault();
                                     void onBranchChange(() =>
                                       branchStore.createAndCheckout(newBranchName),
-                                    ).then(() => {
-                                      if (branchStore.state.operationError === null) {
+                                    ).then((created) => {
+                                      if (created) {
                                         onBranchNameChange("");
                                         onShowBranchCreation(false);
                                       }
@@ -397,11 +397,6 @@ export function RepositorySidebar({
                           ) : branchState.progress !== null ? (
                             <p role="status">{branchState.progress.description}</p>
                           ) : null}
-                          {branchState.operationError !== null && (
-                            <p className="application-error" role="alert">
-                              {branchState.operationError}
-                            </p>
-                          )}
                         </div>
                       ))}
                   </div>

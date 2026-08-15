@@ -25,12 +25,11 @@ const state: HistoryState = {
   changeset: null,
   selectedFileID: null,
   loading: false,
-  error: null,
+  loadFailed: false,
   detailsLoading: false,
-  detailsError: null,
   diff: null,
   diffLoading: false,
-  diffError: null,
+  diffFailed: false,
 };
 const store = { selectCommit: vi.fn(), selectFile: vi.fn() } as unknown as HistoryStore;
 

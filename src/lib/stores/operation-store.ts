@@ -13,6 +13,7 @@ import {
 } from "../operation-ipc";
 import { OperationEventRouter } from "../operation-events";
 import { operationPresentationRole } from "../operation-presentation";
+import { describeError } from "../format-error";
 
 export type OperationStoreState = {
   readonly repositoryPath: string | null;
@@ -141,7 +142,7 @@ export class OperationStore {
     } catch (error) {
       this.update({
         ...this.state,
-        error: { kind: "failed", message: String(error), recoverable: true },
+        error: { kind: "failed", message: describeError(error), recoverable: true },
       });
     }
   }

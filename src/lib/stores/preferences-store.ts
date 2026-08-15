@@ -4,6 +4,7 @@ import { Shell, type FoundShell } from "../../models/shell";
 import { getAvailableEditors } from "../platform/editors";
 import { getAvailableShells } from "../platform/shells";
 import { setNativeThemeSource, shouldUseDarkColors, type ThemeSource } from "../platform/theme";
+import { describeError } from "../format-error";
 
 export const PreferencesStorageKey = "rdc-preferences-v1";
 
@@ -230,7 +231,7 @@ export class PreferencesStore {
       this.update({
         ...this.currentState,
         loading: false,
-        error: String(error),
+        error: describeError(error),
       });
     }
   }
@@ -241,7 +242,7 @@ export class PreferencesStore {
       const resolvedTheme = await this.dependencies.setTheme(theme);
       this.update({ ...this.currentState, resolvedTheme });
     } catch (error) {
-      this.update({ ...this.currentState, error: String(error) });
+      this.update({ ...this.currentState, error: describeError(error) });
     }
   }
 
@@ -255,7 +256,7 @@ export class PreferencesStore {
         this.update({ ...this.currentState, resolvedTheme });
       }
     } catch (error) {
-      this.update({ ...this.currentState, error: String(error) });
+      this.update({ ...this.currentState, error: describeError(error) });
     }
   }
 

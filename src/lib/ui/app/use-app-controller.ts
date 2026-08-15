@@ -988,10 +988,23 @@ export function useAppController() {
     await launchExternalEditor(path, editor);
   }
 
-  async function refreshAfterBranchChange(operation: () => Promise<boolean>): Promise<void> {
+  /**
+   * Runs a branch operation and refreshes what it can invalidate.
+   *
+   * Returns whether the operation itself succeeded, because the caller needs to know: the branch
+   * form used to infer it from `branchStore.state.operationError`, which stopped being a reliable
+   * signal once sidebar failures started going to the message store instead.
+   */
+  async function refreshAfterBranchChange(operation: () => Promise<boolean>): Promise<boolean> {
     const repository = appState.selectedRepository;
-    if (repository === null || !(await operation()) || !(await repositoryIsAvailable(repository))) {
-      return;
+    if (repository === null) {
+      return false;
+    }
+    if (!(await operation())) {
+      return false;
+    }
+    if (!(await repositoryIsAvailable(repository))) {
+      return true;
     }
     await Promise.all([
       remoteStore.load(repository.path),
@@ -1001,6 +1014,7 @@ export function useAppController() {
     if (repositoryView === "history") {
       await historyStore.load(repository.path);
     }
+    return true;
   }
 
   async function refreshAfterFetch(): Promise<void> {
@@ -1222,7 +1236,7 @@ export function useAppController() {
     }
     const branch = branchToRename;
     await refreshAfterBranchChange(() => branchStore.renameBranch(branch.name, renameName));
-    if (branchStore.state.operationError === null) {
+    if (branchStore.state.dialogError === null) {
       setBranchToRename(null);
       setRenameName("");
     }
@@ -1283,7 +1297,7 @@ export function useAppController() {
         pruneTrackingRef: deletePruneTrackingRef,
       }),
     );
-    if (branchStore.state.operationError === null) {
+    if (branchStore.state.dialogError === null) {
       setBranchToDelete(null);
       setDeleteUnmerged(false);
       setDeletePruneTrackingRef(false);

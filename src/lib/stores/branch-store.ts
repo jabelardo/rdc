@@ -25,6 +25,7 @@ import {
 import { determineMergeability, getRecentBranches } from "../misc-ipc";
 import { getRemoteHEAD, getRemotes } from "../remote-ipc";
 import { testForInvalidChars } from "../sanitize-ref-name";
+import { describeError, reportErrorMessage } from "../format-error";
 
 export type BranchOperation =
   | "creating"
@@ -53,10 +54,24 @@ export type BranchState = {
   readonly defaultBranch: string | null;
   readonly recentBranches: ReadonlyArray<string>;
   readonly loading: boolean;
-  readonly error: string | null;
+  /**
+   * Whether the last branch read failed.
+   *
+   * A boolean, not the message: the branches panel *branches* on it, and without a signal a failed
+   * read renders the filter and an empty list as though the repository simply had no branches.
+   */
+  readonly loadFailed: boolean;
   readonly operation: BranchOperation | null;
   readonly progress: ICheckoutProgress | IGenericProgress | IMultiCommitOperationProgress | null;
-  readonly operationError: string | null;
+  /**
+   * Failure text for the branch dialogs — rename, delete, merge, rebase — only.
+   *
+   * Not a second error channel by accident: where an in-dialog failure belongs is an open decision
+   * in MESSAGE_SYSTEM_PLAN.md that blocks its Slice 1, and the interim rule is that dialogs keep
+   * their failure inline. Sidebar-originated failures go to the message store instead. This field
+   * goes when that decision is settled, like `remote-store`'s `managementError`.
+   */
+  readonly dialogError: string | null;
 };
 
 type BranchFactsStatus = Pick<IStatusResult, "currentBranch">;
@@ -103,10 +118,10 @@ const EmptyState: BranchState = {
   defaultBranch: null,
   recentBranches: [],
   loading: false,
-  error: null,
+  loadFailed: false,
   operation: null,
   progress: null,
-  operationError: null,
+  dialogError: null,
 };
 
 function findDefaultLocalBranch(
@@ -168,10 +183,10 @@ export class BranchStore {
       defaultBranch: null,
       recentBranches: [],
       loading: true,
-      error: null,
+      loadFailed: false,
       operation: null,
       progress: null,
-      operationError: null,
+      dialogError: null,
     });
 
     try {
@@ -183,15 +198,16 @@ export class BranchStore {
         repositoryPath,
         ...facts,
         loading: false,
-        error: null,
+        loadFailed: false,
         operation: null,
         progress: null,
-        operationError: null,
+        dialogError: null,
       });
     } catch (error) {
       if (requestID !== this.requestID) {
         return;
       }
+      reportErrorMessage(describeError(error));
       this.update({
         repositoryPath,
         branches: [],
@@ -199,10 +215,10 @@ export class BranchStore {
         defaultBranch: null,
         recentBranches: [],
         loading: false,
-        error: String(error),
+        loadFailed: true,
         operation: null,
         progress: null,
-        operationError: null,
+        dialogError: null,
       });
     }
   }
@@ -210,10 +226,7 @@ export class BranchStore {
   public async createAndCheckout(name: string): Promise<boolean> {
     const branchName = name.trim();
     if (branchName.length === 0) {
-      this.update({
-        ...this.currentState,
-        operationError: "Enter a branch name.",
-      });
+      reportErrorMessage("Enter a branch name.");
       return false;
     }
     const repositoryPath = this.currentState.repositoryPath;
@@ -227,7 +240,7 @@ export class BranchStore {
       ...this.currentState,
       operation: "creating",
       progress: null,
-      operationError: null,
+      dialogError: null,
     });
     try {
       await this.dependencies.createBranch(repositoryPath, branchName, undefined, false);
@@ -243,7 +256,7 @@ export class BranchStore {
       );
       return await this.finishOperation(repositoryPath, requestID, operationID);
     } catch (error) {
-      return this.failOperation(requestID, operationID, error);
+      return this.failOperation(requestID, operationID, error, "message");
     }
   }
 
@@ -265,7 +278,7 @@ export class BranchStore {
       ...this.currentState,
       operation: "checking-out",
       progress: null,
-      operationError: null,
+      dialogError: null,
     });
     try {
       await this.dependencies.checkoutBranch(repositoryPath, branch.name, (progress) =>
@@ -273,7 +286,7 @@ export class BranchStore {
       );
       return await this.finishOperation(repositoryPath, requestID, operationID);
     } catch (error) {
-      return this.failOperation(requestID, operationID, error);
+      return this.failOperation(requestID, operationID, error, "message");
     }
   }
 
@@ -297,14 +310,14 @@ export class BranchStore {
     if (target.length === 0) {
       this.update({
         ...this.currentState,
-        operationError: "Enter a branch name.",
+        dialogError: "Enter a branch name.",
       });
       return false;
     }
     if (testForInvalidChars(target)) {
       this.update({
         ...this.currentState,
-        operationError: `'${target}' is not a valid branch name.`,
+        dialogError: `'${target}' is not a valid branch name.`,
       });
       return false;
     }
@@ -316,7 +329,7 @@ export class BranchStore {
     if (collision) {
       this.update({
         ...this.currentState,
-        operationError: `A branch named '${target}' already exists.`,
+        dialogError: `A branch named '${target}' already exists.`,
       });
       return false;
     }
@@ -327,13 +340,13 @@ export class BranchStore {
       ...this.currentState,
       operation: "renaming",
       progress: null,
-      operationError: null,
+      dialogError: null,
     });
     try {
       await this.dependencies.renameBranch(repositoryPath, currentName, target, undefined);
       return await this.finishOperation(repositoryPath, requestID, operationID);
     } catch (error) {
-      return this.failOperation(requestID, operationID, error);
+      return this.failOperation(requestID, operationID, error, "dialog");
     }
   }
 
@@ -360,21 +373,21 @@ export class BranchStore {
     if (branch.name === currentBranch) {
       this.update({
         ...this.currentState,
-        operationError: `You cannot delete the current branch '${branch.name}'.`,
+        dialogError: `You cannot delete the current branch '${branch.name}'.`,
       });
       return false;
     }
     if (currentBranch === null) {
       this.update({
         ...this.currentState,
-        operationError: "You cannot delete a branch while on an unborn or detached HEAD.",
+        dialogError: "You cannot delete a branch while on an unborn or detached HEAD.",
       });
       return false;
     }
     if (branch.name === defaultBranch) {
       this.update({
         ...this.currentState,
-        operationError: `You cannot delete the default branch '${branch.name}'.`,
+        dialogError: `You cannot delete the default branch '${branch.name}'.`,
       });
       return false;
     }
@@ -385,7 +398,7 @@ export class BranchStore {
       ...this.currentState,
       operation: "deleting",
       progress: null,
-      operationError: null,
+      dialogError: null,
     });
     try {
       await this.dependencies.deleteLocalBranch(repositoryPath, branch.name);
@@ -394,7 +407,7 @@ export class BranchStore {
       }
       return await this.finishOperation(repositoryPath, requestID, operationID);
     } catch (error) {
-      return this.failOperation(requestID, operationID, error);
+      return this.failOperation(requestID, operationID, error, "dialog");
     }
   }
 
@@ -438,7 +451,7 @@ export class BranchStore {
       ...this.currentState,
       operation: "merging",
       progress: { kind: "generic", value: 0, title: "Merging changes" },
-      operationError: null,
+      dialogError: null,
     });
     try {
       const mergeability = await this.dependencies.determineMergeability(
@@ -469,7 +482,7 @@ export class BranchStore {
           return "conflict";
       }
     } catch (error) {
-      this.failOperation(requestID, operationID, error);
+      this.failOperation(requestID, operationID, error, "dialog");
       return "failed";
     }
   }
@@ -505,7 +518,7 @@ export class BranchStore {
       ...this.currentState,
       operation: "rebasing",
       progress: null,
-      operationError: null,
+      dialogError: null,
     });
     try {
       const result = await this.dependencies.rebaseBranch(
@@ -526,7 +539,7 @@ export class BranchStore {
           return "failed";
       }
     } catch (error) {
-      this.failOperation(requestID, operationID, error);
+      this.failOperation(requestID, operationID, error, "dialog");
       return "failed";
     }
   }
@@ -537,7 +550,7 @@ export class BranchStore {
         ...this.currentState,
         operation: null,
         progress: null,
-        operationError: null,
+        dialogError: null,
       });
     }
   }
@@ -595,21 +608,36 @@ export class BranchStore {
       repositoryPath,
       ...facts,
       loading: false,
-      error: null,
+      loadFailed: false,
       operation: null,
       progress: null,
-      operationError: null,
+      dialogError: null,
     });
     return true;
   }
 
-  private failOperation(requestID: number, operationID: number, error: unknown): false {
+  /**
+   * Ends a failed branch operation and puts its message where the user is looking.
+   *
+   * `surface` is not a style choice: a dialog-originated failure has to stay inline until
+   * MESSAGE_SYSTEM_PLAN.md's in-dialog decision is settled, while a sidebar-originated one has no
+   * inline home left and belongs in the message store.
+   */
+  private failOperation(
+    requestID: number,
+    operationID: number,
+    error: unknown,
+    surface: "dialog" | "message",
+  ): false {
     if (this.isCurrentOperation(requestID, operationID)) {
+      if (surface === "message") {
+        reportErrorMessage(describeError(error));
+      }
       this.update({
         ...this.currentState,
         operation: null,
         progress: null,
-        operationError: String(error),
+        dialogError: surface === "dialog" ? describeError(error) : null,
       });
     }
     return false;

@@ -7,6 +7,7 @@ import {
 } from "../operation-ipc";
 import { clone as cloneRepository } from "../remote-ipc";
 import { describeRemoteError } from "../remote-error";
+import { describeError } from "../format-error";
 
 export type CloneState = {
   readonly operation: "clone" | null;
@@ -170,7 +171,7 @@ export class CloneStore {
       }
     } catch (error) {
       if (this.currentState.nativeOperation?.id === operation.id) {
-        this.update({ ...this.currentState, error: String(error) });
+        this.update({ ...this.currentState, error: describeError(error) });
       }
     }
   }

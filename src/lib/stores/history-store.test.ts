@@ -1,9 +1,23 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Commit } from "../../models/commit";
 import { CommitIdentity } from "../../models/commit-identity";
 import { DiffType, type IDiff } from "../../models/diff";
 import { AppFileStatusKind, CommittedFileChange } from "../../models/status";
 import { HistoryStore } from "./history-store";
+import { getDefaultMessageStore } from "./default-message-store";
+
+/** History failures are reported to the shared message store — MESSAGE_SYSTEM_PLAN.md Slice 3. */
+function lastReportedMessage(): string {
+  const messages = getDefaultMessageStore().state.messages;
+  return messages[messages.length - 1]?.text ?? "";
+}
+
+beforeEach(() => {
+  const store = getDefaultMessageStore();
+  for (const message of store.state.messages) {
+    store.dismiss(message.id);
+  }
+});
 
 function commit(sha: string, summary: string): Commit {
   const identity = new CommitIdentity(
@@ -46,7 +60,7 @@ describe("HistoryStore", () => {
       commits,
       selectedCommitSHA: commits[0].sha,
       loading: false,
-      error: null,
+      loadFailed: false,
     });
   });
 
@@ -59,7 +73,7 @@ describe("HistoryStore", () => {
 
     expect(store.state.commits).toEqual([]);
     expect(store.state.selectedCommitSHA).toBeNull();
-    expect(store.state.error).toBeNull();
+    expect(store.state.loadFailed).toBe(false);
   });
 
   it("preserves a selected commit when refreshing the same history", async () => {
@@ -111,7 +125,7 @@ describe("HistoryStore", () => {
       commits: [],
       selectedCommitSHA: null,
       loading: false,
-      error: "Error: history failed",
+      loadFailed: true,
     });
   });
 
@@ -167,10 +181,9 @@ describe("HistoryStore", () => {
       },
       selectedFileID: firstFile.id,
       detailsLoading: false,
-      detailsError: null,
       diff: textDiff,
       diffLoading: false,
-      diffError: null,
+      diffFailed: false,
     });
   });
 
@@ -267,6 +280,8 @@ describe("HistoryStore", () => {
 
     expect(store.state.changeset?.files).toEqual([file]);
     expect(store.state.diff).toBeNull();
-    expect(store.state.diffError).toBe("Error: diff failed");
+    expect(store.state.diffFailed).toBe(true);
+    // describeError now unwraps it, where the store used to String() the rejection.
+    expect(lastReportedMessage()).toBe("diff failed");
   });
 });

@@ -69,10 +69,10 @@ export function HistoryWorkspace({
       <div className="history-list-pane min-h-0 min-w-0 overflow-auto border-r border-[var(--border)]">
         {state.loading ? (
           <p>Loading history…</p>
-        ) : state.error !== null ? (
-          <p className="application-error" role="alert">
-            {state.error}
-          </p>
+        ) : state.loadFailed ? (
+          // The failure itself is a message, announced once; this only stops the pane claiming
+          // there are no commits over a history it could not read.
+          <p>History is unavailable.</p>
         ) : state.commits.length === 0 ? (
           <p>No commits yet.</p>
         ) : (
@@ -244,10 +244,6 @@ export function HistoryWorkspace({
               <section className="history-file-section" aria-label="Changed files">
                 {state.detailsLoading ? (
                   <p className="history-details-status">Loading commit details…</p>
-                ) : state.detailsError !== null ? (
-                  <p className="application-error" role="alert">
-                    {state.detailsError}
-                  </p>
                 ) : state.changeset === null ? (
                   <p className="history-details-status">Commit details are unavailable.</p>
                 ) : (
@@ -321,10 +317,8 @@ export function HistoryWorkspace({
                 <div className="history-diff-content">
                   {state.diffLoading ? (
                     <p>Loading diff…</p>
-                  ) : state.diffError !== null ? (
-                    <p className="application-error" role="alert">
-                      {state.diffError}
-                    </p>
+                  ) : state.diffFailed ? (
+                    <p className="history-details-status">This file&apos;s diff is unavailable.</p>
                   ) : state.diff === null || selectedFile === null ? (
                     <p className="history-details-status">
                       Select a changed file to inspect its diff.
