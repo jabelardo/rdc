@@ -1,8 +1,9 @@
 # UI foundation — shadcn/Radix adoption
 
-**Status**: Phases 0–1 landed (tooling + full token migration; the sonner-backed toast; the
-`useTheme()` provider). **Stage 2 = Phases 2–3 (Dialog, Tooltip) — in progress (10/12 dialogs migrated).** See "Stages"
-below for where this sits in the engineering round.
+**Status**: Phases 0–3 landed — tooling and the full token migration, the sonner-backed toast and
+`useTheme()` provider, every dialog on Radix with the hand-rolled `Modal` deleted, and the Tooltip
+rebuilt on Radix's primitive. **The shadcn/Radix adoption is complete.** See "Stages" below for
+where this sits in the engineering round.
 **Why now, not later**: rdc is greenfield and not racing to an MVP date — the priority is a strong
 architectural foundation a future open-source collaborator (post-MVP, once the project is
 promoted) can pick up easily. Every hand-rolled component added between now and "later" is more
@@ -19,7 +20,7 @@ Mapping them to the work that has actually landed keeps the sequencing honest:
 |---|---|---|
 | 0 | `UI_FOUNDATION_PLAN.md` Phase 0 (tooling + token migration) | landed (`c6f8765`) |
 | 1 | `UI_FOUNDATION_PLAN.md` Phase 1 + `MESSAGE_SYSTEM_PLAN.md` Slice 0 + the `useTheme()` sidebar | landed (`1897ddf`, `dd903a7`) — `reportError` has zero production callers, by design |
-| **2** | **`UI_FOUNDATION_PLAN.md` Phase 2 (Dialog) + Phase 3 (Tooltip)** — this stage | **in progress** (10/12 dialogs migrated) |
+| 2 | `UI_FOUNDATION_PLAN.md` Phase 2 (Dialog) + Phase 3 (Tooltip) | landed — `modal.tsx` deleted, `tooltip.tsx` rebuilt on Radix |
 | 3 | `MESSAGE_SYSTEM_PLAN.md` Slices 1–7 (wire `reportError` into every store, remove `.application-error`) | after the Dialog primitive they consume exists |
 | 4 | `BRANCH_OPERATIONS_PLAN.md` Slice 4 (abort merge) | independent; any time |
 
@@ -43,7 +44,9 @@ that a contributor plausibly already knows the pattern.
 
 ## Current state
 
-Verified by reading the code, not assumed from convention:
+**Historical: this is the survey the plan was written from, kept because the later phases argue
+against it. Phases 0–3 have since landed; `modal.tsx` no longer exists and `tooltip.tsx` is
+Radix-backed.** Verified by reading the code, not assumed from convention:
 
 - **Tokens**: `src/App.css` defines ~29 distinct `--color-*` custom properties (plus shadow/radius/
   spacing tokens) under a plain `:root { }` — not wired through Tailwind 4's `@theme` directive,
@@ -450,6 +453,29 @@ blur/mouseleave — the macOS regression this whole mechanism exists for) and `:
 both must pass against the controlled registry. The native-context-menu path itself isn't
 exercisable in jsdom, so the unit test is the guard — do not add an E2E for it (native GTK menus
 have no WebDriver backend; see `MIGRATION_MAP.md` §8).
+
+**Landed (2026-08-15), 3.1–3.3 together.** The component is Radix-backed and keeps both export
+names, so no call site changed. Radix owns open/close semantics, `aria-describedby`, Escape
+dismissal, the portal and the transform; rdc owns the placement, expressed as `side`, `sideOffset`
+and `alignOffset`.
+
+`avoidCollisions` is **off**, and that is the consequence of 3.0 rather than a shortcut. Collision
+handling cannot coexist with boundary clearance — it pulls the bubble back inside the very ancestor
+the clearance pushes it past — so the viewport clamping and the flip-above that collision handling
+would have provided are computed here instead. That is the honest cost: the component is 242 lines
+against the hand-rolled 225. It is not smaller. What it buys is Escape dismissal (new), upstream
+ownership of the hover/focus/a11y semantics, and consistency with the rest of the foundation.
+
+Three things the plan did not anticipate, each found by a test rather than by reading:
+
+- **`data-tooltip` on the trigger is load-bearing outside this component.** `working-tree.test.mjs`
+  and `history.test.mjs` read it, as does `App.test.tsx`. It is not decoration; it stays.
+- **`.app-tooltip` was `position: fixed`**, which only made sense while the implementation wrote
+  `left`/`top` onto the bubble itself. Inside Radix's positioned wrapper it is laid out normally.
+- **An unmeasurable bubble must still be positionable.** The first implementation returned "no
+  placement" when the bubble reported zero height, which is what jsdom reports without stubbed
+  rects — so the bubble stayed `visibility: hidden` forever and was invisible to `getByRole`. Zero
+  height means *cannot* measure, not *not yet*; the height only refines the placement.
 
 **Sub-slice 3.3 — retire the old `tooltip.tsx` implementation.** The new component keeps the same
 export names (`Tooltip`, `dismissAllTooltips`), so the ~dozen call sites (`repository-toolbar`,

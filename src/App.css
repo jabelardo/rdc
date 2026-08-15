@@ -560,7 +560,9 @@
 }
 
 .app-tooltip {
-  position: fixed;
+  /* Radix's popper wrapper owns the placement and is itself positioned, so the bubble is laid out
+     inside it. It used to be `fixed` because the hand-rolled implementation wrote `left`/`top`
+     directly onto this element. */
   z-index: 10000;
   width: max-content;
   max-width: calc(100vw - 13px);

@@ -1,18 +1,5 @@
-import {
-  Children,
-  cloneElement,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type FocusEvent,
-  type FocusEventHandler,
-  type MouseEvent,
-  type MouseEventHandler,
-  type ReactElement,
-} from "react";
-import { createPortal } from "react-dom";
+import { Children, useCallback, useEffect, useRef, useState, type ReactElement } from "react";
+import { Tooltip as RadixTooltip } from "radix-ui";
 
 /**
  * Every mounted tooltip's own `hide`, so something outside the component tree can force-close
@@ -37,20 +24,29 @@ export function dismissAllTooltips(): void {
   }
 }
 
-type TooltipTargetProps = {
-  readonly disabled?: boolean;
-  readonly onMouseEnter?: MouseEventHandler<HTMLElement>;
-  readonly onMouseMove?: MouseEventHandler<HTMLElement>;
-  readonly onMouseLeave?: MouseEventHandler<HTMLElement>;
-  readonly onFocus?: FocusEventHandler<HTMLElement>;
-  readonly onBlur?: FocusEventHandler<HTMLElement>;
-  readonly "aria-describedby"?: string;
-  readonly "data-tooltip"?: string;
-};
+/**
+ * Marks an element a tooltip must clear entirely, not merely its trigger.
+ *
+ * A control centred in a command bar sits above the bar's own bottom padding, so clearing only the
+ * control can leave the bubble inside the bar, abutting or covering its bottom rule. Marking the
+ * bar makes the clearance follow the bar's real geometry, rather than a gap constant that is
+ * correct only for today's padding.
+ */
+const boundarySelector = "[data-tooltip-boundary]";
 
-type TooltipPosition = {
-  readonly left: number;
-  readonly top: number;
+/** Distance between what is being cleared and the bubble. */
+const gap = 7;
+/** Never position a bubble under the native title bar. */
+const titlebarGap = 36;
+/** Keep a bubble off the viewport edges. */
+const margin = 8;
+/** Above this trigger height, the bubble follows the pointer rather than the trigger's edge. */
+const pointerTrackingHeight = 100;
+
+type Placement = {
+  readonly side: "top" | "bottom";
+  readonly sideOffset: number;
+  readonly alignOffset: number;
 };
 
 type TooltipProps = {
@@ -59,167 +55,188 @@ type TooltipProps = {
 };
 
 /**
- * Marks an element a tooltip must clear entirely, not merely its trigger.
- *
- * A control centred in a command bar sits above the bar's own bottom padding, so clearing only the
- * control can leave the bubble inside the bar, abutting or covering its bottom rule. Marking the
- * bar makes the clearance follow the bar's real geometry, rather than a gap constant that is
- * correct only for today's padding.
- *
- * This is a presentation choice, not a bug fix. The 1.95px overlap the visual E2E once reported
- * came from `tooltip-appear` being held at `translateY(-0.15rem)` while a stray
- * `opacity: 1 !important` kept the bubble visible through the animation delay — see App.css.
- */
-const boundarySelector = "[data-tooltip-boundary]";
-
-/**
  * One application-owned tooltip for pointer and keyboard users.
  *
- * The bubble is portalled to `body`: panes deliberately clip their content, so rendering the
- * bubble beside its trigger would make z-index ineffective at workspace boundaries. That is also
- * why every coordinate here is computed by hand — a portalled bubble has no layout relationship to
- * its trigger.
+ * Radix owns what a tooltip primitive should own: open/close semantics, `aria-describedby` wiring,
+ * Escape dismissal, the portal, and horizontal clamping to the viewport. rdc supplies the vertical
+ * offset, because two of its behaviours have no Radix equivalent — and one of them cannot be
+ * expressed with Radix's collision props at all.
+ *
+ * **Boundary clearance is not collision handling.** `collisionBoundary` *contains* content within a
+ * boundary; rdc pushes content *past* an ancestor. Measured during `UI_FOUNDATION_PLAN.md`'s
+ * sub-slice 3.0 spike, configuring collision against the bar moved the bubble further up *into* the
+ * bar (39px where the contract is 75.25px). So the clearance is a computed `sideOffset` instead:
+ * one measurement and one subtraction, with Radix still doing the positioning.
+ *
+ * **Pointer tracking** on a tall row is anchor-incompatible by nature — Radix positions against the
+ * trigger's box, and here the bubble must follow `clientY` down a row taller than the bubble. Same
+ * mechanism: express the desired top as an offset from the trigger's bottom edge.
  */
 export function Tooltip({ label, children }: TooltipProps) {
-  const id = useId();
-  const tooltipRef = useRef<HTMLSpanElement>(null);
-  const anchorRect = useRef<DOMRect | null>(null);
-  const boundaryRect = useRef<DOMRect | null>(null);
-  const pointerYRef = useRef<number | null>(null);
+  const child = Children.only(children) as ReactElement<{ readonly disabled?: boolean }>;
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<TooltipPosition | null>(null);
-  const child = Children.only(children) as ReactElement<TooltipTargetProps>;
+  const [placement, setPlacement] = useState<Placement | null>(null);
+  // Radix types its Trigger ref as a button; the element rdc measures is whatever the caller
+  // passed through `asChild`, so the ref is stored as the general element type it really is.
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const pointerY = useRef<number | null>(null);
 
-  const show = (target: HTMLElement, clientY?: number) => {
-    anchorRect.current = target.getBoundingClientRect();
-    boundaryRect.current = target.closest(boundarySelector)?.getBoundingClientRect() ?? null;
-    pointerYRef.current = clientY ?? null;
-    setPosition(null);
-    setOpen(true);
-  };
-  const hide = () => {
+  const hide = useCallback(() => {
     setOpen(false);
-    setPosition(null);
-    boundaryRect.current = null;
-    pointerYRef.current = null;
-  };
+    setPlacement(null);
+    pointerY.current = null;
+  }, []);
 
-  // Registered for the component's whole lifetime, not just while open: `dismissAllTooltips`
-  // must be able to reach a tooltip the instant it opens, and calling `hide` when already closed
-  // is a harmless no-op (`setOpen(false)` on `false`).
+  // Registered for the component's whole lifetime, not just while open: `dismissAllTooltips` must
+  // be able to reach a tooltip the instant it opens, and hiding an already-closed one is a
+  // harmless no-op.
   useEffect(() => {
     openTooltips.add(hide);
     return () => {
       openTooltips.delete(hide);
     };
-  }, []);
+  }, [hide]);
 
-  useLayoutEffect(() => {
-    if (!open || tooltipRef.current === null || anchorRect.current === null) {
-      return;
+  /**
+   * Where the bubble should sit, expressed as offsets from Radix's own placement.
+   *
+   * `null` only before the trigger exists. The bubble's own height refines the result — whether it
+   * fits below, where its centre lands — so the first frame renders hidden and the second, once the
+   * content ref has fired, positions. Exactly the two passes the hand-rolled implementation made.
+   */
+  const measure = useCallback((): Placement | null => {
+    const trigger = triggerRef.current;
+    if (trigger === null) {
+      return null;
     }
-    const bubble = tooltipRef.current.getBoundingClientRect();
-    const anchor = anchorRect.current;
-    const margin = 8;
-    const titlebarGap = 36;
-    const gap = 7;
-    const desiredLeft = anchor.left + anchor.width / 2 - bubble.width / 2;
-    const left = Math.min(window.innerWidth - bubble.width - margin, Math.max(margin, desiredLeft));
+    const anchor = trigger.getBoundingClientRect();
+    // Zero is what an unmeasurable bubble reports, and it has to stay positionable: the offsets
+    // that need a height only *refine* the placement, and a bubble that is never positioned is
+    // never shown. This is the difference between "not measured yet" and "cannot be measured".
+    const bubble = contentRef.current?.getBoundingClientRect() ?? { height: 0, width: 0 };
 
-    let top: number;
-    if (anchor.height > 100) {
-      const targetY = pointerYRef.current ?? anchor.top + anchor.height / 2;
-      top = Math.min(
+    // Radix centres on the trigger; clamping to the viewport is rdc's, because collision handling
+    // is off — it cannot be reconciled with boundary clearance, which pushes *past* an ancestor
+    // where collision handling contains *within* one.
+    const centredLeft = anchor.left + anchor.width / 2 - bubble.width / 2;
+    const alignOffset =
+      Math.min(window.innerWidth - bubble.width - margin, Math.max(margin, centredLeft)) -
+      centredLeft;
+
+    if (anchor.height > pointerTrackingHeight) {
+      const targetY = pointerY.current ?? anchor.top + anchor.height / 2;
+      const top = Math.min(
         window.innerHeight - bubble.height - margin,
         Math.max(titlebarGap, targetY - bubble.height / 2),
       );
-    } else {
-      // Clear the whole boundary when the trigger sits inside one, so the bubble never lands on the
-      // bar hosting it. Falls back to the trigger's own edges, which is the behaviour for any
-      // control outside a bar. Symmetrical: flipping above has to clear the boundary's top for the
-      // same reason it has to clear its bottom going down.
-      const boundary = boundaryRect.current;
-      const clearanceBottom = Math.max(anchor.bottom, boundary?.bottom ?? anchor.bottom);
-      const clearanceTop = Math.min(anchor.top, boundary?.top ?? anchor.top);
-      const below = clearanceBottom + gap;
-      top =
-        below + bubble.height <= window.innerHeight - margin
-          ? below
-          : Math.max(titlebarGap, clearanceTop - bubble.height - gap);
+      return { side: "bottom", sideOffset: top - anchor.bottom, alignOffset };
     }
-    setPosition({ left, top });
-  }, [open, label]);
 
-  const description = open ? id : child.props["aria-describedby"];
-  const bubble =
-    open &&
-    createPortal(
-      <span
-        ref={tooltipRef}
-        id={id}
+    // Clear the whole boundary when the trigger sits inside one, so the bubble never lands on the
+    // bar hosting it. Falls back to the trigger's own edges, which is the behaviour for any control
+    // outside a bar. Symmetrical: flipping above has to clear the boundary's top for the same
+    // reason it has to clear its bottom going down.
+    const boundary = trigger.closest(boundarySelector)?.getBoundingClientRect();
+    const clearanceBottom = Math.max(anchor.bottom, boundary?.bottom ?? anchor.bottom);
+    const clearanceTop = Math.min(anchor.top, boundary?.top ?? anchor.top);
+    const below = clearanceBottom + gap;
+
+    if (below + bubble.height <= window.innerHeight - margin) {
+      return { side: "bottom", sideOffset: below - anchor.bottom, alignOffset };
+    }
+    // Above: Radix measures the offset from the trigger's top edge upwards, so convert the desired
+    // top into that distance.
+    const above = Math.max(titlebarGap, clearanceTop - bubble.height - gap);
+    return { side: "top", sideOffset: anchor.top - bubble.height - above, alignOffset };
+  }, []);
+
+  const reposition = useCallback(() => {
+    setPlacement(measure());
+  }, [measure]);
+
+  const trackPointer = useCallback(
+    (clientY: number) => {
+      const anchor = triggerRef.current?.getBoundingClientRect();
+      if (anchor === undefined || anchor.height <= pointerTrackingHeight) {
+        return;
+      }
+      pointerY.current = clientY;
+      reposition();
+    },
+    [reposition],
+  );
+
+  const content = (
+    <RadixTooltip.Portal>
+      <RadixTooltip.Content
+        ref={(node) => {
+          contentRef.current = node;
+          // A tall trigger's offset needs the bubble's height, so the first usable measurement is
+          // the one taken once it exists.
+          if (node !== null && placement === null) {
+            reposition();
+          }
+        }}
         className="app-tooltip"
-        role="tooltip"
-        style={
-          position === null ? { visibility: "hidden" } : { left: position.left, top: position.top }
-        }
+        side={placement?.side ?? "bottom"}
+        align="center"
+        sideOffset={placement?.sideOffset ?? gap}
+        alignOffset={placement?.alignOffset ?? 0}
+        avoidCollisions={false}
+        style={placement === null ? { visibility: "hidden" } : undefined}
       >
         {label}
-      </span>,
-      document.body,
-    );
+      </RadixTooltip.Content>
+    </RadixTooltip.Portal>
+  );
 
+  // A disabled control receives no pointer events, so the tooltip has to be anchored to a wrapper
+  // that does. `data-tooltip` stays on it for the same reason it stays on an enabled trigger.
   if (child.props.disabled === true) {
     return (
-      <span
-        className="disabled-tooltip-anchor"
-        data-tooltip={label}
-        onMouseEnter={(event) => show(event.currentTarget, event.clientY)}
-        onMouseLeave={hide}
-      >
-        {cloneElement(child, { "aria-describedby": description })}
-        {bubble}
-      </span>
+      <RadixTooltip.Provider delayDuration={0}>
+        <RadixTooltip.Root
+          open={open}
+          onOpenChange={(next) => {
+            if (next) {
+              reposition();
+            }
+            setOpen(next);
+          }}
+        >
+          <RadixTooltip.Trigger asChild ref={triggerRef}>
+            <span className="disabled-tooltip-anchor" data-tooltip={label}>
+              {child}
+            </span>
+          </RadixTooltip.Trigger>
+          {content}
+        </RadixTooltip.Root>
+      </RadixTooltip.Provider>
     );
   }
 
   return (
-    <>
-      {cloneElement(child, {
-        "aria-describedby": description,
-        "data-tooltip": label,
-        onMouseEnter: (event: MouseEvent<HTMLElement>) => {
-          child.props.onMouseEnter?.(event);
-          show(event.currentTarget, event.clientY);
-        },
-        onMouseMove: (event: MouseEvent<HTMLElement>) => {
-          if (anchorRect.current && anchorRect.current.height > 100) {
-            pointerYRef.current = event.clientY;
-            if (open && tooltipRef.current && anchorRect.current) {
-              const bubble = tooltipRef.current.getBoundingClientRect();
-              const margin = 8;
-              const titlebarGap = 36;
-              const top = Math.min(
-                window.innerHeight - bubble.height - margin,
-                Math.max(titlebarGap, event.clientY - bubble.height / 2),
-              );
-              setPosition((prev) => (prev ? { ...prev, top } : prev));
-            }
+    <RadixTooltip.Provider delayDuration={0}>
+      <RadixTooltip.Root
+        open={open}
+        onOpenChange={(next) => {
+          if (next) {
+            reposition();
           }
-        },
-        onMouseLeave: (event: MouseEvent<HTMLElement>) => {
-          child.props.onMouseLeave?.(event);
-          hide();
-        },
-        onFocus: (event: FocusEvent<HTMLElement>) => {
-          child.props.onFocus?.(event);
-          show(event.currentTarget);
-        },
-        onBlur: (event: FocusEvent<HTMLElement>) => {
-          child.props.onBlur?.(event);
-          hide();
-        },
-      })}
-      {bubble}
-    </>
+          setOpen(next);
+        }}
+      >
+        <RadixTooltip.Trigger
+          asChild
+          ref={triggerRef}
+          data-tooltip={label}
+          onMouseMove={(event) => trackPointer(event.clientY)}
+        >
+          {child}
+        </RadixTooltip.Trigger>
+        {content}
+      </RadixTooltip.Root>
+    </RadixTooltip.Provider>
   );
 }

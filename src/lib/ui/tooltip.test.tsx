@@ -37,19 +37,46 @@ const bubbleRect = {
   height: 20,
 };
 
+// Radix measures the viewport to decide whether the bubble collides with it; the hand-rolled
+// implementation only read `window.innerWidth/innerHeight`, so the stub never had to describe one.
+// Without this, every ancestor reports the trigger's rect and the "viewport" is 24x13 px, so
+// collision handling clamps every position.
+const viewportRect = {
+  top: 0,
+  bottom: 768,
+  left: 0,
+  right: 1024,
+  width: 1024,
+  height: 768,
+};
+
 function stubRects() {
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
     const source = this.classList.contains("app-tooltip")
       ? bubbleRect
       : this.hasAttribute("data-tooltip-boundary")
         ? barRect
-        : triggerRect;
+        : this === document.documentElement || this === document.body
+          ? viewportRect
+          : triggerRect;
     return { ...source, x: source.left, y: source.top, toJSON: () => source };
   });
 }
 
+/**
+ * The bubble's distance from the top of the viewport.
+ *
+ * Radix positions with a `transform` on its popper wrapper rather than `top` on the bubble, so the
+ * value is read from there. It also rounds to whole pixels, which is why these expectations are a
+ * quarter-pixel below what the hand-rolled implementation wrote — re-derived from the same stubbed
+ * rects during `UI_FOUNDATION_PLAN.md` sub-slice 3.0, not relaxed.
+ */
 function bubbleTop() {
-  return screen.getByRole("tooltip").style.top;
+  const wrapper = screen
+    .getByRole("tooltip")
+    .closest("[data-radix-popper-content-wrapper]") as HTMLElement | null;
+  const match = /translate(?:3d)?\([^,]+,\s*([^,)]+)/.exec(wrapper?.style.transform ?? "");
+  return match?.[1]?.trim() ?? "(not positioned)";
 }
 
 afterEach(() => {
@@ -70,8 +97,9 @@ describe("Tooltip", () => {
     await userEvent.hover(screen.getByRole("button", { name: "Fetch" }));
 
     // The bar's bottom plus the 7px gap, rather than the button's bottom plus the same gap, which
-    // would put the bubble inside the bar's lower padding.
-    expect(bubbleTop()).toBe("75.25px");
+    // would put the bubble inside the bar's lower padding. 75 rather than 75.25 because Radix
+    // rounds; the derivation is unchanged.
+    expect(bubbleTop()).toBe("75px");
   });
 
   it("clears only the trigger when there is no boundary", async () => {
@@ -84,7 +112,7 @@ describe("Tooltip", () => {
 
     await userEvent.hover(screen.getByRole("button", { name: "Fetch" }));
 
-    expect(bubbleTop()).toBe("66.3px");
+    expect(bubbleTop()).toBe("66px");
   });
 
   it("describes its trigger while open", async () => {
