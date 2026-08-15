@@ -46,6 +46,18 @@ describe("ManageRemotesDialog", () => {
     ).toBeInTheDocument();
   });
 
+  // Both halves of a row truncate, so the row alone cannot be trusted to have shown either one.
+  it("carries the full name and URL for a row that had to truncate", () => {
+    renderDialog();
+
+    const region = screen.getByText("origin").closest("[data-tooltip]");
+
+    expect(region?.getAttribute("data-tooltip")).toBe("origin\ngit@github.com:jabelardo/rdc.git");
+    // Once a URL is ellipsised the tooltip is the only way to read it, so it has to be reachable
+    // without a pointer — the row's remove button names the remote but not its URL.
+    expect(region).toHaveAttribute("tabindex", "0");
+  });
+
   it("removes the remote whose row was acted on", async () => {
     const user = userEvent.setup();
     const { onRemoveRemote } = renderDialog();

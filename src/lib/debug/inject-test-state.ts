@@ -23,6 +23,7 @@ import { getDefaultWorkingTreeStore } from "../stores/default-working-tree-store
 import { getDefaultBranchStore } from "../stores/default-branch-store";
 import { getDefaultRemoteStore } from "../stores/default-remote-store";
 import { ComputedAction } from "../../models/computed-action";
+import type { IRemote } from "../../models/remote";
 import type { MergeTreeResult } from "../../models/merge";
 import type { RebasePreview } from "../../models/rebase-preview";
 import { getDefaultCloneStore } from "../stores/default-clone-store";
@@ -63,6 +64,45 @@ function stubFileChange(path: string): WorkingDirectoryFileChange {
     DiffSelection.fromInitialSelection(DiffSelectionType.All),
   );
 }
+
+// ── Remote list stubs ─────────────────────────────────────────────────
+
+/** Two remotes: what most repositories look like, and what the list's minimum height is sized for. */
+const DebugRemotes: ReadonlyArray<IRemote> = [
+  { name: "origin", url: "https://github.com/debug/debug-repo.git" },
+  { name: "upstream", url: "https://github.com/upstream/debug-repo.git" },
+];
+
+/**
+ * A remote list long enough to overflow, with the two rows that can break the layout.
+ *
+ * The dialog's list is a fixed-height scroll region precisely so that a repository with many
+ * remotes does not resize the dialog, and two remotes cannot show that. The entries are not
+ * padding: each row gives the name a `shrink-0` truncate and the URL the remaining space, so a
+ * very long name is the case that can squeeze the URL to nothing, and a very long URL is the case
+ * that decides whether truncation reads as truncation. Both are here, along with enough ordinary
+ * rows to push them past the scroll boundary.
+ */
+const DebugManyRemotes: ReadonlyArray<IRemote> = [
+  { name: "origin", url: "https://github.com/debug/debug-repo.git" },
+  { name: "upstream", url: "https://github.com/upstream/debug-repo.git" },
+  { name: "fork", url: "git@github.com:debug/debug-repo.git" },
+  { name: "backup", url: "/Volumes/Backup/mirrors/debug-repo.git" },
+  { name: "release", url: "https://git.example.com/release/debug-repo.git" },
+  { name: "staging", url: "https://git.example.com/staging/debug-repo.git" },
+  { name: "vendor", url: "https://vendor.example.net/scm/vendor/debug-repo.git" },
+  { name: "security", url: "https://security.example.org/mirror/debug-repo.git" },
+  {
+    name: "a-remote-with-a-deliberately-long-name",
+    url: "https://github.com/debug/debug-repo.git",
+  },
+  {
+    name: "deep",
+    url: "https://git.internal.example.com/organisation/department/team/subproject/debug-repo-with-a-very-long-path.git",
+  },
+  { name: "mirror", url: "https://gitlab.example.com/debug/debug-repo.git" },
+  { name: "archive", url: "https://archive.example.com/debug/debug-repo.git" },
+];
 
 // ── Merge preview stubs ───────────────────────────────────────────────
 //
@@ -246,6 +286,8 @@ type DebugStateOptions = {
    * preview — the whole Show Dialog submenu showed the pre-commit failure instead.
    */
   readonly hookFailure?: boolean;
+  /** Whether the remote list should be long enough to overflow its scroll region. */
+  readonly manyRemotes?: boolean;
 };
 
 /**
@@ -325,10 +367,7 @@ export function injectDebugState(options: DebugStateOptions = {}): Repository {
   // ── RemoteStore ──
   setStoreState(getDefaultRemoteStore(), {
     repositoryPath: repo.path,
-    remotes: [
-      { name: "origin", url: "https://github.com/debug/debug-repo.git" },
-      { name: "upstream", url: "https://github.com/upstream/debug-repo.git" },
-    ],
+    remotes: options.manyRemotes ? DebugManyRemotes : DebugRemotes,
     currentRemote: null,
     currentBranch: null,
     loading: false,

@@ -92,8 +92,30 @@ export function ManageRemotesDialog({
             {filtered.map((remote) => (
               <li key={remote.name} className="flex items-center gap-2 px-2.5 py-2">
                 <Server aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 shrink-0 truncate font-semibold">{remote.name}</span>
-                <span className="min-w-0 grow truncate text-muted-foreground">{remote.url}</span>
+                {/*
+                 * Both halves truncate, and the name is capped rather than merely `shrink-0`:
+                 * `shrink-0` alone gives a long name its full intrinsic width and leaves the URL a
+                 * sliver of ellipsis, which is the wrong thing to sacrifice — the URL is what
+                 * distinguishes two remotes with similar names. The cap only binds on a name long
+                 * enough to need it; ordinary names still size to their content. The tooltip then
+                 * carries whatever the row had to cut, the same way the branch picker's rows do.
+                 *
+                 * `tabIndex` is what makes that tooltip the escape hatch it claims to be. Once a
+                 * URL is ellipsised the tooltip is the *only* way to read it, and a bare div takes
+                 * no focus — the row's remove button names the remote but not its URL, so without
+                 * this a keyboard user simply cannot. It costs a tab stop per row, which is the
+                 * right trade for a list whose rows are the dialog's content.
+                 */}
+                <Tooltip label={`${remote.name}\n${remote.url}`}>
+                  <div tabIndex={0} className="flex min-w-0 grow items-center gap-2">
+                    <span className="max-w-[45%] shrink-0 truncate font-semibold">
+                      {remote.name}
+                    </span>
+                    <span className="min-w-0 grow truncate text-muted-foreground">
+                      {remote.url}
+                    </span>
+                  </div>
+                </Tooltip>
                 <Tooltip label={`Remove the "${remote.name}" remote`}>
                   <Button
                     type="button"

@@ -567,6 +567,12 @@ export function useAppController() {
         injectDebugState();
         requestManageRemotes();
       },
+      // The same dialog over a list that overflows its scroll region, which two remotes cannot
+      // show — the fixed height exists so the dialog does not resize as remotes are added.
+      debugShowManageRemotesLongDialog: () => {
+        injectDebugState({ manyRemotes: true });
+        requestManageRemotes();
+      },
       debugShowHookFailureDialog: () => {
         injectDebugState({ hookFailure: true });
       },

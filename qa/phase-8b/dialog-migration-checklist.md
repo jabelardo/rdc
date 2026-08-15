@@ -86,11 +86,19 @@ Preferences is now a category layout: a vertical rail with a fixed-height panel 
 
 The list is now a fixed-height bordered scroll region with icon-only row actions.
 
-- [ ] **The dialog is the same size with two remotes and with twenty.** Add several remotes and
+Two entries preview it: **Manage remotes…** for the ordinary two-remote case the list's minimum
+height is sized for, and **Manage remotes (long list)…** for a list that overflows. The long list
+is not padding — it contains the two rows that can break the layout, one with a very long name and
+one with a very long URL. Open both; the checks below assume it.
+
+- [ ] **The dialog is the same size with two remotes and with twelve.** Compare the two entries and
       confirm the list scrolls inside its border rather than the dialog growing.
-- [ ] **A long URL truncates rather than widening the dialog.** Add a remote with a very long URL
-      and confirm the name stays fully visible while the URL ellipsises — the name is what
-      identifies the row.
+- [ ] **A long URL truncates rather than widening the dialog.**
+- [ ] **A long name truncates too, instead of squeezing the URL out.** The `deep` and
+      `a-remote-with-a-deliberately-long-name` rows are the ones to look at: the URL is what
+      distinguishes two similarly-named remotes, so it must not collapse to bare ellipsis.
+- [ ] **Whatever a row cut is still reachable.** Hovering the name/URL region shows the full name
+      and URL; confirm it also appears on keyboard focus.
 - [ ] **The icon actions are discoverable.** The trash icon is visible on every row without
       hovering — deliberately unlike the changed-files list — and its tooltip names the remote.
       Confirm the tooltip appears on keyboard focus, not only on hover.
@@ -191,7 +199,8 @@ no controls), `unowned` ("Take control and cancel").
 ### Width & Content Clearance
 - [ ] Custom width overrides applied and not clipped
 - [ ] `<pre className="commit-terminal-output">` in Hook failure — full lines visible, no horizontal scroll inside the dialog
-- [ ] Manage remotes list: URLs with `break-all` wrap inside the dialog, no horizontal overflow
+- [ ] Manage remotes list: URLs truncate inside the dialog (the redesign replaced wrapping with
+      one-line rows), no horizontal overflow — use **Manage remotes (long list)…**
 - [ ] Add remote form: both inputs fit, no clipping at 715px floor
 
 ### Footer / Actions

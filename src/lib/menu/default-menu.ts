@@ -650,6 +650,11 @@ function buildTestMenu(platform: MenuPlatform): ReadonlyArray<TemplateItem> {
           action: event("debug-show-manage-remotes-dialog"),
         },
         {
+          id: "debug-manage-remotes-long",
+          label: "Manage remotes (long list)…",
+          action: event("debug-show-manage-remotes-long-dialog"),
+        },
+        {
           id: "debug-hook-failure",
           label: "Hook failure…",
           action: event("debug-show-hook-failure-dialog"),

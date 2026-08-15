@@ -232,6 +232,7 @@ describe("repository application menu", () => {
           debugShowMergeDialog: vi.fn(),
           debugShowRebaseDialog: vi.fn(),
           debugShowManageRemotesDialog: vi.fn(),
+          debugShowManageRemotesLongDialog: vi.fn(),
           debugShowHookFailureDialog: vi.fn(),
         },
       );

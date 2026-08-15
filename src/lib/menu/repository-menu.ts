@@ -56,6 +56,7 @@ type RepositoryMenuEnvironment = {
   readonly debugShowMergeDialog?: () => void;
   readonly debugShowRebaseDialog?: () => void;
   readonly debugShowManageRemotesDialog?: () => void;
+  readonly debugShowManageRemotesLongDialog?: () => void;
   readonly debugShowHookFailureDialog?: () => void;
 };
 
@@ -149,6 +150,7 @@ export function buildRepositoryMenu(
   enabledByID.set("debug-merge-branch", hasSelection);
   enabledByID.set("debug-rebase-branch", hasSelection);
   enabledByID.set("debug-manage-remotes", hasSelection);
+  enabledByID.set("debug-manage-remotes-long", hasSelection);
   enabledByID.set("debug-hook-failure", hasSelection);
   enabledByID.set("debug-show-discard-file-dialog", hasSelection);
   enabledByID.set("debug-show-add-remote-dialog", hasSelection);
@@ -385,6 +387,9 @@ export function createRepositoryMenuEventExecutor(
         return true;
       case "debug-show-manage-remotes-dialog":
         environment.debugShowManageRemotesDialog?.();
+        return true;
+      case "debug-show-manage-remotes-long-dialog":
+        environment.debugShowManageRemotesLongDialog?.();
         return true;
       case "debug-show-hook-failure-dialog":
         environment.debugShowHookFailureDialog?.();
