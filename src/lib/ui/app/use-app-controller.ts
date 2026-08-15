@@ -50,7 +50,7 @@ import type { ConflictState } from "../../stores/conflict-store";
 import { getDefaultAppStore } from "../../stores/default-app-store";
 import { getDefaultBranchStore } from "../../stores/default-branch-store";
 import { getDefaultCloneStore } from "../../stores/default-clone-store";
-import { describeError } from "../../format-error";
+import { describeError, reportError } from "../../format-error";
 import { getDefaultConflictStore } from "../../stores/default-conflict-store";
 import { getDefaultHistoryStore } from "../../stores/default-history-store";
 import { getDefaultMessageStore } from "../../stores/default-message-store";
@@ -162,7 +162,6 @@ export function useAppController() {
   const [expandedSidebarSections, setExpandedSidebarSections] = useState<
     ReadonlySet<SidebarSectionID>
   >(() => new Set<SidebarSectionID>());
-  const [error, setError] = useState<string | null>(null);
   const [commitMessage, setCommitMessage] = useState("");
   const [newBranchName, setNewBranchName] = useState("");
   const [showBranchCreation, setShowBranchCreation] = useState(false);
@@ -231,6 +230,8 @@ export function useAppController() {
   const [appArchitecture, setAppArchitecture] = useState<Architecture | null>(null);
   const [showPreferencesDialog, setShowPreferencesDialog] = useState(false);
   const [repositoryToRemove, setRepositoryToRemove] = useState<Repository | null>(null);
+  const [removeRepositoryError, setRemoveRepositoryError] = useState<string | null>(null);
+  const [removingRepository, setRemovingRepository] = useState(false);
   const [cloneURL, setCloneURL] = useState("");
   const [clonePath, setClonePath] = useState("");
   const [showWindowDragRegion, setShowWindowDragRegion] = useState(
@@ -787,7 +788,7 @@ export function useAppController() {
     const load = appStore.load().catch((error) => {
       log.error("Failed to load the repository list", error);
       if (!disposed) {
-        setError(describeError(error));
+        reportError(error);
       }
     });
 
@@ -818,10 +819,9 @@ export function useAppController() {
     }
 
     try {
-      setError(null);
       await appStore.addRepository(selected);
     } catch (error) {
-      setError(describeError(error));
+      reportError(error);
     }
   }
 
@@ -835,11 +835,10 @@ export function useAppController() {
     }
 
     try {
-      setError(null);
       await initRepository(selected, "main");
       await appStore.addRepository(selected);
     } catch (error) {
-      setError(describeError(error));
+      reportError(error);
     }
   }
 
@@ -892,16 +891,15 @@ export function useAppController() {
       setClonePath("");
       setShowCloneDialog(false);
     } catch (error) {
-      setError(describeError(error));
+      reportError(error);
     }
   }
 
   async function selectRepository(repository: Repository) {
     try {
-      setError(null);
       await appStore.selectRepository(repository);
     } catch (error) {
-      setError(describeError(error));
+      reportError(error);
     }
   }
 
@@ -948,11 +946,18 @@ export function useAppController() {
 
   async function runRepositoryAction(action: () => Promise<void>) {
     try {
-      setError(null);
       await action();
     } catch (error) {
-      setError(describeError(error));
+      reportError(error);
     }
+  }
+
+  function cancelRemoveRepository(): void {
+    if (removingRepository) {
+      return;
+    }
+    setRepositoryToRemove(null);
+    setRemoveRepositoryError(null);
   }
 
   function requestRemoveRepository(repository: Repository): void {
@@ -963,13 +968,29 @@ export function useAppController() {
     }
   }
 
+  /**
+   * Removes the repository the confirmation dialog is asking about.
+   *
+   * The dialog stays open until the removal settles, and closes only on success. It used to close
+   * first and then run, which made every failure ownerless — Convention 17 in
+   * `COMPONENT_MIGRATION_PROCESS.md`. Cancel stays enabled whenever the removal is not in flight,
+   * so a repository that cannot be removed does not trap the user in a dialog that keeps failing.
+   */
   async function confirmRemoveRepository(): Promise<void> {
-    if (repositoryToRemove === null) {
+    if (repositoryToRemove === null || removingRepository) {
       return;
     }
     const repository = repositoryToRemove;
-    setRepositoryToRemove(null);
-    await runRepositoryAction(() => appStore.removeRepository(repository));
+    setRemoveRepositoryError(null);
+    setRemovingRepository(true);
+    try {
+      await appStore.removeRepository(repository);
+      setRepositoryToRemove(null);
+    } catch (error) {
+      setRemoveRepositoryError(describeError(error));
+    } finally {
+      setRemovingRepository(false);
+    }
   }
 
   async function openInShell(path: string): Promise<void> {
@@ -1967,7 +1988,6 @@ export function useAppController() {
     sidebarCollapsed,
     setSidebarCollapsed,
     expandedSidebarSections,
-    error,
     commitMessage,
     setCommitMessage,
     bypassHooks,
@@ -1983,6 +2003,9 @@ export function useAppController() {
     showCloneDialog,
     repositoryToRemove,
     setRepositoryToRemove,
+    removeRepositoryError,
+    removingRepository,
+    cancelRemoveRepository,
     showAboutDialog,
     setShowAboutDialog,
     appArchitecture,

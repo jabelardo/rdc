@@ -45,7 +45,6 @@ export function AppShell({ controller }: AppShellProps) {
     sidebarCollapsed,
     setSidebarCollapsed,
     expandedSidebarSections,
-    error,
     commitMessage,
     setCommitMessage,
     bypassHooks,
@@ -60,7 +59,9 @@ export function AppShell({ controller }: AppShellProps) {
     setClonePath,
     showCloneDialog,
     repositoryToRemove,
-    setRepositoryToRemove,
+    removeRepositoryError,
+    removingRepository,
+    cancelRemoveRepository,
     showAboutDialog,
     setShowAboutDialog,
     appArchitecture,
@@ -353,12 +354,6 @@ export function AppShell({ controller }: AppShellProps) {
             />
           </div>
         )}
-
-        {error !== null && (
-          <p className="application-error" role="alert">
-            {error}
-          </p>
-        )}
       </section>
       <AppDialogs
         discardFile={discardFile}
@@ -392,7 +387,9 @@ export function AppShell({ controller }: AppShellProps) {
         onConfirmDiscard={() => void confirmDiscard()}
         onCancelDiscardAll={cancelDiscardAll}
         onConfirmDiscardAll={() => void confirmDiscardAll()}
-        onCancelRemoveRepository={() => setRepositoryToRemove(null)}
+        onCancelRemoveRepository={cancelRemoveRepository}
+        removeRepositoryError={removeRepositoryError}
+        removingRepository={removingRepository}
         onConfirmRemoveRepository={() => void confirmRemoveRepository()}
         branchToRename={branchToRename}
         renameName={renameName}

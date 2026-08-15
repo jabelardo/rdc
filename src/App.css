@@ -62,8 +62,8 @@
   --tooltip: #ffffff;
   --tooltip-foreground: #172033;
   --tooltip-border: #b8c2d1;
-  /* Transitional: .application-error is removed outright by
-   * MESSAGE_SYSTEM_PLAN.md Slices 1–7, and these three go with it. */
+  /* Used by `DialogFailure` and by the sonner error toast, which reads `--error-text` and
+   * `--error-border` under those exact names. */
   --error-surface: #fff1f2;
   --error-border: #d73a49;
   --error-text: #9d1c2b;
@@ -1774,15 +1774,6 @@
   margin-top: 3.9px;
 }
 
-.application-error {
-  max-width: 520px;
-  padding: 9.75px 13px;
-  border: 1px solid var(--error-border);
-  border-radius: var(--radius-small);
-  color: var(--error-text);
-  background: var(--error-surface);
-}
-
 .fatal-error {
   box-sizing: border-box;
   max-width: 624px;
@@ -1863,7 +1854,7 @@
   }
 
   .confirmation-dialog,
-  .application-error {
+  .dialog-failure {
     border: 1px solid CanvasText;
     color: CanvasText;
     background: Canvas;

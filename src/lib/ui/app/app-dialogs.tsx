@@ -51,6 +51,7 @@ import {
   operationProgressViewModel,
   type OperationProgressViewModel,
 } from "../../operation-presentation";
+import { DialogFailure } from "../dialogs/dialog-failure";
 
 type AppDialogsProps = {
   readonly discardFile: WorkingDirectoryFileChange | null;
@@ -88,6 +89,8 @@ type AppDialogsProps = {
   readonly onCancelDiscardAll: () => void;
   readonly onConfirmDiscardAll: () => void;
   readonly onCancelRemoveRepository: () => void;
+  readonly removeRepositoryError: string | null;
+  readonly removingRepository: boolean;
   readonly onConfirmRemoveRepository: () => void;
   readonly branchToRename: Branch | null;
   readonly renameName: string;
@@ -196,6 +199,8 @@ export function AppDialogs({
   onCancelDiscardAll,
   onConfirmDiscardAll,
   onCancelRemoveRepository,
+  removeRepositoryError,
+  removingRepository,
   onConfirmRemoveRepository,
   branchToRename,
   renameName,
@@ -549,11 +554,7 @@ export function AppDialogs({
         >
           <DialogContent className="sm:max-w-sm">
             <DialogTitle>Add a remote</DialogTitle>
-            {manageRemoteError !== null && (
-              <p className="application-error" role="alert">
-                {manageRemoteError}
-              </p>
-            )}
+            <DialogFailure error={manageRemoteError} />
             <form
               className="manage-remotes-add mt-4 grid gap-2"
               onSubmit={(event) => {
@@ -651,6 +652,9 @@ export function AppDialogs({
             </>
           }
           confirmLabel="Remove repository"
+          busyLabel="Removing…"
+          busy={removingRepository}
+          error={removeRepositoryError}
           onConfirm={onConfirmRemoveRepository}
           onCancel={onCancelRemoveRepository}
         >

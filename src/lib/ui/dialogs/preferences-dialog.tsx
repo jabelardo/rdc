@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../../components/ui/dialog";
+import { DialogFailure } from "./dialog-failure";
 
 type PreferencesDialogProps = {
   readonly state: PreferencesState;
@@ -151,11 +152,7 @@ export function PreferencesDialog({ state, store, onDismiss }: PreferencesDialog
             </label>
           </fieldset>
         </div>
-        {state.error !== null && (
-          <p className="application-error" role="alert">
-            {state.error}
-          </p>
-        )}
+        <DialogFailure error={state.error} />
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onDismiss}>
             Close

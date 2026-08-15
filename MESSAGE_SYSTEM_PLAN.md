@@ -270,8 +270,11 @@ just confirmed *in it* is the same principle, not an exception to it.
 
 ### The finding that forced the ownership wording
 
-Three confirm handlers null their dialog state **before** awaiting the action —
-`confirmRemoveRepository` (`use-app-controller.ts`), and the rename and delete branch handlers:
+**Corrected on implementation: one handler, not three.** `confirmRename` and `confirmDelete` were
+already right — they close only when `dialogError === null`, and their Cancel refuses only while
+`operation !== null`, which is exactly Convention 17. The grep that found them matched their
+close-on-success lines without their guards. The real case is `confirmRemoveRepository`
+(`use-app-controller.ts`), which nulls its dialog state **before** awaiting the action:
 
 ```ts
 setRepositoryToRemove(null);                                   // dialog closes first
@@ -280,32 +283,35 @@ await runRepositoryAction(() => appStore.removeRepository(r)); // then it can fa
 
 That is option 2 arrived at by accident: the dialog is already gone, so the failure has nowhere to
 be inline and lands in the top-level error instead. It was nearly preserved by inertia while
-implementing the opposite decision. **Fixing the optimistic close is therefore part of this work,
-not a follow-up** — without it the decision cannot be implemented at the three sites that need it
-most.
+implementing the opposite decision. Fixing it was therefore part of this work rather than a
+follow-up — without it the decision could not be honoured at the one site that needed it.
 
-### What is left to do
+### What was done
 
-`.application-error` is down to 7 references: 3 CSS rules and 4 render sites. All four are dialogs,
-and they are now unblocked. In dependency order:
+All four steps landed together, 2026-08-15.
 
-1. **Give the inline failure one element.** `ConfirmDialog` already has the shape — a bordered block
-   on `--error-*` tokens; `DialogMessage` has the tone vocabulary. Settle on one, since two shapes
-   for one concept is the duplication this plan exists to remove, and apply it to the preferences
-   and add-remote dialogs.
-2. **Stop the three optimistic closes**, and confirm each of those dialogs keeps a working way out
-   after a failure. This is the behavioural half and carries the risk; the tests are the guard.
-3. **Route the genuinely ownerless failures to the message system.** The top-level controller
-   `error` covers add-repository, create-repository, select-repository and the context-menu actions
-   — the folder picker is a *native* dialog, so nothing of rdc's owns those failures. Remove
-   `app-shell.tsx`'s block with them.
-4. **Delete the `.application-error` CSS.** It is dead once step 1 lands, and the count reaching
-   zero is this plan's own definition of done.
+1. **One element.** `DialogFailure` (`src/lib/ui/dialogs/dialog-failure.tsx`) is how a dialog shows
+   the failure of the action it confirmed — the shape `ConfirmDialog` already had, extracted and
+   adopted by the preferences and add-remote dialogs. It stays distinct from `DialogMessage`, and
+   the distinction is worth keeping: `DialogMessage` is a height-holding slot for whatever a dialog
+   has to *say*, reserving its space so buttons never move under the pointer; `DialogFailure` is the
+   *outcome of an attempt*, which only appears after the user has committed, so it may take space
+   when it arrives.
+2. **The optimistic close is gone.** `confirmRemoveRepository` keeps its dialog open until the
+   removal settles, closes on success, renders the failure inline, and keeps Cancel enabled whenever
+   the removal is not in flight. Guarded by a test that was confirmed to fail when the close is
+   moved back before the await.
+3. **The ownerless failures went to the message system.** The top-level controller `error` covered
+   add-repository, create-repository, select-repository and the context-menu actions — the folder
+   picker is a *native* dialog, so nothing of rdc's owned those. `app-shell.tsx`'s block is gone
+   with the state behind it.
+4. **`.application-error` is at zero**, from 17 when this plan was written. One subtlety: the class
+   carried a `forced-colors` override, which would have been silently lost. `DialogFailure` keeps a
+   layout-free `dialog-failure` class purely as the hook that rule needs, so high-contrast users
+   keep the treatment.
 
-Slice 7's two fields (`clone-store`, `preferences-store`) and the narrow fields kept for this
-decision — `remote-store`'s `managementError`, `working-tree-store`'s `discardError`,
-`branch-store`'s `dialogError` — are **not** remnants to delete. They are the inline channel's
-legitimate inputs. Their names should say so once step 1 settles the element.
+The `--error-*` tokens stay. They are read by `DialogFailure` and, under those exact names, by the
+sonner error toast.
 
 ## Slices
 

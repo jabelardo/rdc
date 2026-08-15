@@ -10,6 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../../../components/ui/alert-dialog";
+import { DialogFailure } from "./dialog-failure";
 
 type ConfirmDialogProps = {
   readonly title: string;
@@ -25,8 +26,8 @@ type ConfirmDialogProps = {
   /**
    * A failure from the confirmed operation, rendered inline with the dialog left open.
    *
-   * Interim per MESSAGE_SYSTEM_PLAN.md's open decision on where in-dialog failures belong. It uses
-   * the error tokens rather than the `application-error` class so that class can still be deleted.
+   * Convention 17: the dialog owns the failure of the action it confirmed. Passing this obliges the
+   * caller to keep Cancel reachable once the operation is no longer in flight.
    */
   readonly error?: string | null;
   /** Extra content between the description and the footer — a file list, a checkbox, a warning. */
@@ -94,14 +95,7 @@ export function ConfirmDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         {children}
-        {error !== null && (
-          <p
-            className="rounded-[var(--radius-small)] border border-[var(--error-border)] bg-[var(--error-surface)] px-2.5 py-2 text-[var(--error-text)]"
-            role="alert"
-          >
-            {error}
-          </p>
-        )}
+        <DialogFailure error={error ?? null} />
         <AlertDialogFooter>
           {__DARWIN__ ? (
             <>

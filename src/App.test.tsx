@@ -2144,4 +2144,38 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Remove repository" }));
     expect(appStore.removeRepository).toHaveBeenCalledWith(repository);
   });
+
+  // Convention 17: the dialog owns the failure of the action it confirmed, so it may not dismiss
+  // before that action settles — and it must stay escapable for a user who cannot retry.
+  it("keeps the remove-repository dialog open on failure, with a way out", async () => {
+    appStore.state = {
+      repositories: [repository],
+      selectedRepository: repository,
+    };
+    vi.mocked(appStore.removeRepository).mockRejectedValueOnce(new Error("repository is busy"));
+    showContextMenu.mockImplementation(async (items) => {
+      items[4].action();
+    });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Repositories" }));
+    await user.pointer({
+      target: screen.getByRole("button", { name: "Select rdc" }),
+      keys: "[MouseRight]",
+    });
+    await user.click(screen.getByRole("button", { name: "Remove repository" }));
+
+    const dialog = await screen.findByRole("alertdialog", { name: "Remove repository" });
+    expect(await within(dialog).findByText("repository is busy")).toBeInTheDocument();
+
+    // The way out. Without it a repository that cannot be removed is a dialog with no exit.
+    const cancel = within(dialog).getByRole("button", { name: "Cancel" });
+    expect(cancel).toBeEnabled();
+    await user.click(cancel);
+
+    expect(
+      screen.queryByRole("alertdialog", { name: "Remove repository" }),
+    ).not.toBeInTheDocument();
+  });
 });
