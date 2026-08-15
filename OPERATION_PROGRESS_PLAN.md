@@ -1301,10 +1301,14 @@ All seven items are done. Where each landed, and what it turned up:
    concrete — `git push` → `receive-pack` → `pre-receive` → `sleep 20` — so the row can name what
    must die and how to look for it, rather than asking a tester to imagine a process tree. Windows
    stays with the Phase 10 target.
-7. **The measurement**, rerun and recorded verbatim in `MIGRATION_PLAN.md`. It found one command
-   registered and wired to nothing: `fetch_workflow`. Rather than invent a consumer string for it —
-   which would have quietly defeated the check — the script grew a separate `UNWIRED` table, so the
-   exit criterion stays meaningful and the command stays visible.
+7. **The measurement**, rerun and recorded verbatim in `MIGRATION_PLAN.md`: 153 commands, 0
+   unexplained. Ten consumer entries were missing, all of them commands this plan added — they are
+   ours rather than upstream's, so no store import can vouch for them and the script's manual table
+   is the only place they can be named. Worth knowing for the next person who runs it: the script
+   sees an upstream store import or a table entry, so a command consumed only through one of rdc's
+   own stores reads as unexplained until someone names it. `fetch_workflow` is the example — it is
+   the transport behind the ordinary Fetch button, reached as a default dependency of `RemoteStore`
+   rather than through an import at the call site, and it briefly looked dead because of that.
 
 Run the complete repository gate set before every commit:
 

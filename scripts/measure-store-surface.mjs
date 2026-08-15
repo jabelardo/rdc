@@ -238,25 +238,12 @@ const CONSUMER_OUTSIDE_STORES = new Map([
   ["move_repository_paths_to_trash", "lib/discard-changes.ts via lib/platform/files.ts"],
   ["permanently_delete_repository_paths", "lib/discard-changes.ts via lib/platform/files.ts"],
   [
+    "fetch_workflow",
+    "ours — lib/stores/remote-store.ts, whose Fetch sends the current and default remotes through one operation (upstream's GitStore.fetch, minus the fork arm that needs GitHub metadata)",
+  ],
+  [
     "show_context_menu_at",
     "ours — lib/platform/menu.ts showContextMenu, consumed by ui/app/use-app-controller.ts; the positioned variant that replaced muda's blocking popup on Linux",
-  ],
-]);
-
-/**
- * Commands that are registered, wrapped and tested, but that nothing in the app or the E2E suites
- * calls yet.
- *
- * Separate from the map above rather than given a justification string, because a justification
- * that says "nothing uses this" would quietly defeat the exit criterion it is meant to satisfy.
- * The point of this measurement is to surface exactly this: a command can pass every gate the
- * repository has — registered, typed wrapper, unit tests, wire snapshot — and still be reachable
- * from nowhere. Entries here are a decision to keep, not an oversight; delete or wire them.
- */
-const UNWIRED = new Map([
-  [
-    "fetch_workflow",
-    "fetches several remotes under one native operation. rdc's toolbar Fetch calls `fetch` for the current remote instead, so the multi-remote path is complete but unsurfaced. Kept because the native side is where the work is, and a Fetch-all UI is post-MVP.",
   ],
 ]);
 
@@ -477,10 +464,7 @@ function measure() {
     buckets.missing.length;
 
   const unexplained = [...commands]
-    .filter(
-      (command) =>
-        !covered.has(command) && !CONSUMER_OUTSIDE_STORES.has(command) && !UNWIRED.has(command),
-    )
+    .filter((command) => !covered.has(command) && !CONSUMER_OUTSIDE_STORES.has(command))
     .sort();
 
   console.log(`store layer imports ${imports.length} names from lib/git`);
@@ -494,8 +478,6 @@ function measure() {
   if (duplicates.length) console.log(`   REGISTERED TWICE: ${duplicates.join(", ")}`);
   console.log(`   ${covered.size} answer a store import`);
   console.log(`   ${CONSUMER_OUTSIDE_STORES.size} have a named consumer elsewhere`);
-  console.log(`   ${UNWIRED.size} registered but wired to nothing`);
-  for (const command of UNWIRED.keys()) console.log(`   ${command}`);
   console.log(`   ${unexplained.length} with no consumer named anywhere`);
   for (const command of unexplained) console.log(`   ${command}`);
 

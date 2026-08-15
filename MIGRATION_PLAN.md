@@ -3614,16 +3614,17 @@ explicitly unknown outcome, because killing the local process cannot un-send wha
 have accepted; that is the one place the honest answer is worse than the convenient one.
 
 The store-surface measurement was rerun at closure (`node scripts/measure-store-surface.mjs`, output
-copied verbatim): **153 registered commands, 98 answering a store import, 57 with a named consumer
-elsewhere, 1 registered but wired to nothing, 0 unexplained, 153 typed wrappers**; 61 wire-snapshot
-keys with none unread; 82 upstream IPC channels each with exactly one route carrying the direction
-upstream declares. The one unwired command is `fetch_workflow` — multi-remote fetch under a single
-native operation, complete and unit-tested, with no UI surfacing it because the toolbar's Fetch
-targets the current remote. It is recorded in the script's own `UNWIRED` table rather than given a
-consumer string, so it stays visible instead of being explained away; a Fetch-all UI is post-MVP.
-That the measurement could surface it at all is the point of running it: a command can pass every
-gate this repository has — registered, typed wrapper, unit tests, wire snapshot — and be reachable
-from nowhere.
+copied verbatim): **153 registered commands, 98 answering a store import, 58 with a named consumer
+elsewhere, 0 unexplained, 153 typed wrappers**; 61 wire-snapshot keys with none unread; 82 upstream
+IPC channels each with exactly one route carrying the direction upstream declares.
+
+Ten of those consumer entries were missing and are now recorded — the operation-registry commands
+this plan added are ours rather than upstream's, so no store import can vouch for them and the
+script's manual table is the only place they can be named. The measurement's blind spot is worth
+stating: it detects an upstream store import or a hand-written table entry, so a command consumed
+only through one of rdc's own stores looks unexplained until someone names it. `fetch_workflow` sat
+in that gap and briefly looked unwired; it is in fact the transport behind the ordinary Fetch
+button, injected as a default dependency of `RemoteStore` rather than imported at a call site.
 
 What Slice 20 deliberately did **not** do is QA. The human rows it wrote live in
 `qa/phase-8b/dialog-migration-checklist.md` (the twelve lifecycle states, the three presentation
