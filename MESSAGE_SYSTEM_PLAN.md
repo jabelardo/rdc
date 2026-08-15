@@ -1,8 +1,12 @@
 # Unified message system — errors, warnings and information
 
-**Status**: Slice 0 landed (the system itself — store, formatting, and the sonner-backed toast
-from `UI_FOUNDATION_PLAN.md` Phase 1). Zero consumers wired yet, as designed. Slices 1–7 not
-started.
+**Status**: Slices 0, 0.1, 5, 6 and 2 landed — the system itself, coalescing, and the three stores
+behind the Phase 8b screenshot (remote, conflict, working tree). Alongside them: the toast severity
+colours, and the repository-availability gate that stops five stores each discovering a deleted
+directory in their own words. `.application-error` is down from 17 references to 12.
+**Remaining**: Slices 3, 4 and 7. **Slice 1 is blocked** on the in-dialog-failure decision below;
+`remote-store`'s `managementError`, `working-tree-store`'s `discardError` and `conflict-store`'s
+`loadFailed` are the deliberate remnants that go with it.
 **Blocks**: Phase 8b QA cycle 2 — the accessibility and dispatch rows for whatever this produces are
 walked in that cycle, so this needs to land before it, not during it. This plan writes those rows;
 it does not walk them (see “Where QA happens” in `COMPONENT_MIGRATION_PROCESS.md`).
@@ -295,7 +299,7 @@ repeating it:
 
 | Slice | Store | Fields removed | Consumers to update |
 |---|---|---|---|
-| 2 | `working-tree-store.ts` | `error`, `commitError`, `diffError` | `changes-workspace.tsx` (3 render sites) |
+| 2 | `working-tree-store.ts` | `error`, `commitError`, `diffError` → **landed**; `error`/`diffError` became `loadFailed`/`diffFailed` booleans and a narrow `discardError` remains, see below | `changes-workspace.tsx` — **landed**: all three `.application-error` blocks gone |
 | 3 | `history-store.ts` | `error`, `detailsError`, `diffError` | `history-workspace.tsx` (3 render sites) |
 | 4 | `branch-store.ts` | `error`, `operationError` (including the inline name-validation paths) | `repository-sidebar.tsx`, rename/delete/merge dialogs already touched in Slice 1 keep working, this slice removes the field they were reading around |
 | 5 | `remote-store.ts` | `error` → **landed**, but see below | `repository-toolbar.tsx` — **landed**: the error paragraph is gone entirely. The toolbar keeps action state and peer-window status only |
@@ -341,6 +345,31 @@ than merely displaying it.
 The cross-store duplication check now exists as far as the migrated stores allow: one root cause
 reaching both the conflict and remote stores produces a single message with `count: 2`. It completes
 in Slice 2, when the working-tree store joins them and the screenshot's third panel goes.
+
+#### Slice 2, as landed — the screenshot is closed
+
+All three `.application-error` blocks are out of `changes-workspace.tsx`, and the count is down from
+17 to 12. Load and diff failures report to the message store; so do the two commit preconditions
+("Enter a commit message.", "Include at least one file.") and the commit failure itself.
+
+Two fields survive as booleans for the reason Slice 6 established — the pane *branches* on them, so
+deleting them outright would make a failed read claim "No local changes." or invite the user to
+"Select a changed file" over a file it could not read. `loadFailed` and `diffFailed` carry the
+signal; the message carries the text.
+
+A third field survives with a name that says why: **`discardError`**. Discard failures render inline
+in a `ConfirmDialog`, which is the open in-dialog-failure decision again — the same reason
+`remote-store` kept `managementError`. Both go with Slice 1.
+
+The cross-store duplication check is now complete: one failure reaching all three of the
+screenshot's stores produces a single message with `count: 3`. In the running app the
+repository-availability gate stops those loads before they start, so the test pins the behaviour for
+every *other* failure the three can share.
+
+**One thing to watch in the QA cycle.** Commit validation is now a toast, per this plan's target end
+state. It is bottom-right while the user is looking at the commit box, which may read worse than the
+inline text it replaces. It is a small, reversible change and the right place to judge it is with
+eyes on the running app — a Phase 8b row, not a guess here.
 
 **Recommended order: 5, 6, 2, then 3, 4, 7.** The numbering above is kept stable because
 `REMAINING.md` and other documents reference it, but the *order to implement* should be led by the

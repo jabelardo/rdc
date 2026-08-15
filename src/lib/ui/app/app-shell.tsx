@@ -368,7 +368,7 @@ export function AppShell({ controller }: AppShellProps) {
         discardOptOut={discardOptOut}
         onDiscardOptOutChange={setDiscardOptOut}
         discarding={discarding}
-        workingTreeError={workingTreeState.error}
+        workingTreeError={workingTreeState.discardError}
         hookFailure={workingTreeState.hookFailure}
         runningHook={workingTreeState.runningHook}
         commitLoading={workingTreeState.commitLoading}

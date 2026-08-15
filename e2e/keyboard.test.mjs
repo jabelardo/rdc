@@ -37,11 +37,15 @@ describe("keyboard-only journey", () => {
   });
 
   it("completes a local repository journey using only the keyboard", async () => {
-    const changedFile = await driver.wait(
-      until.elementLocated(By.css('[data-changed-file-path="keyboard-only.txt"]')),
+    // One lookup rather than locating the row and then reaching into it: the row can rerender
+    // between the two calls — the changed-file list settles as the stores finish loading — and a
+    // held parent handle goes stale. Same failure mode as e2a59f6 and fetch-cancellation.
+    const selection = await driver.wait(
+      until.elementLocated(
+        By.css('[data-changed-file-path="keyboard-only.txt"] [data-keyboard-list-item]'),
+      ),
       5_000,
     );
-    const selection = await changedFile.findElement(By.css("[data-keyboard-list-item]"));
     await selection.sendKeys(Key.ENTER);
     await driver.wait(
       until.elementLocated(

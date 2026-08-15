@@ -11,7 +11,7 @@ import {
   WorkingDirectoryStatus,
 } from "../../models/status";
 import { caseInsensitiveCompare } from "../compare";
-import { describeError } from "../format-error";
+import { describeError, reportErrorMessage } from "../format-error";
 import { discardChanges as discardWorkingTreeChanges, TrashDiscardError } from "../discard-changes";
 import { discardChangesFromSelection, getWorkingDirectoryDiff } from "../diff-ipc";
 import { createCommit, getStatus, type IFileToStage, type IStatusResult } from "../git-ipc";
@@ -31,13 +31,34 @@ export type WorkingTreeState = {
   readonly selectedFileID: string | null;
   readonly diff: IDiff | null;
   readonly diffLoading: boolean;
-  readonly diffError: string | null;
+  /**
+   * Whether the last diff read failed.
+   *
+   * A boolean, not the message: the message goes to the shared message store. The flag stays
+   * because the diff pane *branches* on it — with no diff and no signal it would invite the user to
+   * "Select a changed file", over a file it just failed to read.
+   */
+  readonly diffFailed: boolean;
   readonly commitLoading: boolean;
-  readonly commitError: string | null;
   readonly hookFailure: HookFailureState | null;
   readonly runningHook: RunningHookState | null;
   readonly loading: boolean;
-  readonly error: string | null;
+  /**
+   * Whether the last working-directory read failed.
+   *
+   * Same reason as `diffFailed`: the changed-file list branches on it, and without a signal a
+   * failed read renders "No local changes." over a repository it could not inspect.
+   */
+  readonly loadFailed: boolean;
+  /**
+   * Discard failure text, for the discard confirmation dialogs only.
+   *
+   * Not a second error channel by accident: where an in-dialog failure belongs is an open decision
+   * in MESSAGE_SYSTEM_PLAN.md that blocks its Slice 1, and the interim rule is that dialogs keep
+   * their failure inline. This field goes when that decision is settled, like `remote-store`'s
+   * `managementError`.
+   */
+  readonly discardError: string | null;
   /**
    * Whether `HEAD` is currently mid-merge (`MERGE_HEAD` present).
    *
@@ -80,13 +101,13 @@ const EmptyState: WorkingTreeState = {
   selectedFileID: null,
   diff: null,
   diffLoading: false,
-  diffError: null,
+  diffFailed: false,
   commitLoading: false,
-  commitError: null,
   hookFailure: null,
   runningHook: null,
   loading: false,
-  error: null,
+  loadFailed: false,
+  discardError: null,
   mergeHeadFound: false,
 };
 
@@ -203,13 +224,13 @@ export class WorkingTreeStore {
       selectedFileID: null,
       diff: null,
       diffLoading: false,
-      diffError: null,
+      diffFailed: false,
       commitLoading: false,
-      commitError: null,
       hookFailure: null,
       runningHook: null,
       loading: true,
-      error: null,
+      loadFailed: false,
+      discardError: null,
       mergeHeadFound: false,
     });
 
@@ -229,13 +250,13 @@ export class WorkingTreeStore {
         selectedFileID,
         diff: null,
         diffLoading: false,
-        diffError: null,
+        diffFailed: false,
         commitLoading: false,
-        commitError: null,
         hookFailure: null,
         runningHook: null,
         loading: false,
-        error: null,
+        loadFailed: false,
+        discardError: null,
         mergeHeadFound: status?.mergeHeadFound ?? false,
       });
       await this.loadSelectedDiff(requestID);
@@ -243,19 +264,20 @@ export class WorkingTreeStore {
       if (requestID !== this.requestID) {
         return;
       }
+      reportErrorMessage(describeError(error));
       this.update({
         repositoryPath,
         workingDirectory: null,
         selectedFileID: null,
         diff: null,
         diffLoading: false,
-        diffError: null,
+        diffFailed: false,
         commitLoading: false,
-        commitError: null,
         hookFailure: null,
         runningHook: null,
         loading: false,
-        error: describeError(error),
+        loadFailed: true,
+        discardError: null,
         mergeHeadFound: false,
       });
     }
@@ -279,7 +301,7 @@ export class WorkingTreeStore {
       selectedFileID: fileID,
       diff: null,
       diffLoading: false,
-      diffError: null,
+      diffFailed: false,
     });
     await this.loadSelectedDiff(this.requestID);
   }
@@ -346,10 +368,12 @@ export class WorkingTreeStore {
       if (error instanceof TrashDiscardError) {
         return "trash-failed";
       }
+      // A discard that fails leaves the working directory readable, so this is not a load failure.
+      // The confirmation dialog is still open and renders this inline; see `discardError`.
       this.update({
         ...this.currentState,
         loading: false,
-        error: describeError(error),
+        discardError: describeError(error),
       });
       return "failed";
     }
@@ -382,10 +406,12 @@ export class WorkingTreeStore {
       if (error instanceof TrashDiscardError) {
         return "trash-failed";
       }
+      // A discard that fails leaves the working directory readable, so this is not a load failure.
+      // The confirmation dialog is still open and renders this inline; see `discardError`.
       this.update({
         ...this.currentState,
         loading: false,
-        error: describeError(error),
+        discardError: describeError(error),
       });
       return "failed";
     }
@@ -425,10 +451,12 @@ export class WorkingTreeStore {
       await this.load(discard.repositoryPath);
       return true;
     } catch (error) {
+      // A discard that fails leaves the working directory readable, so this is not a load failure.
+      // The confirmation dialog is still open and renders this inline; see `discardError`.
       this.update({
         ...this.currentState,
         loading: false,
-        error: describeError(error),
+        discardError: describeError(error),
       });
       return false;
     }
@@ -462,10 +490,7 @@ export class WorkingTreeStore {
     }
     const trimmedMessage = message.trim();
     if (trimmedMessage.length === 0) {
-      this.update({
-        ...state,
-        commitError: "Enter a commit message.",
-      });
+      reportErrorMessage("Enter a commit message.");
       return null;
     }
 
@@ -474,17 +499,13 @@ export class WorkingTreeStore {
         .filter((file) => file.selection.getSelectionType() !== DiffSelectionType.None)
         .map(fileToStage);
       if (files.length === 0) {
-        this.update({
-          ...state,
-          commitError: "Include at least one file.",
-        });
+        reportErrorMessage("Include at least one file.");
         return null;
       }
 
       this.update({
         ...state,
         commitLoading: true,
-        commitError: null,
         hookFailure: null,
       });
       this.commitTerminalOutput.clear();
@@ -518,10 +539,10 @@ export class WorkingTreeStore {
       await this.load(state.repositoryPath);
       return sha;
     } catch (error) {
+      reportErrorMessage(describeError(error));
       this.update({
         ...this.currentState,
         commitLoading: false,
-        commitError: describeError(error),
       });
       return null;
     } finally {
@@ -547,7 +568,7 @@ export class WorkingTreeStore {
       ...state,
       diff: null,
       diffLoading: true,
-      diffError: null,
+      diffFailed: false,
     });
     try {
       const diff = await this.dependencies.getWorkingDirectoryDiff(
@@ -582,7 +603,7 @@ export class WorkingTreeStore {
         workingDirectory,
         diff,
         diffLoading: false,
-        diffError: null,
+        diffFailed: false,
       });
     } catch (error) {
       if (
@@ -592,11 +613,12 @@ export class WorkingTreeStore {
       ) {
         return;
       }
+      reportErrorMessage(describeError(error));
       this.update({
         ...this.currentState,
         diff: null,
         diffLoading: false,
-        diffError: describeError(error),
+        diffFailed: true,
       });
     }
   }

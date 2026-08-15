@@ -165,10 +165,10 @@ export function ChangesWorkspace({
         </header>
         {state.loading ? (
           <p>Loading changes…</p>
-        ) : state.error !== null ? (
-          <p className="application-error" role="alert">
-            {state.error}
-          </p>
+        ) : state.loadFailed ? (
+          // The failure itself is a message, announced once; this only stops the pane claiming
+          // there are no local changes over a working directory it could not read.
+          <p>Changed files are unavailable.</p>
         ) : state.workingDirectory === null || state.workingDirectory.files.length === 0 ? (
           <p>No local changes.</p>
         ) : filteredFiles.length === 0 ? (
@@ -228,10 +228,8 @@ export function ChangesWorkspace({
         <div className="working-tree-diff-content">
           {state.diffLoading ? (
             <p>Loading diff…</p>
-          ) : state.diffError !== null ? (
-            <p className="application-error" role="alert">
-              {state.diffError}
-            </p>
+          ) : state.diffFailed ? (
+            <p className="working-tree-diff-empty">This file&apos;s diff is unavailable.</p>
           ) : state.diff === null ? (
             <p className="working-tree-diff-empty">Select a changed file to inspect its diff.</p>
           ) : state.diff.kind === DiffType.Text ? (
@@ -350,11 +348,6 @@ export function ChangesWorkspace({
                 : `Commit ${includedFileCount} ${includedFileCount === 1 ? "file" : "files"}`}
             </button>
           </div>
-          {state.commitError !== null && (
-            <p className="application-error" role="alert">
-              {state.commitError}
-            </p>
-          )}
         </form>
       )}
     </div>

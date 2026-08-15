@@ -4,6 +4,7 @@ import type { IStatusResult } from "../git-ipc";
 import { ConflictStore } from "./conflict-store";
 import { getDefaultMessageStore } from "./default-message-store";
 import { RemoteStore } from "./remote-store";
+import { WorkingTreeStore } from "./working-tree-store";
 
 /**
  * Conflict failures and the staging precondition are reported to the shared message store rather
@@ -178,11 +179,12 @@ describe("ConflictStore", () => {
     expect(store.state.loadFailed).toBe(true);
   });
 
-  // The duplication check from MESSAGE_SYSTEM_PLAN.md, as far as the migrated stores allow. One
-  // root cause reaching two stores must produce one message, not two — this is what makes routing
-  // everything through the toast a fix rather than a relocation. Completes with Slice 2, when the
-  // working-tree store joins them.
-  it("reports one message when the same failure reaches the remote store too", async () => {
+  // The duplication check from MESSAGE_SYSTEM_PLAN.md, complete: all three stores from the Phase 8b
+  // screenshot. One root cause must produce one message, not three — this is what makes routing
+  // everything through the toast a fix rather than a relocation. In the app the repository-
+  // availability gate stops these loads before they start; this pins the behaviour for every other
+  // failure they can share.
+  it("reports one message when one failure reaches all three stores", async () => {
     const failure = {
       message: "failed to run git for 'getStatus' in /repo: No such file or directory (os error 2)",
       isAuthFailure: false,
@@ -197,14 +199,20 @@ describe("ConflictStore", () => {
         throw failure;
       }),
     });
+    const workingTree = new WorkingTreeStore({
+      getStatus: vi.fn(async () => {
+        throw failure;
+      }),
+    });
 
     await conflicts.load("/repo");
     await remotes.load("/repo");
+    await workingTree.load("/repo");
 
     expect(getDefaultMessageStore().state.messages).toHaveLength(1);
     const [message] = getDefaultMessageStore().state.messages;
     expect(message?.text).toBe(failure.message);
-    expect(message?.count).toBe(2);
+    expect(message?.count).toBe(3);
   });
 
   it("ignores stale status after switching repositories", async () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DiffHunk,
   DiffHunkExpansionType,
@@ -13,6 +13,23 @@ import { AppFileStatusKind } from "../../models/status";
 import type { createCommit as createCommitCommand, IStatusResult } from "../git-ipc";
 import { TrashDiscardError } from "../discard-changes";
 import { WorkingTreeStore } from "./working-tree-store";
+import { getDefaultMessageStore } from "./default-message-store";
+
+/**
+ * Load, diff and commit failures are reported to the shared message store rather than held on the
+ * working-tree store — see MESSAGE_SYSTEM_PLAN.md Slice 2.
+ */
+function lastReportedMessage(): string {
+  const messages = getDefaultMessageStore().state.messages;
+  return messages[messages.length - 1]?.text ?? "";
+}
+
+beforeEach(() => {
+  const store = getDefaultMessageStore();
+  for (const message of store.state.messages) {
+    store.dismiss(message.id);
+  }
+});
 
 function status(files: IStatusResult["files"]): IStatusResult {
   return {
@@ -97,7 +114,7 @@ describe("WorkingTreeStore", () => {
       selectedFileID: "Untracked+Alpha.ts",
       diff: binaryDiff,
       loading: false,
-      error: null,
+      loadFailed: false,
     });
   });
 
@@ -107,7 +124,7 @@ describe("WorkingTreeStore", () => {
     await store.load("/missing");
 
     expect(store.state.workingDirectory?.files).toEqual([]);
-    expect(store.state.error).toBeNull();
+    expect(store.state.loadFailed).toBe(false);
   });
 
   it("publishes command failures without discarding the selected path", async () => {
@@ -125,7 +142,7 @@ describe("WorkingTreeStore", () => {
       repositoryPath: "/repo",
       workingDirectory: null,
       loading: false,
-      error: "status failed",
+      loadFailed: true,
     });
     expect(listener).toHaveBeenCalled();
   });
@@ -178,13 +195,13 @@ describe("WorkingTreeStore", () => {
       selectedFileID: null,
       diff: null,
       diffLoading: false,
-      diffError: null,
+      diffFailed: false,
       commitLoading: false,
-      commitError: null,
       hookFailure: null,
       runningHook: null,
       loading: false,
-      error: null,
+      loadFailed: false,
+      discardError: null,
       mergeHeadFound: false,
     });
   });
@@ -234,7 +251,7 @@ describe("WorkingTreeStore", () => {
       selectedFileID: secondID,
       diff: textDiff,
       diffLoading: false,
-      diffError: null,
+      diffFailed: false,
     });
   });
 
@@ -408,7 +425,6 @@ describe("WorkingTreeStore", () => {
       expect.any(Function),
     );
     expect(store.state.workingDirectory?.files).toEqual([]);
-    expect(store.state.commitError).toBeNull();
   });
 
   it("requires a message and at least one included file", async () => {
@@ -429,11 +445,11 @@ describe("WorkingTreeStore", () => {
     await store.load("/repo");
 
     await expect(store.commit("   ")).resolves.toBeNull();
-    expect(store.state.commitError).toBe("Enter a commit message.");
+    expect(lastReportedMessage()).toBe("Enter a commit message.");
 
     store.setFileIncluded("Modified+file.ts", false);
     await expect(store.commit("message")).resolves.toBeNull();
-    expect(store.state.commitError).toBe("Include at least one file.");
+    expect(lastReportedMessage()).toBe("Include at least one file.");
     expect(createCommit).not.toHaveBeenCalled();
   });
 
@@ -630,7 +646,7 @@ describe("WorkingTreeStore", () => {
     expect(getStatus).toHaveBeenCalledOnce();
     expect(store.state).toMatchObject({
       repositoryPath: "/repo",
-      error: "trash unavailable",
+      discardError: "trash unavailable",
     });
   });
 
@@ -655,7 +671,7 @@ describe("WorkingTreeStore", () => {
 
     await expect(store.discardFile("Untracked+file.ts")).resolves.toBe("trash-failed");
 
-    expect(store.state.error).toBeNull();
+    expect(store.state.discardError).toBeNull();
     expect(getStatus).toHaveBeenCalledOnce();
   });
 
@@ -781,7 +797,7 @@ describe("WorkingTreeStore", () => {
     expect(getStatus).toHaveBeenCalledOnce();
     expect(store.state).toMatchObject({
       repositoryPath: "/repo",
-      error: "trash unavailable",
+      discardError: "trash unavailable",
     });
   });
 
@@ -803,7 +819,7 @@ describe("WorkingTreeStore", () => {
 
     await expect(store.discardAllChanges()).resolves.toBe("trash-failed");
 
-    expect(store.state.error).toBeNull();
+    expect(store.state.discardError).toBeNull();
     expect(getStatus).toHaveBeenCalledOnce();
   });
 
