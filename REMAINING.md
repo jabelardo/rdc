@@ -33,10 +33,10 @@ satisfied in-app.
 
 | Gate | State (2026-08-15) |
 |---|---|
-| `pnpm test` (Vitest) | 1,235 passing / 138 files |
+| `pnpm test` (Vitest) | 1,249 passing / 139 files |
 | `pnpm exec tsc --noEmit` | clean |
 | `pnpm format:check` / `pnpm lint` | clean |
-| `pnpm build` / `pnpm check:bundle-boundary` | clean; 158 browser-reachable modules, no Node built-ins |
+| `pnpm build` / `pnpm check:bundle-boundary` | clean; 160 browser-reachable modules, no Node built-ins |
 | `cargo test --workspace` | 1,274 passing |
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --check` | clean |

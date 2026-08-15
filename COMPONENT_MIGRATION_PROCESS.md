@@ -4,8 +4,9 @@
 
 **Queue.** Migrated and approved: hook failure, About, discard file, discard all, delete branch
 (+ the "cannot delete" notice), remove repository, manage remotes, add remote, rename branch, merge.
-Remaining: **rebase** (new, scoped in `BRANCH_OPERATIONS_PLAN.md` § "Amended scope") and **clone**.
-Preferences and Manage remotes were migrated and then redesigned — see Components 7 and 8. Seventeen conventions in, a typical
+The queue is empty: rebase (scoped in `BRANCH_OPERATIONS_PLAN.md` § "Amended scope") and clone both
+landed, and Preferences and Manage remotes were migrated and then redesigned — see Components 7
+and 8. Seventeen conventions in, a typical
 table resolves to one or two genuine decisions, which is what the process was for; Preferences had
 four, because a category layout is a design question rather than a port.
 

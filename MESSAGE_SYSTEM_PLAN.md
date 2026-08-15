@@ -1,13 +1,16 @@
 # Unified message system — errors, warnings and information
 
-**Status**: Slices 0, 0.1, 5, 6 and 2 landed — the system itself, coalescing, and the three stores
-behind the Phase 8b screenshot (remote, conflict, working tree). Alongside them: the toast severity
-colours, and the repository-availability gate that stops five stores each discovering a deleted
-directory in their own words. `.application-error` is down from 17 references to 12.
-**Remaining**: Slices 1 and 7, both of which were blocked on the in-dialog-failure decision. That
-decision is now **settled** — see below — so what is left is one piece of work: give the inline
-dialog failure a single element, stop three dialogs dismissing before their action settles, and
-route the genuinely ownerless failures to the message system.
+**Status**: complete, 2026-08-15. Every slice landed — the system itself, coalescing, all seven
+stores, and the in-dialog-failure decision that Slices 1 and 7 were blocked on. Alongside them: the
+toast severity colours, and the repository-availability gate that stops five stores each discovering
+a deleted directory in their own words. **`.application-error` is at zero, from 17**, which is this
+plan's own definition of done.
+
+Every store failure is now either a toast or a dialog-owned inline failure, and no store carries
+error *text* it renders itself. What some still carry is a *signal* — `loadFailed`, `diffFailed` —
+because a pane that branches on failure must not claim "No local changes." over a repository it
+could not read; and a failure *destined for a dialog* — `managementError`, `discardError`,
+`dialogError` — which is the inline channel rather than debt.
 **Blocks**: Phase 8b QA cycle 2 — the accessibility and dispatch rows for whatever this produces are
 walked in that cycle, so this needs to land before it, not during it. This plan writes those rows;
 it does not walk them (see “Where QA happens” in `COMPONENT_MIGRATION_PROCESS.md`).
