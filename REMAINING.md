@@ -91,7 +91,7 @@ items, unchanged; do not restate them here, satisfy them there.
 Sequenced ahead of the QA-cycle-2 items below: rdc is greenfield and not racing an MVP date, so the
 priority is architectural foundation a future open-source collaborator can pick up, not minimizing
 the current diff. The UI foundation, the message system and `OPERATION_PROGRESS_PLAN.md` all closed on 2026-08-15.
-One item remains:
+Two items remain, and neither blocks the other:
 
 1. **[`CODE_ORGANIZATION_PLAN.md`](./CODE_ORGANIZATION_PLAN.md) — establish a layout and enforce
    it.** Scheduled **after** the dialog migration, so it moves settled code rather than code in
@@ -105,6 +105,26 @@ One item remains:
    false positive — `import type` is erased, so type-only modules read as unreachable while being
    in use. The plan document holds the inventory and the questions; it deliberately decides
    nothing yet. **After the dialog migration, which has now landed — so this is unblocked.**
+
+2. **Dialog widths have drifted to six values, and no document says which is right.** Measured
+   2026-08-15: `sm:max-w-lg` (512px, the base `DialogContent`/`AlertDialogContent` default that
+   `ConfirmDialog` and `NoticeDialog` inherit rather than choose), plus overrides at 400 (About),
+   420 (Rename branch), 440 (Clone, Operation progress), 520 (Merge, Rebase) and 600 (Preferences,
+   Manage remotes, Hook failure). The **512 against 520** pair is the tell: an inherited default and
+   an override eight pixels apart cannot both be deliberate, and nothing in
+   `COMPONENT_MIGRATION_PROCESS.md` distinguishes them — it settles Preferences and Manage remotes
+   individually and refers to a "data-dense tier" whose scale is never written down. Rename's 420 is
+   in no table at all.
+
+   The decision is what the tiers *are*, not what each dialog gets. The shape suggested by what
+   exists: a single-field tier (rename), a form tier (About, Clone), a picker tier (Merge, Rebase)
+   and a data-dense tier (Preferences, Manage remotes, Hook failure) — four, against today's six.
+   The mechanical follow-through is small once the tiers are named; the point is to name them in the
+   process document so the next dialog inherits a decision instead of a nearby number.
+
+   **Sequenced before QA cycle 2's Light/Dark dialog rows**, since a tester signing off on widths
+   that are about to change is wasted effort. Reported during the dialog migration and deliberately
+   not actioned then, so it moves settled code — the same reason item 1 waited.
 
 **LICENSE (MIT) is added**, copyright holder Jose Gutierrez. `CONTRIBUTING.md`, issue/PR templates,
 README polish and an `ARCHITECTURE.md` newcomer overview are deliberately deferred to the

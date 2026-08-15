@@ -632,9 +632,17 @@ a port than a design.
 | Remove action | text button | icon-only trash, tooltip + aria-label | changed-files: icon, **hover-revealed** | `DECIDE` → icon, always visible |
 | Add action | text button | — | — | `DECIDE` → icon |
 | Long lists | unbounded, dialog grows | fixed height, bordered, rows divided | `VirtualList` past 100 items | `DECIDE` → fixed height + scroll |
-| Width | 600px | 500px | — | `SETTLED` → guideline's data-dense tier |
+| Width | 600px | 500px | — | `SETTLED` → guideline's data-dense tier (but see below — the tier scale is not written down) |
 | Icon library | — | octicons | — | `SETTLED` → Convention 11, lucide |
 | Buttons | bare `<button>` | — | vendored `Button` | `SETTLED` |
+
+> **The width tiers this row appeals to do not exist as a written scale.** "Data-dense tier" is used
+> here and for Preferences, and both are right, but nothing defines the other tiers — so each new
+> dialog has been picking a nearby number instead of inheriting a decision. Measured 2026-08-15, the
+> app has six widths: the inherited `sm:max-w-lg` default (512px), and overrides at 400, 420, 440,
+> 520 and 600. The 512/520 pair is the proof that this is drift rather than design. Naming the tiers
+> is `REMAINING.md`'s open engineering item 2; until it is done, **do not add a seventh width** —
+> reuse whichever existing one is closest and say so in the dialog's row here.
 
 ### Resolved
 
