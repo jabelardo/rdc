@@ -29,10 +29,10 @@ before cycle two starts**, deliberately: see "Engineering, this pass" below.
 
 | Gate | State (2026-08-15) |
 |---|---|
-| `pnpm test` (Vitest) | 1,218 passing / 137 files |
+| `pnpm test` (Vitest) | 1,234 passing / 138 files |
 | `pnpm exec tsc --noEmit` | clean |
 | `pnpm format:check` / `pnpm lint` | clean |
-| `pnpm build` / `pnpm check:bundle-boundary` | clean; 156 browser-reachable modules, no Node built-ins |
+| `pnpm build` / `pnpm check:bundle-boundary` | clean; 157 browser-reachable modules, no Node built-ins |
 | `cargo test --workspace` | 1,274 passing |
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --check` | clean |
@@ -96,19 +96,25 @@ collaborator to pick up post-MVP), not minimizing the current diff. In dependenc
    once nothing else references it.
 
 2. **[`MESSAGE_SYSTEM_PLAN.md`](./MESSAGE_SYSTEM_PLAN.md)** — the unified error/warning/info toast
-   system, and **the current recommendation for what to do next**. ~7 stores each carry their own
-   `error`/`operationError` field rendered by a copy-pasted `<p className="application-error">`
-   (17 references: 14 in `tsx`, 3 CSS rules), and there is no warning/info channel at all.
+   system. **In progress.**
 
-   Phase 8b cycle 2 photographed why this matters: one `getStatus` failure on a deleted repository
-   directory renders **three times at once** — the toolbar (truncated to "failed to run git f…"),
-   the conflict banner, and the changed-files pane. The `String(error)` → `"[object Object]"` bug is
-   fixed in `remote-store`, but **15 non-test call sites still have it**.
+   Phase 8b cycle 2 photographed why it matters: one `getStatus` failure on a deleted repository
+   directory rendered three times at once, in three visual styles, one of them `[object Object]`.
 
-   **Unblocked as of now**: the stated dependency was the Dialog primitive, and Phase 2 has landed.
-   Slice 0.1 (message coalescing) comes first; then **Slices 5, 6 and 2 — the screenshot's three
-   panels — which are toolbar, banner and pane, not dialogs, so none of them is blocked by the open
-   in-dialog-failure decision that blocks Slice 1.**
+   Landed: Slice 0.1 (message coalescing with a repeat count), Slice 5 (`remote-store` — the
+   toolbar's error paragraph is gone entirely; that slot was `nowrap` with an ellipsis and could
+   never hold a sentence), Slice 6 (`conflict-store` — both banner blocks gone), the toast severity
+   colours, and the repository-availability gate that stops five stores each discovering a deleted
+   directory in their own words.
+
+   Remaining: **Slice 2** (`working-tree-store` — the screenshot's third panel, and the one that
+   completes the cross-store duplication check), then 3, 4, 7. **Slice 1 stays blocked** on the open
+   in-dialog-failure decision; `remote-store`'s `managementError` and `conflict-store`'s
+   `loadFailed` are the deliberate remnants that go with it.
+
+   Measured now: **15** `.application-error` references (down from 17) and **15** live
+   `String(error)` sites, each a latent `[object Object]`.
+
 3. **[`BRANCH_OPERATIONS_PLAN.md`](./BRANCH_OPERATIONS_PLAN.md) Slice 4 — abort merge.** Recorded as
    the one functionality gap against the 7 MVP exit criteria — a user could complete a conflict but
    never back out of one in-app. **Most of it has since closed from an unexpected direction:**
