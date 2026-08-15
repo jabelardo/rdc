@@ -5,7 +5,7 @@
 **Queue.** Migrated and approved: hook failure, About, discard file, discard all, delete branch
 (+ the "cannot delete" notice), remove repository, manage remotes, add remote, rename branch, merge.
 Remaining: **rebase** (new, scoped in `BRANCH_OPERATIONS_PLAN.md` § "Amended scope") and **clone**.
-Preferences was migrated and then redesigned — see Component 7. Seventeen conventions in, a typical
+Preferences and Manage remotes were migrated and then redesigned — see Components 7 and 8. Seventeen conventions in, a typical
 table resolves to one or two genuine decisions, which is what the process was for; Preferences had
 four, because a category layout is a design question rather than a port.
 
@@ -617,6 +617,43 @@ upstream. This is a redesign, not a markup swap.
 `Tabs` gives roving focus and arrow-key movement from its `orientation` prop — vertical yields
 up/down. Nothing here hand-rolls it, but a silent default to horizontal would give left/right and
 nobody would notice until they tried, so there is a test for it.
+
+## Component 8 — Manage remotes (`Dialog`, growable list)
+
+Raised by the same visual-validation pass as Component 7, with two asks: handle a list of remotes
+that can grow, and use icons rather than words on some buttons. Unlike Preferences, desktop-plus has
+a real precedent here — `manage-remotes-dialog.tsx` and `remote-list-item.tsx` — so this is closer to
+a port than a design.
+
+| Dimension | rdc before | desktop-plus | rdc's own precedent | |
+|---|---|---|---|---|
+| Row layout | `**name** url` in one span, wrapping | icon → name → url → action, both truncated | — | `DECIDE` → follow desktop-plus |
+| Remove action | text button | icon-only trash, tooltip + aria-label | changed-files: icon, **hover-revealed** | `DECIDE` → icon, always visible |
+| Add action | text button | — | — | `DECIDE` → icon |
+| Long lists | unbounded, dialog grows | fixed height, bordered, rows divided | `VirtualList` past 100 items | `DECIDE` → fixed height + scroll |
+| Width | 600px | 500px | — | `SETTLED` → guideline's data-dense tier |
+| Icon library | — | octicons | — | `SETTLED` → Convention 11, lucide |
+| Buttons | bare `<button>` | — | vendored `Button` | `SETTLED` |
+
+### Resolved
+
+- **Always-visible remove, against rdc's own hover-reveal precedent.** The changed-files list hides
+  its discard icon until the row is hovered. That is defensible for a frequent, per-file action in a
+  long list; it is the wrong trade for a rare destructive one, and hover does not exist on touch.
+  The inconsistency is deliberate and recorded here so the next reviewer does not "fix" it.
+- **Fixed height and scroll, not virtualization.** `VirtualList` only engages past 100 items and a
+  repository with 100 remotes does not happen. Ordinary scroll inside a bordered region is what
+  desktop-plus does and what the content warrants.
+- **Rows divided, not gapped.** Contiguous rows inside a border read as one list, which is what a
+  scroll boundary needs to look like; gapped rows read as separate cards that happen to be clipped.
+
+### The dialog moved to its own file
+
+`app-dialogs.tsx` was 91 lines longer for holding this inline, and the list had **no functional test
+coverage at all** — the only reference to it in the suite was a menu-inventory entry. Every other
+dialog of this size already lives in `lib/ui/dialogs/`, so extracting it followed the existing
+shape and gave the filtering, the empty states and the icon buttons' accessible names somewhere to
+be tested.
 
 ## Progress presentation — categories, mapped from desktop-plus
 

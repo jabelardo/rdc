@@ -82,6 +82,23 @@ Preferences is now a category layout: a vertical rail with a fixed-height panel 
       taken from desktop-plus; judge whether they read right for rdc before more settings arrive and
       the names get expensive to change.
 
+## Manage remotes — rows contributed by the Component 8 redesign
+
+The list is now a fixed-height bordered scroll region with icon-only row actions.
+
+- [ ] **The dialog is the same size with two remotes and with twenty.** Add several remotes and
+      confirm the list scrolls inside its border rather than the dialog growing.
+- [ ] **A long URL truncates rather than widening the dialog.** Add a remote with a very long URL
+      and confirm the name stays fully visible while the URL ellipsises — the name is what
+      identifies the row.
+- [ ] **The icon actions are discoverable.** The trash icon is visible on every row without
+      hovering — deliberately unlike the changed-files list — and its tooltip names the remote.
+      Confirm the tooltip appears on keyboard focus, not only on hover.
+- [ ] **Light and Dark**: the row dividers and the list border read as one list rather than as
+      separate cards, and the icon buttons have enough contrast against the row.
+- [ ] **Compact viewport**: the row still fits name, URL and action without the action being pushed
+      off or the URL collapsing to nothing.
+
 ## Sub-slice 2.0 — Pilot Dialogs (visual sign-off required before 2.1)
 
 These three were the first migrated. Validate them in **Help → Show Dialog**. The debug menu injects stub state automatically — no real data needed.

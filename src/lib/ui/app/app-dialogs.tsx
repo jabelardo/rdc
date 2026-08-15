@@ -52,6 +52,7 @@ import {
   type OperationProgressViewModel,
 } from "../../operation-presentation";
 import { DialogFailure } from "../dialogs/dialog-failure";
+import { ManageRemotesDialog } from "../dialogs/manage-remotes-dialog";
 
 type AppDialogsProps = {
   readonly discardFile: WorkingDirectoryFileChange | null;
@@ -483,74 +484,15 @@ export function AppDialogs({
       )}
 
       {showManageRemotes && (
-        <Dialog
-          open
-          onOpenChange={(open) => {
-            if (!open && !manageRunning) {
-              onCloseManageRemotes();
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-[600px]">
-            <DialogTitle>Manage remotes</DialogTitle>
-            <div className="manage-remotes-toolbar mt-4 flex items-center gap-2">
-              <input
-                type="search"
-                className="grow"
-                aria-label="Filter remotes"
-                placeholder="Filter remotes"
-                value={remoteFilter}
-                disabled={manageRunning}
-                onChange={(event) => onRemoteFilterChange(event.currentTarget.value)}
-              />
-              <button type="button" disabled={manageRunning} onClick={onNewRemote}>
-                New remote
-              </button>
-            </div>
-            {(() => {
-              const filter = remoteFilter.trim().toLowerCase();
-              const filtered = remotes.filter(
-                (remote) =>
-                  remote.name.toLowerCase().includes(filter) ||
-                  remote.url.toLowerCase().includes(filter),
-              );
-              if (remotes.length === 0) {
-                return <p className="manage-remotes-empty mt-4">This repository has no remotes.</p>;
-              }
-              if (filtered.length === 0) {
-                return <p className="manage-remotes-empty mt-4">No remotes match your filter.</p>;
-              }
-              return (
-                <ul className="manage-remotes-list mt-4 grid list-none gap-[5.2px] p-0">
-                  {filtered.map((remote) => (
-                    <li
-                      key={remote.name}
-                      className="grid items-center gap-3 [grid-template-columns:minmax(0,1fr)_auto]"
-                    >
-                      <span className="min-w-0">
-                        <strong>{remote.name}</strong>{" "}
-                        <small className="break-all">{remote.url}</small>
-                      </span>
-                      <button
-                        type="button"
-                        aria-label={`Remove the "${remote.name}" remote`}
-                        disabled={manageRunning}
-                        onClick={() => onConfirmRemoveRemote(remote.name)}
-                      >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              );
-            })()}
-            <DialogFooter>
-              <button type="button" disabled={manageRunning} onClick={onCloseManageRemotes}>
-                Close
-              </button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <ManageRemotesDialog
+          remotes={remotes}
+          filter={remoteFilter}
+          busy={manageRunning}
+          onFilterChange={onRemoteFilterChange}
+          onNewRemote={onNewRemote}
+          onRemoveRemote={onConfirmRemoveRemote}
+          onDismiss={onCloseManageRemotes}
+        />
       )}
 
       {showAddRemote && (
