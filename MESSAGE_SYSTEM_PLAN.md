@@ -4,9 +4,10 @@
 behind the Phase 8b screenshot (remote, conflict, working tree). Alongside them: the toast severity
 colours, and the repository-availability gate that stops five stores each discovering a deleted
 directory in their own words. `.application-error` is down from 17 references to 12.
-**Remaining**: Slices 3, 4 and 7. **Slice 1 is blocked** on the in-dialog-failure decision below;
-`remote-store`'s `managementError`, `working-tree-store`'s `discardError` and `conflict-store`'s
-`loadFailed` are the deliberate remnants that go with it.
+**Remaining**: Slices 1 and 7, both of which were blocked on the in-dialog-failure decision. That
+decision is now **settled** — see below — so what is left is one piece of work: give the inline
+dialog failure a single element, stop three dialogs dismissing before their action settles, and
+route the genuinely ownerless failures to the message system.
 **Blocks**: Phase 8b QA cycle 2 — the accessibility and dispatch rows for whatever this produces are
 walked in that cycle, so this needs to land before it, not during it. This plan writes those rows;
 it does not walk them (see “Where QA happens” in `COMPONENT_MIGRATION_PROCESS.md`).
@@ -218,39 +219,93 @@ throws a descriptive `Error` instead, caught by the same wrapper. This is the ac
 outcome, not just relocating where existing state gets rendered — after the last slice, grepping
 for `application-error` should return nothing outside this plan's own history.
 
-## OPEN DECISION — where an in-dialog failure appears (blocks Slice 1)
+## SETTLED — where an in-dialog failure appears
 
-**Status: deferred, deliberately, 2026-08-06. Not yet decided. Do not implement Slice 1's dialog
-routing until it is.**
-
-Every slice below is written as though a failure raised *while a modal dialog is open* becomes a
-toast via `reportError`. **That is an assumption this plan made, not a decision anyone ratified.**
-It was surfaced during the dialog migration (`COMPONENT_MIGRATION_PROCESS.md`, destructive
-confirmation family) and consciously deferred to here, where the message system is actually built
-and the trade-off can be judged against a working toast rather than in the abstract.
-
-The three candidates, and what each costs:
+**Decided 2026-08-15, on measurement rather than argument.** The three candidates and their costs
+were:
 
 | Option | Gains | Costs |
 |---|---|---|
-| **Inline in the dialog, dialog stays open** | The failed action keeps its context and stays retryable without redoing the selection | A second error channel exists forever; `.application-error`'s replacement has to be a real styled element, not just a token swap |
-| **Toast, dialog closes** | One error channel app-wide, which is this plan's whole premise | Context is gone — retrying a discard means re-selecting the files |
-| **Toast, dialog stays open** | One channel *and* retryable | A toast fired from behind a modal can be overlapped by it, or read as unrelated to the dialog in front of you. Needs verification against the real `sonner` z-index and the Radix overlay, not reasoning |
+| **Inline in the dialog** | The failed action keeps its context and stays retryable without redoing the selection | A second error surface exists; its element has to be real, not a token swap |
+| **Toast, dialog closes** | One error channel app-wide | Context is gone — retrying a discard means re-selecting the files |
+| **Toast, dialog stays open** | One channel *and* retryable | Feared to be overlapped by the modal; the plan required this be checked, not reasoned about |
 
-This is the worked example `COMPONENT_MIGRATION_PROCESS.md` cites for the difference between an open
-decision and QA: it needs a person to look at the running app exactly once, it names the observation
-that settles it, and it blocks a specific slice's design. It is not a sign-off, and it does not wait
-for the Phase 8b cycle.
+### What the check found
 
-Note that the third option's risk is **empirically checkable** and should be checked before deciding:
-mount a toast while an `AlertDialog` is open and look at it. Radix renders its overlay in a portal
-on `document.body`, and `MessageToasts` portals `<Toaster>` to `document.body` too, so which one
-wins is a DOM-order and z-index question with a definite answer.
+Mounting a toast behind an open `AlertDialog` and measuring, rather than reasoning:
 
-**Interim rule, in force until this is settled:** dialogs being migrated keep their failure text
-inline and switch it from `.application-error` to the `--error-*` tokens. No dialog migration may
-resolve this by quietly picking an option, and no *new* `.application-error` usages may be added —
-there are 17 in `tsx` today and that number must only go down.
+| Question | Measured |
+|---|---|
+| Does the modal overlap the toast? | **No.** Sonner is `z-index: 999999999`; the Radix overlay and content are `z-50`. |
+| Is the toast announced? | **Yes.** Radix's `aria-hidden` sweep does not reach the toaster; it keeps its `aria-live="polite"`. |
+| Is the toast **dismissible**? | **No.** The modal sets `pointer-events: none` on `<body>`; the toaster is a body child; `pointer-events` is inherited; sonner never re-enables it — its only rule sets `none` on *invisible* toasts. |
+
+So the feared risk does not occur, and a different one does: behind a modal the toast is perfectly
+visible and completely inert. Since error toasts persist until dismissed, option 3 produces a toast
+the user **cannot get rid of** until they close the dialog. Rescuable only by forcing
+`pointer-events: auto` on the toaster, which deliberately punches a hole in the modal.
+
+### The decision
+
+**A failure renders inline in the dialog that owns the action that failed.** It goes to the message
+system only when no dialog owns it.
+
+Note the test is **ownership, not timing.** "While a dialog is open" was the original phrasing and it
+is wrong, because a dialog that dismisses itself before its action completes makes the case vanish —
+see the finding below. Ask *which surface the user acted on*, not *what happened to be on screen*.
+
+Two obligations come with it, and neither is optional:
+
+1. **A dialog that can show a failure may not dismiss optimistically.** It stays open until the
+   action settles: closes on success, renders the failure inline on failure.
+2. **It must keep an enabled Cancel/Close path once the action is no longer in flight**, so a user
+   who cannot or will not retry is never trapped in a dialog that keeps failing. This composes with
+   `COMPONENT_MIGRATION_PROCESS.md` Convention 8 rather than contradicting it: refuse dismissal
+   *during* the operation, always permit it *after* a failure.
+
+This does not weaken the plan's premise. `OPERATION_PROGRESS_PLAN.md` already established that a
+native operation's terminal error belongs to its progress dialog rather than the toast, because it
+is the terminal state of something the user is watching. A dialog owning the failure of the action
+just confirmed *in it* is the same principle, not an exception to it.
+
+### The finding that forced the ownership wording
+
+Three confirm handlers null their dialog state **before** awaiting the action —
+`confirmRemoveRepository` (`use-app-controller.ts`), and the rename and delete branch handlers:
+
+```ts
+setRepositoryToRemove(null);                                   // dialog closes first
+await runRepositoryAction(() => appStore.removeRepository(r)); // then it can fail
+```
+
+That is option 2 arrived at by accident: the dialog is already gone, so the failure has nowhere to
+be inline and lands in the top-level error instead. It was nearly preserved by inertia while
+implementing the opposite decision. **Fixing the optimistic close is therefore part of this work,
+not a follow-up** — without it the decision cannot be implemented at the three sites that need it
+most.
+
+### What is left to do
+
+`.application-error` is down to 7 references: 3 CSS rules and 4 render sites. All four are dialogs,
+and they are now unblocked. In dependency order:
+
+1. **Give the inline failure one element.** `ConfirmDialog` already has the shape — a bordered block
+   on `--error-*` tokens; `DialogMessage` has the tone vocabulary. Settle on one, since two shapes
+   for one concept is the duplication this plan exists to remove, and apply it to the preferences
+   and add-remote dialogs.
+2. **Stop the three optimistic closes**, and confirm each of those dialogs keeps a working way out
+   after a failure. This is the behavioural half and carries the risk; the tests are the guard.
+3. **Route the genuinely ownerless failures to the message system.** The top-level controller
+   `error` covers add-repository, create-repository, select-repository and the context-menu actions
+   — the folder picker is a *native* dialog, so nothing of rdc's owns those failures. Remove
+   `app-shell.tsx`'s block with them.
+4. **Delete the `.application-error` CSS.** It is dead once step 1 lands, and the count reaching
+   zero is this plan's own definition of done.
+
+Slice 7's two fields (`clone-store`, `preferences-store`) and the narrow fields kept for this
+decision — `remote-store`'s `managementError`, `working-tree-store`'s `discardError`,
+`branch-store`'s `dialogError` — are **not** remnants to delete. They are the inline channel's
+legitimate inputs. Their names should say so once step 1 settles the element.
 
 ## Slices
 
@@ -304,7 +359,7 @@ repeating it:
 | 4 | `branch-store.ts` | `error` → `loadFailed`; `operationError` → `dialogError`, dialogs only — **landed** | `repository-sidebar.tsx` — **landed**; the rename/delete/merge dialogs keep their inline failure until Slice 1 |
 | 5 | `remote-store.ts` | `error` → **landed**, but see below | `repository-toolbar.tsx` — **landed**: the error paragraph is gone entirely. The toolbar keeps action state and peer-window status only |
 | 6 | `conflict-store.ts` | `error`, `operationError` → **landed**; `error` became a `loadFailed` boolean, see below | `merge-conflicts.tsx` — **landed**: both `.application-error` blocks gone |
-| 7 | `clone-store.ts` + `preferences-store.ts` | **blocked** — both fields render only in dialogs, so removing them *is* the open decision | `app-dialogs.tsx` clone dialog, preferences dialog |
+| 7 | `clone-store.ts` + `preferences-store.ts` | **not removed** — both fields render only in dialogs, and the settled decision keeps a dialog-owned failure inline. They are the inline channel, not debt | `app-dialogs.tsx` clone dialog, preferences dialog |
 
 #### Slice 5, as landed — and the one deviation
 
@@ -401,10 +456,11 @@ ones have no inline home left. One knock-on: the branch form decided whether to 
 reading `operationError === null`, which stops meaning anything once failures leave the store, so
 `refreshAfterBranchChange` now returns whether the operation succeeded.
 
-**Slice 7 is not independent — it is blocked, by the same decision as Slice 1.** The plan grouped it
+**Slice 7 is not independent — it turns on the same decision as Slice 1, now settled.** The plan grouped it
 with the low-risk tail, but `clone-store`'s and `preferences-store`'s `error` fields render *only* in
 dialogs. Removing them is not "the same pattern on a quieter surface"; it is the in-dialog-failure
-decision itself, made by accident. It is listed here as blocked rather than deferred silently.
+decision itself, made by accident. With the decision settled in favour of inline, those two fields
+stay and become the inline channel's inputs; what Slice 7 owes is the shared element, not a removal.
 
 What Slice 7 *could* deliver now, and did: the `[object Object]` bug in both of those dialogs, plus
 `operation-store`'s terminal-error message. Five `String(error)` sites became `describeError`, which

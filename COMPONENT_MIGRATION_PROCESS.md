@@ -328,6 +328,22 @@ consumers, per Convention 3.
   action must `event.preventDefault()` in its `onClick` — the close runs through
   `composeEventHandlers`, which skips it when the event is already default-prevented. Verified
   against the installed source, not assumed.
+- **Convention 17 — a dialog owns the failure of the action it confirmed, and never traps the user
+  with it.** Settled 2026-08-15 in `MESSAGE_SYSTEM_PLAN.md` after measuring the alternative: behind
+  a Radix modal a toast is visible but *inert*, because the modal sets `pointer-events: none` on
+  `<body>` and sonner never re-enables it — so an error toast raised from a dialog cannot be
+  dismissed until the dialog closes. Three rules follow, and the second is the one that is easy to
+  get wrong:
+  - A failure renders **inline in the dialog that owns the action**. Only an ownerless failure goes
+    to the message system. The test is *ownership*, not *what happened to be on screen*.
+  - **A dialog that can show a failure may not dismiss optimistically.** Several confirm handlers
+    null their dialog state *before* awaiting the action, which quietly converts every failure into
+    an ownerless one and defeats the rule above by making the dialog vanish. Close on success;
+    stay open and render inline on failure.
+  - **Cancel/Close must be enabled again once the action is no longer in flight.** This composes
+    with Convention 8 rather than contradicting it: refuse dismissal *during* the operation, always
+    permit it *after* a failure, so a user who cannot or will not retry is never stuck in a dialog
+    that keeps failing.
 - **Convention 9 — rdc's element defaults stop at shadcn's door.** Bare-element rules in
   `@layer base` must exclude vendored primitives with `:not([data-slot])`. `button`'s
   `padding: 6.5px 9.75px` reached inside the Radix Checkbox, and since padding cannot shrink below
