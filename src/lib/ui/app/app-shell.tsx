@@ -13,6 +13,7 @@ import type { AppController } from "./use-app-controller";
 import { WindowDragStrip } from "./window-drag-strip";
 import { remoteEnablement } from "../../remote-enablement";
 import { isHistoryMovingOperation, operationProgressViewModel } from "../../operation-presentation";
+import { DebugOperationProgressLauncher } from "../dialogs/debug-operation-progress-launcher";
 
 type AppShellProps = {
   readonly controller: AppController;
@@ -63,6 +64,11 @@ export function AppShell({ controller }: AppShellProps) {
     removingRepository,
     cancelRemoveRepository,
     showAboutDialog,
+    debugProgressLauncher,
+    debugProgressViewModel,
+    onDebugShowOperationProgress,
+    onDebugDismissOperationProgressLauncher,
+    onDebugDismissOperationProgress,
     setShowAboutDialog,
     appArchitecture,
     showPreferencesDialog,
@@ -360,6 +366,12 @@ export function AppShell({ controller }: AppShellProps) {
           </div>
         )}
       </section>
+      {debugProgressLauncher && (
+        <DebugOperationProgressLauncher
+          onShow={onDebugShowOperationProgress}
+          onDismiss={onDebugDismissOperationProgressLauncher}
+        />
+      )}
       <AppDialogs
         discardFile={discardFile}
         permanentlyDiscard={permanentlyDiscard}
@@ -373,10 +385,25 @@ export function AppShell({ controller }: AppShellProps) {
         runningHook={workingTreeState.runningHook}
         commitLoading={workingTreeState.commitLoading}
         commitTerminalOutput={commitTerminalOutput}
-        operationViewModel={operationViewModel}
-        onCancelOperation={() => void operationStore.requestCancellation()}
-        onAdoptCancellation={() => void operationStore.requestCancellation(true)}
-        onDismissOperation={() => operationStore.dismissTerminalOperation()}
+        operationViewModel={debugProgressViewModel ?? operationViewModel}
+        // A preview has no operation behind it, so every action closes it rather than reaching the
+        // registry — cancelling an operation that does not exist is not a preview of anything.
+        // Each lifecycle state the buttons would lead to is its own entry in the launcher.
+        onCancelOperation={
+          debugProgressViewModel === undefined
+            ? () => void operationStore.requestCancellation()
+            : onDebugDismissOperationProgress
+        }
+        onAdoptCancellation={
+          debugProgressViewModel === undefined
+            ? () => void operationStore.requestCancellation(true)
+            : onDebugDismissOperationProgress
+        }
+        onDismissOperation={
+          debugProgressViewModel === undefined
+            ? () => operationStore.dismissTerminalOperation()
+            : onDebugDismissOperationProgress
+        }
         workingTreeStore={workingTreeStore}
         repositoryToRemove={repositoryToRemove}
         showAboutDialog={showAboutDialog}

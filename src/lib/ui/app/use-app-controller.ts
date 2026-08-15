@@ -71,7 +71,16 @@ import type { MergeTreeResult } from "../../../models/merge";
 import type { MergeStrategy } from "../../../models/merge-strategy";
 import type { RebasePreview } from "../../../models/rebase-preview";
 import { OperationStore } from "../../stores/operation-store";
-import { isTerminalOperation } from "../../operation-presentation";
+import { isTerminalOperation, operationProgressViewModel } from "../../operation-presentation";
+import {
+  operationPreviewRecord,
+  type OperationPreviewState,
+} from "../../debug/operation-progress-preview";
+import type {
+  GitOperationKind,
+  OperationPresentationRole,
+  OperationRecord,
+} from "../../../models/operation";
 
 const rendererStartTime = performance.now();
 const rendererPlatform = currentMenuPlatform();
@@ -225,6 +234,9 @@ export function useAppController() {
   const [manageRunning, setManageRunning] = useState(false);
   const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [showAboutDialog, setShowAboutDialog] = useState(false);
+  const [debugProgressLauncher, setDebugProgressLauncher] = useState(false);
+  const [debugProgressRecord, setDebugProgressRecord] = useState<OperationRecord | null>(null);
+  const [debugProgressRole, setDebugProgressRole] = useState<OperationPresentationRole>("owner");
   // Resolved once and shown in About, where it exists so a version string can be pasted
   // into a bug report complete with the architecture it was running under.
   const [appArchitecture, setAppArchitecture] = useState<Architecture | null>(null);
@@ -483,6 +495,7 @@ export function useAppController() {
       debugShowAboutDialog: () => setShowAboutDialog(true),
       debugShowPreferencesDialog: () => setShowPreferencesDialog(true),
       debugShowCloneDialog: () => setShowCloneDialog(true),
+      debugShowOperationProgressDialog: () => setDebugProgressLauncher(true),
       debugShowCloneProgressDialog: () => {
         // No real clone can run from the debug menu, so drive the category-1 progress step with a
         // canned clone that actually advances: value and git line moving 0→100 frame by frame over
@@ -2043,6 +2056,26 @@ export function useAppController() {
     removingRepository,
     cancelRemoveRepository,
     showAboutDialog,
+    debugProgressLauncher,
+    // The role is overridden rather than derived, so the window label is unused — the same shape
+    // the toolbar's own call uses. A preview cannot conjure a second window to be an observer of.
+    debugProgressViewModel:
+      debugProgressRecord === null
+        ? undefined
+        : operationProgressViewModel(debugProgressRecord, "", debugProgressRole),
+    onDebugShowOperationProgress: (
+      state: OperationPreviewState,
+      operation: GitOperationKind,
+      role: OperationPresentationRole,
+    ) => {
+      setDebugProgressRecord(
+        operationPreviewRecord(state, operation, role === "unowned" ? null : "main"),
+      );
+      setDebugProgressRole(role);
+      setDebugProgressLauncher(false);
+    },
+    onDebugDismissOperationProgressLauncher: () => setDebugProgressLauncher(false),
+    onDebugDismissOperationProgress: () => setDebugProgressRecord(null),
     setShowAboutDialog,
     appArchitecture,
     showPreferencesDialog,

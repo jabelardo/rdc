@@ -146,6 +146,36 @@ These three were the first migrated. Validate them in **Help → Show Dialog**. 
 > bounded terminal stream. An intercepted hook temporarily replaces it with the hook-failure decision
 > dialog, then the commit progress dialog returns when the decision resolves.
 
+### Operation progress — lifecycle states
+
+Reached through **Test → Show Dialog → Operation progress…**, which is a chooser rather than a
+dialog: pick a state, operation and role, press Show, and the real `OperationProgressDialog` opens
+with nothing added to it. Most of these states cannot be produced by hand in a review session — a
+hard timeout is two minutes of inactivity, recovery-required needs Git to fail *while* recovering —
+which is why they get a preview rather than a reproduction recipe.
+
+Check each against Slice 16's rules: the operation is named, the status line reads as the state
+below, and **only** `running` / `takingLongerThanExpected` offer cancellation. Any preview action
+closes the preview, since there is no operation behind it.
+
+| State | Light | Dark | Notes |
+|---|---|---|---|
+| Running | | | Determinate bar, cancel offered |
+| Taking longer than expected | | | Still cancellable; the wording must not read as a failure |
+| Cancelling… | | | No cancel button; the request is already in flight |
+| Recovering repository… | | | Not cancellable at all |
+| Completed | | | |
+| Completed before cancellation | | | The race: cancellation asked for, operation won |
+| Cancelled | | | |
+| Timed out | | | |
+| Failed | | | Error message is the status line |
+| Outcome unknown | | | Failed without knowing what it left behind |
+| Stopped waiting (Push) | | | Push's own wording; the remote may have accepted the update |
+| Recovery required | | | **Must offer no way out** — the repository is still locked |
+
+Roles to spot-check on any one state: `owner` (controls), `observer` ("Started in another window",
+no controls), `unowned` ("Take control and cancel").
+
 ---
 
 ## Verification Checklist — What to Look For (per dialog)

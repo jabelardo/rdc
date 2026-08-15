@@ -49,6 +49,7 @@ type RepositoryMenuEnvironment = {
   readonly debugShowPreferencesDialog?: () => void;
   readonly debugShowCloneDialog?: () => void;
   readonly debugShowCloneProgressDialog?: () => void;
+  readonly debugShowOperationProgressDialog?: () => void;
   readonly debugShowDiscardAllDialog?: () => void;
   readonly debugShowRenameBranchDialog?: () => void;
   readonly debugShowDeleteBranchDialog?: () => void;
@@ -141,6 +142,7 @@ export function buildRepositoryMenu(
   enabledByID.set("debug-preferences", preferencesState !== undefined);
   enabledByID.set("debug-clone", true);
   enabledByID.set("debug-clone-progress", true);
+  enabledByID.set("debug-operation-progress", true);
   enabledByID.set("debug-discard-all", hasSelection);
   enabledByID.set("debug-rename-branch", hasSelection);
   enabledByID.set("debug-delete-branch", hasSelection);
@@ -362,6 +364,9 @@ export function createRepositoryMenuEventExecutor(
         return true;
       case "debug-show-clone-progress-dialog":
         environment.debugShowCloneProgressDialog?.();
+        return true;
+      case "debug-show-operation-progress-dialog":
+        environment.debugShowOperationProgressDialog?.();
         return true;
       case "debug-show-discard-all-dialog":
         environment.debugShowDiscardAllDialog?.();
