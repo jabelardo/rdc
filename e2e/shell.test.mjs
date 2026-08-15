@@ -206,17 +206,30 @@ describe("application shell", () => {
       "Preferences",
       "the native Preferences action opened a different dialog",
     );
-    const theme = await preferences.findElement(By.css("#theme-preference"));
+    // Preferences is a category layout now, so its first focusable element is the category rail
+    // rather than a setting. Landing there is the intent: arrow keys move between categories
+    // immediately, and Tab moves into the selected category's controls.
     await driver.wait(
-      async () =>
-        (await driver.switchTo().activeElement().getAttribute("id")) === "theme-preference",
+      async () => (await driver.switchTo().activeElement().getText()) === "Appearance",
       5_000,
-      "preferences did not place focus on its first control",
+      "preferences did not place focus on its category rail",
     );
-    await theme.sendKeys(Key.chord(Key.SHIFT, Key.TAB));
-    assert.equal(await driver.switchTo().activeElement().getText(), "Close");
+    await driver.switchTo().activeElement().sendKeys(Key.ARROW_DOWN);
+    assert.equal(await driver.switchTo().activeElement().getText(), "Integrations");
+    await driver.switchTo().activeElement().sendKeys(Key.ARROW_UP);
+    assert.equal(await driver.switchTo().activeElement().getText(), "Appearance");
+
+    // Tab leaves the rail for the panel, which Radix puts in the tab sequence and which is the
+    // scrollable region here, then on to the first control inside it.
+    await driver.switchTo().activeElement().sendKeys(Key.TAB);
+    assert.equal(
+      await driver.switchTo().activeElement().getAttribute("role"),
+      "tabpanel",
+      "Tab from the category rail should reach the panel",
+    );
     await driver.switchTo().activeElement().sendKeys(Key.TAB);
     assert.equal(await driver.switchTo().activeElement().getAttribute("id"), "theme-preference");
+    const theme = await preferences.findElement(By.css("#theme-preference"));
     await driver.executeScript((select) => {
       select.value = "dark";
       select.dispatchEvent(new Event("change", { bubbles: true }));

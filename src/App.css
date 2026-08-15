@@ -1726,54 +1726,6 @@
   margin-top: 0;
 }
 
-.preferences-dialog {
-  width: min(442px, calc(100vw - 26px));
-}
-
-.preferences-fields {
-  grid-template-columns: minmax(104px, auto) minmax(0, 1fr);
-}
-
-.preferences-fields > label {
-  font-weight: 600;
-}
-
-.preferences-fields select {
-  box-sizing: border-box;
-  min-width: 0;
-  padding: 6.5px 26px 6.5px 8.45px;
-  border: 1px solid var(--input);
-  border-radius: var(--radius-small);
-  color: var(--foreground);
-  background-color: var(--card);
-  font: inherit;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: var(--select-caret-image);
-  background-repeat: no-repeat;
-  background-position: right 7.15px center;
-}
-
-.preferences-fields fieldset {
-  display: grid;
-  grid-column: 1 / -1;
-  gap: 6.5px;
-  margin: 6.5px 0 0;
-  padding: 9.75px 13px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-small);
-}
-
-.preferences-fields fieldset label {
-  display: flex;
-  align-items: start;
-  gap: 6.5px;
-}
-
-.preferences-fields fieldset input {
-  margin-top: 3.9px;
-}
-
 .fatal-error {
   box-sizing: border-box;
   max-width: 624px;

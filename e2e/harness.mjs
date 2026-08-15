@@ -351,6 +351,37 @@ export async function waitForApplicationExit(driver) {
  * @param {string} repositoryPath
  * @param {boolean} [selected] additionally require the row to be the current selection
  */
+/**
+ * Runs `action` against a freshly located element, retrying while the DOM keeps replacing it.
+ *
+ * React rerenders replace nodes, and a WebDriver handle captured before a rerender is dead: every
+ * later call against it throws `StaleElementReferenceError`. Holding a handle across an `await` is
+ * therefore a race with whatever state change the test is exercising — which is exactly when tests
+ * hold them. This has bitten four specs so far (`e2a59f6`, fetch cancellation twice, the keyboard
+ * journey), so it is a helper rather than a fourth local workaround.
+ *
+ * Locates and acts in one step, and treats staleness as "not settled yet" rather than a failure.
+ */
+export async function withElement(driver, locator, action, message = "element never settled") {
+  let result;
+  await driver.wait(
+    async () => {
+      try {
+        result = await action(await driver.findElement(locator));
+        return true;
+      } catch (error) {
+        if (error.name === "StaleElementReferenceError" || error.name === "NoSuchElementError") {
+          return false;
+        }
+        throw error;
+      }
+    },
+    10_000,
+    message,
+  );
+  return result;
+}
+
 export function repositorySelector(repositoryPath, selected = false) {
   return By.css(
     `[data-repository-path="${repositoryPath}"]${selected ? '[aria-current="true"]' : ""}`,

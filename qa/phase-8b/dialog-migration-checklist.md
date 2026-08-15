@@ -61,6 +61,27 @@ judgements the automated gates cannot make.
 - [ ] **Screen-reader announcement of a toast**, including a collapsed one — a repeat updates the
       existing toast's text, so confirm the count is announced rather than silently changing.
 
+## Preferences — rows contributed by the Component 7 redesign
+
+Preferences is now a category layout: a vertical rail with a fixed-height panel beside it, 600px.
+
+- [ ] **The dialog does not resize when the category changes.** Click through Appearance →
+      Integrations → Git → Prompts and watch the frame, not the content. This is the reason the
+      content height is fixed rather than content-sized; if it still jumps, the fix did not take.
+- [ ] **The rail never scrolls, the panel does.** Only Prompts is long enough to test this today —
+      at the compact viewport it should scroll inside its pane with all four categories still
+      reachable.
+- [ ] **Arrow keys move between categories** (up/down, wrapping), and Tab moves into the panel's
+      controls rather than to the next category.
+- [ ] **Light and Dark**: the selected category is legible against the rail, and the rail's right
+      border reads as a divider rather than an edge.
+- [ ] **Long values do not break out.** Pick the longest editor and shell names available and
+      confirm the selects truncate inside the panel rather than widening the dialog — the failure
+      desktop-plus documents in its own preferences SCSS.
+- [ ] **Category names still fit rdc's vocabulary.** Appearance, Integrations, Git and Prompts are
+      taken from desktop-plus; judge whether they read right for rdc before more settings arrive and
+      the names get expensive to change.
+
 ## Sub-slice 2.0 — Pilot Dialogs (visual sign-off required before 2.1)
 
 These three were the first migrated. Validate them in **Help → Show Dialog**. The debug menu injects stub state automatically — no real data needed.

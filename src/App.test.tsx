@@ -573,9 +573,14 @@ describe("App", () => {
     await act(() => executeMenuEvent("show-preferences"));
 
     expect(screen.getByRole("dialog", { name: "Preferences" })).toBeInTheDocument();
+    // Settings live behind categories now, so reaching them is part of what this exercises.
     await user.selectOptions(screen.getByRole("combobox", { name: "Theme" }), "dark");
+
+    await user.click(screen.getByRole("tab", { name: "Integrations" }));
     await user.selectOptions(screen.getByRole("combobox", { name: "External editor" }), "Zed");
     await user.selectOptions(screen.getByRole("combobox", { name: "Shell" }), "Ghostty");
+
+    await user.click(screen.getByRole("tab", { name: "Prompts" }));
     await user.click(
       screen.getByRole("checkbox", {
         name: "Removing a repository from rdc",

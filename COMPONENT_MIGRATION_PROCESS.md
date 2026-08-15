@@ -4,9 +4,10 @@
 
 **Queue.** Migrated and approved: hook failure, About, discard file, discard all, delete branch
 (+ the "cannot delete" notice), remove repository, manage remotes, add remote, rename branch, merge.
-Remaining: **rebase** (new, scoped in `BRANCH_OPERATIONS_PLAN.md` § "Amended scope"), **clone**,
-**preferences**. Fifteen conventions in, a typical table now resolves to one or two genuine
-decisions — which is what the process was for.
+Remaining: **rebase** (new, scoped in `BRANCH_OPERATIONS_PLAN.md` § "Amended scope") and **clone**.
+Preferences was migrated and then redesigned — see Component 7. Seventeen conventions in, a typical
+table resolves to one or two genuine decisions, which is what the process was for; Preferences had
+four, because a category layout is a design question rather than a port.
 
 ## Why this exists
 
@@ -574,6 +575,48 @@ is invalid long before it is running.
 - **No `TabBar`.** desktop-plus renders account tabs (GitHub.com / GitLab / Bitbucket / …); rdc has no
   accounts, so the URL tab is the whole dialog. A future accounts slice reintroduces the tab bar there,
   not here.
+
+## Component 7 — Preferences (`Dialog`, category layout)
+
+Raised by visual validation, 2026-08-15: the dialog did not fit the design criteria, and — the
+larger problem — a flat two-column grid of six settings had nowhere to put a seventh. desktop-plus
+carries nine categories' worth of settings, so the growth pressure is real and already visible
+upstream. This is a redesign, not a markup swap.
+
+| Dimension | rdc before | desktop-plus | shadcn/Radix | |
+|---|---|---|---|---|
+| Navigation | none — flat grid | vertical `TabBar`, 9 categories, icon + label | `Tabs`, vertical orientation | `DECIDE` → vertical rail |
+| Category set | n/a | 9, two conditional | n/a | `DECIDE` → only populated ones |
+| Width | 442px | 600px | — | `DECIDE` → 600px |
+| Content height | content-sized | 440px cap on variable tabs | — | `DECIDE` → fixed |
+| Selection persistence | n/a | none, resets to first | — | `AGREED` |
+| Category keyboard nav | n/a | arrows cycle and wrap | Radix gives this from `orientation` | `AGREED` |
+| Save model | live-apply | Cancel/Save footer | — | `AGREED` → keep rdc's |
+| Close affordance | footer Close | Cancel/Save | — | `SETTLED` → Convention 6 |
+| Height bounded | no | yes | — | `SETTLED` → Convention 14 |
+| Styling | 48 lines in `App.css` | SCSS | Tailwind | `SETTLED` → Convention 3 |
+
+### Resolved
+
+- **Vertical rail, not horizontal tabs.** A tab strip stops scaling at roughly five or six at this
+  width, which is exactly the growth the redesign exists for. The rail grows downward and the dialog
+  does not move.
+- **Only categories that have settings.** Appearance (theme, zoom), Integrations (editor, shell),
+  Git (default merge), Prompts (the three confirms). An empty category is a promise the app does not
+  keep; adding one later costs a trigger and a panel.
+- **600px, fixed content height.** With a rail this is no longer a simple dialog, so it takes the
+  guideline's data-dense tier. Fixed height because categories differ in length and sizing to
+  content makes the dialog jump every time the user switches — the rail stays put, the panel
+  scrolls.
+- **Live-apply stays.** desktop-plus has a Cancel/Save footer; rdc writes each setting immediately
+  and keeps a single Close. Importing the Save model would have been a behaviour change smuggled in
+  behind a layout change.
+
+### Radix supplies the keyboard behaviour, and that is why `orientation` matters
+
+`Tabs` gives roving focus and arrow-key movement from its `orientation` prop — vertical yields
+up/down. Nothing here hand-rolls it, but a silent default to horizontal would give left/right and
+nobody would notice until they tried, so there is a test for it.
 
 ## Progress presentation — categories, mapped from desktop-plus
 

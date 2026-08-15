@@ -13,6 +13,7 @@ import {
   openSeededRepository,
   removeFixtureRoot,
   startApplication,
+  withElement,
 } from "./harness.mjs";
 
 describe("keyboard-only journey", () => {
@@ -37,16 +38,16 @@ describe("keyboard-only journey", () => {
   });
 
   it("completes a local repository journey using only the keyboard", async () => {
-    // One lookup rather than locating the row and then reaching into it: the row can rerender
-    // between the two calls — the changed-file list settles as the stores finish loading — and a
-    // held parent handle goes stale. Same failure mode as e2a59f6 and fetch-cancellation.
-    const selection = await driver.wait(
-      until.elementLocated(
-        By.css('[data-changed-file-path="keyboard-only.txt"] [data-keyboard-list-item]'),
-      ),
-      5_000,
+    // Locate and act in one retrying step. The changed-file list is still settling as the stores
+    // finish loading, and while it churns even `until.elementLocated` throws: it calls
+    // `findElements` against a document being replaced underneath it, which is where this spec
+    // failed before. `withElement` treats that as "not settled yet".
+    await withElement(
+      driver,
+      By.css('[data-changed-file-path="keyboard-only.txt"] [data-keyboard-list-item]'),
+      (row) => row.sendKeys(Key.ENTER),
+      "the changed-file row never settled",
     );
-    await selection.sendKeys(Key.ENTER);
     await driver.wait(
       until.elementLocated(
         By.css(
@@ -56,19 +57,18 @@ describe("keyboard-only journey", () => {
       5_000,
     );
 
-    const includeCheckbox = () =>
-      driver.findElement(By.css('[aria-label="Include keyboard-only.txt"]'));
-    const include = await includeCheckbox();
-    assert.equal(await include.isSelected(), true);
-    await include.sendKeys(Key.SPACE);
+    const includeCheckbox = By.css('[aria-label="Include keyboard-only.txt"]');
+    assert.equal(await withElement(driver, includeCheckbox, (el) => el.isSelected()), true);
+
+    await withElement(driver, includeCheckbox, (el) => el.sendKeys(Key.SPACE));
     await driver.wait(
-      async () => !(await (await includeCheckbox()).isSelected()),
+      async () => !(await withElement(driver, includeCheckbox, (el) => el.isSelected())),
       5_000,
       "Space did not exclude the changed file",
     );
-    await (await includeCheckbox()).sendKeys(Key.SPACE);
+    await withElement(driver, includeCheckbox, (el) => el.sendKeys(Key.SPACE));
     await driver.wait(
-      async () => await (await includeCheckbox()).isSelected(),
+      async () => await withElement(driver, includeCheckbox, (el) => el.isSelected()),
       5_000,
       "Space did not include the changed file",
     );
