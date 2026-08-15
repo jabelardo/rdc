@@ -425,6 +425,10 @@ export function createPhase8bFixture(requestedTarget) {
       remotePush: createPushScenario(target, "remote-push"),
       remoteClone: createCloneScenario(target),
       delayedPush: createPushScenario(target, "delayed-push", 3),
+      // Two independent repositories with a window long enough to switch windows, read both, and
+      // close one. Three seconds is enough to see a progress bar and not enough to do any of that.
+      multiWindowPushA: createPushScenario(target, "multi-window-push-a", 20),
+      multiWindowPushB: createPushScenario(target, "multi-window-push-b", 20),
       unreachableRemote: createUnreachableRemoteScenario(target),
     };
     const populated = scenarios.populated;

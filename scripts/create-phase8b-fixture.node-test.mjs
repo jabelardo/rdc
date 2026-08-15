@@ -45,6 +45,8 @@ test("creates independent deterministic scenarios for every mutable QA journey",
       "remotePush",
       "remoteClone",
       "delayedPush",
+      "multiWindowPushA",
+      "multiWindowPushB",
       "unreachableRemote",
     ]);
     assert.equal(manifest.primary, scenarios.populated.repository);
@@ -190,6 +192,20 @@ test("creates independent deterministic scenarios for every mutable QA journey",
     const delayHook = path.join(scenarios.delayedPush.remote, "hooks", "pre-receive");
     assert.match(readFileSync(delayHook, "utf8"), /sleep 3/);
     assert.notEqual(statSync(delayHook).mode & 0o111, 0);
+
+    // The multi-window pair must be two separate repositories with two separate remotes: the rows
+    // they serve are about two operations that must not contend for one repository lock.
+    for (const scenario of [scenarios.multiWindowPushA, scenarios.multiWindowPushB]) {
+      const hook = path.join(scenario.remote, "hooks", "pre-receive");
+      assert.match(readFileSync(hook, "utf8"), /sleep 20/);
+      assert.notEqual(statSync(hook).mode & 0o111, 0);
+      assert.equal(scenario.delaySeconds, 20);
+    }
+    assert.notEqual(
+      scenarios.multiWindowPushA.remote,
+      scenarios.multiWindowPushB.remote,
+      "the two windows must push to different remotes, not one shared bare repository",
+    );
     assert.equal(
       git(scenarios.unreachableRemote.repository, "remote", "get-url", "origin"),
       scenarios.unreachableRemote.remoteUrl,

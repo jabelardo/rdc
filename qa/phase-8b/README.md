@@ -32,13 +32,17 @@ agreed MVP blocker.
 4. Run the platform checklist's functional groups in dependency order: read-only, reversible local,
    mutating local, remote, failure/recovery, integrations/accessibility/lifecycle. After every
    mutating group, verify the claimed result with Git CLI commands as well as the UI.
-5. Record every issue with reproduction steps and evidence. Classify it as MVP-blocking, accepted
+5. Complete `multi-window-checklist.md` after the platform checklist's remote group, which is where
+   the operations it needs are first exercised. It is cross-platform — run it on both — and it
+   deliberately does not repeat what `e2e/operation-windows.test.mjs` already proves; its rows are
+   about whether a second window's situation is *legible*, which no test can judge.
+6. Record every issue with reproduction steps and evidence. Classify it as MVP-blocking, accepted
    non-blocking, or deferred with a named owner.
-6. Implement agreed fixes and add automated regression coverage wherever human judgment is not
+7. Implement agreed fixes and add automated regression coverage wherever human judgment is not
    essential.
-7. Rerun the complete Phase 8a gate, refresh both development builds and repeat affected human checks.
-8. Repeat until no agreed MVP blocker remains.
-9. Settle the final icon, bundle identifier and release presentation (whether/how version 0.1.0 is
+8. Rerun the complete Phase 8a gate, refresh both development builds and repeat affected human checks.
+9. Repeat until no agreed MVP blocker remains.
+10. Settle the final icon, bundle identifier and release presentation (whether/how version 0.1.0 is
    labelled Preview/Beta in About and package-facing metadata), package once, then run
    `final-package-smoke.md`.
    Packaging-only defects return through the same fix, Phase 8a, repackage and focused recheck loop.

@@ -1,9 +1,12 @@
 # Repository-scoped Git operations, cancellation, timeouts and progress UI
 
-**Status:** Slices 1–19 complete and re-verified against the code; Slice 20 remains
+**Status:** Complete. Slices 1–19 landed and were re-verified against the code; Slice 20 closed the
+plan on 2026-08-15.  
 **Recorded:** 2026-08-14  
 **Primary milestone:** define truthful cancellation and timeout policies for the remaining
-progress-producing operations before completing the unified progress presentation.
+progress-producing operations before completing the unified progress presentation. **Met** — all ten
+operation kinds expose cancellation, each having first proven process-tree termination, post-cancel
+inspection and a recoverable error event.
 
 This document is the implementation plan for consolidating Git-operation progress while preserving
 rdc's multi-window behavior. It is written as instructions for an implementation agent. Follow the
@@ -1024,7 +1027,9 @@ Migrate incrementally to the operation record and shared presentation:
    to the native repository lock before deriving remote-action enablement.
 7. Checkout. **Complete:** the branch sidebar renders native Checkout progress through the shared
    body; branch-store state remains the refresh/error compatibility path.
-8. Cherry-pick/Revert. **Functional migration complete; Slice 20 writes its QA rows:** the History commit context menu now starts the native
+8. Cherry-pick/Revert. **Complete**, with QA rows in `qa/phase-8b/macos-checklist.md` §4 (conflict
+   recovery, abort, and the refusal when nothing is in progress) and their progress states reachable
+   from the Operation selector in Help → Show Dialog → Operation progress…: the History commit context menu now starts the native
    Cherry-pick and Revert commands, and their operation records mount the unified progress dialog.
    The conflict surface now identifies Cherry-pick/Revert recovery, stages resolutions, offers
    Cherry-pick continuation and explicit abort for both operations. Interactive Squash/Reorder
@@ -1265,6 +1270,41 @@ Before closing the work:
    the Phase 10 target; its seam must compile when introduced.
 7. Run the store-surface measurement when command additions/removals settle; copy numbers from the
    script output, never by hand.
+
+### Closed — 2026-08-15
+
+All seven items are done. Where each landed, and what it turned up:
+
+1. **`MIGRATION_PLAN.md`** — the Phase 8b progress paragraph, which claimed the remaining work was
+   an embedded bar for Fetch/Push/Pull/Checkout. Three of those four went the other way: the
+   registry's repository lock made Fetch, Push and Pull *modal*, because an operation that refuses
+   every other action in its window cannot honestly present itself as background work. Checkout is
+   what remains of embedded progress.
+2. **`MIGRATION_MAP.md`** — the departure section was still future-tense ("rdc will add these"). It
+   now carries the landed paths and the cancellation answer: all ten kinds, nothing unsupported,
+   with Push's "Stop waiting" recorded as a wording consequence rather than a missing capability.
+3. **`COMPONENT_MIGRATION_PROCESS.md`** — a new "Final contract" section under the progress
+   categories. The category 1/2 table is the framing, not the landing, and rather than rewrite the
+   decision record the section says so and states what actually holds: one body, two wrappers, and
+   the view model as the entire contract.
+4. **Twelve lifecycle states, three roles, compact viewport and the embedded body** in
+   `qa/phase-8b/dialog-migration-checklist.md`. Writing them alongside
+   Help → Show Dialog → **Operation progress…** is what made them specific — the preview builds a
+   real `OperationRecord` and pushes it through the shipped view model, which caught three states
+   whose records would have rendered the wrong copy.
+5. **`qa/phase-8b/multi-window-checklist.md`**, new, with `multiWindowPushA`/`multiWindowPushB` added
+   to the fixture generator. Its rows deliberately do not repeat what
+   `e2e/operation-windows.test.mjs` already proves; they ask whether a second window's situation is
+   *legible*, which no test can judge. The twenty-second push window exists because
+   `delayedPush`'s three seconds is not enough to switch windows, read both and close one.
+6. **Process-tree termination** is §5 of that checklist, Linux and macOS. The fixture makes the tree
+   concrete — `git push` → `receive-pack` → `pre-receive` → `sleep 20` — so the row can name what
+   must die and how to look for it, rather than asking a tester to imagine a process tree. Windows
+   stays with the Phase 10 target.
+7. **The measurement**, rerun and recorded verbatim in `MIGRATION_PLAN.md`. It found one command
+   registered and wired to nothing: `fetch_workflow`. Rather than invent a consumer string for it —
+   which would have quietly defeated the check — the script grew a separate `UNWIRED` table, so the
+   exit criterion stays meaningful and the command stays visible.
 
 Run the complete repository gate set before every commit:
 

@@ -192,7 +192,35 @@ closes the preview, since there is no operation behind it.
 | Recovery required | | | **Must offer no way out** — the repository is still locked |
 
 Roles to spot-check on any one state: `owner` (controls), `observer` ("Started in another window",
-no controls), `unowned` ("Take control and cancel").
+no controls), `unowned` ("Take control and cancel"). The launcher's Role selector reaches all three
+without a second window; whether they are *legible in context* is a different question, and belongs
+to `multi-window-checklist.md`.
+
+- [ ] **Compact viewport.** Repeat `running`, `takingLongerThanExpected` and `recoveryRequired` at a
+      compact width. The progress description is a raw Git line ("Receiving objects: 45%
+      (92/204)"), which is the longest thing here and the first to wrap; confirm it does not push
+      the buttons off, and that a wrapped status does not resize the dialog on every frame.
+- [ ] **The determinate bar is honest.** In `running` it shows the real fraction; in states with no
+      progress it is absent rather than sitting at zero or spinning forever.
+
+### The same body, embedded rather than in a dialog
+
+`OperationProgressBody` is shared: the dialog wraps it, and the branch sidebar renders it inline
+during checkout. Both presentations must be recognisably the same component — that sharing is the
+contract, and it is the thing most likely to drift as one of the two gets adjusted.
+
+- [ ] **Checkout in the sidebar.** Check out a branch with enough content to take a moment (the
+      `mergeStates` scenario's branches will do) and watch the branch list, not a dialog. The
+      progress appears inline, reads the same as the dialog's, and does not displace the list so far
+      that the branch you clicked jumps away.
+- [ ] **The embedded body offers no dialog chrome.** No title, no footer, no dismissal — it is a
+      status region inside a surface the user is already looking at. If it grows buttons, the
+      contract has drifted.
+- [ ] **Clone uses the dialog, not the embedded body.** Clone replaces its whole form with the
+      progress dialog while running. Confirm it still reads as the same operation the form started,
+      and that Cancel is the clone's own cancellation rather than a dialog dismissal.
+- [ ] **Light and Dark for the embedded body**, which sits on the sidebar's surface rather than the
+      dialog's — the one place the shared body meets a different background.
 
 ---
 

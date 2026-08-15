@@ -718,7 +718,37 @@ current commit summary while Git replays commits. **Commit is now the third cons
 pane's `commitLoading` state mounts the shared dialog and its bounded terminal buffer is rendered as
 the dialog's content. **Merge is now the fourth consumer:** its branch operation publishes a
 blocking generic progress state while Git determines and applies the merge. The remaining history
-operations are still pending consumers. The category-2 operations already publish and render text
-and percentages in their existing controls; the shared compact bar remains to be added for
-Fetch/Push/Pull in the toolbar and Checkout in the branch sidebar. Interactive squash/reorder is
-not yet a consumer because interactive rebase remains outside the current MVP scope.
+operations are still pending consumers. **Fetch, Push and Pull are now consumers too**, but as
+category 1 rather than the category 2 this table assigned them — see the settled contract below for
+why the registry's repository lock forced that move. **Checkout** renders the same shared body
+inline in the branch sidebar, which is what category 2 now means in practice. Interactive
+squash/reorder is not yet a consumer because interactive rebase remains outside the current MVP
+scope.
+
+### Final contract, settled by `OPERATION_PROGRESS_PLAN.md` Slice 20
+
+The category 1/2 split above is how the question was *framed*; it is not where it landed, and the
+difference is worth stating plainly rather than leaving the table to imply otherwise.
+
+**Fetch, Push and Pull moved from category 2 to category 1.** They were the original examples of
+embedded background progress. They are now blocking modal operations, because the operation registry
+made them something the table did not anticipate: they take a repository-scoped write lock. An
+operation that locks the repository cannot honestly present itself as background work the user may
+continue past — every other action in that window is refused for its duration, and a toolbar
+percentage that does not say so is a worse lie than a modal. **Checkout is what remains of category
+2**, in the branch sidebar.
+
+**One body, two wrappers.** `OperationProgressBody` is the presentation; `OperationProgressDialog`
+is that body inside an undismissable `AlertDialog`. The sidebar mounts the body directly. So the
+category is not a choice between two components — it is a choice about whether the body is wrapped,
+and nothing about the operation's presentation may live in the wrapper. Anything that has to differ
+between the modal and the embedded case belongs in the view model
+(`operationProgressViewModel`), which is what decides the status line, whether cancellation is
+offered, and which of owner/observer/unowned the window is.
+
+**The view model is the whole contract.** A surface rendering progress takes an
+`OperationProgressViewModel` and renders it; it does not read the registry, decide its own wording,
+or infer its role. That is what makes the states reviewable from
+Help → Show Dialog → **Operation progress…**, which builds a real `OperationRecord` and passes it
+through the same view model the app uses — a preview that bypassed it would be previewing a
+different component than the one that ships.

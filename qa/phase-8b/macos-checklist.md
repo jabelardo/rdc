@@ -39,6 +39,21 @@ native acceptance record; do not label it automated.
 - In `commitHook`, exercise the failing hook prompt/terminal output and **Bypass hooks** path. Resolve
   the already-prepared `mergeConflict` state without leaving the repository stranded. Verify the
   resulting commit/tree and absence of unmerged paths and `MERGE_HEAD` with Git CLI commands.
+- **Cherry-pick and Revert conflict recovery** — rows written by `OPERATION_PROGRESS_PLAN.md` Slice
+  20, which routed both through the native operation registry and the shared conflict surface.
+  Cherry-pick a commit from `mergeStates`'s `conflicting-merge` branch onto `main`, and separately
+  revert a commit that cannot apply cleanly. For each:
+  - The conflict surface **names which operation it is recovering** — "cherry-pick" or "revert", not
+    a generic conflict. Getting this wrong is the failure mode worth looking for: all three
+    operations share one surface, and a merge-worded banner during a revert sends the tester to the
+    wrong abort.
+  - Staging a resolution works from that surface, and **Continue** is offered for cherry-pick.
+  - **Abort is offered for both**, and taking it returns `HEAD` and the working tree to their
+    pre-operation state. Verify with `git rev-parse HEAD`, `git status --short`, and
+    `git rev-parse -q --verify CHERRY_PICK_HEAD` / `REVERT_HEAD`, each of which must fail and print
+    nothing afterwards.
+  - Abort while **nothing is in progress** is refused rather than reported as a recovery failure —
+    this is the case that used to leave the repository lock held with no in-app way out.
 
 ## 5. Remote journey
 

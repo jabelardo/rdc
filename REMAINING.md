@@ -33,7 +33,7 @@ satisfied in-app.
 
 | Gate | State (2026-08-15) |
 |---|---|
-| `pnpm test` (Vitest) | 1,249 passing / 139 files |
+| `pnpm test` (Vitest) | 1,269 passing / 143 files |
 | `pnpm exec tsc --noEmit` | clean |
 | `pnpm format:check` / `pnpm lint` | clean |
 | `pnpm build` / `pnpm check:bundle-boundary` | clean; 160 browser-reachable modules, no Node built-ins |
@@ -90,20 +90,10 @@ items, unchanged; do not restate them here, satisfy them there.
 
 Sequenced ahead of the QA-cycle-2 items below: rdc is greenfield and not racing an MVP date, so the
 priority is architectural foundation a future open-source collaborator can pick up, not minimizing
-the current diff. The UI foundation and the message system closed on 2026-08-15; these three are
-what remain, and none of them blocks another:
+the current diff. The UI foundation, the message system and `OPERATION_PROGRESS_PLAN.md` all closed on 2026-08-15.
+One item remains:
 
-1. **[`OPERATION_PROGRESS_PLAN.md`](./OPERATION_PROGRESS_PLAN.md) Slice 20 — documentation and
-   closure.** Slices 1–19 have landed and were re-verified against the code on 2026-08-15:
-   repository-scoped native operation registry, process-tree cancellation, inactivity watchdogs,
-   multi-window routing and the unified progress presentation. What is left is documentation, the
-   store-surface measurement, and **writing this work's QA rows** — the Light/Dark and compact rows
-   for the unified dialog, the owner/observer, timeout and recovery-required states, and a
-   multi-window checklist that `qa/phase-8b/` does not have today, with its fixture requirements in
-   `fixture-scenarios.md` so Phase 8a can prepare them. **Independent, but it must land before QA cycle 2
-   walks those rows.**
-
-2. **[`CODE_ORGANIZATION_PLAN.md`](./CODE_ORGANIZATION_PLAN.md) — establish a layout and enforce
+1. **[`CODE_ORGANIZATION_PLAN.md`](./CODE_ORGANIZATION_PLAN.md) — establish a layout and enforce
    it.** Scheduled **after** the dialog migration, so it moves settled code rather than code in
    flight. Dialogs currently live in four places by accident of chronology, and `src/lib/` is a
    110-file flat drawer mixing pure helpers, IPC wrappers, domain logic and desktop-plus's GitHub
@@ -119,10 +109,17 @@ what remain, and none of them blocks another:
 **LICENSE (MIT) is added**, copyright holder Jose Gutierrez. `CONTRIBUTING.md`, issue/PR templates,
 README polish and an `ARCHITECTURE.md` newcomer overview are deliberately deferred to the
 post-MVP promotion phase, once the project is actually accepting contributions — recording that as
-a decision, not an oversight. `ARCHITECTURE.md` depends on item 2: there is no point documenting a
+a decision, not an oversight. `ARCHITECTURE.md` depends on item 1: there is no point documenting a
 structure nobody chose.
 
 ### QA cycle 2
+
+2. **The multi-window operation rows have never been walked.**
+   `qa/phase-8b/multi-window-checklist.md` is new, written by `OPERATION_PROGRESS_PLAN.md` Slice 20,
+   and its fixtures (`multiWindowPushA`/`multiWindowPushB`) require a freshly generated root — an
+   older fixture predates them. It deliberately does not repeat what `e2e/operation-windows.test.mjs`
+   proves; every row is a judgement about whether a second window's situation is legible, plus the
+   process-tree termination check that no UI can show. Cross-platform: run it on both.
 
 3. **Native-menu-dispatch verification, on both platforms.** The branch-operations MVP blocker
    itself is closed — `BRANCH_OPERATIONS_PLAN.md` Slices 1–3 landed rename, delete, discard-all
