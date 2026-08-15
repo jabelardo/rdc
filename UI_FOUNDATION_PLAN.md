@@ -404,6 +404,34 @@ it → proceed. If not → stop; the sketch's "needs proving, not assuming" gate
 boundary layer has to be custom, not Radix. This spike exists to fail fast on the one assumption
 this phase rests on.
 
+**Spike run (2026-08-15). The gate fired: `collisionBoundary` does not reproduce it.** Measured
+against the exact stubbed rects, with `@radix-ui/react-tooltip` 1.2.16 via `radix-ui` 1.6.7:
+
+| Configuration | Radix positions at | Contract |
+|---|---|---|
+| `collisionBoundary` + `collisionPadding={{ top: 36 }}` | `translate(0px, 39px)` | ✗ — *worse*, inside the bar |
+| No collision handling, `sideOffset={7}` | `translate(12px, 66px)` | ✗ — trigger clearance (today's no-boundary case) |
+| No collision handling, `sideOffset={barBottom − triggerBottom + 7}` | `translate(12px, 75px)` | ✓ — the boundary-clearance contract |
+
+The reason is semantic, and it is why no amount of prop-tuning would have worked:
+**`collisionBoundary` is a containment constraint — it keeps content *inside* the boundary — while
+rdc's clearance pushes content *past* an ancestor.** They are opposite operations, which is why the
+collision configuration pulled the bubble further up into the bar (39px) rather than below it.
+
+So the boundary layer is custom, as the gate says. But the custom part is small: Radix still does
+the positioning, and rdc supplies `sideOffset = boundaryBottom − triggerBottom + gap`. That is one
+measurement and one subtraction, not a positioning engine, and row three above proves it lands on
+the contract.
+
+Two consequences for 3.1, both measured rather than assumed:
+
+- **The assertions cannot be preserved in *value*.** Radix positions with `transform: translate(…)`
+  on a `[data-radix-popper-content-wrapper]`, not `style.top` on the bubble, so `bubbleTop()` has
+  nothing to read. Re-derive against the transform.
+- **Radix rounds to integer pixels**: `75px` where today's implementation writes `75.25px`. A
+  quarter-pixel, but it is a real behaviour change and the re-derived assertions should state the
+  rounded value deliberately rather than appear to have drifted.
+
 **Sub-slice 3.1 — boundary clearance + pointer-Y tracking.** Build the rdc `Tooltip` on Radix's
 primitive, portalling to `document.body` (Radix portals by default; verify the bubble is not
 clipped by a workspace pane, which is why today's `tooltip.tsx` portals). Boundary clearance from
