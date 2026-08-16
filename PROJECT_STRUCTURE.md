@@ -177,6 +177,15 @@ feature's, or buried in the switchboard. Four rules, and the first two are check
 1. **One dialog per module**, and **`app/app-dialogs.tsx` defines none.** It is a switchboard:
    conditional rendering over components, nothing else. Both asserted by
    `scripts/check-module-boundaries.mjs`.
+5. **A feature hosts its own dialogs.** `features/<name>/components/<name>-dialogs.tsx` renders
+   them, and the shell renders the hosts. `app-dialogs.tsx` keeps only what no feature owns —
+   generic operation progress, abort merge, remove repository, About, Preferences.
+
+   This is what fixed the god-component: 103 props and 712 lines became 21 and 141, with the rest
+   distributed across three focused hosts. **It did not reduce how much state is threaded** — the
+   branch host takes 41 props of its own. What it removed was the single signature every dialog's
+   state had to pass through, so widening one dialog no longer widens the type all the others
+   share.
 2. **`components/ui/`** holds the vendored Radix primitives — `dialog.tsx`, `alert-dialog.tsx`.
    Untouched, CLI-owned.
 3. **`components/dialog-kit/`** holds the shared shapes and the parts that go inside one: Confirm,
