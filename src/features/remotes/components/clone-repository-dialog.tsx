@@ -88,7 +88,7 @@ export function CloneRepositoryDialog({
         }
       }}
     >
-      <DialogContent className="sm:max-w-[440px]" aria-describedby={undefined}>
+      <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Clone a repository</DialogTitle>
         </DialogHeader>

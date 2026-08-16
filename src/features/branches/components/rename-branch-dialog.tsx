@@ -64,7 +64,7 @@ export function RenameBranchDialog({
       {/* No separate description: the title and the field's own label say what this is, and the
        * input points at the message slot instead, so a validation failure is announced against the
        * field it belongs to rather than as a property of the whole dialog. */}
-      <DialogContent className="sm:max-w-[420px]" aria-describedby={undefined}>
+      <DialogContent className="sm:max-w-sm" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Rename branch</DialogTitle>
         </DialogHeader>

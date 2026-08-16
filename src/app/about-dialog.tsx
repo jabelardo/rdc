@@ -25,7 +25,7 @@ export function AboutDialog({ architecture, onDismiss }: AboutDialogProps) {
         }
       }}
     >
-      <DialogContent className="sm:max-w-[400px]">
+      <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>About RDC</DialogTitle>
           <DialogDescription>A native Git client built with Tauri and Rust.</DialogDescription>

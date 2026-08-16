@@ -92,10 +92,7 @@ export function PreferencesDialog({ state, store, onDismiss }: PreferencesDialog
         }
       }}
     >
-      <DialogContent
-        className="w-[min(37.5rem,calc(100vw-2rem))] sm:max-w-[600px]"
-        aria-describedby={undefined}
-      >
+      <DialogContent className="sm:max-w-xl" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Preferences</DialogTitle>
         </DialogHeader>

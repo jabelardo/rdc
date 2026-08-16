@@ -175,7 +175,7 @@ export function OperationProgressDialog({
       }}
     >
       <AlertDialogContent
-        className="sm:max-w-[440px]"
+        className="sm:max-w-md"
         aria-describedby={StatusID}
         // Escape is the one dismissal Radix exposes here; refuse it. A backdrop click routes
         // through the internal DismissableLayer, which fires onOpenChange(false) — and the Root's

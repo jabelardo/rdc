@@ -39,7 +39,7 @@ export function NoticeDialog({
         }
       }}
     >
-      <AlertDialogContent>
+      <AlertDialogContent className="sm:max-w-lg">
         <AlertDialogHeader className="place-items-start text-left">
           <AlertDialogTitle className="flex items-center gap-2">
             <CircleAlert className="text-[var(--warning-text)]" aria-hidden />

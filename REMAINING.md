@@ -95,25 +95,10 @@ the current diff. The UI foundation, the message system and `OPERATION_PROGRESS_
 [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md), it is applied, and
 `pnpm check:module-boundaries` fails the build on a violation. One item remains:
 
-1. **Dialog widths have drifted to six values, and no document says which is right.** Measured
-   2026-08-15: `sm:max-w-lg` (512px, the base `DialogContent`/`AlertDialogContent` default that
-   `ConfirmDialog` and `NoticeDialog` inherit rather than choose), plus overrides at 400 (About),
-   420 (Rename branch), 440 (Clone, Operation progress), 520 (Merge, Rebase) and 600 (Preferences,
-   Manage remotes, Hook failure). The **512 against 520** pair is the tell: an inherited default and
-   an override eight pixels apart cannot both be deliberate, and nothing in
-   `COMPONENT_MIGRATION_PROCESS.md` distinguishes them — it settles Preferences and Manage remotes
-   individually and refers to a "data-dense tier" whose scale is never written down. Rename's 420 is
-   in no table at all.
-
-   The decision is what the tiers *are*, not what each dialog gets. The shape suggested by what
-   exists: a single-field tier (rename), a form tier (About, Clone), a picker tier (Merge, Rebase)
-   and a data-dense tier (Preferences, Manage remotes, Hook failure) — four, against today's six.
-   The mechanical follow-through is small once the tiers are named; the point is to name them in the
-   process document so the next dialog inherits a decision instead of a nearby number.
-
-   **Sequenced before QA cycle 2's Light/Dark dialog rows**, since a tester signing off on widths
-   that are about to change is wasted effort. Reported during the dialog migration and deliberately
-   not actioned then, so it moves settled code — the same reason item 1 waited.
+**No engineering items remain.** The last one, dialog width drift, was settled on 2026-08-16 as
+`COMPONENT_MIGRATION_PROCESS.md` Convention 18: every width is a Tailwind step and every dialog
+states its own, four tiers built around shadcn's own `sm:max-w-lg` default. `CODE_ORGANIZATION_PLAN.md`
+closed the day before. **Phase 8b's QA cycle 2 is what is left.**
 
 **LICENSE (MIT) is added**, copyright holder Jose Gutierrez. `CONTRIBUTING.md`, issue/PR templates,
 README polish and an `ARCHITECTURE.md` newcomer overview are deliberately deferred to the

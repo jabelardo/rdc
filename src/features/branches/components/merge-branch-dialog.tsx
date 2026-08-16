@@ -260,7 +260,7 @@ export function MergeBranchDialog({
         }
       }}
     >
-      <DialogContent className="sm:max-w-[520px]" aria-describedby={MessageID}>
+      <DialogContent className="sm:max-w-lg" aria-describedby={MessageID}>
         <DialogHeader>
           <DialogTitle>
             Merge into <strong>{currentBranch}</strong>

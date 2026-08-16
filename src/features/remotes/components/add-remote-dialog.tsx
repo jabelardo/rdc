@@ -53,7 +53,7 @@ export function AddRemoteDialog({
         }
       }}
     >
-      <DialogContent className="w-[min(30rem,calc(100vw-2rem))]">
+      <DialogContent className="sm:max-w-md">
         <DialogTitle>Add a remote</DialogTitle>
         <DialogFailure error={error} />
         <form

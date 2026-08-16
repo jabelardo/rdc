@@ -54,7 +54,7 @@ export function ManageRemotesDialog({
         }
       }}
     >
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-xl">
         <DialogTitle>Manage remotes</DialogTitle>
         <div className="mt-4 flex items-center gap-2">
           <input

@@ -66,7 +66,7 @@ export function DebugOperationProgressLauncher({
         }
       }}
     >
-      <DialogContent className="w-[min(30rem,calc(100vw-2rem))]" aria-describedby={undefined}>
+      <DialogContent className="sm:max-w-md" aria-describedby={undefined}>
         <DialogHeader>
           <DialogTitle>Operation progress preview</DialogTitle>
         </DialogHeader>

@@ -150,7 +150,7 @@ export function RebaseBranchDialog({
         }
       }}
     >
-      <DialogContent className="sm:max-w-[520px]" aria-describedby={MessageID}>
+      <DialogContent className="sm:max-w-lg" aria-describedby={MessageID}>
         <DialogHeader>
           <DialogTitle>
             Rebase <strong>{currentBranch}</strong>

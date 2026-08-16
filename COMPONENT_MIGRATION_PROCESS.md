@@ -632,17 +632,37 @@ a port than a design.
 | Remove action | text button | icon-only trash, tooltip + aria-label | changed-files: icon, **hover-revealed** | `DECIDE` → icon, always visible |
 | Add action | text button | — | — | `DECIDE` → icon |
 | Long lists | unbounded, dialog grows | fixed height, bordered, rows divided | `VirtualList` past 100 items | `DECIDE` → fixed height + scroll |
-| Width | 600px | 500px | — | `SETTLED` → guideline's data-dense tier (but see below — the tier scale is not written down) |
+| Width | 600px | 500px | — | `SETTLED` → the data-dense tier, `sm:max-w-xl`; see Convention 18 |
 | Icon library | — | octicons | — | `SETTLED` → Convention 11, lucide |
 | Buttons | bare `<button>` | — | vendored `Button` | `SETTLED` |
 
-> **The width tiers this row appeals to do not exist as a written scale.** "Data-dense tier" is used
-> here and for Preferences, and both are right, but nothing defines the other tiers — so each new
-> dialog has been picking a nearby number instead of inheriting a decision. Measured 2026-08-15, the
-> app has six widths: the inherited `sm:max-w-lg` default (512px), and overrides at 400, 420, 440,
-> 520 and 600. The 512/520 pair is the proof that this is drift rather than design. Naming the tiers
-> is `REMAINING.md`'s open engineering item 2; until it is done, **do not add a seventh width** —
-> reuse whichever existing one is closest and say so in the dialog's row here.
+### Convention 18 — dialog widths are Tailwind steps, stated explicitly
+
+Settled 2026-08-16. Before it, the app had seven widths — an inherited `sm:max-w-lg`, plus 400, 420,
+440, 480, 520 and 600 — and nothing said which was right. The tell was the **512 against 520**: an
+inherited default and an override eight pixels apart cannot both be deliberate.
+
+**Every width is now a step on Tailwind's scale, and every dialog names its own.** shadcn's default
+is `sm:max-w-lg` (32rem/512px) and the scale runs sm 384 · md 448 · lg 512 · xl 576 · 2xl 672, so
+the ad-hoc numbers were all within 36px of a step already — consolidating cost almost no layout.
+
+| Tier | Width | For | Dialogs |
+|---|---|---|---|
+| `sm:max-w-sm` | 384 | one field, or a few lines | Rename branch, About |
+| `sm:max-w-md` | 448 | a short form | Clone, Add remote, Operation progress |
+| `sm:max-w-lg` | 512 — **shadcn's default** | a decision, or a picker | Confirm, Notice, Merge, Rebase |
+| `sm:max-w-xl` | 576 | data-dense: lists, tabs, terminal output | Preferences, Manage remotes, Hook failure |
+
+Two rules, and the second is the one that decayed last time:
+
+1. **Pick a tier, never a number.** No `sm:max-w-[520px]`. If a dialog seems to need a value between
+   two steps, it is the content that needs revisiting.
+2. **State it even when it is the default.** `ConfirmDialog` and `NoticeDialog` used to get 512 by
+   not choosing, which is exactly why 520 could sit beside it for months looking intentional. An
+   inherited width is invisible; a stated one gets compared.
+
+`sm:max-w-2xl` (672) is deliberately unused: the window's floor is 715px wide, so a 672px dialog
+leaves 43px of surround and stops reading as a dialog.
 
 ### Resolved
 

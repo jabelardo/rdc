@@ -69,7 +69,8 @@ judgements the automated gates cannot make.
 
 ## Preferences — rows contributed by the Component 7 redesign
 
-Preferences is now a category layout: a vertical rail with a fixed-height panel beside it, 600px.
+Preferences is now a category layout: a vertical rail with a fixed-height panel beside it, at the
+data-dense width (`sm:max-w-xl`, 576px — Convention 18; it was 600px until 2026-08-16).
 
 - [ ] **The dialog does not resize when the category changes.** Click through Appearance →
       Integrations → Git → Prompts and watch the frame, not the content. This is the reason the
@@ -235,6 +236,12 @@ contract, and it is the thing most likely to drift as one of the two gets adjust
 - [ ] `DialogTitle` / `AlertDialogTitle` text not clipped
 
 ### Width & Content Clearance
+
+- [ ] **Every dialog is one of four widths** (Convention 18): 384 for Rename and About, 448 for
+      Clone, Add remote and Operation progress, 512 for Confirm, Notice, Merge and Rebase, 576 for
+      Preferences, Manage remotes and Hook failure. This changed on 2026-08-16 — nothing moved more
+      than 36px, but **Rename lost 36 and About lost 16**, so those two are where a too-narrow
+      dialog would show first. Check the rename field and its validation line still breathe.
 - [ ] Custom width overrides applied and not clipped
 - [ ] `<pre className="commit-terminal-output">` in Hook failure — full lines visible, no horizontal scroll inside the dialog
 - [ ] Manage remotes list: URLs truncate inside the dialog (the redesign replaced wrapping with
