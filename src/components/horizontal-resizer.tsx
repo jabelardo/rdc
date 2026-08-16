@@ -50,6 +50,7 @@ export function HorizontalResizer({
   const boundaryHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const heldBoundary = useRef<"minimum" | "maximum" | null>(null);
   const [resisting, setResisting] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const maximum = () =>
     Math.max(
       minimum,
@@ -110,6 +111,7 @@ export function HorizontalResizer({
       event.currentTarget.releasePointerCapture?.(event.pointerId);
     }
     pointerStart.current = null;
+    setDragging(false);
     cancelBoundaryHold();
   };
 
@@ -146,7 +148,14 @@ export function HorizontalResizer({
   };
 
   return (
-    <Tooltip label={`${ariaLabel}. Drag or use the arrow keys.`}>
+    <Tooltip
+      label={`${ariaLabel}. Drag or use the arrow keys.`}
+      // A resizer is a control you aim at, so an instant bubble lands under the pointer exactly
+      // when it is most in the way. The delay makes the tooltip answer a deliberate hover instead
+      // of every pass of the cursor, and it goes away entirely once a drag starts.
+      delay={500}
+      suppressed={dragging}
+    >
       <div
         className={`horizontal-resizer${className ? ` ${className}` : ""}${
           resisting ? " is-resisting" : ""
@@ -160,6 +169,12 @@ export function HorizontalResizer({
         tabIndex={0}
         onKeyDown={onKeyDown}
         onPointerDown={(event) => {
+          // `preventDefault` below stops the text selection a drag would otherwise start, and it
+          // also suppresses the focus a press normally gives — which is why the arrow keys this
+          // control advertises did nothing until you happened to Tab to it. Focusing explicitly is
+          // what makes the label true.
+          event.currentTarget.focus();
+          setDragging(true);
           pointerStart.current = {
             pointerID: event.pointerId,
             pointerX: event.clientX,

@@ -42,6 +42,15 @@ const titlebarGap = 36;
 const margin = 8;
 /** Above this trigger height, the bubble follows the pointer rather than the trigger's edge. */
 const pointerTrackingHeight = 100;
+/**
+ * ...but only if the trigger is also wide enough to be a row.
+ *
+ * Height alone was the wrong test. A resizer is full-height and about six pixels wide, so it
+ * qualified as "tall" and got a bubble that chased the cursor down a control the user was trying to
+ * grab. Pointer tracking exists for tall *rows*, where the bubble should not jump to a distant
+ * edge; a sliver has no distant edge to jump to.
+ */
+const pointerTrackingWidth = 120;
 
 type Placement = {
   readonly side: "top" | "bottom";
@@ -85,6 +94,10 @@ export function horizontalAlignOffset(
 type TooltipProps = {
   readonly label: string;
   readonly children: ReactElement;
+  /** Milliseconds of hover before the bubble opens. Zero for controls that only ever get hovered. */
+  readonly delay?: number;
+  /** Forces the bubble shut and keeps it shut — for while its trigger is being dragged. */
+  readonly suppressed?: boolean;
 };
 
 /**
@@ -105,7 +118,7 @@ type TooltipProps = {
  * trigger's box, and here the bubble must follow `clientY` down a row taller than the bubble. Same
  * mechanism: express the desired top as an offset from the trigger's bottom edge.
  */
-export function Tooltip({ label, children }: TooltipProps) {
+export function Tooltip({ label, children, delay = 0, suppressed = false }: TooltipProps) {
   const child = Children.only(children) as ReactElement<{ readonly disabled?: boolean }>;
   const [open, setOpen] = useState(false);
   const [placement, setPlacement] = useState<Placement | null>(null);
@@ -120,6 +133,18 @@ export function Tooltip({ label, children }: TooltipProps) {
     setPlacement(null);
     pointerY.current = null;
   }, []);
+
+  // Suppression has to win over *every* open path, not just hover. Radix opens on focus and only
+  // skips it when its own `isPointerDownRef` is already set — but it composes the caller's
+  // `onPointerDown` before its own, so a trigger that focuses itself on press (the resizer, so its
+  // arrow keys work) fires `focus` while that flag is still false. Forcing the state shut here
+  // catches that, and leaves the bubble closed when the drag ends so the next hover starts its
+  // delay from scratch.
+  useEffect(() => {
+    if (suppressed) {
+      hide();
+    }
+  }, [suppressed, hide]);
 
   // Registered for the component's whole lifetime, not just while open: `dismissAllTooltips` must
   // be able to reach a tooltip the instant it opens, and hiding an already-closed one is a
@@ -159,7 +184,7 @@ export function Tooltip({ label, children }: TooltipProps) {
       window.innerWidth,
     );
 
-    if (anchor.height > pointerTrackingHeight) {
+    if (anchor.height > pointerTrackingHeight && anchor.width > pointerTrackingWidth) {
       const targetY = pointerY.current ?? anchor.top + anchor.height / 2;
       const top = Math.min(
         window.innerHeight - bubble.height - margin,
@@ -193,7 +218,11 @@ export function Tooltip({ label, children }: TooltipProps) {
   const trackPointer = useCallback(
     (clientY: number) => {
       const anchor = triggerRef.current?.getBoundingClientRect();
-      if (anchor === undefined || anchor.height <= pointerTrackingHeight) {
+      if (
+        anchor === undefined ||
+        anchor.height <= pointerTrackingHeight ||
+        anchor.width <= pointerTrackingWidth
+      ) {
         return;
       }
       pointerY.current = clientY;
@@ -232,10 +261,13 @@ export function Tooltip({ label, children }: TooltipProps) {
   // that does. `data-tooltip` stays on it for the same reason it stays on an enabled trigger.
   if (child.props.disabled === true) {
     return (
-      <RadixTooltip.Provider delayDuration={0}>
+      <RadixTooltip.Provider delayDuration={delay}>
         <RadixTooltip.Root
-          open={open}
+          open={open && !suppressed}
           onOpenChange={(next) => {
+            if (next && suppressed) {
+              return;
+            }
             if (next) {
               reposition();
             }
@@ -254,10 +286,13 @@ export function Tooltip({ label, children }: TooltipProps) {
   }
 
   return (
-    <RadixTooltip.Provider delayDuration={0}>
+    <RadixTooltip.Provider delayDuration={delay}>
       <RadixTooltip.Root
-        open={open}
+        open={open && !suppressed}
         onOpenChange={(next) => {
+          if (next && suppressed) {
+            return;
+          }
           if (next) {
             reposition();
           }

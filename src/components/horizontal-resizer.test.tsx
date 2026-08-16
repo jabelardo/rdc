@@ -133,3 +133,129 @@ describe("HorizontalResizer", () => {
     expect(onMaximumHold).toHaveBeenCalledOnce();
   });
 });
+
+describe("HorizontalResizer focus", () => {
+  function renderResizer(onResize = vi.fn()) {
+    const container = document.createElement("div");
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue({
+      bottom: 356,
+      height: 356,
+      left: 0,
+      right: 715,
+      top: 0,
+      width: 715,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const containerRef = createRef<HTMLElement>();
+    containerRef.current = container;
+    render(
+      <HorizontalResizer
+        ariaLabel="Resize navigation sidebar"
+        containerRef={containerRef}
+        minimum={125}
+        oppositeMinimum={200}
+        value={250}
+        onResize={onResize}
+      />,
+    );
+    return { separator: screen.getByRole("separator"), onResize };
+  }
+
+  /**
+   * The bug this exists for: the keyboard handler was always correct, and arrow keys still did
+   * nothing in the app, because `onPointerDown` calls `preventDefault()` — which suppresses the
+   * default focus that a press would otherwise give the element. Every existing keyboard test used
+   * `fireEvent.keyDown(separator)`, which dispatches straight at the node and cannot tell a focused
+   * element from an unfocused one, so all of them passed while the control was unusable.
+   */
+  it("takes focus when pressed, so the arrow keys it advertises actually reach it", () => {
+    const { separator } = renderResizer();
+
+    fireEvent.pointerDown(separator, { pointerId: 1, clientX: 250 });
+
+    expect(document.activeElement).toBe(separator);
+  });
+
+  it("resizes from the keyboard after a press, without an intervening Tab", () => {
+    const { separator, onResize } = renderResizer();
+
+    fireEvent.pointerDown(separator, { pointerId: 1, clientX: 250 });
+    fireEvent.pointerUp(separator, { pointerId: 1 });
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
+
+    expect(onResize).toHaveBeenCalledWith(260);
+  });
+});
+
+describe("HorizontalResizer tooltip", () => {
+  function renderResizer() {
+    const container = document.createElement("div");
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue({
+      bottom: 356,
+      height: 356,
+      left: 0,
+      right: 715,
+      top: 0,
+      width: 715,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const containerRef = createRef<HTMLElement>();
+    containerRef.current = container;
+    render(
+      <HorizontalResizer
+        ariaLabel="Resize navigation sidebar"
+        containerRef={containerRef}
+        minimum={125}
+        oppositeMinimum={200}
+        value={250}
+        onResize={vi.fn()}
+      />,
+    );
+    return screen.getByRole("separator");
+  }
+
+  const bubble = () => screen.queryByText(/Drag or use the arrow keys/);
+
+  /**
+   * The bubble used to appear the instant the pointer touched the bar and then follow it down the
+   * drag, which is the worst possible place for it on a control you are aiming at. It belongs to
+   * hover; a press means the user has stopped asking what the control is.
+   */
+  it("stays shut while the bar is being pressed and dragged", () => {
+    const separator = renderResizer();
+
+    fireEvent.pointerDown(separator, { pointerId: 1, clientX: 250 });
+    expect(bubble()).not.toBeInTheDocument();
+
+    fireEvent.pointerMove(separator, { pointerId: 1, clientX: 320 });
+    expect(bubble()).not.toBeInTheDocument();
+  });
+
+  /**
+   * Specifically the focus path. Radix opens a tooltip on focus and skips it only when its own
+   * pointer-down flag is already set — and it runs the caller's handler first, so the resizer's
+   * explicit `focus()` beats the flag. Without suppression, the fix for the arrow keys would have
+   * introduced a bubble on every click.
+   */
+  it("does not open merely because pressing it moved focus there", () => {
+    const separator = renderResizer();
+
+    fireEvent.pointerDown(separator, { pointerId: 1, clientX: 250 });
+
+    expect(document.activeElement).toBe(separator);
+    expect(bubble()).not.toBeInTheDocument();
+  });
+
+  it("stays shut immediately after the drag ends, so the next hover starts its delay afresh", () => {
+    const separator = renderResizer();
+
+    fireEvent.pointerDown(separator, { pointerId: 1, clientX: 250 });
+    fireEvent.pointerUp(separator, { pointerId: 1 });
+
+    expect(bubble()).not.toBeInTheDocument();
+  });
+});

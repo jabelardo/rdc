@@ -10,6 +10,13 @@ cell inspect hierarchy, density, alignment, truncation, focus indication, semant
 empty/loading/error states and toolbar grouping. Validate against Desktop Plus's successful
 principles and native platform conventions without copying its layout or values.
 
+**The pane resizers need a keyboard and a pointer pass.** Fixed 2026-08-16: they never took focus
+on press, so the arrow keys their own tooltip advertises did nothing unless you had tabbed to them,
+and the tooltip opened instantly and then followed the pointer down the drag. Confirm on each
+resizer — sidebar, Changes, History (two) — that clicking then pressing Left/Right resizes without
+an intervening Tab, and that no bubble appears while pressing or dragging. The bubble belongs to
+hover alone, after a short delay.
+
 **Tooltips near a window edge are worth a deliberate look in every cell.** They were positioning
 themselves off-screen at the left edge until 2026-08-16, and the arithmetic that fixes it is now
 unit-tested — but only the arithmetic. Whether Radix applies it is a browser-level behaviour no test
