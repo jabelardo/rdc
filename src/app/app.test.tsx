@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import App from "./App";
+import App from "./app";
 import type { IMenu } from "@/models/app-menu";
 
 const installApplicationMenu = vi.hoisted(() => vi.fn());

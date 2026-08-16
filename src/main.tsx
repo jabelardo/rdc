@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
+import App from "./app/app";
 import { installLogger } from "@/lib/logging/install-logger";
 import { FatalErrorBoundary } from "@/lib/resilience/error-boundary";
 import { installGlobalErrorLogging } from "@/lib/resilience/global-errors";

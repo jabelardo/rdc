@@ -22,7 +22,7 @@ import {
   MvpSidebarCapabilities,
   type SidebarSectionID,
   visibleSidebarSections,
-} from "@/lib/ui/sidebar-sections";
+} from "@/app/sidebar-sections";
 import { VirtualList } from "@/components/virtual-list";
 import { Tooltip } from "@/components/tooltip";
 

@@ -418,7 +418,23 @@ The moves themselves, all pure renames:
 | `src/lib/ui/mvp-list-rows.tsx` | `src/components/` |
 | `src/test-setup.ts` | `src/testing/setup.ts` (and `vite.config.ts`'s `setupFiles`) |
 
-### Phase 2 — create the features and move the vertical slices
+### Phase 2 — create the features and move the vertical slices — **done 2026-08-16**
+
+160 files moved; imports rewritten as string replacements, which is what Phase 1 bought. Three
+things worth knowing:
+
+- **`lib/app-state/` stayed.** Its README documents it as a deliberate per-concern decomposition of
+  desktop-plus's 1,319-line app-state module, so splitting its three files across features would
+  destroy the context that explains them. It is a named subsystem, which is what `lib/` is for.
+- **`lib/utils.ts` stayed**, and must: `@/lib/utils` is where shadcn's CLI writes and expects `cn`.
+- **Two Phase 0 deletions were wrong.** `clamp.ts` and `promise.ts` are unused — but `rebase.ts` and
+  `monospace-font-filter.ts` import them, and both are kept ported-ahead code. Deleting a leaf of a
+  dead subtree while keeping the subtree does not compile. Either the whole subtree goes or none of
+  it does.
+- **`.oxlintrc.json`'s per-file overrides were keyed to old paths** and silently stopped applying,
+  surfacing the suppressions they had been hiding. Config files hold paths too; the codemod does not
+  see them.
+
 
 For each feature: its store, its IPC wrapper, its components and dialogs, its domain logic.
 
@@ -439,7 +455,11 @@ Shared, and deliberately not features: `operation-store` / `operation-ipc` / `op
 `confirm-dialog`, `notice-dialog`, `dialog-failure`, `dialog-message`, `dialog-actions` →
 `components/dialogs/`, since they are the shape every feature's dialogs are built from.
 
-### Phase 3 — the app layer, and the controller
+### Phase 3 — the app layer, and the controller — **done 2026-08-16**
+
+`app-shell`, `app-dialogs`, `use-app-controller`, `repository-toolbar`, `window-drag-strip`,
+`sidebar-sections` and `App.tsx` → `src/app/app.tsx`. `src/lib/ui/` is gone.
+
 
 `app-shell.tsx`, `app-dialogs.tsx` and `use-app-controller.ts` move to `src/app/`.
 
