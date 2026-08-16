@@ -2185,7 +2185,44 @@ export function useAppController() {
         onDismiss: dismissCloneDialog,
       };
 
+  /** The changes dialogs. Discarding is one dialog with two shapes; the commit's is not a decision. */
+  const discardDialog =
+    discardFile === null && discardAll === null
+      ? null
+      : {
+          file: discardFile,
+          all: discardAll,
+          permanently: permanentlyDiscard,
+          selectionOnly: discardSelection,
+          optOut: discardOptOut,
+          onOptOutChange: setDiscardOptOut,
+          discarding,
+          failure: workingTreeState.discardError,
+          onConfirm: discardFile === null ? confirmDiscardAll : confirmDiscard,
+          onCancel: discardFile === null ? cancelDiscardAll : cancelDiscard,
+        };
+
+  const commitProgress = !workingTreeState.commitLoading
+    ? null
+    : {
+        terminalOutput: commitTerminalOutput,
+        runningHook: workingTreeState.runningHook,
+        onStopHook: () => void workingTreeStore.stopHook(),
+      };
+
+  const hookFailureDialog =
+    workingTreeState.hookFailure === null
+      ? null
+      : {
+          failure: workingTreeState.hookFailure,
+          onResolve: (resolution: "abort" | "ignore") =>
+            workingTreeStore.resolveHookFailure(resolution),
+        };
+
   return {
+    discardDialog,
+    commitProgress,
+    hookFailureDialog,
     manageRemotesDialog,
     addRemoteDialog,
     cloneDialog,

@@ -38,6 +38,9 @@ export function AppShell({ controller }: AppShellProps) {
     manageRemotesDialog,
     addRemoteDialog,
     cloneDialog,
+    discardDialog,
+    commitProgress,
+    hookFailureDialog,
     branchStore,
     conflictState,
     conflictStore,
@@ -61,7 +64,6 @@ export function AppShell({ controller }: AppShellProps) {
     setCommitMessage,
     bypassHooks,
     setBypassHooks,
-    commitTerminalOutput,
     showWindowDragRegion,
     newBranchName,
     setNewBranchName,
@@ -79,10 +81,6 @@ export function AppShell({ controller }: AppShellProps) {
     appArchitecture,
     showPreferencesDialog,
     setShowPreferencesDialog,
-    discardFile,
-    permanentlyDiscard,
-    discardSelection,
-    discarding,
     createRepository,
     addExistingRepository,
     openCloneDialog,
@@ -99,13 +97,6 @@ export function AppShell({ controller }: AppShellProps) {
     refreshAfterPull,
     stageResolvedConflict,
     requestDiscard,
-    confirmDiscard,
-    cancelDiscard,
-    discardAll,
-    discardOptOut,
-    setDiscardOptOut,
-    confirmDiscardAll,
-    cancelDiscardAll,
     openBranchContextMenu,
     continueHistoryRecovery,
     abortHistoryRecovery,
@@ -348,23 +339,9 @@ export function AppShell({ controller }: AppShellProps) {
         busy={manageRunning}
       />
       <ChangesDialogs
-        discardFile={discardFile}
-        permanentlyDiscard={permanentlyDiscard}
-        discardSelection={discardSelection}
-        discardAll={discardAll}
-        discardOptOut={discardOptOut}
-        onDiscardOptOutChange={setDiscardOptOut}
-        discarding={discarding}
-        workingTreeError={workingTreeState.discardError}
-        onCancelDiscard={cancelDiscard}
-        onConfirmDiscard={() => void confirmDiscard()}
-        onCancelDiscardAll={cancelDiscardAll}
-        onConfirmDiscardAll={() => void confirmDiscardAll()}
-        commitLoading={workingTreeState.commitLoading}
-        commitTerminalOutput={commitTerminalOutput}
-        hookFailure={workingTreeState.hookFailure}
-        runningHook={workingTreeState.runningHook}
-        workingTreeStore={workingTreeStore}
+        discard={discardDialog}
+        commitProgress={commitProgress}
+        hookFailure={hookFailureDialog}
         operationViewModel={operationViewModel}
         onCancelOperation={() => void operationStore.requestCancellation()}
         onAdoptCancellation={() => void operationStore.requestCancellation(true)}

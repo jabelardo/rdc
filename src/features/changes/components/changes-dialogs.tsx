@@ -2,7 +2,6 @@ import type { WorkingDirectoryFileChange } from "@/models/status";
 import type {
   HookFailureState,
   RunningHookState,
-  WorkingTreeStore,
 } from "@/features/changes/stores/working-tree-store";
 import type { OperationProgressViewModel } from "@/lib/operations/operation-presentation";
 import { ConfirmDialog } from "@/components/dialog-kit/confirm-dialog";
@@ -13,27 +12,32 @@ import { DiscardFileList, discardAllQuestion } from "./discard-file-list";
 import { HookFailureDialog } from "./hook-failure-dialog";
 
 type ChangesDialogsProps = {
-  readonly discardFile: WorkingDirectoryFileChange | null;
-  readonly permanentlyDiscard: boolean;
-  readonly discardSelection: boolean;
-  readonly discardAll: {
-    readonly permanent: boolean;
-    readonly paths: ReadonlyArray<string>;
+  /** Each is `null` while its dialog is closed, so state and openness cannot disagree. */
+  readonly discard: {
+    /** Set for a single file; `null` when the whole tree is being discarded. */
+    readonly file: WorkingDirectoryFileChange | null;
+    readonly all: {
+      readonly permanent: boolean;
+      readonly paths: ReadonlyArray<string>;
+    } | null;
+    readonly permanently: boolean;
+    readonly selectionOnly: boolean;
+    readonly optOut: boolean;
+    readonly onOptOutChange: (value: boolean) => void;
+    readonly discarding: boolean;
+    readonly failure: string | null;
+    readonly onConfirm: () => void;
+    readonly onCancel: () => void;
   } | null;
-  readonly discardOptOut: boolean;
-  readonly onDiscardOptOutChange: (value: boolean) => void;
-  readonly discarding: boolean;
-  readonly workingTreeError: string | null;
-  readonly onCancelDiscard: () => void;
-  readonly onConfirmDiscard: () => void;
-  readonly onCancelDiscardAll: () => void;
-  readonly onConfirmDiscardAll: () => void;
-
-  readonly commitLoading: boolean;
-  readonly commitTerminalOutput: string;
-  readonly hookFailure: HookFailureState | null;
-  readonly runningHook: RunningHookState | null;
-  readonly workingTreeStore: WorkingTreeStore;
+  readonly commitProgress: {
+    readonly terminalOutput: string;
+    readonly runningHook: RunningHookState | null;
+    readonly onStopHook: () => void;
+  } | null;
+  readonly hookFailure: {
+    readonly failure: HookFailureState;
+    readonly onResolve: (resolution: "abort" | "ignore") => void;
+  } | null;
 
   readonly operationViewModel: OperationProgressViewModel | undefined;
   readonly onCancelOperation: () => void;
@@ -48,30 +52,16 @@ type ChangesDialogsProps = {
  * suppressed while a hook failure is being decided, which only this feature knows.
  */
 export function ChangesDialogs({
-  discardFile,
-  permanentlyDiscard,
-  discardSelection,
-  discardAll,
-  discardOptOut,
-  onDiscardOptOutChange,
-  discarding,
-  workingTreeError,
-  onCancelDiscard,
-  onConfirmDiscard,
-  onCancelDiscardAll,
-  onConfirmDiscardAll,
-  commitLoading,
-  commitTerminalOutput,
+  discard,
+  commitProgress,
   hookFailure,
-  runningHook,
-  workingTreeStore,
   operationViewModel,
   onCancelOperation,
   onAdoptCancellation,
 }: ChangesDialogsProps) {
   return (
     <>
-      {commitLoading && hookFailure === null && (
+      {commitProgress !== null && hookFailure === null && (
         <OperationProgressDialog
           viewModel={operationViewModel?.operation === "commit" ? operationViewModel : undefined}
           operation="Committing"
@@ -79,73 +69,73 @@ export function ChangesDialogs({
           onCancel={onCancelOperation}
           onAdoptCancellation={onAdoptCancellation}
         >
-          {runningHook != null && (
-            <button type="button" onClick={() => void workingTreeStore.stopHook()}>
-              Stop {runningHook.hook} hook
+          {commitProgress.runningHook != null && (
+            <button type="button" onClick={() => commitProgress.onStopHook()}>
+              Stop {commitProgress.runningHook.hook} hook
             </button>
           )}
-          {commitTerminalOutput.length > 0 && (
-            <TerminalOutput output={commitTerminalOutput} aria-label="Commit terminal output" />
+          {commitProgress.terminalOutput.length > 0 && (
+            <TerminalOutput
+              output={commitProgress.terminalOutput}
+              aria-label="Commit terminal output"
+            />
           )}
         </OperationProgressDialog>
       )}
 
-      {discardFile !== null && (
+      {discard?.file != null && (
         <ConfirmDialog
-          title={permanentlyDiscard ? "Permanently discard changes" : "Confirm discard changes"}
+          title={discard.permanently ? "Permanently discard changes" : "Confirm discard changes"}
           description={
             <>
               Are you sure you want to discard{" "}
-              {discardSelection ? "the selected changes to " : "all changes to "}
-              <strong className="font-mono [overflow-wrap:anywhere]">{discardFile.path}</strong>?
+              {discard.selectionOnly ? "the selected changes to " : "all changes to "}
+              <strong className="font-mono [overflow-wrap:anywhere]">{discard.file.path}</strong>?
             </>
           }
-          confirmLabel={permanentlyDiscard ? "Permanently discard changes" : "Discard changes"}
+          confirmLabel={discard.permanently ? "Permanently discard changes" : "Discard changes"}
           busyLabel="Discarding…"
-          busy={discarding}
-          error={workingTreeError}
-          onConfirm={onConfirmDiscard}
-          onCancel={onCancelDiscard}
+          busy={discard.discarding}
+          error={discard.failure}
+          onConfirm={discard.onConfirm}
+          onCancel={discard.onCancel}
         >
           <p>
-            {discardSelection
+            {discard.selectionOnly
               ? "Selected changes cannot be restored from the operating system trash."
-              : permanentlyDiscard
+              : discard.permanently
                 ? "Changes cannot be restored after deletion."
                 : "Changes can be restored from the operating system trash."}
           </p>
-          {!discardSelection && (
-            <ConfirmOptOut checked={discardOptOut} onChange={onDiscardOptOutChange} />
+          {!discard.selectionOnly && (
+            <ConfirmOptOut checked={discard.optOut} onChange={discard.onOptOutChange} />
           )}
         </ConfirmDialog>
       )}
 
-      {discardAll !== null && (
+      {discard?.all != null && (
         <ConfirmDialog
-          title={discardAll.permanent ? "Permanently discard all changes" : "Discard all changes"}
-          description={discardAllQuestion(discardAll.paths.length)}
-          confirmLabel={discardAll.permanent ? "Permanently discard changes" : "Discard changes"}
+          title={discard.all.permanent ? "Permanently discard all changes" : "Discard all changes"}
+          description={discardAllQuestion(discard.all.paths.length)}
+          confirmLabel={discard.all.permanent ? "Permanently discard changes" : "Discard changes"}
           busyLabel="Discarding…"
-          busy={discarding}
-          error={workingTreeError}
-          onConfirm={onConfirmDiscardAll}
-          onCancel={onCancelDiscardAll}
+          busy={discard.discarding}
+          error={discard.failure}
+          onConfirm={discard.onConfirm}
+          onCancel={discard.onCancel}
         >
-          <DiscardFileList paths={discardAll.paths} />
+          <DiscardFileList paths={discard.all.paths} />
           <p>
-            {discardAll.permanent
+            {discard.all.permanent
               ? "These changes cannot be recovered."
               : "Untracked files can be recovered from the operating system trash, but changes to tracked files cannot be restored."}
           </p>
-          <ConfirmOptOut checked={discardOptOut} onChange={onDiscardOptOutChange} />
+          <ConfirmOptOut checked={discard.optOut} onChange={discard.onOptOutChange} />
         </ConfirmDialog>
       )}
 
       {hookFailure !== null && (
-        <HookFailureDialog
-          failure={hookFailure}
-          onResolve={(resolution) => workingTreeStore.resolveHookFailure(resolution)}
-        />
+        <HookFailureDialog failure={hookFailure.failure} onResolve={hookFailure.onResolve} />
       )}
     </>
   );
