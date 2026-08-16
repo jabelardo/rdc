@@ -71,6 +71,7 @@ import { getDefaultHistoryStore } from "@/features/history/stores/default-histor
 import { getDefaultMessageStore } from "@/lib/messages/default-message-store";
 import { getDefaultPreferencesStore } from "@/features/preferences/stores/default-preferences-store";
 import { getDefaultRemoteStore } from "@/features/remotes/stores/default-remote-store";
+import { useRemoteDialogs } from "@/features/remotes/use-remote-dialogs";
 import { getDefaultWorkingTreeStore } from "@/features/changes/stores/default-working-tree-store";
 import type { HistoryState } from "@/features/history/stores/history-store";
 import type { MessageState } from "@/lib/messages/message-store";
@@ -246,13 +247,21 @@ export function useAppController() {
   // Distinct from a preview: "we could not work out how far apart these branches are" is not the
   // same claim as any ComputedAction, and collapsing it into one reported failures as "up to date".
   const [rebasePreviewError, setRebasePreviewError] = useState<string | null>(null);
-  const [showManageRemotes, setShowManageRemotes] = useState(false);
-  const [remoteFilter, setRemoteFilter] = useState("");
-  const [showAddRemote, setShowAddRemote] = useState(false);
-  const [addRemoteName, setAddRemoteName] = useState("");
-  const [addRemoteURL, setAddRemoteURL] = useState("");
-  const [manageRemoteError, setManageRemoteError] = useState<string | null>(null);
-  const [manageRunning, setManageRunning] = useState(false);
+  const {
+    manageRemotesDialog,
+    addRemoteDialog,
+    manageRemoteError,
+    manageRunning,
+    requestManageRemotes,
+    openAddRemote,
+    showManageRemotesFailure,
+  } = useRemoteDialogs({
+    repositoryPath: appState.selectedRepository?.path ?? null,
+    remotes: remoteState.remotes,
+    remoteStore,
+    onRemotesChanged: (repositoryPath) => branchStore.load(repositoryPath),
+  });
+
   const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [debugProgressLauncher, setDebugProgressLauncher] = useState(false);
@@ -505,7 +514,7 @@ export function useAppController() {
       },
       showAddRemoteDialog: () => {
         injectDebugState();
-        setShowAddRemote(true);
+        openAddRemote();
       },
       showRemoveRepositoryDialog: () => {
         injectDebugState();
@@ -630,8 +639,7 @@ export function useAppController() {
       // `requestManageRemotes` clears the error on the way in, so the failure is set after it.
       debugShowManageRemotesFailedDialog: () => {
         injectDebugState();
-        requestManageRemotes();
-        setManageRemoteError('Could not remove "upstream": remote is in use by a worktree.');
+        showManageRemotesFailure('Could not remove "upstream": remote is in use by a worktree.');
       },
       debugShowPreferencesFailedDialog: () => {
         injectPreferencesFailure("Could not save preferences: the settings file is read-only.");
@@ -753,11 +761,6 @@ export function useAppController() {
     setRebaseRunning(false);
     setRebaseMessage(null);
     setRebasePreviewError(null);
-    setShowManageRemotes(false);
-    setShowAddRemote(false);
-    setRemoteFilter("");
-    setManageRemoteError(null);
-    setManageRunning(false);
     repositoryViewTransitionID.current++;
     pendingRepositoryView.current = null;
     historyStore.clear();
@@ -1895,92 +1898,6 @@ export function useAppController() {
     setRebasePreview(null);
   }
 
-  function requestManageRemotes(): void {
-    setRemoteFilter("");
-    setManageRemoteError(null);
-    setShowManageRemotes(true);
-  }
-
-  function closeManageRemotes(): void {
-    if (manageRunning) {
-      return;
-    }
-    setShowManageRemotes(false);
-    setShowAddRemote(false);
-    setRemoteFilter("");
-    setManageRemoteError(null);
-  }
-
-  function openAddRemote(): void {
-    setAddRemoteName("");
-    setAddRemoteURL("");
-    setManageRemoteError(null);
-    setShowAddRemote(true);
-  }
-
-  function closeAddRemote(): void {
-    if (manageRunning) {
-      return;
-    }
-    setShowAddRemote(false);
-    setManageRemoteError(null);
-  }
-
-  async function confirmAddRemote(): Promise<void> {
-    if (manageRunning) {
-      return;
-    }
-    const name = addRemoteName.trim();
-    const url = addRemoteURL.trim();
-    setManageRemoteError(null);
-    if (name.length === 0 || /\s/.test(name)) {
-      setManageRemoteError("Remote names cannot be empty or contain spaces.");
-      return;
-    }
-    if (url.length === 0) {
-      setManageRemoteError("Enter a remote URL.");
-      return;
-    }
-    if (remoteState.remotes.some((remote) => remote.name === name)) {
-      setManageRemoteError(`A remote named "${name}" already exists.`);
-      return;
-    }
-    const repository = appState.selectedRepository;
-    if (repository === null) {
-      return;
-    }
-    setManageRunning(true);
-    const added = await remoteStore.addRemote(name, url);
-    setManageRunning(false);
-    if (added) {
-      setShowAddRemote(false);
-      setAddRemoteName("");
-      setAddRemoteURL("");
-      await branchStore.load(repository.path);
-    } else if (remoteStore.state.managementError !== null) {
-      setManageRemoteError(remoteStore.state.managementError);
-    }
-  }
-
-  async function confirmRemoveRemote(name: string): Promise<void> {
-    if (manageRunning) {
-      return;
-    }
-    const repository = appState.selectedRepository;
-    if (repository === null) {
-      return;
-    }
-    setManageRunning(true);
-    setManageRemoteError(null);
-    const removed = await remoteStore.removeRemote(name);
-    setManageRunning(false);
-    if (removed) {
-      await branchStore.load(repository.path);
-    } else if (remoteStore.state.managementError !== null) {
-      setManageRemoteError(remoteStore.state.managementError);
-    }
-  }
-
   function toggleSidebarSection(section: SidebarSectionID): void {
     setExpandedSidebarSections((current) => {
       return current.has(section)
@@ -2148,28 +2065,6 @@ export function useAppController() {
       };
 
   /** The remote dialogs, each `null` while closed — see the branch dialogs above for why. */
-  const manageRemotesDialog = !showManageRemotes
-    ? null
-    : {
-        remotes: remoteState.remotes,
-        filter: remoteFilter,
-        onFilterChange: setRemoteFilter,
-        onNewRemote: openAddRemote,
-        onRemoveRemote: confirmRemoveRemote,
-        onDismiss: closeManageRemotes,
-      };
-
-  const addRemoteDialog = !showAddRemote
-    ? null
-    : {
-        name: addRemoteName,
-        url: addRemoteURL,
-        remotes: remoteState.remotes,
-        onNameChange: setAddRemoteName,
-        onURLChange: setAddRemoteURL,
-        onConfirm: confirmAddRemote,
-        onDismiss: closeAddRemote,
-      };
 
   const cloneDialog = !showCloneDialog
     ? null
