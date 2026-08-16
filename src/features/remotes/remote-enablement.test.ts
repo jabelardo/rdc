@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { MenuItem } from "@/models/app-menu";
 import type { Repository } from "@/models/repository";
-import { buildRepositoryMenu } from "@/lib/menu/repository-menu";
+import { buildRepositoryMenu } from "@/app/menu/repository-menu";
 import { remoteEnablement } from "./remote-enablement";
 import type { RemoteState } from "@/features/remotes/stores/remote-store";
 

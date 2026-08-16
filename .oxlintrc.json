@@ -13,6 +13,9 @@
     /* PROJECT_STRUCTURE.md's import convention: `./sibling` or `@/`, and no third form. Chosen
        because this stock rule expresses it exactly, so the convention needs no bespoke tooling. */
     "import/no-relative-parent-imports": "error",
+    /* The tangle that survives every path rule: a cycle can respect every layer and still make the
+       modules inseparable. */
+    "import/no-cycle": "error",
     "eslint/no-unused-vars": [
       "error",
       {

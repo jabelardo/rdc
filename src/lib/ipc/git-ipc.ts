@@ -21,7 +21,7 @@ import {
   hookFailureChannel,
   type HookFailureCallback,
   type IHookProgress,
-} from "@/features/changes/api/hook-ipc";
+} from "@/lib/ipc/hook-ipc";
 import { GitResetMode } from "@/models/git-reset-mode";
 import type { AppFileStatus, GitStatusEntry } from "@/models/status";
 import type { ManualConflictResolution } from "@/models/manual-conflict-resolution";

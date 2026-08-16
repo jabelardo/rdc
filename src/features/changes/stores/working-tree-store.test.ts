@@ -1,19 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  DiffHunk,
-  DiffHunkExpansionType,
-  DiffHunkHeader,
-  DiffLine,
-  DiffLineType,
-  DiffSelectionType,
-  DiffType,
-  type IDiff,
-} from "@/models/diff";
+import { DiffType, type IDiff } from "@/models/diff/diff-data";
+import { DiffLine, DiffLineType } from "@/models/diff/diff-line";
+import { DiffSelectionType } from "@/models/diff/diff-selection";
+import { DiffHunk, DiffHunkExpansionType, DiffHunkHeader } from "@/models/diff/raw-diff";
 import { AppFileStatusKind } from "@/models/status";
 import type { createCommit as createCommitCommand, IStatusResult } from "@/lib/ipc/git-ipc";
 import { TrashDiscardError } from "@/features/changes/discard-changes";
 import { WorkingTreeStore } from "./working-tree-store";
-import { getDefaultMessageStore } from "@/features/messages/stores/default-message-store";
+import { getDefaultMessageStore } from "@/lib/messages/default-message-store";
 
 /**
  * Load, diff and commit failures are reported to the shared message store rather than held on the

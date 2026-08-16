@@ -1,28 +1,20 @@
-import {
-  DiffSelection,
-  DiffSelectionType,
-  DiffType,
-  type IDiff,
-  type ITextDiff,
-} from "@/models/diff";
+import { DiffType, type IDiff, type ITextDiff } from "@/models/diff/diff-data";
+import { DiffSelection, DiffSelectionType } from "@/models/diff/diff-selection";
 import {
   AppFileStatusKind,
   WorkingDirectoryFileChange,
   WorkingDirectoryStatus,
 } from "@/models/status";
 import { caseInsensitiveCompare } from "@/utils/compare";
-import { describeError, reportErrorMessage } from "@/utils/format-error";
+import { describeError } from "@/utils/format-error";
+import { reportErrorMessage } from "@/lib/messages/report";
 import {
   discardChanges as discardWorkingTreeChanges,
   TrashDiscardError,
 } from "@/features/changes/discard-changes";
-import { discardChangesFromSelection, getWorkingDirectoryDiff } from "@/features/diff/api/diff-ipc";
+import { discardChangesFromSelection, getWorkingDirectoryDiff } from "@/lib/diff/diff-ipc";
 import { createCommit, getStatus, type IFileToStage, type IStatusResult } from "@/lib/ipc/git-ipc";
-import {
-  abortHook,
-  type HookFailureResolution,
-  type IHookProgress,
-} from "@/features/changes/api/hook-ipc";
+import { abortHook, type HookFailureResolution, type IHookProgress } from "@/lib/ipc/hook-ipc";
 import { TerminalOutputBuffer } from "./terminal-output-buffer";
 
 export type HookFailureState = {

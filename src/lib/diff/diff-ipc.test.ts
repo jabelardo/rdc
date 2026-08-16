@@ -1,17 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  DiffHunk,
-  DiffHunkExpansionType,
-  DiffHunkHeader,
-  DiffLineType,
-  DiffType,
-  Image,
-} from "@/models/diff";
+import { DiffType } from "@/models/diff/diff-data";
+import { DiffLineType } from "@/models/diff/diff-line";
+import { Image } from "@/models/diff/image";
+import { DiffHunk, DiffHunkExpansionType, DiffHunkHeader } from "@/models/diff/raw-diff";
 import {
   getHunkHeaderExpansionType,
   getLargestLineNumber,
   HiddenBidiCharsRegex,
-} from "@/features/diff/diff-hunks";
+} from "@/lib/diff/diff-hunks";
 import { IndexStatus } from "@/models/index-status";
 import {
   dehydrateTextDiff,

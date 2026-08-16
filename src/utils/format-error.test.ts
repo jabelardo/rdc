@@ -1,6 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { describeError, reportError } from "./format-error";
-import { getDefaultMessageStore } from "@/features/messages/stores/default-message-store";
+import { describe, expect, it } from "vitest";
+import { describeError } from "./format-error";
 
 describe("describeError", () => {
   it("reads the message off a CommandError-shaped rejection", () => {
@@ -22,25 +21,5 @@ describe("describeError", () => {
     const error = { message: "real message", isAuthFailure: false };
 
     expect(describeError(error)).not.toBe("[object Object]");
-  });
-});
-
-describe("reportError", () => {
-  afterEach(() => {
-    const store = getDefaultMessageStore();
-    for (const message of store.state.messages) {
-      store.dismiss(message.id);
-    }
-  });
-
-  it("pushes the described error at error severity", () => {
-    reportError(new Error("could not rename branch"));
-
-    const messages = getDefaultMessageStore().state.messages;
-    expect(messages).toHaveLength(1);
-    expect(messages[0]).toMatchObject({
-      severity: "error",
-      text: "could not rename branch",
-    });
   });
 });

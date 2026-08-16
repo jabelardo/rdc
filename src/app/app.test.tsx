@@ -240,7 +240,7 @@ const preferencesStore = vi.hoisted(() => ({
   onDidUpdate: vi.fn(),
 }));
 
-vi.mock("@/lib/menu/application-menu", () => ({ installApplicationMenu }));
+vi.mock("@/app/menu/application-menu", () => ({ installApplicationMenu }));
 vi.mock("@/platform/menu", () => ({
   showContextMenu,
   setNativeMenu: vi.fn(),

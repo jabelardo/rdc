@@ -18,7 +18,7 @@ import {
   AppFileStatusKind,
   type WorkingDirectoryFileChange,
 } from "@/models/status";
-import { mapStatus } from "@/features/changes/status";
+import { mapStatus } from "@/utils/status";
 import { handleListNavigation } from "@/utils/list-navigation";
 import { Tooltip } from "./tooltip";
 import type { VirtualListRow } from "./virtual-list";

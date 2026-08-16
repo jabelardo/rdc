@@ -1,13 +1,13 @@
 import { describe, it } from "vitest";
 import assert from "node:assert";
-import { mapStatus, isConflictedFile, hasConflictedFiles } from "@/features/changes/status";
+import { mapStatus, isConflictedFile, hasConflictedFiles } from "@/utils/status";
 import {
   AppFileStatusKind,
   WorkingDirectoryStatus,
   WorkingDirectoryFileChange,
   GitStatusEntry,
 } from "@/models/status";
-import { DiffSelection, DiffSelectionType } from "@/models/diff";
+import { DiffSelection, DiffSelectionType } from "@/models/diff/diff-selection";
 
 function makeFile(path: string, kind: AppFileStatusKind): WorkingDirectoryFileChange {
   const status =

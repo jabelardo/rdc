@@ -1,3 +1,4 @@
+import type { MenuPlatform } from "@/models/menu-platform";
 import { truncateWithEllipsis } from "@/utils/truncate-with-ellipsis";
 import { enableTestMenuItems } from "@/lib/feature-flag";
 import type { IMenu, MenuAction, MenuItem, NativeMenuRole } from "@/models/app-menu";
@@ -5,8 +6,6 @@ import { getAccessKey } from "@/models/app-menu";
 import type { RepoType } from "@/models/github-repository";
 import type { MenuEvent } from "@/models/menu-event";
 import type { MenuLabelsEvent } from "@/models/menu-labels";
-
-export type MenuPlatform = "macos" | "windows" | "linux";
 
 type TemplateItem = {
   readonly id?: string;

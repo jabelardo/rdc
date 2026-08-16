@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppFileStatusKind, GitStatusEntry, UnmergedEntrySummary } from "@/models/status";
 import type { IStatusResult } from "@/lib/ipc/git-ipc";
 import { ConflictStore } from "./conflict-store";
-import { getDefaultMessageStore } from "@/features/messages/stores/default-message-store";
+import { getDefaultMessageStore } from "@/lib/messages/default-message-store";
 import { RemoteStore } from "@/features/remotes/stores/remote-store";
 import { WorkingTreeStore } from "@/features/changes/stores/working-tree-store";
 

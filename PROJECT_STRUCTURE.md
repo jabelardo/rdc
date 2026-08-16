@@ -468,7 +468,42 @@ file.** Splitting it into per-feature hooks composed at the app layer is the nat
 is *not* part of the mechanical move — it is a behaviour-preserving refactor with its own risk, and
 it needs its own commit and its own review.
 
-### Phase 3.5 — make the structure comply, before the checker can be turned on
+### Phase 3.5 — make the structure comply — **done 2026-08-16**
+
+Nineteen violations to zero. Four of them were structural findings rather than misplacements, and
+they changed the shape above:
+
+1. **`diff` and `messages` are not features.** Both are needed by more than one feature — `diff` by
+   changes and history, `messages` by every feature that reports an error — which is the definition
+   of shared. `lib/diff/`, `lib/messages/`, and the toast host is app chrome.
+2. **The IPC layer is not feature-shaped, and that is the sharpest Tauri finding here.**
+   bulletproof-react's `features/*/api` works because web endpoints are usually feature-shaped.
+   Tauri commands are not: `branch-store` needs remote commands, `remote-store` needs branch
+   commands, and `git-ipc` needs hook commands. Every `*-ipc.ts` now lives in `lib/ipc/`, which
+   mirrors `src-tauri/src/commands/` — the shape the commands actually have. **A feature still owns
+   its stores, components and domain logic**; what it does not own is the wire.
+3. **A component that composes three features is app chrome.** `repository-sidebar` renders
+   repositories, branches and conflict state, which is exactly why it produced two violations.
+   Same for the menu: `lib/menu/` reached into four features to decide what is enabled, so it is
+   `app/menu/` now. `platform/` owns *how* to show a menu; `app/menu/` owns *what is in it*.
+4. **`utils/` may import models.** The original rule said no model imports, which left pure logic
+   over model types with nowhere to live — `status.ts` is 200 lines of exactly that. The test that
+   matters is purity, not the import list: no I/O, no React, no Tauri.
+
+Three smaller ones: `format-error` split, because formatting a caught value is pure and pushing the
+result to a store is not, and one file doing both made `utils/` import a feature. `MenuPlatform` —
+a `"macos" | "windows" | "linux"` union — moved to `models/`, since `platform/` reaching into
+`app/menu/` for a string union inverts the direction over nothing. And `changes-workspace` took the
+whole `ConflictStore` as a prop to call one method; it takes a callback now, which is what "compose
+at the app layer" means in practice.
+
+**Tests are exempt from the layer rules.** Building a scenario is composition, and a test is allowed
+to be its own composition root; the structure is a claim about shipped code. The import-form rules
+still apply to them.
+
+<details>
+<summary>The census that drove this, kept for the reasoning</summary>
+
 
 **The motion is done and green; the structure it revealed is not yet compliant.** That is not a
 failure of the move — it is the move doing its job. A violation that was invisible in a flat drawer
@@ -505,16 +540,25 @@ tangle:
 
 Only group 3 needs a decision. The rest are moves the census has already located.
 
-### Phase 4 — turn the boundary checker on
+</details>
+
+### Phase 4 — turn the boundary checker on — **done 2026-08-16**
 
 The import conversion moved to Phase 1. What remains here is
 `scripts/check-module-boundaries.mjs` and `import/no-cycle`, wired into the gate set.
 
-It goes last because the cross-feature rule cannot be asserted until features exist. Turning it on
-the moment they do means the very next commit cannot regress.
+`scripts/check-module-boundaries.mjs` asserts five rules, and **each was verified by planting a
+violation and watching it fail**: cross-feature imports, shared→feature, shared→app, feature→app,
+the descending half of the import convention, and barrel files. `import/no-cycle` is on and was
+verified the same way. Both run in the gate set as `pnpm check:module-boundaries` and `pnpm lint`.
 
-Remember the descending half of the import rule — a relative specifier containing a `/` leaves its
-directory and no stock lint rule catches it.
+Turning it on found two things the census had missed: `main.tsx` still descended with `./app/app`,
+and `models/diff/index.ts` was a barrel — now dissolved into direct imports across 12 files.
+
+The checker reads types and runtime imports alike, unlike `check-bundle-boundary.mjs`, and the
+difference is deliberate. That one must distinguish them, because a type-only import is erased and
+never reaches the bundle. This one must not: importing a type across a boundary couples the modules
+just as firmly, and is exactly how `api.ts` stayed alive inside a "dead" cluster.
 
 ---
 

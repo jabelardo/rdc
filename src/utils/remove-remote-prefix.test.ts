@@ -1,6 +1,6 @@
 import { describe, it } from "vitest";
 import assert from "node:assert";
-import { removeRemotePrefix } from "./remove-remote-prefix";
+import { removeRemotePrefix } from "@/utils/remove-remote-prefix";
 
 describe("removeRemotePrefix", () => {
   it("removes the remote prefix", () => {

@@ -6,7 +6,7 @@ import type { RemoteState } from "@/features/remotes/stores/remote-store";
 import type { PreferencesState } from "@/features/preferences/stores/preferences-store";
 import { remoteEnablement } from "@/features/remotes/remote-enablement";
 import { buildStartupMenu } from "./startup";
-import type { MenuPlatform } from "./default-menu";
+import type { MenuPlatform } from "@/models/menu-platform";
 
 type RepositoryMenuStore = {
   readonly state: AppStoreState;

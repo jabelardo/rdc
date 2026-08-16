@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { DiffSelection, DiffSelectionType } from "@/models/diff";
+import { DiffSelection, DiffSelectionType } from "@/models/diff/diff-selection";
 import { GitResetMode } from "@/models/git-reset-mode";
 import { IndexStatus } from "@/models/index-status";
 import { AppFileStatusKind, WorkingDirectoryFileChange } from "@/models/status";

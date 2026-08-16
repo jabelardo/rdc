@@ -21,7 +21,7 @@
  */
 
 import { Channel, invoke } from "@tauri-apps/api/core";
-import { hookFailureChannel, type IHookProgress } from "@/features/changes/api/hook-ipc";
+import { hookFailureChannel, type IHookProgress } from "@/lib/ipc/hook-ipc";
 import type { IHookOptions } from "@/lib/ipc/git-ipc";
 import type { IRemote } from "@/models/remote";
 import type { OperationRecord } from "@/models/operation";

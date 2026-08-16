@@ -26,7 +26,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 const { abortHook, resolveHookFailure } = await import("./hook-ipc");
 const { createCommit, mergeBranch } = await import("@/lib/ipc/git-ipc");
-const { push, pull } = await import("@/features/remotes/api/remote-ipc");
+const { push, pull } = await import("@/lib/ipc/remote-ipc");
 
 const REPO = "/tmp/repo";
 

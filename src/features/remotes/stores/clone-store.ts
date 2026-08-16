@@ -5,7 +5,7 @@ import {
   listenToOperationEvents,
   requestOperationCancellation,
 } from "@/lib/operations/operation-ipc";
-import { clone as cloneRepository } from "@/features/remotes/api/remote-ipc";
+import { clone as cloneRepository } from "@/lib/ipc/remote-ipc";
 import { describeRemoteError } from "@/features/remotes/remote-error";
 import { describeError } from "@/utils/format-error";
 

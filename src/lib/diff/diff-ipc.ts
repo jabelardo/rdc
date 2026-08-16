@@ -33,18 +33,14 @@ import type { NoRenameIndexStatus } from "@/models/index-status";
 import type { AppFileStatus, SubmoduleStatus } from "@/models/status";
 import { assertNever } from "@/utils/fatal-error";
 import {
-  DiffHunk,
-  DiffHunkExpansionType,
-  DiffHunkHeader,
-  DiffLine,
-  DiffLineType,
   DiffType,
-  Image,
-  IRawDiff,
   type IDiff,
   type ITextDiff,
   type LineEndingsChange,
-} from "@/models/diff";
+} from "@/models/diff/diff-data";
+import { DiffLine, DiffLineType } from "@/models/diff/diff-line";
+import { Image } from "@/models/diff/image";
+import { DiffHunk, DiffHunkExpansionType, DiffHunkHeader, IRawDiff } from "@/models/diff/raw-diff";
 
 /** A {@linkcode DiffLine} as it arrives over IPC. */
 export interface IDiffLineData {

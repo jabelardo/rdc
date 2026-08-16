@@ -1,7 +1,7 @@
 import { RefreshCw, Search, Settings, Trash2 } from "lucide-react";
 import { useRef, useState, type CSSProperties } from "react";
-import { DiffLineType, DiffType } from "@/models/diff";
-import type { ConflictStore } from "@/features/conflicts/stores/conflict-store";
+import { DiffType } from "@/models/diff/diff-data";
+import { DiffLineType } from "@/models/diff/diff-line";
 import type {
   WorkingTreeState,
   WorkingTreeStore,
@@ -29,7 +29,14 @@ type ChangesWorkspaceProps = {
   readonly repositoryPath: string;
   readonly state: WorkingTreeState;
   readonly store: WorkingTreeStore;
-  readonly conflictStore: ConflictStore;
+  /**
+   * Reloads whatever else the Refresh button should refresh alongside the working tree.
+   *
+   * A callback rather than the conflict store itself: conflicts are another feature's state, and a
+   * component that holds its store has to import it. The app layer knows both and supplies the
+   * wiring, which is the only place that is allowed to know both.
+   */
+  readonly onRefreshRelated: (repositoryPath: string) => Promise<unknown>;
   readonly commitMessage: string;
   readonly bypassHooks: boolean;
   readonly onCommitMessageChange: (message: string) => void;
@@ -61,7 +68,7 @@ export function ChangesWorkspace({
   repositoryPath,
   state,
   store,
-  conflictStore,
+  onRefreshRelated,
   commitMessage,
   bypassHooks,
   onCommitMessageChange,
@@ -137,10 +144,7 @@ export function ChangesWorkspace({
                 aria-label="Refresh changes"
                 disabled={state.loading}
                 onClick={() => {
-                  void Promise.all([
-                    store.load(repositoryPath),
-                    conflictStore.load(repositoryPath),
-                  ]);
+                  void Promise.all([store.load(repositoryPath), onRefreshRelated(repositoryPath)]);
                 }}
               >
                 <RefreshCw aria-hidden="true" />

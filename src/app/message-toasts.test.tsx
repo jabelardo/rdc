@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
-import type { Message } from "@/features/messages/stores/message-store";
+import type { Message } from "@/lib/messages/message-store";
 import { MessageToasts, messageText } from "./message-toasts";
 
 const error = vi.fn();
@@ -21,7 +21,7 @@ vi.mock("@/components/ui/sonner", () => ({
   Toaster: () => null,
 }));
 
-vi.mock("@/components/theme-provider", () => ({
+vi.mock("@/features/preferences/components/theme-provider", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }));
 

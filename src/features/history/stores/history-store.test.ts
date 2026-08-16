@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Commit } from "@/models/commit";
 import { CommitIdentity } from "@/models/commit-identity";
-import { DiffType, type IDiff } from "@/models/diff";
+import { DiffType, type IDiff } from "@/models/diff/diff-data";
 import { AppFileStatusKind, CommittedFileChange } from "@/models/status";
 import { HistoryStore } from "./history-store";
-import { getDefaultMessageStore } from "@/features/messages/stores/default-message-store";
+import { getDefaultMessageStore } from "@/lib/messages/default-message-store";
 
 /** History failures are reported to the shared message store — MESSAGE_SYSTEM_PLAN.md Slice 3. */
 function lastReportedMessage(): string {

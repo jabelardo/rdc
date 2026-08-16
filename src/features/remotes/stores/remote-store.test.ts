@@ -4,7 +4,7 @@ import type { IFetchProgress, IPullProgress, IPushProgress } from "@/models/prog
 import type { IRemote } from "@/models/remote";
 import type { OperationRecord } from "@/models/operation";
 import { RemoteStore } from "./remote-store";
-import { getDefaultMessageStore } from "@/features/messages/stores/default-message-store";
+import { getDefaultMessageStore } from "@/lib/messages/default-message-store";
 
 /**
  * Transport and load failures are reported to the shared message store, not held on the remote

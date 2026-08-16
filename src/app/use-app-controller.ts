@@ -8,11 +8,11 @@ import {
   isContiguousSelection,
   orderSelectedCommits,
 } from "@/features/history/history-operation-selection";
-import { getMergedBranches } from "@/features/branches/api/branch-ipc";
+import { getMergedBranches } from "@/lib/ipc/branch-ipc";
 import { abortRebase, continueRebase, initRepository } from "@/lib/ipc/git-ipc";
 import { abortRevert, getRepositoryType, revertCommit } from "@/lib/ipc/misc-ipc";
 import { repositoryAvailability } from "@/features/repositories/repository-availability";
-import { reportErrorMessage } from "@/utils/format-error";
+import { reportErrorMessage } from "@/lib/messages/report";
 import {
   abortCherryPick,
   cherryPick,
@@ -20,11 +20,11 @@ import {
   reorder,
   squash,
 } from "@/lib/ipc/stash-ipc";
-import { installApplicationMenu } from "@/lib/menu/application-menu";
+import { installApplicationMenu } from "@/app/menu/application-menu";
 import { showContextMenu } from "@/platform/menu";
 import { dismissAllTooltips } from "@/components/tooltip";
-import { currentMenuPlatform } from "@/lib/menu/default-menu";
-import { buildRepositoryMenu, createRepositoryMenuEventExecutor } from "@/lib/menu/repository-menu";
+import { currentMenuPlatform } from "@/app/menu/default-menu";
+import { buildRepositoryMenu, createRepositoryMenuEventExecutor } from "@/app/menu/repository-menu";
 import { getMainProcessConfig } from "@/platform/config";
 import { showOpenDialog, showSaveDialog } from "@/platform/dialogs";
 import { launchExternalEditor } from "@/platform/editors";
@@ -64,15 +64,16 @@ import type { ConflictState } from "@/features/conflicts/stores/conflict-store";
 import { getDefaultAppStore } from "@/features/repositories/stores/default-app-store";
 import { getDefaultBranchStore } from "@/features/branches/stores/default-branch-store";
 import { getDefaultCloneStore } from "@/features/remotes/stores/default-clone-store";
-import { describeError, reportError } from "@/utils/format-error";
+import { describeError } from "@/utils/format-error";
+import { reportError } from "@/lib/messages/report";
 import { getDefaultConflictStore } from "@/features/conflicts/stores/default-conflict-store";
 import { getDefaultHistoryStore } from "@/features/history/stores/default-history-store";
-import { getDefaultMessageStore } from "@/features/messages/stores/default-message-store";
+import { getDefaultMessageStore } from "@/lib/messages/default-message-store";
 import { getDefaultPreferencesStore } from "@/features/preferences/stores/default-preferences-store";
 import { getDefaultRemoteStore } from "@/features/remotes/stores/default-remote-store";
 import { getDefaultWorkingTreeStore } from "@/features/changes/stores/default-working-tree-store";
 import type { HistoryState } from "@/features/history/stores/history-store";
-import type { MessageState } from "@/features/messages/stores/message-store";
+import type { MessageState } from "@/lib/messages/message-store";
 import type { PreferencesState } from "@/features/preferences/stores/preferences-store";
 import type { RemoteState } from "@/features/remotes/stores/remote-store";
 import type {
@@ -81,8 +82,8 @@ import type {
 } from "@/features/changes/stores/working-tree-store";
 import type { SidebarSectionID } from "@/app/sidebar-sections";
 import { determineMergeability } from "@/lib/ipc/misc-ipc";
-import { getAheadBehind } from "@/features/history/api/rev-list-ipc";
-import { revSymmetricDifference } from "@/features/branches/rev-range";
+import { getAheadBehind } from "@/lib/ipc/rev-list-ipc";
+import { revSymmetricDifference } from "@/utils/rev-range";
 import { ComputedAction } from "@/models/computed-action";
 import type { MergeTreeResult } from "@/models/merge";
 import type { MergeStrategy } from "@/models/merge-strategy";

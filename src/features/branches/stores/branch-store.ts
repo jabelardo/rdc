@@ -6,7 +6,7 @@ import type {
   IMultiCommitOperationProgress,
 } from "@/models/progress";
 import type { IRemote } from "@/models/remote";
-import { getBranches } from "@/features/branches/api/branch-ipc";
+import { getBranches } from "@/lib/ipc/branch-ipc";
 import {
   checkoutBranch,
   getStatus,
@@ -21,11 +21,12 @@ import {
   deleteLocalBranch,
   deleteRef,
   renameBranch as renameBranchCommand,
-} from "@/features/branches/api/branch-ipc";
+} from "@/lib/ipc/branch-ipc";
 import { determineMergeability, getRecentBranches } from "@/lib/ipc/misc-ipc";
-import { getRemoteHEAD, getRemotes } from "@/features/remotes/api/remote-ipc";
+import { getRemoteHEAD, getRemotes } from "@/lib/ipc/remote-ipc";
 import { testForInvalidChars } from "@/features/branches/sanitize-ref-name";
-import { describeError, reportErrorMessage } from "@/utils/format-error";
+import { describeError } from "@/utils/format-error";
+import { reportErrorMessage } from "@/lib/messages/report";
 
 export type BranchOperation =
   | "creating"

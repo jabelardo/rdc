@@ -7,7 +7,7 @@ import {
   isConflictWithMarkers,
   isManualConflict,
 } from "@/models/status";
-import { mapStatus } from "@/features/changes/status";
+import { mapStatus } from "@/utils/status";
 import { MergeResult, RebaseResult, type IRebaseSnapshot, type IStatusResult } from "./git-ipc";
 import snapshot from "@/lib/__generated__/wire-snapshot.json";
 import type { ICheckoutProgress, IMultiCommitOperationProgress } from "@/models/progress";

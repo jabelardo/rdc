@@ -1,5 +1,6 @@
 import { useRef, useState, type CSSProperties } from "react";
-import { DiffLineType, DiffType } from "@/models/diff";
+import { DiffType } from "@/models/diff/diff-data";
+import { DiffLineType } from "@/models/diff/diff-line";
 import { formatRelative } from "@/utils/format-relative";
 import type { HistoryState, HistoryStore } from "@/features/history/stores/history-store";
 import type { Commit } from "@/models/commit";

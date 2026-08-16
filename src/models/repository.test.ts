@@ -1,7 +1,7 @@
 import { describe, it } from "vitest";
 import assert from "node:assert";
 import { getUpdateBranchStrategy, Repository } from "./repository";
-import { UpdateBranchStrategy } from "@/features/branches/update-branch-strategy";
+import { UpdateBranchStrategy } from "@/models/update-branch-strategy";
 
 describe("Repository", () => {
   describe("name", () => {

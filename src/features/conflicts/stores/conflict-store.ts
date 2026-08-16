@@ -10,7 +10,8 @@ import {
   type IStatusFileChange,
   type IStatusResult,
 } from "@/lib/ipc/git-ipc";
-import { describeError, reportErrorMessage } from "@/utils/format-error";
+import { describeError } from "@/utils/format-error";
+import { reportErrorMessage } from "@/lib/messages/report";
 
 export type ConflictFile = {
   readonly path: string;

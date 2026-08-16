@@ -1,7 +1,7 @@
 import { GitResetMode } from "@/models/git-reset-mode";
 import { IndexStatus } from "@/models/index-status";
 import { AppFileStatusKind, type WorkingDirectoryFileChange } from "@/models/status";
-import { getIndexChanges } from "@/features/diff/api/diff-ipc";
+import { getIndexChanges } from "@/lib/diff/diff-ipc";
 import { resetPaths } from "@/lib/ipc/git-ipc";
 import { checkoutIndex } from "@/lib/ipc/misc-ipc";
 import { moveRepositoryPathsToTrash, permanentlyDeleteRepositoryPaths } from "@/platform/files";

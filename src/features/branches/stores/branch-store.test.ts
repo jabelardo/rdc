@@ -4,7 +4,7 @@ import { ComputedAction } from "@/models/computed-action";
 import type { MergeTreeResult } from "@/models/merge";
 import { MergeResult, rebaseBranch as rebaseBranchCommand, RebaseResult } from "@/lib/ipc/git-ipc";
 import { BranchStore } from "./branch-store";
-import { getDefaultMessageStore } from "@/features/messages/stores/default-message-store";
+import { getDefaultMessageStore } from "@/lib/messages/default-message-store";
 
 /** Sidebar-originated branch failures report to the shared store — MESSAGE_SYSTEM_PLAN.md Slice 4. */
 function lastReportedMessage(): string {

@@ -1,5 +1,5 @@
 import { Commit } from "./commit";
-import { removeRemotePrefix } from "@/features/remotes/remove-remote-prefix";
+import { removeRemotePrefix } from "@/utils/remove-remote-prefix";
 import { ForkedRemotePrefix } from "./remote";
 
 // NOTE: The values here matter as they are used to sort

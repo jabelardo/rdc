@@ -6,8 +6,8 @@ import { AppDialogs } from "./app-dialogs";
 import { ChangesWorkspace } from "@/features/changes/components/changes-workspace";
 import { HistoryWorkspace } from "@/features/history/components/history-workspace";
 import { MergeConflicts } from "@/features/conflicts/components/merge-conflicts";
-import { MessageToasts } from "@/features/messages/components/message-toasts";
-import { RepositorySidebar } from "@/features/repositories/components/repository-sidebar";
+import { MessageToasts } from "@/app/message-toasts";
+import { RepositorySidebar } from "@/app/repository-sidebar";
 import { RepositoryToolbar } from "./repository-toolbar";
 import type { AppController } from "./use-app-controller";
 import { WindowDragStrip } from "./window-drag-strip";
@@ -351,7 +351,7 @@ export function AppShell({ controller }: AppShellProps) {
               repositoryPath={appState.selectedRepository.path}
               state={workingTreeState}
               store={workingTreeStore}
-              conflictStore={conflictStore}
+              onRefreshRelated={(repositoryPath) => conflictStore.load(repositoryPath)}
               commitMessage={commitMessage}
               bypassHooks={bypassHooks}
               onCommitMessageChange={setCommitMessage}

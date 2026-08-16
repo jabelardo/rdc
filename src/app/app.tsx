@@ -1,7 +1,7 @@
 import "@/styles/app.css";
 import { LucideProvider } from "lucide-react";
 import { AppShell } from "@/app/app-shell";
-import { ThemeProvider } from "@/components/theme-provider";
+import { ThemeProvider } from "@/features/preferences/components/theme-provider";
 import { useAppController } from "@/app/use-app-controller";
 
 function App() {

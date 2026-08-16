@@ -7,7 +7,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { BranchType, type Branch, type IAheadBehind } from "@/models/branch";
-import { revSymmetricDifference } from "@/features/branches/rev-range";
+import { revSymmetricDifference } from "@/utils/rev-range";
 
 /**
  * How many commits each side of `range` has that the other does not.
