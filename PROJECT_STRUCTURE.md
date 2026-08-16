@@ -468,6 +468,43 @@ file.** Splitting it into per-feature hooks composed at the app layer is the nat
 is *not* part of the mechanical move — it is a behaviour-preserving refactor with its own risk, and
 it needs its own commit and its own review.
 
+### Phase 3.5 — make the structure comply, before the checker can be turned on
+
+**The motion is done and green; the structure it revealed is not yet compliant.** That is not a
+failure of the move — it is the move doing its job. A violation that was invisible in a flat drawer
+is now a named edge between two named things, and each one is a design question with an answer.
+
+Measured after Phase 3: **9 cross-feature imports** and **10 shared-to-feature imports**. They fall
+into four groups, and three of the four are cheap.
+
+**1. `diff` is not a feature — it is shared.** Both `changes` and `history` need it, which is the
+definition given in [The rule](#the-rule). Promoting it to `lib/diff/` removes three violations
+(`changes -> diff` ×2, `history -> diff`) and is pure motion.
+
+**2. `repository-sidebar` is app chrome, not a `repositories` component.** It renders repositories,
+branches *and* conflict state — three features — which is why it produces `repositories -> branches`
+and `repositories -> conflicts`. A component that composes three features belongs in `app/` by
+definition. Two violations, pure motion.
+
+**3. The `branches` ↔ `remotes` cycle is the one real design question.** `branch-store` needs remote
+tracking information and `remote-store` needs the current branch's upstream, so each imports the
+other. A cycle between features means they share a concept neither owns — here, **upstream
+tracking**. Extracting it is the fix; which side keeps what is a decision, not a move.
+
+**4. Shared layers reaching into features** — ten imports, and each names a misfiling rather than a
+tangle:
+
+| Import | What it says |
+|---|---|
+| `models/repository.ts` → `features/branches/update-branch-strategy`, `features/remotes/trusted-remote-host` | Pure functions over model types that were filed as feature logic. They belong beside the models |
+| `models/branch.ts` → `features/remotes/remove-remote-prefix` | Same |
+| `utils/format-error.ts` → `features/messages/stores/default-message-store` | A "util" that pushes to a store is not a util. Split the formatting from the reporting |
+| `components/theme-provider.tsx` → `features/preferences/stores/preferences-store` | Theme is a preference; the provider belongs to that feature |
+| `components/mvp-list-rows.tsx` → `features/changes/status` | Shared rows typed by one feature's domain — the types are models |
+| `testing/inject-test-state.ts` → every feature's default store | **Not a violation to fix.** Injecting stub state into every store is the module's whole purpose. `testing/` composes features the way `app/` does, so the checker must classify it as an app-layer peer rather than a shared layer |
+
+Only group 3 needs a decision. The rest are moves the census has already located.
+
 ### Phase 4 — turn the boundary checker on
 
 The import conversion moved to Phase 1. What remains here is
