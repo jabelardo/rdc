@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { join } from "@tauri-apps/api/path";
-import { BranchType, type Branch } from "@/models/branch";
+import type { Branch } from "@/models/branch";
 import type { Commit } from "@/models/commit";
 import { nameOf, type Repository } from "@/models/repository";
 import { getCloneDirectoryName } from "@/features/remotes/clone-destination";
@@ -73,6 +73,7 @@ import { getDefaultPreferencesStore } from "@/features/preferences/stores/defaul
 import { getDefaultRemoteStore } from "@/features/remotes/stores/default-remote-store";
 import { useRemoteDialogs } from "@/features/remotes/use-remote-dialogs";
 import { useDiscardDialogs } from "@/features/changes/use-discard-dialogs";
+import { useBranchNameDialogs } from "@/features/branches/use-branch-name-dialogs";
 import { getDefaultWorkingTreeStore } from "@/features/changes/stores/default-working-tree-store";
 import type { HistoryState } from "@/features/history/stores/history-store";
 import type { MessageState } from "@/lib/messages/message-store";
@@ -197,12 +198,21 @@ export function useAppController() {
   const [sidebarWidth, setSidebarWidth] = useState(264);
   const [bypassHooks, setBypassHooks] = useState(false);
   const [commitTerminalOutput, setCommitTerminalOutput] = useState("");
-  const [branchToRename, setBranchToRename] = useState<Branch | null>(null);
-  const [renameName, setRenameName] = useState("");
-  const [branchToDelete, setBranchToDelete] = useState<Branch | null>(null);
-  const [deleteRefusal, setDeleteRefusal] = useState<string | null>(null);
-  const [deleteUnmerged, setDeleteUnmerged] = useState(false);
-  const [deletePruneTrackingRef, setDeletePruneTrackingRef] = useState(false);
+  const {
+    renameDialog,
+    deleteDialog,
+    requestRename,
+    renameCurrentBranch,
+    requestDelete,
+    deleteCurrentBranch,
+    showDeleteRefusal,
+  } = useBranchNameDialogs({
+    repositoryPath: appState.selectedRepository?.path ?? null,
+    branchState,
+    branchStore,
+    refreshAfterBranchChange,
+  });
+
   const [mergePickerOpen, setMergePickerOpen] = useState(false);
   const [mergeTarget, setMergeTarget] = useState("");
   const [mergeMessage, setMergeMessage] = useState<string | null>(null);
@@ -597,7 +607,7 @@ export function useAppController() {
           stub.defaultBranch,
         );
         if (refusal !== null) {
-          setDeleteRefusal(refusal);
+          showDeleteRefusal(refusal);
         }
       },
       debugShowAbortMergeDialog: () => {
@@ -735,11 +745,6 @@ export function useAppController() {
   useEffect(() => {
     const unsubscribe = workingTreeStore.onDidUpdate(setWorkingTreeState);
     const repository = appState.selectedRepository;
-    setBranchToRename(null);
-    setBranchToDelete(null);
-    setDeleteRefusal(null);
-    setDeleteUnmerged(false);
-    setDeletePruneTrackingRef(false);
     setMergePickerOpen(false);
     setMergeMessage(null);
     setMergeRunning(false);
@@ -1174,109 +1179,6 @@ export function useAppController() {
     if (repository !== null && (await conflictStore.stageResolvedFile(path))) {
       await workingTreeStore.load(repository.path);
     }
-  }
-
-  function requestRename(branch: Branch): void {
-    setBranchToRename(branch);
-    setRenameName(branch.name);
-  }
-
-  function renameCurrentBranch(): void {
-    const current = branchStore.state.currentBranch;
-    if (current === null) {
-      return;
-    }
-    const branch = branchStore.state.branches.find(
-      (branch) => branch.type === BranchType.Local && branch.name === current,
-    );
-    if (branch !== undefined) {
-      requestRename(branch);
-    }
-  }
-
-  async function confirmRename(): Promise<void> {
-    if (branchToRename === null) {
-      return;
-    }
-    const branch = branchToRename;
-    await refreshAfterBranchChange(() => branchStore.renameBranch(branch.name, renameName));
-    if (branchStore.state.dialogError === null) {
-      setBranchToRename(null);
-      setRenameName("");
-    }
-  }
-
-  function cancelRename(): void {
-    if (branchStore.state.operation !== null) {
-      return;
-    }
-    setBranchToRename(null);
-    setRenameName("");
-  }
-
-  function deleteCurrentBranch(): void {
-    const current = branchStore.state.currentBranch;
-    if (current === null) {
-      return;
-    }
-    const branch = branchStore.state.branches.find(
-      (branch) => branch.type === BranchType.Local && branch.name === current,
-    );
-    if (branch !== undefined) {
-      void requestDelete(branch);
-    }
-  }
-
-  async function requestDelete(branch: Branch): Promise<void> {
-    const refusal = deleteBranchRefusal(
-      branch.name,
-      branchState.currentBranch,
-      branchState.defaultBranch,
-    );
-    if (refusal !== null) {
-      setDeleteRefusal(refusal);
-      return;
-    }
-    const repository = appState.selectedRepository;
-    setDeleteRefusal(null);
-    setDeletePruneTrackingRef(false);
-    setDeleteUnmerged(false);
-    if (repository !== null && branchState.currentBranch !== null) {
-      try {
-        const merged = await getMergedBranches(repository.path, branchState.currentBranch);
-        setDeleteUnmerged(!merged.has(`refs/heads/${branch.name}`));
-      } catch {
-        setDeleteUnmerged(false);
-      }
-    }
-    setBranchToDelete(branch);
-  }
-
-  async function confirmDelete(): Promise<void> {
-    if (branchToDelete === null) {
-      return;
-    }
-    const branch = branchToDelete;
-    await refreshAfterBranchChange(() =>
-      branchStore.deleteBranch(branch.name, {
-        pruneTrackingRef: deletePruneTrackingRef,
-      }),
-    );
-    if (branchStore.state.dialogError === null) {
-      setBranchToDelete(null);
-      setDeleteUnmerged(false);
-      setDeletePruneTrackingRef(false);
-    }
-  }
-
-  function cancelDelete(): void {
-    if (branchStore.state.operation !== null) {
-      return;
-    }
-    setBranchToDelete(null);
-    setDeleteRefusal(null);
-    setDeleteUnmerged(false);
-    setDeletePruneTrackingRef(false);
   }
 
   async function openBranchContextMenu(branch: Branch, x: number, y: number) {
@@ -1863,29 +1765,6 @@ export function useAppController() {
    * cannot disagree — and adding a field to one dialog stops widening the signature the others
    * share.
    */
-  const renameDialog =
-    branchToRename === null
-      ? null
-      : {
-          branch: branchToRename,
-          name: renameName,
-          onNameChange: setRenameName,
-          onConfirm: confirmRename,
-          onCancel: cancelRename,
-        };
-
-  const deleteDialog =
-    deleteRefusal === null && branchToDelete === null
-      ? null
-      : {
-          branch: branchToDelete,
-          refusal: deleteRefusal,
-          unmerged: deleteUnmerged,
-          pruneTrackingRef: deletePruneTrackingRef,
-          onPruneChange: setDeletePruneTrackingRef,
-          onConfirm: confirmDelete,
-          onCancel: cancelDelete,
-        };
 
   const mergeDialog = !mergePickerOpen
     ? null
