@@ -4,6 +4,7 @@ import { showFolderContents } from "@/platform/files";
 import { HorizontalResizer } from "@/components/horizontal-resizer";
 import { AppDialogs } from "./app-dialogs";
 import { BranchDialogs } from "@/features/branches/components/branch-dialogs";
+import { RemoteDialogs } from "@/features/remotes/components/remote-dialogs";
 import { ChangesWorkspace } from "@/features/changes/components/changes-workspace";
 import { HistoryWorkspace } from "@/features/history/components/history-workspace";
 import { MergeConflicts } from "@/features/conflicts/components/merge-conflicts";
@@ -421,6 +422,34 @@ export function AppShell({ controller }: AppShellProps) {
         }
         onDismissOperation={() => operationStore.dismissTerminalOperation()}
       />
+      <RemoteDialogs
+        showManageRemotes={showManageRemotes}
+        remotes={remoteState.remotes}
+        remoteFilter={remoteFilter}
+        onRemoteFilterChange={setRemoteFilter}
+        onNewRemote={openAddRemote}
+        onConfirmRemoveRemote={(name) => void confirmRemoveRemote(name)}
+        onCloseManageRemotes={closeManageRemotes}
+        showAddRemote={showAddRemote}
+        addRemoteName={addRemoteName}
+        addRemoteURL={addRemoteURL}
+        onAddRemoteNameChange={setAddRemoteName}
+        onAddRemoteURLChange={setAddRemoteURL}
+        onConfirmAddRemote={() => void confirmAddRemote()}
+        onCloseAddRemote={closeAddRemote}
+        manageRemoteError={manageRemoteError}
+        manageRunning={manageRunning}
+        showCloneDialog={showCloneDialog}
+        cloneState={cloneState}
+        cloneURL={cloneURL}
+        clonePath={clonePath}
+        onCloneURLChange={setCloneURL}
+        onClonePathChange={setClonePath}
+        onChooseCloneDestination={() => void chooseCloneDestination()}
+        onSubmitClone={() => void submitClone()}
+        onCancelCloneOperation={() => void cloneStore.requestCancellation()}
+        onDismissClone={dismissCloneDialog}
+      />
       <AppDialogs
         discardFile={discardFile}
         permanentlyDiscard={permanentlyDiscard}
@@ -460,10 +489,6 @@ export function AppShell({ controller }: AppShellProps) {
         showPreferencesDialog={showPreferencesDialog}
         preferencesState={preferencesState}
         preferencesStore={preferencesStore}
-        showCloneDialog={showCloneDialog}
-        cloneState={cloneState}
-        cloneURL={cloneURL}
-        clonePath={clonePath}
         onCancelDiscard={cancelDiscard}
         onConfirmDiscard={() => void confirmDiscard()}
         onCancelDiscardAll={cancelDiscardAll}
@@ -477,30 +502,8 @@ export function AppShell({ controller }: AppShellProps) {
         removeRepositoryError={removeRepositoryError}
         removingRepository={removingRepository}
         onConfirmRemoveRepository={() => void confirmRemoveRepository()}
-        showManageRemotes={showManageRemotes}
-        remotes={remoteState.remotes}
-        remoteFilter={remoteFilter}
-        onRemoteFilterChange={setRemoteFilter}
-        showAddRemote={showAddRemote}
-        addRemoteName={addRemoteName}
-        onAddRemoteNameChange={setAddRemoteName}
-        addRemoteURL={addRemoteURL}
-        onAddRemoteURLChange={setAddRemoteURL}
-        manageRemoteError={manageRemoteError}
-        manageRunning={manageRunning}
-        onNewRemote={openAddRemote}
-        onConfirmAddRemote={() => void confirmAddRemote()}
-        onConfirmRemoveRemote={(name) => void confirmRemoveRemote(name)}
-        onCloseAddRemote={closeAddRemote}
-        onCloseManageRemotes={closeManageRemotes}
         onDismissAbout={() => setShowAboutDialog(false)}
         onDismissPreferences={() => setShowPreferencesDialog(false)}
-        onDismissClone={dismissCloneDialog}
-        onCancelCloneOperation={() => void cloneStore.requestCancellation()}
-        onChooseCloneDestination={() => void chooseCloneDestination()}
-        onSubmitClone={() => void submitClone()}
-        onCloneURLChange={setCloneURL}
-        onClonePathChange={setClonePath}
       />
     </main>
   );

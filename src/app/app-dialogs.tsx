@@ -1,7 +1,5 @@
-import type { IRemote } from "@/models/remote";
 import type { Repository } from "@/models/repository";
 import type { WorkingDirectoryFileChange } from "@/models/status";
-import type { CloneState } from "@/features/remotes/stores/clone-store";
 import type {
   PreferencesState,
   PreferencesStore,
@@ -14,7 +12,6 @@ import type {
 } from "@/features/changes/stores/working-tree-store";
 import { ConfirmDialog } from "@/components/dialog-kit/confirm-dialog";
 import { ConfirmOptOut } from "@/components/dialog-kit/confirm-opt-out";
-import { CloneRepositoryDialog } from "@/features/remotes/components/clone-repository-dialog";
 import {
   DiscardFileList,
   discardAllQuestion,
@@ -22,14 +19,9 @@ import {
 import { OperationProgressDialog } from "@/components/dialog-kit/operation-progress-dialog";
 import { PreferencesDialog } from "@/features/preferences/components/preferences-dialog";
 import { TerminalOutput } from "@/components/terminal-output";
-import {
-  operationProgressViewModel,
-  type OperationProgressViewModel,
-} from "@/lib/operations/operation-presentation";
+import type { OperationProgressViewModel } from "@/lib/operations/operation-presentation";
 import { AboutDialog } from "./about-dialog";
 import { HookFailureDialog } from "@/features/changes/components/hook-failure-dialog";
-import { AddRemoteDialog } from "@/features/remotes/components/add-remote-dialog";
-import { ManageRemotesDialog } from "@/features/remotes/components/manage-remotes-dialog";
 
 type AppDialogsProps = {
   readonly discardFile: WorkingDirectoryFileChange | null;
@@ -58,10 +50,6 @@ type AppDialogsProps = {
   readonly showPreferencesDialog: boolean;
   readonly preferencesState: PreferencesState;
   readonly preferencesStore: PreferencesStore;
-  readonly showCloneDialog: boolean;
-  readonly cloneState: CloneState;
-  readonly cloneURL: string;
-  readonly clonePath: string;
   readonly onCancelDiscard: () => void;
   readonly onConfirmDiscard: () => void;
   readonly onCancelDiscardAll: () => void;
@@ -75,30 +63,8 @@ type AppDialogsProps = {
   readonly removeRepositoryError: string | null;
   readonly removingRepository: boolean;
   readonly onConfirmRemoveRepository: () => void;
-  readonly showManageRemotes: boolean;
-  readonly remotes: ReadonlyArray<IRemote>;
-  readonly remoteFilter: string;
-  readonly onRemoteFilterChange: (value: string) => void;
-  readonly showAddRemote: boolean;
-  readonly addRemoteName: string;
-  readonly onAddRemoteNameChange: (value: string) => void;
-  readonly addRemoteURL: string;
-  readonly onAddRemoteURLChange: (value: string) => void;
-  readonly manageRemoteError: string | null;
-  readonly manageRunning: boolean;
-  readonly onNewRemote: () => void;
-  readonly onConfirmAddRemote: () => void;
-  readonly onConfirmRemoveRemote: (name: string) => void;
-  readonly onCloseAddRemote: () => void;
-  readonly onCloseManageRemotes: () => void;
   readonly onDismissAbout: () => void;
   readonly onDismissPreferences: () => void;
-  readonly onDismissClone: () => void;
-  readonly onCancelCloneOperation: () => void;
-  readonly onChooseCloneDestination: () => void;
-  readonly onSubmitClone: () => void;
-  readonly onCloneURLChange: (value: string) => void;
-  readonly onClonePathChange: (value: string) => void;
 };
 
 /**
@@ -133,10 +99,6 @@ export function AppDialogs({
   showPreferencesDialog,
   preferencesState,
   preferencesStore,
-  showCloneDialog,
-  cloneState,
-  cloneURL,
-  clonePath,
   onCancelDiscard,
   onConfirmDiscard,
   onCancelDiscardAll,
@@ -150,30 +112,8 @@ export function AppDialogs({
   removeRepositoryError,
   removingRepository,
   onConfirmRemoveRepository,
-  showManageRemotes,
-  remotes,
-  remoteFilter,
-  onRemoteFilterChange,
-  showAddRemote,
-  addRemoteName,
-  onAddRemoteNameChange,
-  addRemoteURL,
-  onAddRemoteURLChange,
-  manageRemoteError,
-  manageRunning,
-  onNewRemote,
-  onConfirmAddRemote,
-  onConfirmRemoveRemote,
-  onCloseAddRemote,
-  onCloseManageRemotes,
   onDismissAbout,
   onDismissPreferences,
-  onDismissClone,
-  onCancelCloneOperation,
-  onChooseCloneDestination,
-  onSubmitClone,
-  onCloneURLChange,
-  onClonePathChange,
 }: AppDialogsProps) {
   return (
     <>
@@ -270,32 +210,6 @@ export function AppDialogs({
         </ConfirmDialog>
       )}
 
-      {showManageRemotes && (
-        <ManageRemotesDialog
-          remotes={remotes}
-          filter={remoteFilter}
-          busy={manageRunning}
-          onFilterChange={onRemoteFilterChange}
-          onNewRemote={onNewRemote}
-          onRemoveRemote={onConfirmRemoveRemote}
-          onDismiss={onCloseManageRemotes}
-        />
-      )}
-
-      {showAddRemote && (
-        <AddRemoteDialog
-          name={addRemoteName}
-          url={addRemoteURL}
-          remotes={remotes}
-          busy={manageRunning}
-          error={manageRemoteError}
-          onNameChange={onAddRemoteNameChange}
-          onURLChange={onAddRemoteURLChange}
-          onConfirm={onConfirmAddRemote}
-          onDismiss={onCloseAddRemote}
-        />
-      )}
-
       {hookFailure !== null && (
         <HookFailureDialog
           failure={hookFailure}
@@ -347,31 +261,6 @@ export function AppDialogs({
           state={preferencesState}
           store={preferencesStore}
           onDismiss={onDismissPreferences}
-        />
-      )}
-
-      {showCloneDialog && (
-        <CloneRepositoryDialog
-          url={cloneURL}
-          path={clonePath}
-          onUrlChange={onCloneURLChange}
-          onPathChange={onClonePathChange}
-          running={cloneState.operation !== null}
-          progress={cloneState.progress}
-          error={cloneState.error}
-          operationViewModel={
-            cloneState.nativeOperation == null
-              ? undefined
-              : operationProgressViewModel(
-                  cloneState.nativeOperation,
-                  cloneState.nativeOperation.ownerWindow ?? "",
-                  cloneState.nativeOperation.ownerWindow === null ? "unowned" : "owner",
-                )
-          }
-          onCancelOperation={onCancelCloneOperation}
-          onChooseDestination={onChooseCloneDestination}
-          onConfirm={onSubmitClone}
-          onCancel={onDismissClone}
         />
       )}
     </>
