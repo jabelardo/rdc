@@ -63,7 +63,7 @@ import {
   operationProgressViewModel,
   type OperationProgressViewModel,
 } from "@/lib/operations/operation-presentation";
-import { DialogFailure } from "@/components/dialog-kit/dialog-failure";
+import { AddRemoteDialog } from "@/features/remotes/components/add-remote-dialog";
 import { ManageRemotesDialog } from "@/features/remotes/components/manage-remotes-dialog";
 
 type AppDialogsProps = {
@@ -508,61 +508,17 @@ export function AppDialogs({
       )}
 
       {showAddRemote && (
-        <Dialog
-          open
-          onOpenChange={(open) => {
-            if (!open && !manageRunning) {
-              onCloseAddRemote();
-            }
-          }}
-        >
-          <DialogContent className="w-[min(30rem,calc(100vw-2rem))]">
-            <DialogTitle>Add a remote</DialogTitle>
-            <DialogFailure error={manageRemoteError} />
-            <form
-              className="manage-remotes-add mt-4 grid gap-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                onConfirmAddRemote();
-              }}
-            >
-              <label htmlFor="add-remote-name">Name</label>
-              <input
-                id="add-remote-name"
-                autoFocus
-                placeholder="upstream"
-                value={addRemoteName}
-                disabled={manageRunning}
-                onChange={(event) => onAddRemoteNameChange(event.currentTarget.value)}
-              />
-              <label htmlFor="add-remote-url">URL</label>
-              <input
-                id="add-remote-url"
-                placeholder="https://github.com/user/repo.git"
-                value={addRemoteURL}
-                disabled={manageRunning}
-                onChange={(event) => onAddRemoteURLChange(event.currentTarget.value)}
-              />
-              <DialogFooter>
-                <button type="button" disabled={manageRunning} onClick={onCloseAddRemote}>
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={
-                    manageRunning ||
-                    addRemoteName.trim() === "" ||
-                    /\s/.test(addRemoteName) ||
-                    addRemoteURL.trim() === "" ||
-                    remotes.some((remote) => remote.name === addRemoteName.trim())
-                  }
-                >
-                  {manageRunning ? "Adding…" : "Add remote"}
-                </button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <AddRemoteDialog
+          name={addRemoteName}
+          url={addRemoteURL}
+          remotes={remotes}
+          busy={manageRunning}
+          error={manageRemoteError}
+          onNameChange={onAddRemoteNameChange}
+          onURLChange={onAddRemoteURLChange}
+          onConfirm={onConfirmAddRemote}
+          onDismiss={onCloseAddRemote}
+        />
       )}
 
       {hookFailure !== null && (
