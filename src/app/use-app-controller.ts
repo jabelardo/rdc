@@ -72,15 +72,13 @@ import { getDefaultMessageStore } from "@/lib/messages/default-message-store";
 import { getDefaultPreferencesStore } from "@/features/preferences/stores/default-preferences-store";
 import { getDefaultRemoteStore } from "@/features/remotes/stores/default-remote-store";
 import { useRemoteDialogs } from "@/features/remotes/use-remote-dialogs";
+import { useDiscardDialogs } from "@/features/changes/use-discard-dialogs";
 import { getDefaultWorkingTreeStore } from "@/features/changes/stores/default-working-tree-store";
 import type { HistoryState } from "@/features/history/stores/history-store";
 import type { MessageState } from "@/lib/messages/message-store";
 import type { PreferencesState } from "@/features/preferences/stores/preferences-store";
 import type { RemoteState } from "@/features/remotes/stores/remote-store";
-import type {
-  SelectedLinesDiscard,
-  WorkingTreeState,
-} from "@/features/changes/stores/working-tree-store";
+import type { WorkingTreeState } from "@/features/changes/stores/working-tree-store";
 import type { SidebarSectionID } from "@/app/sidebar/sidebar-sections";
 import { determineMergeability } from "@/lib/ipc/misc-ipc";
 import { getAheadBehind } from "@/lib/ipc/rev-list-ipc";
@@ -199,22 +197,6 @@ export function useAppController() {
   const [sidebarWidth, setSidebarWidth] = useState(264);
   const [bypassHooks, setBypassHooks] = useState(false);
   const [commitTerminalOutput, setCommitTerminalOutput] = useState("");
-  const [discardFileID, setDiscardFileID] = useState<string | null>(null);
-  const [discarding, setDiscarding] = useState(false);
-  const [permanentlyDiscard, setPermanentlyDiscard] = useState(false);
-  const [discardSelection, setDiscardSelection] = useState(false);
-  const [selectedLinesDiscard, setSelectedLinesDiscard] = useState<SelectedLinesDiscard | null>(
-    null,
-  );
-  const [discardAll, setDiscardAll] = useState<{
-    readonly permanent: boolean;
-    // Every path, because the dialog lists every path. A snapshot rather than a live read so the
-    // list cannot change under the user while they are deciding.
-    readonly paths: ReadonlyArray<string>;
-  } | null>(null);
-  // Reset whenever a discard dialog opens, and written to preferences only on confirm — ticking the
-  // box and then cancelling must not remove the guard (see ConfirmOptOut).
-  const [discardOptOut, setDiscardOptOut] = useState(false);
   const [branchToRename, setBranchToRename] = useState<Branch | null>(null);
   const [renameName, setRenameName] = useState("");
   const [branchToDelete, setBranchToDelete] = useState<Branch | null>(null);
@@ -247,6 +229,20 @@ export function useAppController() {
   // Distinct from a preview: "we could not work out how far apart these branches are" is not the
   // same claim as any ComputedAction, and collapsing it into one reported failures as "up to date".
   const [rebasePreviewError, setRebasePreviewError] = useState<string | null>(null);
+  const { discardDialog, requestDiscard, requestDiscardAll, showDiscardFilePreview } =
+    useDiscardDialogs({
+      repositoryPath: appState.selectedRepository?.path ?? null,
+      workingTreeState,
+      workingTreeStore,
+      confirmations: {
+        beforeDiscard: () => preferencesStore.state.confirmDiscardChanges,
+        beforePermanentDiscard: () => preferencesStore.state.confirmDiscardChangesPermanently,
+        stopAskingBeforeDiscard: () => preferencesStore.setConfirmDiscardChanges(false),
+        stopAskingBeforePermanentDiscard: () =>
+          preferencesStore.setConfirmDiscardChangesPermanently(false),
+      },
+    });
+
   const {
     manageRemotesDialog,
     addRemoteDialog,
@@ -507,9 +503,7 @@ export function useAppController() {
         injectDebugState();
         const firstFile = workingTreeStore.state.workingDirectory?.files[0];
         if (firstFile !== undefined) {
-          setDiscardFileID(firstFile.id);
-          setDiscardSelection(false);
-          setPermanentlyDiscard(false);
+          showDiscardFilePreview(firstFile.id);
         }
       },
       showAddRemoteDialog: () => {
@@ -741,12 +735,6 @@ export function useAppController() {
   useEffect(() => {
     const unsubscribe = workingTreeStore.onDidUpdate(setWorkingTreeState);
     const repository = appState.selectedRepository;
-    setDiscardFileID(null);
-    setDiscarding(false);
-    setPermanentlyDiscard(false);
-    setDiscardSelection(false);
-    setSelectedLinesDiscard(null);
-    setDiscardAll(null);
     setBranchToRename(null);
     setBranchToDelete(null);
     setDeleteRefusal(null);
@@ -1186,141 +1174,6 @@ export function useAppController() {
     if (repository !== null && (await conflictStore.stageResolvedFile(path))) {
       await workingTreeStore.load(repository.path);
     }
-  }
-
-  const discardFile =
-    workingTreeState.workingDirectory?.files.find((file) => file.id === discardFileID) ?? null;
-  function requestDiscard(fileID: string, selection: boolean): void {
-    if (selection || preferencesStore.state.confirmDiscardChanges) {
-      const selectedLines = selection ? workingTreeStore.getSelectedLinesDiscard() : null;
-      if (selection && selectedLines === null) {
-        return;
-      }
-      setDiscardOptOut(false);
-      setDiscardFileID(fileID);
-      setDiscardSelection(selection);
-      setSelectedLinesDiscard(selectedLines);
-      setPermanentlyDiscard(false);
-      return;
-    }
-    void discardWholeFile(fileID, false);
-  }
-
-  async function discardWholeFile(fileID: string, permanent: boolean): Promise<void> {
-    setDiscarding(true);
-    let result = await workingTreeStore.discardFile(fileID, permanent);
-    if (result === "trash-failed" && !preferencesStore.state.confirmDiscardChangesPermanently) {
-      result = await workingTreeStore.discardFile(fileID, true);
-    }
-    setDiscarding(false);
-    if (result === "discarded") {
-      setDiscardFileID(null);
-      setPermanentlyDiscard(false);
-      setSelectedLinesDiscard(null);
-    } else if (result === "trash-failed") {
-      setDiscardFileID(fileID);
-      setPermanentlyDiscard(true);
-      setDiscardSelection(false);
-      setSelectedLinesDiscard(null);
-    }
-  }
-
-  /**
-   * Write the "do not show this message again" choice, if the user made one.
-   *
-   * Called from the confirm paths only. The permanent variant has its own preference because it is
-   * the more dangerous of the two and worth switching off separately.
-   */
-  function applyDiscardOptOut(permanent: boolean): void {
-    if (!discardOptOut) {
-      return;
-    }
-    if (permanent) {
-      preferencesStore.setConfirmDiscardChangesPermanently(false);
-    } else {
-      preferencesStore.setConfirmDiscardChanges(false);
-    }
-  }
-
-  async function confirmDiscard() {
-    if (discardFile === null) {
-      return;
-    }
-    applyDiscardOptOut(permanentlyDiscard);
-    if (discardSelection) {
-      setDiscarding(true);
-      const discarded = await workingTreeStore.discardSelectedLines(selectedLinesDiscard);
-      setDiscarding(false);
-      if (discarded) {
-        setDiscardFileID(null);
-        setDiscardSelection(false);
-        setSelectedLinesDiscard(null);
-      }
-      return;
-    }
-    await discardWholeFile(discardFile.id, permanentlyDiscard);
-  }
-
-  function cancelDiscard(): void {
-    if (discarding) {
-      return;
-    }
-    setDiscardFileID(null);
-    setPermanentlyDiscard(false);
-    setDiscardSelection(false);
-    setSelectedLinesDiscard(null);
-    setDiscardAll(null);
-  }
-
-  function requestDiscardAll(permanent: boolean): void {
-    // The native menu controller is installed once, so a render-time read here would be the
-    // working tree as it looked at first mount — empty, before any repository was selected — and
-    // the menu item would silently do nothing.
-    const files = workingTreeStore.state.workingDirectory?.files ?? [];
-    if (files.length === 0) {
-      return;
-    }
-    const shouldConfirm = permanent
-      ? preferencesStore.state.confirmDiscardChangesPermanently
-      : preferencesStore.state.confirmDiscardChanges;
-    if (shouldConfirm) {
-      setDiscardOptOut(false);
-      setDiscardAll({ permanent, paths: files.map((file) => file.path) });
-      return;
-    }
-    void discardAllWorkingChanges(permanent);
-  }
-
-  async function discardAllWorkingChanges(permanent: boolean): Promise<void> {
-    setDiscarding(true);
-    let result = await workingTreeStore.discardAllChanges(permanent);
-    if (result === "trash-failed" && !preferencesStore.state.confirmDiscardChangesPermanently) {
-      result = await workingTreeStore.discardAllChanges(true);
-    }
-    setDiscarding(false);
-    if (result === "discarded") {
-      setDiscardAll(null);
-    } else if (result === "trash-failed") {
-      // Re-read the working tree rather than reusing the first list: the failed trash attempt may
-      // already have removed some files, so the earlier snapshot is stale.
-      const remaining = workingTreeStore.state.workingDirectory?.files ?? [];
-      setDiscardAll({ permanent: true, paths: remaining.map((file) => file.path) });
-    }
-  }
-
-  async function confirmDiscardAll(): Promise<void> {
-    if (discardAll === null) {
-      return;
-    }
-    applyDiscardOptOut(discardAll.permanent);
-    await discardAllWorkingChanges(discardAll.permanent);
-  }
-
-  function cancelDiscardAll(): void {
-    if (discarding) {
-      return;
-    }
-    setDiscardAll(null);
   }
 
   function requestRename(branch: Branch): void {
@@ -2081,21 +1934,6 @@ export function useAppController() {
       };
 
   /** The changes dialogs. Discarding is one dialog with two shapes; the commit's is not a decision. */
-  const discardDialog =
-    discardFile === null && discardAll === null
-      ? null
-      : {
-          file: discardFile,
-          all: discardAll,
-          permanently: permanentlyDiscard,
-          selectionOnly: discardSelection,
-          optOut: discardOptOut,
-          onOptOutChange: setDiscardOptOut,
-          discarding,
-          failure: workingTreeState.discardError,
-          onConfirm: discardFile === null ? confirmDiscardAll : confirmDiscard,
-          onCancel: discardFile === null ? cancelDiscardAll : cancelDiscard,
-        };
 
   const commitProgress = !workingTreeState.commitLoading
     ? null
@@ -2213,10 +2051,6 @@ export function useAppController() {
     },
     onDebugDismissOperationProgressLauncher: () => setDebugProgressLauncher(false),
     onDebugDismissOperationProgress: () => setDebugProgressRecord(null),
-    discardFile,
-    permanentlyDiscard,
-    discardSelection,
-    discarding,
     createRepository,
     addExistingRepository,
     openCloneDialog,
@@ -2232,14 +2066,7 @@ export function useAppController() {
     refreshAfterPull,
     stageResolvedConflict,
     requestDiscard,
-    confirmDiscard,
-    cancelDiscard,
-    discardAll,
-    discardOptOut,
-    setDiscardOptOut,
     requestDiscardAll,
-    confirmDiscardAll,
-    cancelDiscardAll,
     requestRename,
     requestDelete,
     renameCurrentBranch,
