@@ -317,7 +317,44 @@ The diff must be reviewable as pure motion — if a phase contains a logic chang
 Splitting a reorganization across feature work is how it ends up half-applied, which is the state
 being fixed.
 
-### Phase 0 — decide the dead third, before moving it
+### Phase 0 — settle the dead third, before moving it — **done 2026-08-16**
+
+**Outcome:** 47 modules deleted (28 sources and their tests). `src/lib/`'s top level went from 72
+non-test modules to 55; unreachable modules from 69 to 50; the bundle-boundary check from 160
+reachable modules to 163 — it *rose*, because severing the knots below moved type-only edges onto
+the runtime graph it walks.
+
+Four things this phase taught, all of which cost more than the deleting did:
+
+1. **The 2026-08-07 measurement was too pessimistic** — 95 unreachable, against 69 when the traversal
+   follows type imports as well as runtime ones. A type-only import is still a reference. The
+   runtime-only walk is right for `check-bundle-boundary.mjs`, which asks what reaches the browser,
+   and wrong for "is anything using this".
+2. **`api.ts` was never a dead cluster.** It was reachable from the live `Repository` model through
+   `GitHubRepository` → `Owner` → `GitHubAccountType`, one string-union import. Erased at build
+   time, so no bundle ever contained it, which is exactly why the runtime-only walk called it dead.
+   A second knot ran `feature-flag.ts` → `models/account.ts` through two Copilot flags with no
+   callers. **Both had to be severed before anything could be deleted**, and both were three-line
+   changes once found.
+3. **Two entries on the group-1 list were wrong.** `custom-integration.ts` is not GitHub code at all
+   — it backs Preferences' custom editor and shell, and has live Rust commands behind it.
+   `git-account.ts` is generic git-server auth. Both were kept. Read each candidate; do not delete
+   from a list written weeks earlier.
+4. **The cluster does not end where it looks like it ends.** `wrap-rich-text-commit-message.ts` was
+   filed under "ported ahead", but it cannot compile without `text-token-parser.ts`, which cannot
+   compile without `api.ts` — GitHub-flavoured rendering all the way down, so it went too.
+   `app-state/branches-state.ts` needed three pull-request fields stripped rather than deleting,
+   because its own importers are ported-ahead code that stays. And `github-repo-builder.ts` had to
+   be **restored**: it supports `Repository`'s still-live GitHub fields, and needed only its one
+   API constant inlined.
+
+Deleting also discharged three carried-debt entries outright rather than fixing them: every
+`url.parse()` site, the Node `path` import, and the `desktop-plus.org` OAuth callback lived in the
+deleted modules. `src/` now has zero `url.parse()` call sites.
+
+<details>
+<summary>The original plan for this phase, kept for the reasoning</summary>
+
 
 `CODE_ORGANIZATION_PLAN.md` measured 30 genuinely unreferenced modules directly under `src/lib/`.
 Moving dead code is wasted motion and makes the diff harder to read, so settle it first.
@@ -330,6 +367,8 @@ Moving dead code is wasted motion and makes the diff harder to read, so settle i
 
 Re-measure first, and **grep each candidate for its bare symbol before deleting** — see the
 dependency-injection note above for why the measurement alone is not sufficient evidence.
+
+</details>
 
 ### Phase 1 — lift the layers that already exist
 

@@ -194,17 +194,11 @@ structure nobody chose.
   [discussion #16119](https://github.com/tailwindlabs/tailwindcss/discussions/16119) and
   [issue #19930](https://github.com/tailwindlabs/tailwindcss/issues/19930). This is not an MVP
   runtime or packaging blocker.
-- **Legacy `url.parse()` — 8 sites** in `api.ts` (3), `find-account.ts` (3), `parse-app-url.ts` (1),
-  `repository-matching.ts` (1). `DEP0169`, security-relevant, and the WHATWG `URL` migration is a
-  strict behaviour change that needs its own change with tests as the guard. **None of these modules
-  ships in the MVP bundle** (verified), so the deprecation warnings visible during `pnpm test` come
-  from Vitest importing them, not from the application. Correct time to fix each: the phase that
-  lands its consumer — Phase 5b for the API/account modules, Phase 9 for `parse-app-url`. The
-  blocking browser bundle-boundary CI check is what keeps that deferral honest.
-- **Node `path` in `lib/repository-matching.ts`** — same boundary, same guard.
-- **OAuth callback still points at `https://desktop-plus.org/oauth`** (`lib/api.ts`). Unlike the
-  User-Agent and About copy, this cannot simply be renamed: it needs an rdc-owned domain and a
-  registered OAuth application. Phase 9, travelling with the GitHub sign-in consumer.
+- **The `url.parse()`, Node-`path` and OAuth-callback entries are gone**, discharged on 2026-08-16
+  rather than fixed: every module carrying them — `api.ts`, `find-account.ts`, `parse-app-url.ts`,
+  `repository-matching.ts` — was in the deleted GitHub-service cluster. `src/` now has **zero**
+  `url.parse()` call sites. Phase 5b and Phase 9 will need a URL layer and an OAuth callback, and
+  will write them against Tauri with WHATWG `URL` from the start.
 - **Two names are deliberately *not* rebranded**, because they are bytes inside a user's repository
   that other clients read: `git-ops`'s `STASH_ENTRY_MARKER` (`!!GitHub_Desktop`) and
   `models/remote.ts`'s `ForkedRemotePrefix` (`github-desktop-`). Both carry comments explaining why.

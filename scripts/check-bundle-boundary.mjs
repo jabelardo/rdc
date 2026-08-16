@@ -1,17 +1,18 @@
 // Fails if any module that actually reaches the browser bundle imports a Node builtin.
 //
-// `MIGRATION_MAP.md` §8 records legacy `url.parse()` (8 sites) and Node `path` in
-// `lib/repository-matching.ts` as carried debt that "must be settled before entering the app
-// bundle". That sentence is the whole safeguard, and a sentence cannot fail a build. Today the
-// boundary genuinely holds — every module carrying that debt is post-MVP (GitHub API, accounts,
-// deep links, PAC parsing) and none is reachable from `src/main.tsx`. This makes that a checked
-// fact, so the deferral stays deliberate instead of becoming an accident the day a Phase 5b or
-// Phase 9 slice wires one of them into the UI.
+// Written to keep a documented deferral honest: `MIGRATION_MAP.md` §8 recorded legacy `url.parse()`
+// and Node `path` as carried debt that "must be settled before entering the app bundle", and a
+// sentence cannot fail a build. **That debt is now discharged** — every module carrying it was in
+// the GitHub-service cluster deleted on 2026-08-16, and `src/` has zero `url.parse()` sites.
+//
+// The check stays, because its job was never those specific files. Phase 5b needs a URL layer and
+// Phase 9 needs deep-link parsing; this is what stops either arriving as a Node builtin in the
+// webview, where it would fail at runtime rather than at build time.
 //
 // Type-only imports are skipped, and that distinction is the reason this uses the TypeScript AST
-// rather than a regex: `import type { IAPIEmail } from './api'` is erased at build time and does
-// not pull `api.ts` into the bundle, while `import { getHTMLURL } from './api'` does. A regex
-// cannot tell those apart and would report the boundary as broken when it is intact.
+// rather than a regex: `import type { Foo } from './bar'` is erased at build time and does not pull
+// `bar.ts` into the bundle, while `import { foo } from './bar'` does. A regex cannot tell those
+// apart and would report the boundary as broken when it is intact.
 //
 // Usage, from the repository root:
 //
@@ -194,8 +195,8 @@ if (invokedDirectly) {
       [
         "",
         "Either keep the module out of the bundle, or settle its Node dependency first —",
-        "legacy `url.parse()` becomes WHATWG `URL`, Node `path` becomes browser-safe string work.",
-        "See MIGRATION_MAP.md §8 and REMAINING.md.",
+        "`url.parse()` becomes WHATWG `URL`, Node `path` becomes browser-safe string work.",
+        "See MIGRATION_MAP.md §8.",
         "",
       ].join("\n"),
     );

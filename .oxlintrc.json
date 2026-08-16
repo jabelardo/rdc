@@ -21,12 +21,6 @@
   },
   "overrides": [
     {
-      "files": ["src/lib/api.ts", "src/lib/http.ts"],
-      "rules": {
-        "typescript/no-wrapper-object-types": "off"
-      }
-    },
-    {
       "files": [
         "src/lib/format-number.ts",
         "src/lib/sanitize-ref-name.ts",

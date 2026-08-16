@@ -1,6 +1,11 @@
 import { GitHubRepository } from "../models/github-repository";
 import { Owner } from "../models/owner";
-import { getDotComAPIEndpoint } from "../lib/api";
+/**
+ * Inlined from the deleted GitHub API client, which this fixture needed for one constant. The
+ * endpoint is a fixture detail here — `Owner` stores whatever string it is given — so the fixture
+ * owns it rather than resurrecting a service layer to supply it.
+ */
+const dotComApiEndpoint = "https://api.github.com";
 
 let id_counter = 0;
 
@@ -46,7 +51,7 @@ export function gitHubRepoFixture({
   return new GitHubRepository(
     name,
     "github",
-    new Owner(owner, endpoint !== undefined ? endpoint : getDotComAPIEndpoint(), id_counter++),
+    new Owner(owner, endpoint !== undefined ? endpoint : dotComApiEndpoint, id_counter++),
     login,
     id_counter++,
     isPrivate !== undefined ? isPrivate : null,

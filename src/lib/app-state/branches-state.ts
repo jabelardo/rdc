@@ -6,7 +6,6 @@
  */
 
 import { Branch } from "../../models/branch";
-import { PullRequest } from "../../models/pull-request";
 import { Tip } from "../../models/tip";
 
 export interface IBranchesState {
@@ -48,15 +47,6 @@ export interface IBranchesState {
    * switches over the last couple of thousand reflog entries.
    */
   readonly recentBranches: ReadonlyArray<Branch>;
-
-  /** The open pull requests in the repository. */
-  readonly openPullRequests: ReadonlyArray<PullRequest>;
-
-  /** Are we currently loading pull requests? */
-  readonly isLoadingPullRequests: boolean;
-
-  /** The pull request associated with the current branch. */
-  readonly currentPullRequest: PullRequest | null;
 
   /**
    * Is the current branch configured to rebase on pull?
