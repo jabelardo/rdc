@@ -10,8 +10,8 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatNumber } from "@/utils/format-number";
 import { BranchPicker } from "./branch-picker";
-import { DialogMessage, type DialogMessageTone } from "@/components/dialogs/dialog-message";
-import { OperationProgressDialog } from "@/components/dialogs/operation-progress-dialog";
+import { DialogMessage, type DialogMessageTone } from "@/components/dialog-kit/dialog-message";
+import { OperationProgressDialog } from "@/components/dialog-kit/operation-progress-dialog";
 import type { OperationProgressViewModel } from "@/lib/operations/operation-presentation";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";

@@ -3,8 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { validateBranchName } from "@/features/branches/validate-branch-name";
-import { DialogActions } from "@/components/dialogs/dialog-actions";
-import { DialogMessage, type DialogMessageTone } from "@/components/dialogs/dialog-message";
+import { DialogActions } from "@/components/dialog-kit/dialog-actions";
+import { DialogMessage, type DialogMessageTone } from "@/components/dialog-kit/dialog-message";
 
 const MessageID = "rename-branch-message";
 

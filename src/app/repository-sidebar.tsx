@@ -18,7 +18,7 @@ import type { ConflictState } from "@/features/conflicts/stores/conflict-store";
 import type { OperationProgressViewModel } from "@/lib/operations/operation-presentation";
 import { BranchListRow } from "@/app/branch-list-row";
 import { RepositoryListRow } from "@/app/repository-list-row";
-import { OperationProgressBody } from "@/components/dialogs/operation-progress-dialog";
+import { OperationProgressBody } from "@/components/dialog-kit/operation-progress-dialog";
 import {
   MvpSidebarCapabilities,
   type SidebarSectionID,

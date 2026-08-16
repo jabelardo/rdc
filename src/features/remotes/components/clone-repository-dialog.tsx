@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DialogActions } from "@/components/dialogs/dialog-actions";
-import { DialogMessage } from "@/components/dialogs/dialog-message";
-import { OperationProgressDialog } from "@/components/dialogs/operation-progress-dialog";
+import { DialogActions } from "@/components/dialog-kit/dialog-actions";
+import { DialogMessage } from "@/components/dialog-kit/dialog-message";
+import { OperationProgressDialog } from "@/components/dialog-kit/operation-progress-dialog";
 import type { OperationProgressViewModel } from "@/lib/operations/operation-presentation";
 
 const MessageID = "clone-repository-message";

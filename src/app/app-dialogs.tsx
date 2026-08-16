@@ -36,8 +36,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { ExternalLink } from "@/components/external-link";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
-import { ConfirmOptOut } from "@/components/dialogs/confirm-opt-out";
+import { ConfirmDialog } from "@/components/dialog-kit/confirm-dialog";
+import { ConfirmOptOut } from "@/components/dialog-kit/confirm-opt-out";
 import { CloneRepositoryDialog } from "@/features/remotes/components/clone-repository-dialog";
 import {
   DiscardFileList,
@@ -51,9 +51,9 @@ import {
   RebaseBranchDialog,
   rebaseCandidates,
 } from "@/features/branches/components/rebase-branch-dialog";
-import { NoticeDialog } from "@/components/dialogs/notice-dialog";
+import { NoticeDialog } from "@/components/dialog-kit/notice-dialog";
 import { RenameBranchDialog } from "@/features/branches/components/rename-branch-dialog";
-import { OperationProgressDialog } from "@/components/dialogs/operation-progress-dialog";
+import { OperationProgressDialog } from "@/components/dialog-kit/operation-progress-dialog";
 import { PreferencesDialog } from "@/features/preferences/components/preferences-dialog";
 import { TerminalOutput } from "@/components/terminal-output";
 import type { MergeTreeResult } from "@/models/merge";
@@ -63,7 +63,7 @@ import {
   operationProgressViewModel,
   type OperationProgressViewModel,
 } from "@/lib/operations/operation-presentation";
-import { DialogFailure } from "@/components/dialogs/dialog-failure";
+import { DialogFailure } from "@/components/dialog-kit/dialog-failure";
 import { ManageRemotesDialog } from "@/features/remotes/components/manage-remotes-dialog";
 
 type AppDialogsProps = {

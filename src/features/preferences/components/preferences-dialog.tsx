@@ -16,7 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { DialogFailure } from "@/components/dialogs/dialog-failure";
+import { DialogFailure } from "@/components/dialog-kit/dialog-failure";
 
 type PreferencesDialogProps = {
   readonly state: PreferencesState;
