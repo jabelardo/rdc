@@ -113,7 +113,7 @@ export function checkModuleBoundaries() {
   const dialogRoot = /<(Dialog|AlertDialog)[\s>]/g;
   for (const file of walk("src")) {
     const relative = path.relative("src", file).split(path.sep).join("/");
-    if (!relative.endsWith(".tsx") || /\.test\.tsx$/.test(relative)) continue;
+    if (!relative.endsWith(".tsx") || relative.endsWith(".test.tsx")) continue;
     if (relative.startsWith("components/ui/")) continue; // the primitives themselves
     const roots = (readFileSync(file, "utf8").match(dialogRoot) ?? []).length;
     if (relative === "app/app-dialogs.tsx" && roots > 0) {
