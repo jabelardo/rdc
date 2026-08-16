@@ -11,21 +11,10 @@ import {
 import { ExternalLink } from "@/components/external-link";
 
 type AboutDialogProps = {
-  /** `null` until the architecture has been resolved; the version shows without it until then. */
   readonly architecture: Architecture | null;
   readonly onDismiss: () => void;
 };
 
-/**
- * What rdc is, and exactly which build this is.
- *
- * Lives in `app/` rather than a feature because its subject is the application itself — there is no
- * feature that owns "which version am I running". Extracted from `app-dialogs.tsx`, where it was
- * inline, so it can be previewed and so the version line has somewhere to be tested.
- *
- * The version paragraph is `select-text` on purpose: this string exists to be pasted into a bug
- * report, which is also why the architecture is shown beside it.
- */
 export function AboutDialog({ architecture, onDismiss }: AboutDialogProps) {
   return (
     <Dialog

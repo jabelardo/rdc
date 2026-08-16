@@ -1,8 +1,6 @@
-import { BranchType, type Branch } from "@/models/branch";
 import type { IRemote } from "@/models/remote";
 import type { Repository } from "@/models/repository";
 import type { WorkingDirectoryFileChange } from "@/models/status";
-import type { BranchState } from "@/features/branches/stores/branch-store";
 import type { CloneState } from "@/features/remotes/stores/clone-store";
 import type {
   PreferencesState,
@@ -14,7 +12,6 @@ import type {
   RunningHookState,
   WorkingTreeStore,
 } from "@/features/changes/stores/working-tree-store";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/dialog-kit/confirm-dialog";
 import { ConfirmOptOut } from "@/components/dialog-kit/confirm-opt-out";
 import { CloneRepositoryDialog } from "@/features/remotes/components/clone-repository-dialog";
@@ -22,22 +19,9 @@ import {
   DiscardFileList,
   discardAllQuestion,
 } from "@/features/changes/components/discard-file-list";
-import {
-  MergeBranchDialog,
-  mergeCandidates,
-} from "@/features/branches/components/merge-branch-dialog";
-import {
-  RebaseBranchDialog,
-  rebaseCandidates,
-} from "@/features/branches/components/rebase-branch-dialog";
-import { NoticeDialog } from "@/components/dialog-kit/notice-dialog";
-import { RenameBranchDialog } from "@/features/branches/components/rename-branch-dialog";
 import { OperationProgressDialog } from "@/components/dialog-kit/operation-progress-dialog";
 import { PreferencesDialog } from "@/features/preferences/components/preferences-dialog";
 import { TerminalOutput } from "@/components/terminal-output";
-import type { MergeTreeResult } from "@/models/merge";
-import type { MergeStrategy } from "@/models/merge-strategy";
-import type { RebasePreview } from "@/models/rebase-preview";
 import {
   operationProgressViewModel,
   type OperationProgressViewModel,
@@ -91,46 +75,6 @@ type AppDialogsProps = {
   readonly removeRepositoryError: string | null;
   readonly removingRepository: boolean;
   readonly onConfirmRemoveRepository: () => void;
-  readonly branchToRename: Branch | null;
-  readonly renameName: string;
-  readonly onRenameNameChange: (value: string) => void;
-  readonly onConfirmRename: () => void;
-  readonly onCancelRename: () => void;
-  readonly branchToDelete: Branch | null;
-  readonly deleteRefusal: string | null;
-  readonly deleteUnmerged: boolean;
-  readonly deletePruneTrackingRef: boolean;
-  readonly onDeletePruneChange: (value: boolean) => void;
-  readonly onConfirmDelete: () => void;
-  readonly onCancelDelete: () => void;
-  readonly branchState: BranchState;
-  readonly mergePickerOpen: boolean;
-  readonly mergeTarget: string;
-  readonly onMergeTargetChange: (value: string) => void;
-  readonly mergeMessage: string | null;
-  readonly mergeRunning: boolean;
-  readonly mergeStatus: MergeTreeResult | null;
-  readonly mergeCommitCount: number;
-  readonly mergeProgress: Extract<BranchState["progress"], { kind: "generic" }> | null;
-  readonly mergeStrategy: MergeStrategy;
-  readonly onMergeStrategyChange: (strategy: MergeStrategy) => void;
-  readonly mergePreviewError: string | null;
-  readonly mergedBranches: ReadonlyMap<string, string>;
-  readonly onConfirmMerge: () => void;
-  readonly onCancelMerge: () => void;
-  readonly rebasePickerOpen: boolean;
-  readonly rebaseTarget: string;
-  readonly onRebaseTargetChange: (value: string) => void;
-  readonly rebaseMessage: string | null;
-  readonly rebaseRunning: boolean;
-  readonly rebaseProgress: Extract<
-    BranchState["progress"],
-    { kind: "multiCommitOperation" }
-  > | null;
-  readonly rebasePreview: RebasePreview | null;
-  readonly rebasePreviewError: string | null;
-  readonly onConfirmRebase: () => void;
-  readonly onCancelRebase: () => void;
   readonly showManageRemotes: boolean;
   readonly remotes: ReadonlyArray<IRemote>;
   readonly remoteFilter: string;
@@ -206,43 +150,6 @@ export function AppDialogs({
   removeRepositoryError,
   removingRepository,
   onConfirmRemoveRepository,
-  branchToRename,
-  renameName,
-  onRenameNameChange,
-  onConfirmRename,
-  onCancelRename,
-  branchToDelete,
-  deleteRefusal,
-  deleteUnmerged,
-  deletePruneTrackingRef,
-  onDeletePruneChange,
-  onConfirmDelete,
-  onCancelDelete,
-  branchState,
-  mergePickerOpen,
-  mergeTarget,
-  onMergeTargetChange,
-  mergeMessage,
-  mergeRunning,
-  mergeStatus,
-  mergeCommitCount,
-  mergeProgress,
-  mergeStrategy,
-  onMergeStrategyChange,
-  mergePreviewError,
-  mergedBranches,
-  onConfirmMerge,
-  onCancelMerge,
-  rebasePickerOpen,
-  rebaseTarget,
-  onRebaseTargetChange,
-  rebaseMessage,
-  rebaseRunning,
-  rebaseProgress,
-  rebasePreview,
-  rebasePreviewError,
-  onConfirmRebase,
-  onCancelRebase,
   showManageRemotes,
   remotes,
   remoteFilter,
@@ -312,15 +219,6 @@ export function AppDialogs({
           />
         )}
 
-      {operationViewModel?.operation === "rebase" && !rebasePickerOpen && (
-        <OperationProgressDialog
-          viewModel={operationViewModel}
-          onCancel={onCancelOperation}
-          onAdoptCancellation={onAdoptCancellation}
-          onClose={onDismissOperation}
-        />
-      )}
-
       {discardFile !== null && (
         <ConfirmDialog
           title={permanentlyDiscard ? "Permanently discard changes" : "Confirm discard changes"}
@@ -370,110 +268,6 @@ export function AppDialogs({
           </p>
           <ConfirmOptOut checked={discardOptOut} onChange={onDiscardOptOutChange} />
         </ConfirmDialog>
-      )}
-
-      {branchToRename !== null && (
-        <RenameBranchDialog
-          branch={branchToRename}
-          name={renameName}
-          existingNames={branchState.branches
-            .filter((branch) => branch.type === BranchType.Local)
-            .map((branch) => branch.name)}
-          busy={branchState.operation === "renaming"}
-          failure={branchState.dialogError}
-          onNameChange={onRenameNameChange}
-          onConfirm={onConfirmRename}
-          onCancel={onCancelRename}
-        />
-      )}
-
-      {deleteRefusal !== null ? (
-        <NoticeDialog title="Cannot delete branch" onDismiss={onCancelDelete}>
-          {deleteRefusal}
-        </NoticeDialog>
-      ) : (
-        branchToDelete !== null && (
-          <ConfirmDialog
-            title="Delete branch"
-            description={
-              <>
-                Delete <strong>{branchToDelete.name}</strong>?
-                {branchToDelete.upstream !== null &&
-                  ` This branch tracks ${branchToDelete.upstream}.`}
-              </>
-            }
-            confirmLabel="Delete branch"
-            onConfirm={onConfirmDelete}
-            onCancel={onCancelDelete}
-          >
-            {deleteUnmerged && (
-              <p className="rounded-[var(--radius-small)] border border-[var(--warning-border)] bg-[var(--warning-surface)] px-2.5 py-2 text-[var(--warning-text)]">
-                This branch has commits that are not in the current branch. Deleting it will
-                permanently remove them.
-              </p>
-            )}
-            {branchToDelete.upstream !== null && (
-              <label className="flex w-fit items-center gap-2">
-                <Checkbox
-                  checked={deletePruneTrackingRef}
-                  onCheckedChange={(value) => onDeletePruneChange(value === true)}
-                />
-                Also remove the local record of the remote branch ({branchToDelete.upstream})
-              </label>
-            )}
-          </ConfirmDialog>
-        )
-      )}
-
-      {mergePickerOpen && (
-        <MergeBranchDialog
-          currentBranch={branchState.currentBranch ?? "—"}
-          candidates={mergeCandidates(
-            branchState.branches,
-            branchState.currentBranch,
-            mergedBranches,
-          )}
-          defaultBranch={branchState.defaultBranch}
-          recentBranches={branchState.recentBranches}
-          selected={branchState.branches.find((branch) => branch.name === mergeTarget) ?? null}
-          strategy={mergeStrategy}
-          status={mergeStatus}
-          commitCount={mergeCommitCount}
-          running={mergeRunning}
-          progress={mergeProgress}
-          failure={mergeMessage ?? mergePreviewError}
-          onSelect={(branch) => onMergeTargetChange(branch.name)}
-          onStrategyChange={onMergeStrategyChange}
-          onConfirm={onConfirmMerge}
-          onCancel={onCancelMerge}
-          operationViewModel={
-            operationViewModel?.operation === "merge" ? operationViewModel : undefined
-          }
-          onCancelOperation={onCancelOperation}
-          onAdoptCancellation={onAdoptCancellation}
-        />
-      )}
-
-      {rebasePickerOpen && (
-        <RebaseBranchDialog
-          currentBranch={branchState.currentBranch ?? "—"}
-          candidates={rebaseCandidates(branchState.branches, branchState.currentBranch)}
-          defaultBranch={branchState.defaultBranch}
-          recentBranches={branchState.recentBranches}
-          selected={branchState.branches.find((branch) => branch.name === rebaseTarget) ?? null}
-          preview={rebasePreview}
-          running={rebaseRunning}
-          progress={rebaseProgress}
-          failure={rebaseMessage ?? rebasePreviewError}
-          onSelect={(branch) => onRebaseTargetChange(branch.name)}
-          onConfirm={onConfirmRebase}
-          onCancel={onCancelRebase}
-          operationViewModel={
-            operationViewModel?.operation === "rebase" ? operationViewModel : undefined
-          }
-          onCancelOperation={onCancelOperation}
-          onAdoptCancellation={onAdoptCancellation}
-        />
       )}
 
       {showManageRemotes && (

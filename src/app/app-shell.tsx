@@ -3,6 +3,7 @@ import { useRef, type CSSProperties } from "react";
 import { showFolderContents } from "@/platform/files";
 import { HorizontalResizer } from "@/components/horizontal-resizer";
 import { AppDialogs } from "./app-dialogs";
+import { BranchDialogs } from "@/features/branches/components/branch-dialogs";
 import { ChangesWorkspace } from "@/features/changes/components/changes-workspace";
 import { HistoryWorkspace } from "@/features/history/components/history-workspace";
 import { MergeConflicts } from "@/features/conflicts/components/merge-conflicts";
@@ -375,6 +376,51 @@ export function AppShell({ controller }: AppShellProps) {
           onDismiss={onDebugDismissOperationProgressLauncher}
         />
       )}
+      <BranchDialogs
+        branchState={branchState}
+        branchToRename={branchToRename}
+        renameName={renameName}
+        onRenameNameChange={setRenameName}
+        onConfirmRename={() => void confirmRename()}
+        onCancelRename={cancelRename}
+        branchToDelete={branchToDelete}
+        deleteRefusal={deleteRefusal}
+        deleteUnmerged={deleteUnmerged}
+        deletePruneTrackingRef={deletePruneTrackingRef}
+        onDeletePruneChange={setDeletePruneTrackingRef}
+        onConfirmDelete={() => void confirmDelete()}
+        onCancelDelete={cancelDelete}
+        mergePickerOpen={mergePickerOpen}
+        mergeTarget={mergeTarget}
+        onMergeTargetChange={setMergeTarget}
+        mergeMessage={mergeMessage}
+        mergeRunning={mergeRunning}
+        mergeStatus={mergeStatus}
+        mergeCommitCount={mergeCommitCount}
+        mergeProgress={branchState.progress?.kind === "generic" ? branchState.progress : null}
+        mergeStrategy={mergeStrategy}
+        onMergeStrategyChange={setMergeStrategy}
+        mergePreviewError={mergePreviewError}
+        mergedBranches={mergedBranches}
+        onConfirmMerge={() => void confirmMerge()}
+        onCancelMerge={cancelMerge}
+        rebasePickerOpen={rebasePickerOpen}
+        rebaseTarget={rebaseTarget}
+        onRebaseTargetChange={setRebaseTarget}
+        rebaseMessage={rebaseMessage}
+        rebaseRunning={rebaseRunning}
+        rebasePreview={rebasePreview}
+        rebasePreviewError={rebasePreviewError}
+        onConfirmRebase={() => void confirmRebase()}
+        onCancelRebase={cancelRebase}
+        operationViewModel={operationViewModel}
+        onCancelOperation={() => void operationStore.requestCancellation()}
+        onAdoptCancellation={() => void operationStore.requestCancellation(true)}
+        rebaseProgress={
+          branchState.progress?.kind === "multiCommitOperation" ? branchState.progress : null
+        }
+        onDismissOperation={() => operationStore.dismissTerminalOperation()}
+      />
       <AppDialogs
         discardFile={discardFile}
         permanentlyDiscard={permanentlyDiscard}
@@ -431,45 +477,6 @@ export function AppShell({ controller }: AppShellProps) {
         removeRepositoryError={removeRepositoryError}
         removingRepository={removingRepository}
         onConfirmRemoveRepository={() => void confirmRemoveRepository()}
-        branchToRename={branchToRename}
-        renameName={renameName}
-        onRenameNameChange={setRenameName}
-        onConfirmRename={() => void confirmRename()}
-        onCancelRename={cancelRename}
-        branchToDelete={branchToDelete}
-        deleteRefusal={deleteRefusal}
-        deleteUnmerged={deleteUnmerged}
-        deletePruneTrackingRef={deletePruneTrackingRef}
-        onDeletePruneChange={setDeletePruneTrackingRef}
-        onConfirmDelete={() => void confirmDelete()}
-        onCancelDelete={cancelDelete}
-        branchState={branchState}
-        mergePickerOpen={mergePickerOpen}
-        mergeTarget={mergeTarget}
-        onMergeTargetChange={setMergeTarget}
-        mergeMessage={mergeMessage}
-        mergeRunning={mergeRunning}
-        mergeStatus={mergeStatus}
-        mergeCommitCount={mergeCommitCount}
-        mergeProgress={branchState.progress?.kind === "generic" ? branchState.progress : null}
-        mergeStrategy={mergeStrategy}
-        onMergeStrategyChange={setMergeStrategy}
-        mergePreviewError={mergePreviewError}
-        mergedBranches={mergedBranches}
-        onConfirmMerge={() => void confirmMerge()}
-        onCancelMerge={cancelMerge}
-        rebasePickerOpen={rebasePickerOpen}
-        rebaseTarget={rebaseTarget}
-        onRebaseTargetChange={setRebaseTarget}
-        rebaseMessage={rebaseMessage}
-        rebaseRunning={rebaseRunning}
-        rebaseProgress={
-          branchState.progress?.kind === "multiCommitOperation" ? branchState.progress : null
-        }
-        rebasePreview={rebasePreview}
-        rebasePreviewError={rebasePreviewError}
-        onConfirmRebase={() => void confirmRebase()}
-        onCancelRebase={cancelRebase}
         showManageRemotes={showManageRemotes}
         remotes={remoteState.remotes}
         remoteFilter={remoteFilter}
