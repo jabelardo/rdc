@@ -14,16 +14,6 @@ import type {
   RunningHookState,
   WorkingTreeStore,
 } from "@/features/changes/stores/working-tree-store";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { ExternalLink } from "@/components/external-link";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ConfirmDialog } from "@/components/dialog-kit/confirm-dialog";
 import { ConfirmOptOut } from "@/components/dialog-kit/confirm-opt-out";
@@ -52,6 +42,7 @@ import {
   operationProgressViewModel,
   type OperationProgressViewModel,
 } from "@/lib/operations/operation-presentation";
+import { AboutDialog } from "./about-dialog";
 import { HookFailureDialog } from "@/features/changes/components/hook-failure-dialog";
 import { AddRemoteDialog } from "@/features/remotes/components/add-remote-dialog";
 import { ManageRemotesDialog } from "@/features/remotes/components/manage-remotes-dialog";
@@ -555,36 +546,7 @@ export function AppDialogs({
         </ConfirmDialog>
       )}
 
-      {showAboutDialog && (
-        <Dialog
-          open
-          onOpenChange={(open) => {
-            if (!open) {
-              onDismissAbout();
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-[400px]">
-            <DialogHeader>
-              <DialogTitle>About RDC</DialogTitle>
-              <DialogDescription>A native Git client built with Tauri and Rust.</DialogDescription>
-            </DialogHeader>
-            <p className="select-text">
-              Version {__APP_VERSION__}
-              {appArchitecture === null ? "" : ` (${appArchitecture})`}
-            </p>
-            <p className="flex flex-col gap-1">
-              <ExternalLink href="https://github.com/jabelardo/rdc">rdc on GitHub</ExternalLink>
-              <ExternalLink href="https://github.com/jabelardo/rdc/blob/main/LICENSE">
-                MIT License
-              </ExternalLink>
-            </p>
-            <DialogFooter>
-              <Button onClick={onDismissAbout}>Close</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {showAboutDialog && <AboutDialog architecture={appArchitecture} onDismiss={onDismissAbout} />}
 
       {showPreferencesDialog && (
         <PreferencesDialog
