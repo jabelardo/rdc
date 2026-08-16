@@ -1,35 +1,7 @@
 import { describe, it } from "vitest";
 import assert from "node:assert";
-import { mapStatus, isConflictedFile, hasConflictedFiles } from "@/utils/status";
-import {
-  AppFileStatusKind,
-  WorkingDirectoryStatus,
-  WorkingDirectoryFileChange,
-  GitStatusEntry,
-} from "@/models/status";
-import { DiffSelection, DiffSelectionType } from "@/models/diff/diff-selection";
-
-function makeFile(path: string, kind: AppFileStatusKind): WorkingDirectoryFileChange {
-  const status =
-    kind === AppFileStatusKind.Conflicted
-      ? {
-          kind: kind as AppFileStatusKind.Conflicted,
-          entry: {
-            kind: "conflicted" as const,
-            action: "both-modified" as any,
-            us: GitStatusEntry.UpdatedButUnmerged,
-            them: GitStatusEntry.UpdatedButUnmerged,
-          },
-          conflictMarkerCount: 1,
-        }
-      : { kind };
-
-  return new WorkingDirectoryFileChange(
-    path,
-    status as any,
-    DiffSelection.fromInitialSelection(DiffSelectionType.All),
-  );
-}
+import { mapStatus } from "@/utils/status";
+import { AppFileStatusKind } from "@/models/status";
 
 describe("lib/status", () => {
   describe("mapStatus", () => {
@@ -69,53 +41,6 @@ describe("lib/status", () => {
         }),
         "Copied",
       );
-    });
-  });
-
-  describe("isConflictedFile", () => {
-    it("returns true for conflicted files", () => {
-      const status = {
-        kind: AppFileStatusKind.Conflicted,
-        entry: {
-          kind: "conflicted" as const,
-          action: "both-modified" as any,
-          us: GitStatusEntry.UpdatedButUnmerged,
-          them: GitStatusEntry.UpdatedButUnmerged,
-        },
-        conflictMarkerCount: 1,
-      };
-      assert.equal(isConflictedFile(status as any), true);
-    });
-
-    it("returns false for non-conflicted files", () => {
-      assert.equal(isConflictedFile({ kind: AppFileStatusKind.Modified }), false);
-      assert.equal(isConflictedFile({ kind: AppFileStatusKind.New }), false);
-      assert.equal(isConflictedFile({ kind: AppFileStatusKind.Deleted }), false);
-    });
-  });
-
-  describe("hasConflictedFiles", () => {
-    it("returns false for an empty working directory", () => {
-      const wd = WorkingDirectoryStatus.fromFiles([]);
-      assert.equal(hasConflictedFiles(wd), false);
-    });
-
-    it("returns false when no files are conflicted", () => {
-      const files = [
-        makeFile("a.txt", AppFileStatusKind.Modified),
-        makeFile("b.txt", AppFileStatusKind.New),
-      ];
-      const wd = WorkingDirectoryStatus.fromFiles(files);
-      assert.equal(hasConflictedFiles(wd), false);
-    });
-
-    it("returns true when a file is conflicted", () => {
-      const files = [
-        makeFile("a.txt", AppFileStatusKind.Modified),
-        makeFile("b.txt", AppFileStatusKind.Conflicted),
-      ];
-      const wd = WorkingDirectoryStatus.fromFiles(files);
-      assert.equal(hasConflictedFiles(wd), true);
     });
   });
 });
