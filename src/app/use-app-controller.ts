@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { join } from "@tauri-apps/api/path";
 import type { Branch } from "@/models/branch";
 import type { Commit } from "@/models/commit";
@@ -8,7 +8,6 @@ import {
   isContiguousSelection,
   orderSelectedCommits,
 } from "@/features/history/history-operation-selection";
-import { getMergedBranches } from "@/lib/ipc/branch-ipc";
 import { abortRebase, continueRebase, initRepository } from "@/lib/ipc/git-ipc";
 import { abortRevert, getRepositoryType, revertCommit } from "@/lib/ipc/misc-ipc";
 import { repositoryAvailability } from "@/features/repositories/repository-availability";
@@ -32,10 +31,10 @@ import {
   debugMergePreview,
   debugMergedBranches,
   debugRebasePreview,
+  isDebugStateInjected,
   injectCloneProgress,
   injectDebugState,
   injectPreferencesFailure,
-  isDebugStateInjected,
 } from "@/testing/inject-test-state";
 import { deleteBranchRefusal } from "@/features/branches/delete-branch-refusal";
 import { showFolderContents } from "@/platform/files";
@@ -55,10 +54,6 @@ import { shouldShowWindowDragRegion } from "@/platform/window-drag-region";
 import { setWindowZoomFactor } from "@/platform/window";
 import type { AppStoreState } from "@/features/repositories/stores/app-store";
 import type { BranchState } from "@/features/branches/stores/branch-store";
-import type {
-  MergeInitiationResult,
-  RebaseInitiationResult,
-} from "@/features/branches/stores/branch-store";
 import type { CloneState } from "@/features/remotes/stores/clone-store";
 import type { ConflictState } from "@/features/conflicts/stores/conflict-store";
 import { getDefaultAppStore } from "@/features/repositories/stores/default-app-store";
@@ -74,6 +69,7 @@ import { getDefaultRemoteStore } from "@/features/remotes/stores/default-remote-
 import { useRemoteDialogs } from "@/features/remotes/use-remote-dialogs";
 import { useDiscardDialogs } from "@/features/changes/use-discard-dialogs";
 import { useBranchNameDialogs } from "@/features/branches/use-branch-name-dialogs";
+import { useMergeRebaseDialogs } from "@/features/branches/use-merge-rebase-dialogs";
 import { getDefaultWorkingTreeStore } from "@/features/changes/stores/default-working-tree-store";
 import type { HistoryState } from "@/features/history/stores/history-store";
 import type { MessageState } from "@/lib/messages/message-store";
@@ -81,13 +77,6 @@ import type { PreferencesState } from "@/features/preferences/stores/preferences
 import type { RemoteState } from "@/features/remotes/stores/remote-store";
 import type { WorkingTreeState } from "@/features/changes/stores/working-tree-store";
 import type { SidebarSectionID } from "@/app/sidebar/sidebar-sections";
-import { determineMergeability } from "@/lib/ipc/misc-ipc";
-import { getAheadBehind } from "@/lib/ipc/rev-list-ipc";
-import { revSymmetricDifference } from "@/utils/rev-range";
-import { ComputedAction } from "@/models/computed-action";
-import type { MergeTreeResult } from "@/models/merge";
-import type { MergeStrategy } from "@/models/merge-strategy";
-import type { RebasePreview } from "@/models/rebase-preview";
 import { OperationStore } from "@/lib/operations/operation-store";
 import {
   isTerminalOperation,
@@ -213,32 +202,13 @@ export function useAppController() {
     refreshAfterBranchChange,
   });
 
-  const [mergePickerOpen, setMergePickerOpen] = useState(false);
-  const [mergeTarget, setMergeTarget] = useState("");
-  const [mergeMessage, setMergeMessage] = useState<string | null>(null);
-  const [mergeRunning, setMergeRunning] = useState(false);
-  // Seeded from the preference each time the dialog opens, not once at mount: the preference can
-  // change in Preferences while the app runs, and the dialog should honour the current value.
-  const [mergeStrategy, setMergeStrategy] = useState<MergeStrategy>(
-    preferencesStore.state.defaultMergeStrategy,
-  );
-  const [mergeStatus, setMergeStatus] = useState<MergeTreeResult | null>(null);
   // Distinct from a status: "we could not work out whether this can merge" is not the same claim as
   // any ComputedAction, and collapsing it into one was reporting failures as "already up to date".
-  const [mergePreviewError, setMergePreviewError] = useState<string | null>(null);
   // `git branch --merged`'s ref-to-SHA map for the current branch. One call on open, not one per
   // branch — and keeping the SHAs is what lets a remote branch on an already-merged commit be
   // recognised, since --merged itself reports only local refs.
-  const [mergedBranches, setMergedBranches] = useState<ReadonlyMap<string, string>>(new Map());
-  const [mergeCommitCount, setMergeCommitCount] = useState(0);
-  const [rebasePickerOpen, setRebasePickerOpen] = useState(false);
-  const [rebaseTarget, setRebaseTarget] = useState("");
-  const [rebasePreview, setRebasePreview] = useState<RebasePreview | null>(null);
-  const [rebaseRunning, setRebaseRunning] = useState(false);
-  const [rebaseMessage, setRebaseMessage] = useState<string | null>(null);
   // Distinct from a preview: "we could not work out how far apart these branches are" is not the
   // same claim as any ComputedAction, and collapsing it into one reported failures as "up to date".
-  const [rebasePreviewError, setRebasePreviewError] = useState<string | null>(null);
   const { discardDialog, requestDiscard, requestDiscardAll, showDiscardFilePreview } =
     useDiscardDialogs({
       repositoryPath: appState.selectedRepository?.path ?? null,
@@ -266,6 +236,30 @@ export function useAppController() {
     remotes: remoteState.remotes,
     remoteStore,
     onRemotesChanged: (repositoryPath) => branchStore.load(repositoryPath),
+  });
+
+  // Stable across renders: the preview effects depend on this, and a fresh object each render
+  // would re-run them on every keystroke. The three functions are module-level and the injected
+  // flag only ever flips once, at the moment a debug entry stubs the stores.
+  const debugPreviews = useMemo(
+    () => ({
+      mergePreview: (branchName: string) =>
+        isDebugStateInjected() ? debugMergePreview(branchName) : null,
+      rebasePreview: (branchName: string) =>
+        isDebugStateInjected() ? debugRebasePreview(branchName) : null,
+      mergedBranches: () => (isDebugStateInjected() ? debugMergedBranches() : null),
+    }),
+    [],
+  );
+
+  const { mergeDialog, rebaseDialog, requestMerge, requestRebase } = useMergeRebaseDialogs({
+    repositoryPath: appState.selectedRepository?.path ?? null,
+    branchState,
+    branchStore,
+    defaultMergeStrategy: () => preferencesStore.state.defaultMergeStrategy,
+    isWorkingTreeDirty: () => (workingTreeStore.state.workingDirectory?.files.length ?? 0) > 0,
+    debugPreviews,
+    refreshAfterBranchChange,
   });
 
   const [showCloneDialog, setShowCloneDialog] = useState(false);
@@ -745,15 +739,6 @@ export function useAppController() {
   useEffect(() => {
     const unsubscribe = workingTreeStore.onDidUpdate(setWorkingTreeState);
     const repository = appState.selectedRepository;
-    setMergePickerOpen(false);
-    setMergeMessage(null);
-    setMergeRunning(false);
-    setRebasePickerOpen(false);
-    setRebaseTarget("");
-    setRebasePreview(null);
-    setRebaseRunning(false);
-    setRebaseMessage(null);
-    setRebasePreviewError(null);
     repositoryViewTransitionID.current++;
     pendingRepositoryView.current = null;
     historyStore.clear();
@@ -1385,274 +1370,6 @@ export function useAppController() {
   }
 
   // Reactive merge preview: when mergeTarget changes, check mergeability and commit count
-  useEffect(() => {
-    if (!mergePickerOpen || mergeTarget === "") {
-      setMergeStatus(null);
-      setMergeCommitCount(0);
-      setMergePreviewError(null);
-      return;
-    }
-
-    // Stub branches exist only in the renderer, so git has nothing to compute from. Canned answers
-    // keep every outcome reachable from Help -> Show Dialog, which is what that menu is for.
-    if (isDebugStateInjected()) {
-      const preview = debugMergePreview(mergeTarget);
-      if (preview !== null) {
-        setMergePreviewError(null);
-        setMergeStatus(preview.status);
-        setMergeCommitCount(preview.commitCount);
-        return;
-      }
-    }
-
-    const repository = appState.selectedRepository;
-    if (repository === null) {
-      return;
-    }
-
-    const currentBranch = branchState.currentBranch;
-    if (currentBranch === null) {
-      return;
-    }
-
-    let disposed = false;
-    setMergePreviewError(null);
-    setMergeStatus({ kind: ComputedAction.Loading });
-
-    void determineMergeability(repository.path, currentBranch, mergeTarget)
-      .then(async (status) => {
-        if (disposed) return;
-        if (status.kind === ComputedAction.Invalid) {
-          setMergeStatus(status);
-          return;
-        }
-        const range = revSymmetricDifference("", mergeTarget);
-        const aheadBehind = await getAheadBehind(repository.path, range);
-        if (disposed) return;
-        setMergeCommitCount(aheadBehind ? aheadBehind.behind : 0);
-        setMergeStatus(status);
-      })
-      .catch((error: unknown) => {
-        if (disposed) {
-          return;
-        }
-        // Previously this reported ComputedAction.Clean, which with a zero commit count rendered as
-        // "<current> is already up to date with <branch>" — a confident, wrong statement about the
-        // user's repository whenever the lookup merely failed. Say what actually happened instead,
-        // and refuse the merge rather than starting one on an unverified assumption.
-        log.error("Failed to determine mergeability", error instanceof Error ? error : undefined);
-        setMergeStatus(null);
-        setMergeCommitCount(0);
-        setMergePreviewError("Could not determine whether these branches can be combined.");
-      });
-
-    return () => {
-      disposed = true;
-    };
-  }, [mergePickerOpen, mergeTarget, appState.selectedRepository, branchState.currentBranch]);
-
-  function requestMerge(): void {
-    setMergeStrategy(preferencesStore.state.defaultMergeStrategy);
-    setMergeTarget("");
-    setMergeMessage(null);
-    setMergeStatus(null);
-    setMergeCommitCount(0);
-    setMergePreviewError(null);
-    setMergedBranches(new Map());
-    setMergePickerOpen(true);
-
-    // Branches already contained in the current branch cannot produce a merge, so they are dropped
-    // from the candidates rather than offered and then refused. One call, and a failure just means
-    // nothing is filtered — the per-branch preview still catches it on selection.
-    if (isDebugStateInjected()) {
-      setMergedBranches(debugMergedBranches());
-      return;
-    }
-
-    const repository = appStore.state.selectedRepository;
-    const current = branchStore.state.currentBranch;
-    if (repository !== null && current !== null) {
-      void getMergedBranches(repository.path, current)
-        .then(setMergedBranches)
-        .catch((error: unknown) => {
-          log.error("Failed to list merged branches", error instanceof Error ? error : undefined);
-        });
-    }
-  }
-
-  function mergeMessageFor(result: MergeInitiationResult, target: string): string {
-    switch (result) {
-      case "up-to-date":
-        return `${target} is already up to date with the current branch.`;
-      case "invalid":
-        return "These branches do not share a common ancestor and cannot be merged.";
-      case "dirty":
-        return "Clean the working tree before merging.";
-      case "failed":
-        return "The merge failed.";
-      case "merged":
-      case "conflict":
-        return "";
-    }
-  }
-
-  async function confirmMerge(): Promise<void> {
-    if (mergeTarget === "" || mergeRunning) {
-      return;
-    }
-    setMergeRunning(true);
-    setMergeMessage(null);
-    const target = mergeTarget;
-    const workingTreeDirty = (workingTreeState.workingDirectory?.files.length ?? 0) > 0;
-    try {
-      const result = await branchStore.initiateMerge(target, {
-        workingTreeDirty,
-        squash: mergeStrategy === "squash",
-      });
-      if (result === "merged" || result === "conflict") {
-        await refreshAfterBranchChange(() => Promise.resolve(true));
-        setMergePickerOpen(false);
-        return;
-      }
-      setMergeMessage(mergeMessageFor(result, target));
-    } catch {
-      setMergeMessage("The merge failed.");
-    } finally {
-      setMergeRunning(false);
-    }
-  }
-
-  function cancelMerge(): void {
-    if (mergeRunning) {
-      return;
-    }
-    setMergePickerOpen(false);
-    setMergeMessage(null);
-    setMergeTarget("");
-    setMergeStatus(null);
-    setMergeCommitCount(0);
-  }
-
-  // Reactive rebase preview: when rebaseTarget changes, work out how far the current branch is
-  // from the base, mirroring desktop-plus's updateRebasePreview. `ahead` is the current branch's
-  // own commits (the ones a rebase replays); `behind` is the base's commits the current branch is
-  // missing, and a rebase can only start when it is positive.
-  useEffect(() => {
-    if (!rebasePickerOpen || rebaseTarget === "") {
-      setRebasePreview(null);
-      setRebasePreviewError(null);
-      return;
-    }
-
-    // Stub branches have no ancestry, so git has nothing to compute from. Canned answers keep
-    // every outcome reachable from Help -> Show Dialog, which is what that menu is for.
-    if (isDebugStateInjected()) {
-      const preview = debugRebasePreview(rebaseTarget);
-      if (preview !== null) {
-        setRebasePreviewError(null);
-        setRebasePreview(preview);
-        return;
-      }
-    }
-
-    const repository = appState.selectedRepository;
-    const current = branchState.currentBranch;
-    if (repository === null || current === null) {
-      return;
-    }
-
-    let disposed = false;
-    setRebasePreviewError(null);
-    setRebasePreview({ kind: ComputedAction.Loading });
-    void getAheadBehind(repository.path, revSymmetricDifference(current, rebaseTarget))
-      .then((result) => {
-        if (disposed) {
-          return;
-        }
-        // A ref in the range vanished; desktop-plus treats the same case as Invalid.
-        if (result === null) {
-          setRebasePreview({ kind: ComputedAction.Invalid });
-          return;
-        }
-        setRebasePreview({
-          kind: ComputedAction.Clean,
-          commitsAhead: result.ahead,
-          commitsBehind: result.behind,
-        });
-      })
-      .catch((error: unknown) => {
-        if (disposed) {
-          return;
-        }
-        log.error("Failed to preview rebase", error instanceof Error ? error : undefined);
-        setRebasePreview(null);
-        setRebasePreviewError("Could not determine whether these branches can be combined.");
-      });
-
-    return () => {
-      disposed = true;
-    };
-  }, [rebasePickerOpen, rebaseTarget, appState.selectedRepository, branchState.currentBranch]);
-
-  function requestRebase(): void {
-    setRebaseTarget("");
-    setRebaseMessage(null);
-    setRebasePreview(null);
-    setRebasePreviewError(null);
-    setRebasePickerOpen(true);
-  }
-
-  function rebaseMessageFor(result: RebaseInitiationResult): string {
-    switch (result) {
-      case "completed":
-        return "";
-      case "conflict":
-        // A rebase conflict writes .git/rebase-merge/, which rdc's conflict recovery (tracked on
-        // mergeInProgress) does not see, so closing the dialog into that void would strand the user.
-        // Stay openly in the dialog and state the boundary rather than pretend recovery exists.
-        return "The rebase stopped on conflicts. Resolve them, then continue or abort the rebase from a terminal.";
-      case "up-to-date":
-        return "The current branch is already up to date with the selected base.";
-      case "dirty":
-        return "Clean the working tree before rebasing.";
-      case "failed":
-        return "The rebase failed.";
-    }
-  }
-
-  async function confirmRebase(): Promise<void> {
-    if (rebaseTarget === "" || rebaseRunning) {
-      return;
-    }
-    setRebaseRunning(true);
-    setRebaseMessage(null);
-    const target = rebaseTarget;
-    const workingTreeDirty = (workingTreeState.workingDirectory?.files.length ?? 0) > 0;
-    try {
-      const result = await branchStore.rebaseBranch(target, { workingTreeDirty });
-      if (result === "completed") {
-        await refreshAfterBranchChange(() => Promise.resolve(true));
-        setRebasePickerOpen(false);
-        return;
-      }
-      setRebaseMessage(rebaseMessageFor(result));
-    } catch {
-      setRebaseMessage("The rebase failed.");
-    } finally {
-      setRebaseRunning(false);
-    }
-  }
-
-  function cancelRebase(): void {
-    if (rebaseRunning) {
-      return;
-    }
-    setRebasePickerOpen(false);
-    setRebaseMessage(null);
-    setRebaseTarget("");
-    setRebasePreview(null);
-  }
-
   function toggleSidebarSection(section: SidebarSectionID): void {
     setExpandedSidebarSections((current) => {
       return current.has(section)
@@ -1766,36 +1483,6 @@ export function useAppController() {
    * share.
    */
 
-  const mergeDialog = !mergePickerOpen
-    ? null
-    : {
-        target: mergeTarget,
-        onTargetChange: setMergeTarget,
-        message: mergeMessage,
-        running: mergeRunning,
-        status: mergeStatus,
-        commitCount: mergeCommitCount,
-        strategy: mergeStrategy,
-        onStrategyChange: setMergeStrategy,
-        previewError: mergePreviewError,
-        mergedBranches,
-        onConfirm: confirmMerge,
-        onCancel: cancelMerge,
-      };
-
-  const rebaseDialog = !rebasePickerOpen
-    ? null
-    : {
-        target: rebaseTarget,
-        onTargetChange: setRebaseTarget,
-        message: rebaseMessage,
-        running: rebaseRunning,
-        preview: rebasePreview,
-        previewError: rebasePreviewError,
-        onConfirm: confirmRebase,
-        onCancel: cancelRebase,
-      };
-
   /** The remote dialogs, each `null` while closed — see the branch dialogs above for why. */
 
   const cloneDialog = !showCloneDialog
@@ -1876,10 +1563,10 @@ export function useAppController() {
     manageRemotesDialog,
     addRemoteDialog,
     cloneDialog,
-    renameDialog,
-    deleteDialog,
     mergeDialog,
     rebaseDialog,
+    renameDialog,
+    deleteDialog,
     appState,
     operationState,
     operationStore,
