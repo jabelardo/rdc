@@ -240,7 +240,9 @@ the refactor.
 
 ### Imports
 
-Relative imports within a feature; `@/` from outside it.
+**A relative import may not escape its own top-level directory** — `src/features/<name>/` for a
+feature, `src/<name>/` for everything else. Anything further uses `@/`. (This is option A′ of the
+open decision below; if A or B is chosen instead, this section is the only one that changes.)
 
 ```ts
 // inside features/branches/components/rename-branch-dialog.tsx
@@ -303,7 +305,7 @@ Moving dead code is wasted motion and makes the diff harder to read, so settle i
 
 | Group | Examples | Disposition |
 |---|---|---|
-| GitHub-service and Electron-era | `api.ts`, `http.ts`, `find-account.ts`, `parse-app-url.ts`, `squirrel-error-parser.ts` | **Delete.** Recoverable from git; a post-MVP GitHub feature will want a fresh design against Tauri anyway, not a port of Electron's client |
+| GitHub-service and Electron-era | `api.ts`, `http.ts`, `find-account.ts`, `parse-app-url.ts`, `squirrel-error-parser.ts` | **Delete — decided 2026-08-16.** Recoverable from git; a post-MVP GitHub feature will want a fresh design against Tauri anyway, not a port of Electron's client. Deleting these also removes the two `.oxlintrc.json` overrides that exist only for `api.ts` and `http.ts` |
 | Ported ahead of a planned feature | `create-branch.ts`, `rebase.ts`, `refs.ts`, `multi-commit-operation.ts`, `conventional-commits.ts` | **Move to the feature that will use it**, where being unused is legible. A file in `features/branches/` with no caller is a to-do; the same file in a flat drawer is litter |
 | Utilities with no caller | `clamp.ts`, `offset-from.ts`, `promise.ts` | **Delete** unless a named, scheduled consumer exists |
 
@@ -365,12 +367,45 @@ violations that says nothing, and turning it on after means the very next commit
 
 ## Open decisions
 
-Two, both needing sign-off before Phase 1. Everything else above is decided.
+One. Import style — see [Imports](#imports), where the recommended option is written up as if
+settled; if the other is chosen, that section changes and nothing else does.
 
-1. **Widening `@/` project-wide** reverses the recorded tsconfig decision. The alternative is
-   relative imports everywhere with the checker as the only guard, which works but leaves boundary
-   crossings invisible at the point of reading. Recommended: widen it.
-2. **Deleting the GitHub-service cluster** (~16 modules, most with tests) versus quarantining it.
-   Deleting is reversible through git and is what makes the remaining tree honest; quarantining
-   keeps a post-MVP port cheap. Recommended: delete, on the grounds that a Tauri GitHub client will
-   not want Electron's HTTP layer anyway.
+**Decided 2026-08-16: the GitHub-service cluster is deleted, not quarantined.** ~16 modules, most
+with tests, none reachable. Recoverable from git history if a post-MVP GitHub feature wants them,
+and a Tauri GitHub client will not want Electron's HTTP layer regardless.
+
+### Import style — three options, measured
+
+Facts first, because two of them were assumptions worth checking:
+
+- **`@/` already resolves from anywhere.** `tsconfig.json` maps `@/*` → `./src/*` globally and Vite
+  aliases `@` → `src` globally. Verified by compiling an `@/lib/clamp` import from inside
+  `src/lib/` — clean. The "scoped to `src/components/ui/**`" note is a *convention*, enforced by
+  nothing. Widening it costs no configuration.
+- **oxlint can enforce "no parent imports".** `import/no-relative-parent-imports` is implemented and
+  works — verified against `remote-store.ts` (flags all 9 `../` imports) and
+  `manage-remotes-dialog.tsx` (flags the 4 `../`, ignores the bare `lucide-react` import). It does
+  not distinguish a parent import that stays inside your slice from one that leaves it.
+- **Scale:** 431 upward (`../`) imports in non-test modules — 277 one level, 205 two, 82 three.
+
+| | A. Alias above the current directory | B. Relative everywhere | **A′. Alias when leaving your directory** |
+|---|---|---|---|
+| Rewrite cost | All 431 upward imports | None | The subset that crosses a top-level boundary |
+| Enforced by | Stock `import/no-relative-parent-imports` | The checker, which exists anyway | The checker, one extra rule |
+| A cross-boundary import is | Visible | Invisible — count the `../` and guess | Visible |
+| Renaming a feature | Rewrites its internal imports too | Free | Free |
+| Rules to learn | One | One | Two |
+
+**A′ is recommended**, and the tiebreak is not aesthetics: *it makes the architecture legible in
+ordinary code*. Under A′ an `@/` in an import line means exactly one thing — this line leaves my
+slice — which is the concept the whole structure is built on, taught to a reader on every file they
+open. Under A the alias is everywhere and signals nothing; under B nothing signals anything.
+
+The apparent advantage of A, that stock lint enforces it, is worth less than it looks: the boundary
+checker has to exist for the cross-feature rule regardless, and it already resolves every import to
+a path. "Did this `../` escape your top-level directory" is a comparison it can make in one line.
+
+The precise rule under A′, stated so the checker can assert it verbatim:
+
+> A relative import may not escape its own top-level directory — `src/features/<name>/` for a
+> feature, `src/<name>/` for everything else. Anything further uses `@/`.
