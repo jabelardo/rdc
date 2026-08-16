@@ -79,6 +79,15 @@ function bubbleTop() {
   return match?.[1]?.trim() ?? "(not positioned)";
 }
 
+/** The bubble's distance from the left of the viewport, read the same way as `bubbleTop`. */
+function bubbleLeft() {
+  const wrapper = screen
+    .getByRole("tooltip")
+    .closest("[data-radix-popper-content-wrapper]") as HTMLElement | null;
+  const match = /translate(?:3d)?\(([^,]+)/.exec(wrapper?.style.transform ?? "");
+  return match?.[1]?.trim() ?? "(not positioned)";
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -171,5 +180,35 @@ describe("Tooltip", () => {
 
     // Must not throw by calling a hide function whose component is gone.
     expect(() => dismissAllTooltips()).not.toThrow();
+  });
+
+  /**
+   * The bubble was positioned as though it had no width — on every showing, not just reopened ones.
+   *
+   * `onOpenChange` repositions the moment the tooltip opens, before Radix has mounted the content,
+   * so `contentRef` is null and the measurement is 0x0. That set `placement` to a non-null value,
+   * and the content ref then declined to re-measure because it only did so while `placement` was
+   * null. The second pass the two-pass design depends on never ran: instrumenting `measure` showed
+   * exactly one call, with `width: 0`.
+   *
+   * A zero-width bubble centres on nothing, so its left edge lands on the trigger's centre and it
+   * extends right. Invisible until a trigger sits near the right edge — the Manage remotes delete
+   * buttons — where the bubble then runs off the window. The vertical assertions above never caught
+   * it because the "below" placement does not depend on the bubble's height.
+   */
+  it("centres the bubble on its trigger, which needs the bubble's real width", async () => {
+    stubRects();
+    render(
+      <Tooltip label="Remove the upstream remote">
+        <button type="button">Remove</button>
+      </Tooltip>,
+    );
+
+    await userEvent.hover(screen.getByRole("button", { name: "Remove" }));
+
+    // The stubbed trigger spans 10..34, so its centre is 22, and the stubbed bubble is 120 wide:
+    // centred it would start at -38, which clamps to the 8px viewport margin. Measured as
+    // zero-width it starts on the trigger's centre instead, which is the 22px this used to report.
+    expect(bubbleLeft()).toBe("8px");
   });
 });

@@ -220,9 +220,14 @@ export function Tooltip({ label, children, delay = 0, suppressed = false }: Tool
       <RadixTooltip.Content
         ref={(node) => {
           contentRef.current = node;
-          // A tall trigger's offset needs the bubble's height, so the first usable measurement is
-          // the one taken once it exists.
-          if (node !== null && placement === null) {
+          // Measure whenever the bubble mounts, not only while `placement` is still null.
+          //
+          // `onOpenChange` repositions the moment the tooltip opens, which is before Radix has
+          // mounted this node — so that pass measures nothing and sets `placement` anyway. Gating
+          // on `placement === null` therefore skipped the only pass that can see the bubble's real
+          // size, and every tooltip was positioned as a zero-width box: left edge on the trigger's
+          // centre rather than centred on it. Harmless until a trigger sits near the right edge.
+          if (node !== null) {
             reposition();
           }
         }}
