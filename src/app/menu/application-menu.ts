@@ -5,7 +5,7 @@ import type { MenuEvent } from "@/models/menu-event";
 import { getKeybindings, onKeybindingsChanged } from "@/platform/keybindings";
 import { onNativeMenuAction, setNativeMenu } from "@/platform/menu";
 import type { MenuPlatform } from "@/models/menu-platform";
-import { currentMenuPlatform } from "./default-menu";
+import { currentMenuPlatform } from "@/models/menu-platform";
 import { buildStartupMenu, createStartupMenuActionExecutor } from "./startup";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { quitApp } from "@/platform/lifetime";

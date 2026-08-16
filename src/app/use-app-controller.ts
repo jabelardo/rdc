@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { join } from "@tauri-apps/api/path";
 import type { Branch } from "@/models/branch";
 import type { Commit } from "@/models/commit";
 import { nameOf, type Repository } from "@/models/repository";
-import { getCloneDirectoryName } from "@/features/remotes/clone-destination";
 import {
   isContiguousSelection,
   orderSelectedCommits,
@@ -22,7 +20,7 @@ import {
 import { installApplicationMenu } from "@/app/menu/application-menu";
 import { showContextMenu } from "@/platform/menu";
 import { dismissAllTooltips } from "@/components/tooltip/tooltip";
-import { currentMenuPlatform } from "@/app/menu/default-menu";
+import { currentMenuPlatform } from "@/models/menu-platform";
 import { buildRepositoryMenu, createRepositoryMenuEventExecutor } from "@/app/menu/repository-menu";
 import { getMainProcessConfig } from "@/platform/config";
 import { showOpenDialog, showSaveDialog } from "@/platform/dialogs";
@@ -70,6 +68,7 @@ import { useRemoteDialogs } from "@/features/remotes/use-remote-dialogs";
 import { useDiscardDialogs } from "@/features/changes/use-discard-dialogs";
 import { useBranchNameDialogs } from "@/features/branches/use-branch-name-dialogs";
 import { useMergeRebaseDialogs } from "@/features/branches/use-merge-rebase-dialogs";
+import { useCloneDialog } from "@/features/remotes/use-clone-dialog";
 import { getDefaultWorkingTreeStore } from "@/features/changes/stores/default-working-tree-store";
 import type { HistoryState } from "@/features/history/stores/history-store";
 import type { MessageState } from "@/lib/messages/message-store";
@@ -262,7 +261,12 @@ export function useAppController() {
     refreshAfterBranchChange,
   });
 
-  const [showCloneDialog, setShowCloneDialog] = useState(false);
+  const { cloneDialog, openCloneDialog, setCloneDialogVisible } = useCloneDialog({
+    cloneState,
+    cloneStore,
+    onCloned: (path) => appStore.addRepository(path),
+  });
+
   const [showAboutDialog, setShowAboutDialog] = useState(false);
   const [debugProgressLauncher, setDebugProgressLauncher] = useState(false);
   const [debugProgressRecord, setDebugProgressRecord] = useState<OperationRecord | null>(null);
@@ -277,8 +281,6 @@ export function useAppController() {
   const [abortMergeError, setAbortMergeError] = useState<string | null>(null);
   const [removeRepositoryError, setRemoveRepositoryError] = useState<string | null>(null);
   const [removingRepository, setRemovingRepository] = useState(false);
-  const [cloneURL, setCloneURL] = useState("");
-  const [clonePath, setClonePath] = useState("");
   const [showWindowDragRegion, setShowWindowDragRegion] = useState(
     shouldShowWindowDragRegion(rendererPlatform, "native"),
   );
@@ -527,7 +529,7 @@ export function useAppController() {
         injectPreferencesFailure(null);
         setShowPreferencesDialog(true);
       },
-      debugShowCloneDialog: () => setShowCloneDialog(true),
+      debugShowCloneDialog: () => openCloneDialog(),
       debugShowOperationProgressDialog: () => setDebugProgressLauncher(true),
       debugShowCloneProgressDialog: () => {
         // No real clone can run from the debug menu, so drive the category-1 progress step with a
@@ -535,7 +537,7 @@ export function useAppController() {
         // a few seconds, then a synthetic finish. A static bar would never exercise the live
         // updates the dialog exists for, and an undismissable dialog that never ends would lock
         // the UI forever.
-        setShowCloneDialog(true);
+        setCloneDialogVisible(true);
         window.clearInterval(clonePreviewTimer.current);
         const frames: ReadonlyArray<{ readonly value: number; readonly description: string }> = [
           { value: 0.0, description: "Cloning into '/tmp/mock-repo'..." },
@@ -564,7 +566,7 @@ export function useAppController() {
         const step = () => {
           if (index >= frames.length) {
             window.clearInterval(clonePreviewTimer.current);
-            setShowCloneDialog(false);
+            setCloneDialogVisible(false);
             cloneStore.reset();
             return;
           }
@@ -905,59 +907,6 @@ export function useAppController() {
     try {
       await initRepository(selected, "main");
       await appStore.addRepository(selected);
-    } catch (error) {
-      reportError(error);
-    }
-  }
-
-  function openCloneDialog(): void {
-    cloneStore.reset();
-    setShowCloneDialog(true);
-  }
-
-  function dismissCloneDialog(): void {
-    if (cloneState.operation !== null) {
-      return;
-    }
-    cloneStore.reset();
-    setShowCloneDialog(false);
-  }
-
-  async function chooseCloneDestination(): Promise<void> {
-    const platform = currentMenuPlatform();
-    if (platform === "macos") {
-      const selected = await showSaveDialog({
-        title: "Choose a clone destination",
-        defaultPath: clonePath || undefined,
-        properties: ["createDirectory"],
-      });
-      if (selected !== null) {
-        setClonePath(selected);
-      }
-      return;
-    }
-
-    const parent = await showOpenDialog({
-      title: "Choose a parent directory",
-      properties: ["openDirectory", "createDirectory"],
-    });
-    if (parent === null) {
-      return;
-    }
-    const name = getCloneDirectoryName(cloneURL);
-    setClonePath(name === null ? parent : await join(parent, name));
-  }
-
-  async function submitClone(): Promise<void> {
-    const clonedPath = await cloneStore.clone(cloneURL, clonePath);
-    if (clonedPath === null) {
-      return;
-    }
-    try {
-      await appStore.addRepository(clonedPath);
-      setCloneURL("");
-      setClonePath("");
-      setShowCloneDialog(false);
     } catch (error) {
       reportError(error);
     }
@@ -1484,20 +1433,6 @@ export function useAppController() {
    */
 
   /** The remote dialogs, each `null` while closed — see the branch dialogs above for why. */
-
-  const cloneDialog = !showCloneDialog
-    ? null
-    : {
-        state: cloneState,
-        url: cloneURL,
-        path: clonePath,
-        onURLChange: setCloneURL,
-        onPathChange: setClonePath,
-        onChooseDestination: chooseCloneDestination,
-        onConfirm: submitClone,
-        onCancelOperation: () => void cloneStore.requestCancellation(),
-        onDismiss: dismissCloneDialog,
-      };
 
   /** The changes dialogs. Discarding is one dialog with two shapes; the commit's is not a decision. */
 

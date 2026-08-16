@@ -6,3 +6,14 @@
  * union is the dependency direction inverted over nothing.
  */
 export type MenuPlatform = "macos" | "windows" | "linux";
+
+/**
+ * Which OS this build is running on.
+ *
+ * Beside the type rather than in the menu module: the menu is its largest consumer, but the clone
+ * dialog needs it to pick between a save panel and a directory picker, and a feature may not import
+ * `app/`. The constants are Vite defines, so this is a compile-time answer.
+ */
+export function currentMenuPlatform(): MenuPlatform {
+  return __DARWIN__ ? "macos" : __WIN32__ ? "windows" : "linux";
+}

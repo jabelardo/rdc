@@ -1,4 +1,4 @@
-import type { MenuPlatform } from "@/models/menu-platform";
+import { currentMenuPlatform, type MenuPlatform } from "@/models/menu-platform";
 import { truncateWithEllipsis } from "@/utils/truncate-with-ellipsis";
 import { enableTestMenuItems } from "@/utils/feature-flag";
 import type { IMenu, MenuAction, MenuItem, NativeMenuRole } from "@/models/app-menu";
@@ -24,10 +24,6 @@ const event = (name: MenuEvent): MenuAction => ({
   type: "menu-event",
   event: name,
 });
-
-export function currentMenuPlatform(): MenuPlatform {
-  return __DARWIN__ ? "macos" : __WIN32__ ? "windows" : "linux";
-}
 
 function normalizeTemplate(template: ReadonlyArray<TemplateItem>): IMenu {
   const seenIds = new Set<string>();
