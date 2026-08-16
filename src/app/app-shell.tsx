@@ -10,7 +10,7 @@ import { ChangesWorkspace } from "@/features/changes/components/changes-workspac
 import { HistoryWorkspace } from "@/features/history/components/history-workspace";
 import { MergeConflicts } from "@/features/conflicts/components/merge-conflicts";
 import { MessageToasts } from "@/app/message-toasts";
-import { RepositorySidebar } from "@/app/repository-sidebar";
+import { RepositorySidebar } from "@/app/sidebar/repository-sidebar";
 import { RepositoryToolbar } from "./repository-toolbar";
 import type { AppController } from "./use-app-controller";
 import { WindowDragStrip } from "./window-drag-strip";

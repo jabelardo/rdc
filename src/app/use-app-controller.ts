@@ -80,7 +80,7 @@ import type {
   SelectedLinesDiscard,
   WorkingTreeState,
 } from "@/features/changes/stores/working-tree-store";
-import type { SidebarSectionID } from "@/app/sidebar-sections";
+import type { SidebarSectionID } from "@/app/sidebar/sidebar-sections";
 import { determineMergeability } from "@/lib/ipc/misc-ipc";
 import { getAheadBehind } from "@/lib/ipc/rev-list-ipc";
 import { revSymmetricDifference } from "@/utils/rev-range";

@@ -16,14 +16,14 @@ import type { AppStoreState } from "@/features/repositories/stores/app-store";
 import type { BranchState, BranchStore } from "@/features/branches/stores/branch-store";
 import type { ConflictState } from "@/features/conflicts/stores/conflict-store";
 import type { OperationProgressViewModel } from "@/lib/operations/operation-presentation";
-import { BranchListRow } from "@/app/branch-list-row";
-import { RepositoryListRow } from "@/app/repository-list-row";
+import { BranchListRow } from "@/app/sidebar/branch-list-row";
+import { RepositoryListRow } from "@/app/sidebar/repository-list-row";
 import { OperationProgressBody } from "@/components/dialog-kit/operation-progress-dialog";
 import {
   MvpSidebarCapabilities,
   type SidebarSectionID,
   visibleSidebarSections,
-} from "@/app/sidebar-sections";
+} from "@/app/sidebar/sidebar-sections";
 import { VirtualList } from "@/components/virtual-list";
 import { Tooltip } from "@/components/tooltip/tooltip";
 
