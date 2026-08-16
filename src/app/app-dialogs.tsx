@@ -15,23 +15,30 @@ type AppDialogsProps = {
   readonly onCancelOperation: () => void;
   readonly onAdoptCancellation: () => void;
   readonly onDismissOperation: () => void;
-  readonly repositoryToRemove: Repository | null;
-  readonly showAboutDialog: boolean;
-  readonly appArchitecture: Architecture | null;
-  readonly showPreferencesDialog: boolean;
-  readonly preferencesState: PreferencesState;
-  readonly preferencesStore: PreferencesStore;
-  readonly confirmingAbortMerge: boolean;
-  readonly abortingMerge: boolean;
-  readonly abortMergeError: string | null;
-  readonly onCancelAbortMerge: () => void;
-  readonly onConfirmAbortMerge: () => void;
-  readonly onCancelRemoveRepository: () => void;
-  readonly removeRepositoryError: string | null;
-  readonly removingRepository: boolean;
-  readonly onConfirmRemoveRepository: () => void;
-  readonly onDismissAbout: () => void;
-  readonly onDismissPreferences: () => void;
+
+  /** Each is `null` while its dialog is closed, so state and openness cannot disagree. */
+  readonly abortMerge: {
+    readonly aborting: boolean;
+    readonly failure: string | null;
+    readonly onConfirm: () => void;
+    readonly onCancel: () => void;
+  } | null;
+  readonly removeRepository: {
+    readonly repository: Repository;
+    readonly removing: boolean;
+    readonly failure: string | null;
+    readonly onConfirm: () => void;
+    readonly onCancel: () => void;
+  } | null;
+  readonly about: {
+    readonly architecture: Architecture | null;
+    readonly onDismiss: () => void;
+  } | null;
+  readonly preferences: {
+    readonly state: PreferencesState;
+    readonly store: PreferencesStore;
+    readonly onDismiss: () => void;
+  } | null;
 };
 
 /**
@@ -47,23 +54,10 @@ export function AppDialogs({
   onCancelOperation,
   onAdoptCancellation,
   onDismissOperation,
-  repositoryToRemove,
-  showAboutDialog,
-  appArchitecture,
-  showPreferencesDialog,
-  preferencesState,
-  preferencesStore,
-  confirmingAbortMerge,
-  abortingMerge,
-  abortMergeError,
-  onCancelAbortMerge,
-  onConfirmAbortMerge,
-  onCancelRemoveRepository,
-  removeRepositoryError,
-  removingRepository,
-  onConfirmRemoveRepository,
-  onDismissAbout,
-  onDismissPreferences,
+  abortMerge,
+  removeRepository,
+  about,
+  preferences,
 }: AppDialogsProps) {
   return (
     <>
@@ -90,16 +84,16 @@ export function AppDialogs({
           />
         )}
 
-      {confirmingAbortMerge && (
+      {abortMerge !== null && (
         <ConfirmDialog
           title="Abort merge"
           description="Abort the in-progress merge?"
           confirmLabel="Abort merge"
           busyLabel="Aborting…"
-          busy={abortingMerge}
-          error={abortMergeError}
-          onConfirm={onConfirmAbortMerge}
-          onCancel={onCancelAbortMerge}
+          busy={abortMerge.aborting}
+          error={abortMerge.failure}
+          onConfirm={abortMerge.onConfirm}
+          onCancel={abortMerge.onCancel}
         >
           <p>
             Any conflict resolutions you have not committed will be discarded, and the branch
@@ -108,32 +102,34 @@ export function AppDialogs({
         </ConfirmDialog>
       )}
 
-      {repositoryToRemove !== null && (
+      {removeRepository !== null && (
         <ConfirmDialog
           title="Remove repository"
           description={
             <>
-              Remove <strong>{repositoryToRemove.name}</strong> from rdc?
+              Remove <strong>{removeRepository.repository.name}</strong> from rdc?
             </>
           }
           confirmLabel="Remove repository"
           busyLabel="Removing…"
-          busy={removingRepository}
-          error={removeRepositoryError}
-          onConfirm={onConfirmRemoveRepository}
-          onCancel={onCancelRemoveRepository}
+          busy={removeRepository.removing}
+          error={removeRepository.failure}
+          onConfirm={removeRepository.onConfirm}
+          onCancel={removeRepository.onCancel}
         >
           <p>Files in the repository will not be deleted.</p>
         </ConfirmDialog>
       )}
 
-      {showAboutDialog && <AboutDialog architecture={appArchitecture} onDismiss={onDismissAbout} />}
+      {about !== null && (
+        <AboutDialog architecture={about.architecture} onDismiss={about.onDismiss} />
+      )}
 
-      {showPreferencesDialog && (
+      {preferences !== null && (
         <PreferencesDialog
-          state={preferencesState}
-          store={preferencesStore}
-          onDismiss={onDismissPreferences}
+          state={preferences.state}
+          store={preferences.store}
+          onDismiss={preferences.onDismiss}
         />
       )}
     </>

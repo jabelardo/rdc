@@ -41,6 +41,10 @@ export function AppShell({ controller }: AppShellProps) {
     discardDialog,
     commitProgress,
     hookFailureDialog,
+    abortMergeDialog,
+    removeRepositoryDialog,
+    aboutDialog,
+    preferencesDialog,
     branchStore,
     conflictState,
     conflictStore,
@@ -48,9 +52,8 @@ export function AppShell({ controller }: AppShellProps) {
     historyStore,
     messageState,
     messageStore,
-    preferencesState,
-    preferencesStore,
     remoteState,
+    preferencesStore,
     workingTreeState,
     workingTreeStore,
     repositoryView,
@@ -67,20 +70,11 @@ export function AppShell({ controller }: AppShellProps) {
     showWindowDragRegion,
     newBranchName,
     setNewBranchName,
-    repositoryToRemove,
-    removeRepositoryError,
-    removingRepository,
-    cancelRemoveRepository,
-    showAboutDialog,
     debugProgressLauncher,
     debugProgressViewModel,
     onDebugShowOperationProgress,
     onDebugDismissOperationProgressLauncher,
     onDebugDismissOperationProgress,
-    setShowAboutDialog,
-    appArchitecture,
-    showPreferencesDialog,
-    setShowPreferencesDialog,
     createRepository,
     addExistingRepository,
     openCloneDialog,
@@ -88,7 +82,6 @@ export function AppShell({ controller }: AppShellProps) {
     openRepositoryContextMenu,
     openCommitContextMenu,
     runRepositoryAction,
-    confirmRemoveRepository,
     openInShell,
     openInExternalEditor,
     refreshAfterBranchChange,
@@ -103,11 +96,6 @@ export function AppShell({ controller }: AppShellProps) {
     continueRebaseRecovery,
     abortRebaseRecovery,
     requestAbortMerge,
-    cancelAbortMerge,
-    confirmAbortMerge,
-    confirmingAbortMerge,
-    abortingMerge,
-    abortMergeError,
     squashSelectedCommits,
     reorderSelectedCommits,
     manageRemoteError,
@@ -366,23 +354,10 @@ export function AppShell({ controller }: AppShellProps) {
             ? () => operationStore.dismissTerminalOperation()
             : onDebugDismissOperationProgress
         }
-        repositoryToRemove={repositoryToRemove}
-        showAboutDialog={showAboutDialog}
-        appArchitecture={appArchitecture}
-        showPreferencesDialog={showPreferencesDialog}
-        preferencesState={preferencesState}
-        preferencesStore={preferencesStore}
-        confirmingAbortMerge={confirmingAbortMerge}
-        abortingMerge={abortingMerge}
-        abortMergeError={abortMergeError}
-        onCancelAbortMerge={cancelAbortMerge}
-        onConfirmAbortMerge={() => void confirmAbortMerge()}
-        onCancelRemoveRepository={cancelRemoveRepository}
-        removeRepositoryError={removeRepositoryError}
-        removingRepository={removingRepository}
-        onConfirmRemoveRepository={() => void confirmRemoveRepository()}
-        onDismissAbout={() => setShowAboutDialog(false)}
-        onDismissPreferences={() => setShowPreferencesDialog(false)}
+        abortMerge={abortMergeDialog}
+        removeRepository={removeRepositoryDialog}
+        about={aboutDialog}
+        preferences={preferencesDialog}
       />
     </main>
   );

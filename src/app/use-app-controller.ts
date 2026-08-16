@@ -2219,7 +2219,45 @@ export function useAppController() {
             workingTreeStore.resolveHookFailure(resolution),
         };
 
+  /** The dialogs no feature owns, each `null` while closed — same shape as the feature hosts. */
+  const abortMergeDialog = !confirmingAbortMerge
+    ? null
+    : {
+        aborting: abortingMerge,
+        failure: abortMergeError,
+        onConfirm: confirmAbortMerge,
+        onCancel: cancelAbortMerge,
+      };
+
+  const removeRepositoryDialog =
+    repositoryToRemove === null
+      ? null
+      : {
+          repository: repositoryToRemove,
+          removing: removingRepository,
+          failure: removeRepositoryError,
+          onConfirm: confirmRemoveRepository,
+          onCancel: cancelRemoveRepository,
+        };
+
+  const aboutDialog = !showAboutDialog
+    ? null
+    : { architecture: appArchitecture, onDismiss: () => setShowAboutDialog(false) };
+
+  const preferencesDialog = !showPreferencesDialog
+    ? null
+    : {
+        state: preferencesState,
+        store: preferencesStore,
+        onDismiss: () => setShowPreferencesDialog(false),
+      };
+
   return {
+    abortMergeDialog,
+    removeRepositoryDialog,
+    aboutDialog,
+    preferencesDialog,
+    preferencesStore,
     discardDialog,
     commitProgress,
     hookFailureDialog,
@@ -2243,8 +2281,6 @@ export function useAppController() {
     historyStore,
     messageState,
     messageStore,
-    preferencesState,
-    preferencesStore,
     remoteState,
     workingTreeState,
     workingTreeStore,
@@ -2261,12 +2297,7 @@ export function useAppController() {
     showWindowDragRegion,
     newBranchName,
     setNewBranchName,
-    repositoryToRemove,
     setRepositoryToRemove,
-    removeRepositoryError,
-    removingRepository,
-    cancelRemoveRepository,
-    showAboutDialog,
     debugProgressLauncher,
     // The role is overridden rather than derived, so the window label is unused — the same shape
     // the toolbar's own call uses. A preview cannot conjure a second window to be an observer of.
@@ -2287,10 +2318,6 @@ export function useAppController() {
     },
     onDebugDismissOperationProgressLauncher: () => setDebugProgressLauncher(false),
     onDebugDismissOperationProgress: () => setDebugProgressRecord(null),
-    setShowAboutDialog,
-    appArchitecture,
-    showPreferencesDialog,
-    setShowPreferencesDialog,
     discardFile,
     permanentlyDiscard,
     discardSelection,
@@ -2302,7 +2329,6 @@ export function useAppController() {
     openRepositoryContextMenu,
     requestRemoveRepository,
     runRepositoryAction,
-    confirmRemoveRepository,
     openInShell,
     openInExternalEditor,
     refreshAfterBranchChange,
@@ -2330,11 +2356,6 @@ export function useAppController() {
     continueRebaseRecovery,
     abortRebaseRecovery,
     requestAbortMerge,
-    cancelAbortMerge,
-    confirmAbortMerge,
-    confirmingAbortMerge,
-    abortingMerge,
-    abortMergeError,
     squashSelectedCommits,
     reorderSelectedCommits,
     requestMerge,
