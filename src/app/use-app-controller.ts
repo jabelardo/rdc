@@ -69,6 +69,7 @@ import { useDiscardDialogs } from "@/features/changes/use-discard-dialogs";
 import { useBranchNameDialogs } from "@/features/branches/use-branch-name-dialogs";
 import { useMergeRebaseDialogs } from "@/features/branches/use-merge-rebase-dialogs";
 import { useCloneDialog } from "@/features/remotes/use-clone-dialog";
+import { useAbortMergeDialog } from "@/features/conflicts/use-abort-merge-dialog";
 import { getDefaultWorkingTreeStore } from "@/features/changes/stores/default-working-tree-store";
 import type { HistoryState } from "@/features/history/stores/history-store";
 import type { MessageState } from "@/lib/messages/message-store";
@@ -261,6 +262,13 @@ export function useAppController() {
     refreshAfterBranchChange,
   });
 
+  const { abortMergeDialog, requestAbortMerge, showAbortMergePreview } = useAbortMergeDialog({
+    repositoryPath: appState.selectedRepository?.path ?? null,
+    conflictState,
+    conflictStore,
+    onAborted: (path) => Promise.all([workingTreeStore.load(path), branchStore.load(path)]),
+  });
+
   const { cloneDialog, openCloneDialog, setCloneDialogVisible } = useCloneDialog({
     cloneState,
     cloneStore,
@@ -276,9 +284,6 @@ export function useAppController() {
   const [appArchitecture, setAppArchitecture] = useState<Architecture | null>(null);
   const [showPreferencesDialog, setShowPreferencesDialog] = useState(false);
   const [repositoryToRemove, setRepositoryToRemove] = useState<Repository | null>(null);
-  const [confirmingAbortMerge, setConfirmingAbortMerge] = useState(false);
-  const [abortingMerge, setAbortingMerge] = useState(false);
-  const [abortMergeError, setAbortMergeError] = useState<string | null>(null);
   const [removeRepositoryError, setRemoveRepositoryError] = useState<string | null>(null);
   const [removingRepository, setRemovingRepository] = useState(false);
   const [showWindowDragRegion, setShowWindowDragRegion] = useState(
@@ -608,15 +613,13 @@ export function useAppController() {
       },
       debugShowAbortMergeDialog: () => {
         injectDebugState();
-        setAbortMergeError(null);
-        setConfirmingAbortMerge(true);
+        showAbortMergePreview(null);
       },
       // Convention 17's invariant is the thing to look at here: a dialog showing a failure must
       // still offer an enabled way out, or a retryable dialog becomes a trap.
       debugShowAbortMergeFailedDialog: () => {
         injectDebugState();
-        setAbortMergeError("fatal: There is no merge to abort (MERGE_HEAD missing).");
-        setConfirmingAbortMerge(true);
+        showAbortMergePreview("fatal: There is no merge to abort (MERGE_HEAD missing).");
       },
       debugShowMergeDialog: () => {
         injectDebugState();
@@ -1218,45 +1221,6 @@ export function useAppController() {
   }
 
   /** Opens the confirmation. Aborting throws away uncommitted resolution work, so it is destructive. */
-  function requestAbortMerge(): void {
-    if (appState.selectedRepository === null || !conflictState.mergeInProgress) {
-      return;
-    }
-    setAbortMergeError(null);
-    setConfirmingAbortMerge(true);
-  }
-
-  function cancelAbortMerge(): void {
-    if (abortingMerge) {
-      return;
-    }
-    setConfirmingAbortMerge(false);
-    setAbortMergeError(null);
-  }
-
-  /**
-   * Abandons the merge after the user has confirmed.
-   *
-   * The dialog stays open until the abort settles and keeps its failure inline — Convention 17 —
-   * and Cancel stays enabled whenever the abort is not in flight. On success the working tree and
-   * branches are reloaded too: aborting moves `HEAD` and the index, not just the conflict state.
-   */
-  async function confirmAbortMerge(): Promise<void> {
-    const repository = appState.selectedRepository;
-    if (repository === null || abortingMerge) {
-      return;
-    }
-    setAbortMergeError(null);
-    setAbortingMerge(true);
-    const failure = await conflictStore.abortMerge();
-    setAbortingMerge(false);
-    if (failure !== null) {
-      setAbortMergeError(failure);
-      return;
-    }
-    setConfirmingAbortMerge(false);
-    await Promise.all([workingTreeStore.load(repository.path), branchStore.load(repository.path)]);
-  }
 
   async function squashSelectedCommits(commits: ReadonlyArray<Commit>): Promise<void> {
     const repository = appState.selectedRepository;
@@ -1454,14 +1418,6 @@ export function useAppController() {
         };
 
   /** The dialogs no feature owns, each `null` while closed — same shape as the feature hosts. */
-  const abortMergeDialog = !confirmingAbortMerge
-    ? null
-    : {
-        aborting: abortingMerge,
-        failure: abortMergeError,
-        onConfirm: confirmAbortMerge,
-        onCancel: cancelAbortMerge,
-      };
 
   const removeRepositoryDialog =
     repositoryToRemove === null
