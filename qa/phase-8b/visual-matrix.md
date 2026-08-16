@@ -10,6 +10,13 @@ cell inspect hierarchy, density, alignment, truncation, focus indication, semant
 empty/loading/error states and toolbar grouping. Validate against Desktop Plus's successful
 principles and native platform conventions without copying its layout or values.
 
+**Tooltips near a window edge are worth a deliberate look in every cell.** They were positioning
+themselves off-screen at the left edge until 2026-08-16, and the arithmetic that fixes it is now
+unit-tested — but only the arithmetic. Whether Radix applies it is a browser-level behaviour no test
+in this repository reaches, and it differs between WKWebView and WebKitGTK. Hover the sidebar
+resizer with the sidebar collapsed (its trigger sits ~100px from the left, and its bubble is wide
+enough to want to overflow), then the leftmost and rightmost toolbar buttons.
+
 | Platform/session | Viewport | Light | Dark | System |
 |---|---|---|---|---|
 | macOS native WKWebView | normal (at least 1100×720) | pending | pending | pending |

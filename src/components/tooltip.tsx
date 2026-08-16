@@ -49,6 +49,39 @@ type Placement = {
   readonly alignOffset: number;
 };
 
+/**
+ * How far to shift the bubble along the trigger's left edge so it stays inside the viewport.
+ *
+ * **Measured from the anchor's left edge, not from where a centred bubble would land**, because the
+ * result is handed to Radix as `alignOffset` with `align="start"` — and `align="start"` is not a
+ * style choice. floating-ui only applies `alignmentAxis` when the placement carries an alignment:
+ *
+ * ```js
+ * if (alignment && typeof alignmentAxis === 'number') { crossAxis = ... }
+ * ```
+ *
+ * With `align="center"` the placement is a bare `"bottom"`, `alignment` is `undefined`, and the
+ * offset is silently discarded. That is exactly what happened: this clamp was computed correctly,
+ * thrown away, and — with `avoidCollisions` off — nothing constrained the bubble horizontally at
+ * all, so a tooltip near the left edge rendered with its first words off-screen.
+ *
+ * Exported for its own test: jsdom reports every rect as zero, so the arithmetic can only be
+ * verified apart from the DOM.
+ */
+export function horizontalAlignOffset(
+  anchorLeft: number,
+  anchorWidth: number,
+  bubbleWidth: number,
+  viewportWidth: number,
+): number {
+  const centred = anchorLeft + anchorWidth / 2 - bubbleWidth / 2;
+  // `max` outermost so an over-wide bubble overflows to the *right*. Clamping the other way round
+  // pushes its left edge off-screen, which loses the beginning of the sentence — the one failure
+  // that makes a tooltip useless rather than merely awkward.
+  const left = Math.max(margin, Math.min(viewportWidth - bubbleWidth - margin, centred));
+  return left - anchorLeft;
+}
+
 type TooltipProps = {
   readonly label: string;
   readonly children: ReactElement;
@@ -116,13 +149,15 @@ export function Tooltip({ label, children }: TooltipProps) {
     // never shown. This is the difference between "not measured yet" and "cannot be measured".
     const bubble = contentRef.current?.getBoundingClientRect() ?? { height: 0, width: 0 };
 
-    // Radix centres on the trigger; clamping to the viewport is rdc's, because collision handling
-    // is off — it cannot be reconciled with boundary clearance, which pushes *past* an ancestor
-    // where collision handling contains *within* one.
-    const centredLeft = anchor.left + anchor.width / 2 - bubble.width / 2;
-    const alignOffset =
-      Math.min(window.innerWidth - bubble.width - margin, Math.max(margin, centredLeft)) -
-      centredLeft;
+    // Centring and viewport clamping are both rdc's, because collision handling is off — it cannot
+    // be reconciled with boundary clearance, which pushes *past* an ancestor where collision
+    // handling contains *within* one.
+    const alignOffset = horizontalAlignOffset(
+      anchor.left,
+      anchor.width,
+      bubble.width,
+      window.innerWidth,
+    );
 
     if (anchor.height > pointerTrackingHeight) {
       const targetY = pointerY.current ?? anchor.top + anchor.height / 2;
@@ -180,7 +215,9 @@ export function Tooltip({ label, children }: TooltipProps) {
         }}
         className="app-tooltip"
         side={placement?.side ?? "bottom"}
-        align="center"
+        // Not cosmetic: `alignOffset` is ignored unless the placement carries an alignment. The
+        // bubble is still centred — `horizontalAlignOffset` does the centring itself.
+        align="start"
         sideOffset={placement?.sideOffset ?? gap}
         alignOffset={placement?.alignOffset ?? 0}
         avoidCollisions={false}
