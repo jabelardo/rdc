@@ -90,28 +90,12 @@ items, unchanged; do not restate them here, satisfy them there.
 
 Sequenced ahead of the QA-cycle-2 items below: rdc is greenfield and not racing an MVP date, so the
 priority is architectural foundation a future open-source collaborator can pick up, not minimizing
-the current diff. The UI foundation, the message system and `OPERATION_PROGRESS_PLAN.md` all closed on 2026-08-15.
-Two items remain, and neither blocks the other:
+the current diff. The UI foundation, the message system and `OPERATION_PROGRESS_PLAN.md` closed on 2026-08-15;
+`CODE_ORGANIZATION_PLAN.md` closed on 2026-08-16 — the layout is
+[`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md), it is applied, and
+`pnpm check:module-boundaries` fails the build on a violation. One item remains:
 
-1. **[`CODE_ORGANIZATION_PLAN.md`](./CODE_ORGANIZATION_PLAN.md) — establish a layout and enforce
-   it.** Scheduled **after** the dialog migration, so it moves settled code rather than code in
-   flight. Dialogs currently live in four places by accident of chronology, and `src/lib/` is a
-   110-file flat drawer mixing pure helpers, IPC wrappers, domain logic and desktop-plus's GitHub
-   service code — beside subdirectories that *are* grouped, so the repository demonstrates two
-   conventions and follows neither. Measured on 2026-08-07: **95 of 237 non-test modules are
-   unreachable from `src/main.tsx`**, of which the 30 directly under `src/lib/` are genuinely
-   unreferenced (`refs.ts`, `create-branch.ts`, `rebase.ts` have no non-test importer; `api.ts`
-   forms a dead cluster with three models). The `src/models/` share of that number is largely a
-   false positive — `import type` is erased, so type-only modules read as unreachable while being
-   in use. The plan document holds the inventory and the questions; **the answers are now in
-   [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md)** — the target layout, the unidirectional rule
-   (shared → features → app), its enforcement (a check script, because oxlint has no
-   `import/no-restricted-paths`), and a four-phase mechanical move. Both of its decisions
-   were settled on 2026-08-16 — the dead GitHub-service cluster is deleted rather than quarantined,
-   and imports become `./sibling` or `@/` with no third form, enforced by a stock oxlint rule. **The
-   guideline is settled; the move has not started.**
-
-2. **Dialog widths have drifted to six values, and no document says which is right.** Measured
+1. **Dialog widths have drifted to six values, and no document says which is right.** Measured
    2026-08-15: `sm:max-w-lg` (512px, the base `DialogContent`/`AlertDialogContent` default that
    `ConfirmDialog` and `NoticeDialog` inherit rather than choose), plus overrides at 400 (About),
    420 (Rename branch), 440 (Clone, Operation progress), 520 (Merge, Rebase) and 600 (Preferences,
@@ -134,8 +118,8 @@ Two items remain, and neither blocks the other:
 **LICENSE (MIT) is added**, copyright holder Jose Gutierrez. `CONTRIBUTING.md`, issue/PR templates,
 README polish and an `ARCHITECTURE.md` newcomer overview are deliberately deferred to the
 post-MVP promotion phase, once the project is actually accepting contributions — recording that as
-a decision, not an oversight. `ARCHITECTURE.md` depends on item 1: there is no point documenting a
-structure nobody chose.
+a decision, not an oversight. `ARCHITECTURE.md` is now unblocked — the structure exists and is enforced — but stays deferred
+to the post-MVP promotion phase along with the rest.
 
 ### QA cycle 2
 

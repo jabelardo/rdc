@@ -1,6 +1,6 @@
 # Code organization — establishing a structure worth defending
 
-**Status**: the questions below are answered by
+**Status**: **closed 2026-08-16.** The questions below are answered by
 [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md), which is the guideline and the migration plan.
 This document stays as the evidence that produced it — the measurements, and the reasoning about
 what the reachability numbers do and do not prove. Scheduled **after** the dialog migration
