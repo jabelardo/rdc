@@ -57,7 +57,6 @@ import type { ConflictState } from "@/features/conflicts/stores/conflict-store";
 import { getDefaultAppStore } from "@/features/repositories/stores/default-app-store";
 import { getDefaultBranchStore } from "@/features/branches/stores/default-branch-store";
 import { getDefaultCloneStore } from "@/features/remotes/stores/default-clone-store";
-import { describeError } from "@/utils/format-error";
 import { reportError } from "@/lib/messages/report";
 import { getDefaultConflictStore } from "@/features/conflicts/stores/default-conflict-store";
 import { getDefaultHistoryStore } from "@/features/history/stores/default-history-store";
@@ -70,6 +69,7 @@ import { useBranchNameDialogs } from "@/features/branches/use-branch-name-dialog
 import { useMergeRebaseDialogs } from "@/features/branches/use-merge-rebase-dialogs";
 import { useCloneDialog } from "@/features/remotes/use-clone-dialog";
 import { useAbortMergeDialog } from "@/features/conflicts/use-abort-merge-dialog";
+import { useRemoveRepositoryDialog } from "@/features/repositories/use-remove-repository-dialog";
 import { getDefaultWorkingTreeStore } from "@/features/changes/stores/default-working-tree-store";
 import type { HistoryState } from "@/features/history/stores/history-store";
 import type { MessageState } from "@/lib/messages/message-store";
@@ -262,6 +262,13 @@ export function useAppController() {
     refreshAfterBranchChange,
   });
 
+  const { removeRepositoryDialog, requestRemoveRepository, showRemoveRepositoryPreview } =
+    useRemoveRepositoryDialog({
+      removeRepository: (repository) => appStore.removeRepository(repository),
+      confirmBeforeRemoving: () => preferencesStore.state.confirmRepositoryRemoval,
+      runUnconfirmed: (remove) => void runRepositoryAction(remove),
+    });
+
   const { abortMergeDialog, requestAbortMerge, showAbortMergePreview } = useAbortMergeDialog({
     repositoryPath: appState.selectedRepository?.path ?? null,
     conflictState,
@@ -283,9 +290,6 @@ export function useAppController() {
   // into a bug report complete with the architecture it was running under.
   const [appArchitecture, setAppArchitecture] = useState<Architecture | null>(null);
   const [showPreferencesDialog, setShowPreferencesDialog] = useState(false);
-  const [repositoryToRemove, setRepositoryToRemove] = useState<Repository | null>(null);
-  const [removeRepositoryError, setRemoveRepositoryError] = useState<string | null>(null);
-  const [removingRepository, setRemovingRepository] = useState(false);
   const [showWindowDragRegion, setShowWindowDragRegion] = useState(
     shouldShowWindowDragRegion(rendererPlatform, "native"),
   );
@@ -524,7 +528,7 @@ export function useAppController() {
       showRemoveRepositoryDialog: () => {
         injectDebugState();
         if (appStore.state.selectedRepository !== null) {
-          setRepositoryToRemove(appStore.state.selectedRepository);
+          showRemoveRepositoryPreview(appStore.state.selectedRepository);
         }
       },
       debugShowAboutDialog: () => setShowAboutDialog(true),
@@ -972,47 +976,6 @@ export function useAppController() {
     }
   }
 
-  function cancelRemoveRepository(): void {
-    if (removingRepository) {
-      return;
-    }
-    setRepositoryToRemove(null);
-    setRemoveRepositoryError(null);
-  }
-
-  function requestRemoveRepository(repository: Repository): void {
-    if (preferencesStore.state.confirmRepositoryRemoval) {
-      setRepositoryToRemove(repository);
-    } else {
-      void runRepositoryAction(() => appStore.removeRepository(repository));
-    }
-  }
-
-  /**
-   * Removes the repository the confirmation dialog is asking about.
-   *
-   * The dialog stays open until the removal settles, and closes only on success. It used to close
-   * first and then run, which made every failure ownerless — Convention 17 in
-   * `COMPONENT_MIGRATION_PROCESS.md`. Cancel stays enabled whenever the removal is not in flight,
-   * so a repository that cannot be removed does not trap the user in a dialog that keeps failing.
-   */
-  async function confirmRemoveRepository(): Promise<void> {
-    if (repositoryToRemove === null || removingRepository) {
-      return;
-    }
-    const repository = repositoryToRemove;
-    setRemoveRepositoryError(null);
-    setRemovingRepository(true);
-    try {
-      await appStore.removeRepository(repository);
-      setRepositoryToRemove(null);
-    } catch (error) {
-      setRemoveRepositoryError(describeError(error));
-    } finally {
-      setRemovingRepository(false);
-    }
-  }
-
   async function openInShell(path: string): Promise<void> {
     const shell = preferencesStore.selectedShell;
     if (shell === null) {
@@ -1419,17 +1382,6 @@ export function useAppController() {
 
   /** The dialogs no feature owns, each `null` while closed — same shape as the feature hosts. */
 
-  const removeRepositoryDialog =
-    repositoryToRemove === null
-      ? null
-      : {
-          repository: repositoryToRemove,
-          removing: removingRepository,
-          failure: removeRepositoryError,
-          onConfirm: confirmRemoveRepository,
-          onCancel: cancelRemoveRepository,
-        };
-
   const aboutDialog = !showAboutDialog
     ? null
     : { architecture: appArchitecture, onDismiss: () => setShowAboutDialog(false) };
@@ -1487,7 +1439,6 @@ export function useAppController() {
     showWindowDragRegion,
     newBranchName,
     setNewBranchName,
-    setRepositoryToRemove,
     debugProgressLauncher,
     // The role is overridden rather than derived, so the window label is unused — the same shape
     // the toolbar's own call uses. A preview cannot conjure a second window to be an observer of.
