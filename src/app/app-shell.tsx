@@ -35,9 +35,10 @@ export function AppShell({ controller }: AppShellProps) {
     deleteDialog,
     mergeDialog,
     rebaseDialog,
+    manageRemotesDialog,
+    addRemoteDialog,
+    cloneDialog,
     branchStore,
-    cloneState,
-    cloneStore,
     conflictState,
     conflictStore,
     historyState,
@@ -64,11 +65,6 @@ export function AppShell({ controller }: AppShellProps) {
     showWindowDragRegion,
     newBranchName,
     setNewBranchName,
-    cloneURL,
-    setCloneURL,
-    clonePath,
-    setClonePath,
-    showCloneDialog,
     repositoryToRemove,
     removeRepositoryError,
     removingRepository,
@@ -90,9 +86,6 @@ export function AppShell({ controller }: AppShellProps) {
     createRepository,
     addExistingRepository,
     openCloneDialog,
-    dismissCloneDialog,
-    chooseCloneDestination,
-    submitClone,
     selectRepository,
     openRepositoryContextMenu,
     openCommitContextMenu,
@@ -126,21 +119,8 @@ export function AppShell({ controller }: AppShellProps) {
     abortMergeError,
     squashSelectedCommits,
     reorderSelectedCommits,
-    showManageRemotes,
-    remoteFilter,
-    setRemoteFilter,
-    showAddRemote,
-    addRemoteName,
-    setAddRemoteName,
-    addRemoteURL,
-    setAddRemoteURL,
     manageRemoteError,
     manageRunning,
-    openAddRemote,
-    closeAddRemote,
-    confirmAddRemote,
-    confirmRemoveRemote,
-    closeManageRemotes,
     toggleSidebarSection,
     activateSidebarSection,
     sidebarWidth,
@@ -361,32 +341,11 @@ export function AppShell({ controller }: AppShellProps) {
         onDismissOperation={() => operationStore.dismissTerminalOperation()}
       />
       <RemoteDialogs
-        showManageRemotes={showManageRemotes}
-        remotes={remoteState.remotes}
-        remoteFilter={remoteFilter}
-        onRemoteFilterChange={setRemoteFilter}
-        onNewRemote={openAddRemote}
-        onConfirmRemoveRemote={(name) => void confirmRemoveRemote(name)}
-        onCloseManageRemotes={closeManageRemotes}
-        showAddRemote={showAddRemote}
-        addRemoteName={addRemoteName}
-        addRemoteURL={addRemoteURL}
-        onAddRemoteNameChange={setAddRemoteName}
-        onAddRemoteURLChange={setAddRemoteURL}
-        onConfirmAddRemote={() => void confirmAddRemote()}
-        onCloseAddRemote={closeAddRemote}
-        manageRemoteError={manageRemoteError}
-        manageRunning={manageRunning}
-        showCloneDialog={showCloneDialog}
-        cloneState={cloneState}
-        cloneURL={cloneURL}
-        clonePath={clonePath}
-        onCloneURLChange={setCloneURL}
-        onClonePathChange={setClonePath}
-        onChooseCloneDestination={() => void chooseCloneDestination()}
-        onSubmitClone={() => void submitClone()}
-        onCancelCloneOperation={() => void cloneStore.requestCancellation()}
-        onDismissClone={dismissCloneDialog}
+        manage={manageRemotesDialog}
+        add={addRemoteDialog}
+        clone={cloneDialog}
+        error={manageRemoteError}
+        busy={manageRunning}
       />
       <ChangesDialogs
         discardFile={discardFile}

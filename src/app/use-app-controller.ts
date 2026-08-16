@@ -2147,7 +2147,48 @@ export function useAppController() {
         onCancel: cancelRebase,
       };
 
+  /** The remote dialogs, each `null` while closed — see the branch dialogs above for why. */
+  const manageRemotesDialog = !showManageRemotes
+    ? null
+    : {
+        remotes: remoteState.remotes,
+        filter: remoteFilter,
+        onFilterChange: setRemoteFilter,
+        onNewRemote: openAddRemote,
+        onRemoveRemote: confirmRemoveRemote,
+        onDismiss: closeManageRemotes,
+      };
+
+  const addRemoteDialog = !showAddRemote
+    ? null
+    : {
+        name: addRemoteName,
+        url: addRemoteURL,
+        remotes: remoteState.remotes,
+        onNameChange: setAddRemoteName,
+        onURLChange: setAddRemoteURL,
+        onConfirm: confirmAddRemote,
+        onDismiss: closeAddRemote,
+      };
+
+  const cloneDialog = !showCloneDialog
+    ? null
+    : {
+        state: cloneState,
+        url: cloneURL,
+        path: clonePath,
+        onURLChange: setCloneURL,
+        onPathChange: setClonePath,
+        onChooseDestination: chooseCloneDestination,
+        onConfirm: submitClone,
+        onCancelOperation: () => void cloneStore.requestCancellation(),
+        onDismiss: dismissCloneDialog,
+      };
+
   return {
+    manageRemotesDialog,
+    addRemoteDialog,
+    cloneDialog,
     renameDialog,
     deleteDialog,
     mergeDialog,
@@ -2183,11 +2224,6 @@ export function useAppController() {
     showWindowDragRegion,
     newBranchName,
     setNewBranchName,
-    cloneURL,
-    setCloneURL,
-    clonePath,
-    setClonePath,
-    showCloneDialog,
     repositoryToRemove,
     setRepositoryToRemove,
     removeRepositoryError,
@@ -2225,9 +2261,6 @@ export function useAppController() {
     createRepository,
     addExistingRepository,
     openCloneDialog,
-    dismissCloneDialog,
-    chooseCloneDestination,
-    submitClone,
     selectRepository,
     openRepositoryContextMenu,
     requestRemoveRepository,
@@ -2269,21 +2302,8 @@ export function useAppController() {
     reorderSelectedCommits,
     requestMerge,
     requestRebase,
-    showManageRemotes,
-    remoteFilter,
-    setRemoteFilter,
-    showAddRemote,
-    addRemoteName,
-    setAddRemoteName,
-    addRemoteURL,
-    setAddRemoteURL,
     manageRemoteError,
     manageRunning,
-    openAddRemote,
-    closeAddRemote,
-    confirmAddRemote,
-    confirmRemoveRemote,
-    closeManageRemotes,
     requestManageRemotes,
     toggleSidebarSection,
     activateSidebarSection,

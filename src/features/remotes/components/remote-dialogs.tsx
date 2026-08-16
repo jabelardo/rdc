@@ -6,117 +6,92 @@ import { CloneRepositoryDialog } from "./clone-repository-dialog";
 import { ManageRemotesDialog } from "./manage-remotes-dialog";
 
 type RemoteDialogsProps = {
-  readonly showManageRemotes: boolean;
-  readonly remotes: ReadonlyArray<IRemote>;
-  readonly remoteFilter: string;
-  readonly onRemoteFilterChange: (value: string) => void;
-  readonly onNewRemote: () => void;
-  readonly onConfirmRemoveRemote: (name: string) => void;
-  readonly onCloseManageRemotes: () => void;
-
-  readonly showAddRemote: boolean;
-  readonly addRemoteName: string;
-  readonly addRemoteURL: string;
-  readonly onAddRemoteNameChange: (value: string) => void;
-  readonly onAddRemoteURLChange: (value: string) => void;
-  readonly onConfirmAddRemote: () => void;
-  readonly onCloseAddRemote: () => void;
-
-  /** Shared by both remote dialogs: an add or a remove is in flight. */
-  readonly manageRemoteError: string | null;
-  readonly manageRunning: boolean;
-
-  readonly showCloneDialog: boolean;
-  readonly cloneState: CloneState;
-  readonly cloneURL: string;
-  readonly clonePath: string;
-  readonly onCloneURLChange: (value: string) => void;
-  readonly onClonePathChange: (value: string) => void;
-  readonly onChooseCloneDestination: () => void;
-  readonly onSubmitClone: () => void;
-  readonly onCancelCloneOperation: () => void;
-  readonly onDismissClone: () => void;
+  /** Each is `null` while its dialog is closed, so state and openness cannot disagree. */
+  readonly manage: {
+    readonly remotes: ReadonlyArray<IRemote>;
+    readonly filter: string;
+    readonly onFilterChange: (value: string) => void;
+    readonly onNewRemote: () => void;
+    readonly onRemoveRemote: (name: string) => void;
+    readonly onDismiss: () => void;
+  } | null;
+  readonly add: {
+    readonly name: string;
+    readonly url: string;
+    readonly remotes: ReadonlyArray<IRemote>;
+    readonly onNameChange: (value: string) => void;
+    readonly onURLChange: (value: string) => void;
+    readonly onConfirm: () => void;
+    readonly onDismiss: () => void;
+  } | null;
+  readonly clone: {
+    readonly state: CloneState;
+    readonly url: string;
+    readonly path: string;
+    readonly onURLChange: (value: string) => void;
+    readonly onPathChange: (value: string) => void;
+    readonly onChooseDestination: () => void;
+    readonly onConfirm: () => void;
+    readonly onCancelOperation: () => void;
+    readonly onDismiss: () => void;
+  } | null;
+  /** Shared by manage and add: an add or a remove is in flight. */
+  readonly error: string | null;
+  readonly busy: boolean;
 };
 
 /** Every dialog the remotes feature owns: manage, add, clone. */
-export function RemoteDialogs({
-  showManageRemotes,
-  remotes,
-  remoteFilter,
-  onRemoteFilterChange,
-  onNewRemote,
-  onConfirmRemoveRemote,
-  onCloseManageRemotes,
-  showAddRemote,
-  addRemoteName,
-  addRemoteURL,
-  onAddRemoteNameChange,
-  onAddRemoteURLChange,
-  onConfirmAddRemote,
-  onCloseAddRemote,
-  manageRemoteError,
-  manageRunning,
-  showCloneDialog,
-  cloneState,
-  cloneURL,
-  clonePath,
-  onCloneURLChange,
-  onClonePathChange,
-  onChooseCloneDestination,
-  onSubmitClone,
-  onCancelCloneOperation,
-  onDismissClone,
-}: RemoteDialogsProps) {
+export function RemoteDialogs({ manage, add, clone, error, busy }: RemoteDialogsProps) {
   return (
     <>
-      {showManageRemotes && (
+      {manage !== null && (
         <ManageRemotesDialog
-          remotes={remotes}
-          filter={remoteFilter}
-          busy={manageRunning}
-          onFilterChange={onRemoteFilterChange}
-          onNewRemote={onNewRemote}
-          onRemoveRemote={onConfirmRemoveRemote}
-          onDismiss={onCloseManageRemotes}
+          remotes={manage.remotes}
+          filter={manage.filter}
+          busy={busy}
+          onFilterChange={manage.onFilterChange}
+          onNewRemote={manage.onNewRemote}
+          onRemoveRemote={manage.onRemoveRemote}
+          onDismiss={manage.onDismiss}
         />
       )}
 
-      {showAddRemote && (
+      {add !== null && (
         <AddRemoteDialog
-          name={addRemoteName}
-          url={addRemoteURL}
-          remotes={remotes}
-          busy={manageRunning}
-          error={manageRemoteError}
-          onNameChange={onAddRemoteNameChange}
-          onURLChange={onAddRemoteURLChange}
-          onConfirm={onConfirmAddRemote}
-          onDismiss={onCloseAddRemote}
+          name={add.name}
+          url={add.url}
+          remotes={add.remotes}
+          busy={busy}
+          error={error}
+          onNameChange={add.onNameChange}
+          onURLChange={add.onURLChange}
+          onConfirm={add.onConfirm}
+          onDismiss={add.onDismiss}
         />
       )}
 
-      {showCloneDialog && (
+      {clone !== null && (
         <CloneRepositoryDialog
-          url={cloneURL}
-          path={clonePath}
-          onUrlChange={onCloneURLChange}
-          onPathChange={onClonePathChange}
-          running={cloneState.operation !== null}
-          progress={cloneState.progress}
-          error={cloneState.error}
+          url={clone.url}
+          path={clone.path}
+          onUrlChange={clone.onURLChange}
+          onPathChange={clone.onPathChange}
+          running={clone.state.operation !== null}
+          progress={clone.state.progress}
+          error={clone.state.error}
           operationViewModel={
-            cloneState.nativeOperation == null
+            clone.state.nativeOperation == null
               ? undefined
               : operationProgressViewModel(
-                  cloneState.nativeOperation,
-                  cloneState.nativeOperation.ownerWindow ?? "",
-                  cloneState.nativeOperation.ownerWindow === null ? "unowned" : "owner",
+                  clone.state.nativeOperation,
+                  clone.state.nativeOperation.ownerWindow ?? "",
+                  clone.state.nativeOperation.ownerWindow === null ? "unowned" : "owner",
                 )
           }
-          onCancelOperation={onCancelCloneOperation}
-          onChooseDestination={onChooseCloneDestination}
-          onConfirm={onSubmitClone}
-          onCancel={onDismissClone}
+          onCancelOperation={clone.onCancelOperation}
+          onChooseDestination={clone.onChooseDestination}
+          onConfirm={clone.onConfirm}
+          onCancel={clone.onDismiss}
         />
       )}
     </>
