@@ -1,6 +1,7 @@
 # Project structure — the layout, and the rule that keeps it
 
-**Status:** proposed. Answers the questions `CODE_ORGANIZATION_PLAN.md` deliberately left open.
+**Status:** settled 2026-08-16; the move has not started. Answers the questions
+`CODE_ORGANIZATION_PLAN.md` deliberately left open.
 **Applies to:** `src/` (the renderer). `src-tauri/` has its own settled layout and is out of scope.
 
 Two audiences, one document:
@@ -21,7 +22,7 @@ will otherwise assume the disagreements were oversights.
 
 | Source | Followed | Departed, and why |
 |---|---|---|
-| [bulletproof-react](https://github.com/alan2207/bulletproof-react/blob/master/docs/project-structure.md) | The whole architecture: `app / components / features / hooks / lib / utils`, feature folders owning their own slice, and above all the unidirectional rule and its enforcement | Its enforcement uses ESLint's `import/no-restricted-paths`. **oxlint does not implement that rule** (checked against its schema: it has `import/no-cycle` and `import/no-relative-parent-imports`, and neither expresses a zone). rdc gets a check script instead — see [Enforcement](#enforcement) |
+| [bulletproof-react](https://github.com/alan2207/bulletproof-react/blob/master/docs/project-structure.md) | The whole architecture: `app / components / features / hooks / lib / utils`, feature folders owning their own slice, and above all the unidirectional rule and its enforcement | Its enforcement uses ESLint's `import/no-restricted-paths`. **oxlint does not implement that rule** (checked against its schema: it has `import/no-cycle` and `import/no-relative-parent-imports`, and neither expresses a zone). So the *layer* rule becomes a check script, while the *import* rule is stock oxlint — see [Enforcement](#enforcement) |
 | `../agents/skills/tauri-setup/rules/` | The Tauri shape: a real `platform/` boundary, typed `invoke` wrappers as the data-access layer, event-listener cleanup as a lifecycle concern | **Naming**: the skill says `PascalCase.tsx` and folder-per-component with an `index.ts`. rdc is uniformly kebab-case and so is shadcn's CLI output — renaming ~200 files to adopt a convention that fights the vendored tree is cost without benefit. **Barrels**: the skill recommends them, bulletproof-react forbids them; rdc forbids them, for a reason specific to this repo ([below](#no-barrel-files)) |
 | rdc as it stands | Everything already grouped — `stores/`, `platform/`, `menu/`, `logging/`, `resilience/` — keeps its grouping, just moves | The flat drawer does not survive: 72 non-test modules sit directly in `src/lib/` mixing pure helpers, IPC wrappers, domain logic and dead GitHub-service code |
 
@@ -240,24 +241,36 @@ the refactor.
 
 ### Imports
 
-**A relative import may not escape its own top-level directory** — `src/features/<name>/` for a
-feature, `src/<name>/` for everything else. Anything further uses `@/`. (This is option A′ of the
-open decision below; if A or B is chosen instead, this section is the only one that changes.)
+**Two forms, and no third.** `./sibling` for a file in the same directory; `@/...` for everything
+else. **A `../` import is a lint error anywhere in `src/`.**
 
 ```ts
 // inside features/branches/components/rename-branch-dialog.tsx
-import { validateBranchName } from "../validate-branch-name";   // same feature: relative
-import { Button } from "@/components/ui/button";                 // crossing a boundary: alias
+import { RenameBranchForm } from "./rename-branch-form";        // same directory
+import { validateBranchName } from "@/features/branches/validate-branch-name";
+import { Button } from "@/components/ui/button";
 import type { Branch } from "@/models/branch";
 ```
 
-This makes a boundary crossing *visible in the import line*, which is the point — `../../../../lib/`
-tells a reader nothing about which layer they just left. It also means a violation can be caught by
-reading the diff, before the checker runs.
+Chosen for automation: `import/no-relative-parent-imports` expresses this exactly, so the rule is a
+stock linter's job and needs no custom code, no exceptions list and no reviewer judgement. The
+alternative that read better — relative inside your own slice, `@/` when leaving it — could only be
+enforced by rdc's own checker, and a rule that depends on bespoke tooling is a rule with a
+maintenance bill. See [Decisions](#decisions) for the full comparison.
 
-**This reverses a recorded decision.** `tsconfig.json` currently scopes `@/` to `src/components/ui/**`
-with the note "not a general-purpose alias to adopt elsewhere", because at the time it existed only
-to keep vendored shadcn files diffable. Widening it is deliberate and this paragraph is the record.
+**Two consequences to expect:**
+
+- **An import path no longer tells you how far away something is**, only where it is. That is the
+  trade: `@/models/branch` reads the same from anywhere, which is what makes the rule mechanical.
+- **Renaming a feature rewrites its own internal imports too**, since they are absolute. A rename is
+  a find-and-replace on one string, so this is a cost worth naming rather than one worth avoiding.
+
+**This supersedes a recorded decision.** `tsconfig.json` scopes `@/` to `src/components/ui/**` in a
+comment — "not a general-purpose alias to adopt elsewhere" — written when the alias existed only to
+keep vendored shadcn files diffable. It was never a scope in any real sense: the mapping is global
+in both `tsconfig.json` and `vite.config.ts`, and `@/lib/clamp` compiles from inside `src/lib/`
+today. **Delete that comment as part of Phase 4**; leaving it would describe a restriction the
+config does not implement and the lint rule now contradicts.
 
 ### Styles
 
@@ -283,10 +296,16 @@ oxlint cannot express the zone rule, so the boundary check is a script, modelled
 4. No import from `components/ui/` into `features/` or `app/` — vendored code stays vendored.
 5. No re-export-only `index.ts` outside `components/ui/`.
 
-Add `import/no-cycle` to `.oxlintrc.json`, which oxlint *does* implement, and which catches the
-class of tangle that survives every path rule.
+Two stock oxlint rules carry the rest, both enabled by adding `"import"` to `plugins` in
+`.oxlintrc.json` — no CLI flag, so `pnpm lint` picks them up with no script change:
 
-Both run in the existing gate set. A violation is a build failure, not a review comment.
+| Rule | Catches |
+|---|---|
+| `import/no-relative-parent-imports` | Any `../` import, which is the whole import convention |
+| `import/no-cycle` | The class of tangle that survives every path rule |
+
+Between them the checker owns *where a module may point*, and the linter owns *how it says so*. Both
+run in the existing gate set. A violation is a build failure, not a review comment.
 
 ---
 
@@ -355,57 +374,66 @@ file.** Splitting it into per-feature hooks composed at the app layer is the nat
 is *not* part of the mechanical move — it is a behaviour-preserving refactor with its own risk, and
 it needs its own commit and its own review.
 
-### Phase 4 — widen the alias, then turn the checker on
+### Phase 4 — convert the imports, then turn the checks on
 
-Rewrite cross-boundary imports to `@/`, widen the `tsconfig.json` scope, add
-`scripts/check-module-boundaries.mjs` and `import/no-cycle`, and wire both into the gate set.
+Rewrite every `../` import to `@/`, delete the obsolete scoping comment in `tsconfig.json`, add
+`scripts/check-module-boundaries.mjs`, and enable both oxlint rules.
 
-The checker goes last on purpose: turning it on before the moves are done produces a wall of
-violations that says nothing, and turning it on after means the very next commit cannot regress.
+**564 imports change** — 431 in production modules, 133 in tests, counted by running the rule over
+`src/`. `src/components/ui/` is already clean, since vendored shadcn uses the alias.
+
+Largely mechanical: each violation's replacement is its own path relative to `src/`, so the rewrite
+can be scripted from the linter's own output and reviewed as motion. Do it in one commit; a
+half-converted tree is the state where nobody can tell which convention applies.
+
+The checks go last on purpose. Turning them on before the moves produces a wall of violations that
+says nothing; turning them on immediately after means the very next commit cannot regress.
 
 ---
 
-## Open decisions
+## Decisions
 
-One. Import style — see [Imports](#imports), where the recommended option is written up as if
-settled; if the other is chosen, that section changes and nothing else does.
+Both settled 2026-08-16. Kept rather than deleted, because the reasoning is the part that stops
+either being reopened by someone who only sees the outcome.
 
-**Decided 2026-08-16: the GitHub-service cluster is deleted, not quarantined.** ~16 modules, most
-with tests, none reachable. Recoverable from git history if a post-MVP GitHub feature wants them,
-and a Tauri GitHub client will not want Electron's HTTP layer regardless.
+### The GitHub-service cluster is deleted, not quarantined
 
-### Import style — three options, measured
+~16 modules, most with tests, none reachable. Recoverable from git history if a post-MVP GitHub
+feature wants them, and a Tauri GitHub client will not want Electron's HTTP layer regardless.
 
-Facts first, because two of them were assumptions worth checking:
+### Import style: `./sibling` or `@/`, and nothing else
+
+Two assumptions were checked rather than argued, and both moved the answer:
 
 - **`@/` already resolves from anywhere.** `tsconfig.json` maps `@/*` → `./src/*` globally and Vite
   aliases `@` → `src` globally. Verified by compiling an `@/lib/clamp` import from inside
   `src/lib/` — clean. The "scoped to `src/components/ui/**`" note is a *convention*, enforced by
-  nothing. Widening it costs no configuration.
-- **oxlint can enforce "no parent imports".** `import/no-relative-parent-imports` is implemented and
-  works — verified against `remote-store.ts` (flags all 9 `../` imports) and
-  `manage-remotes-dialog.tsx` (flags the 4 `../`, ignores the bare `lucide-react` import). It does
-  not distinguish a parent import that stays inside your slice from one that leaves it.
-- **Scale:** 431 upward (`../`) imports in non-test modules — 277 one level, 205 two, 82 three.
+  nothing. Adopting the alias everywhere costs no configuration.
+- **oxlint can enforce "no parent imports" from config alone.** `import/no-relative-parent-imports`
+  is implemented and works — verified against `remote-store.ts` (flags all 9 `../` imports) and
+  `manage-remotes-dialog.tsx` (flags the 4 `../`, ignores the bare `lucide-react` import). Listing
+  `"import"` in `plugins` is sufficient; the `--import-plugin` CLI flag is not needed, so `pnpm lint`
+  picks it up with no script change. What the rule *cannot* do is tell a parent import that stays
+  inside a slice from one that leaves it.
+- **Scale:** 564 violations across `src/` — 431 in production modules, 133 in tests.
+  `src/components/ui/` is already clean.
 
-| | A. Alias above the current directory | B. Relative everywhere | **A′. Alias when leaving your directory** |
+| | **A. Alias above the current directory** | B. Relative everywhere | A′. Alias when leaving your directory |
 |---|---|---|---|
-| Rewrite cost | All 431 upward imports | None | The subset that crosses a top-level boundary |
-| Enforced by | Stock `import/no-relative-parent-imports` | The checker, which exists anyway | The checker, one extra rule |
-| A cross-boundary import is | Visible | Invisible — count the `../` and guess | Visible |
+| Rewrite cost | All 564 | None | The subset crossing a top-level boundary |
+| Enforced by | Stock `import/no-relative-parent-imports` | rdc's checker | rdc's checker, one extra rule |
+| A cross-boundary import is | Uniform with every other import | Invisible — count the `../` and guess | Visible |
 | Renaming a feature | Rewrites its internal imports too | Free | Free |
 | Rules to learn | One | One | Two |
 
-**A′ is recommended**, and the tiebreak is not aesthetics: *it makes the architecture legible in
-ordinary code*. Under A′ an `@/` in an import line means exactly one thing — this line leaves my
-slice — which is the concept the whole structure is built on, taught to a reader on every file they
-open. Under A the alias is everywhere and signals nothing; under B nothing signals anything.
+**Chosen: A, for automation simplicity.** A′ reads better — under it an `@/` means exactly one
+thing, *this line leaves my slice*, which teaches the architecture on every file someone opens — but
+only rdc's own checker can express that distinction. A is enforced by a stock rule with no custom
+code, no exceptions list and no reviewer judgement, and a convention whose enforcement has no
+maintenance bill is the one that survives.
 
-The apparent advantage of A, that stock lint enforces it, is worth less than it looks: the boundary
-checker has to exist for the cross-feature rule regardless, and it already resolves every import to
-a path. "Did this `../` escape your top-level directory" is a comparison it can make in one line.
-
-The precise rule under A′, stated so the checker can assert it verbatim:
-
-> A relative import may not escape its own top-level directory — `src/features/<name>/` for a
-> feature, `src/<name>/` for everything else. Anything further uses `@/`.
+What A gives up is worth naming so nobody mistakes it for an oversight: the import line no longer
+signals a boundary crossing. **The boundary rule is not weakened by this** — cross-feature imports
+are still a build failure, caught by `scripts/check-module-boundaries.mjs`. What is lost is only the
+early warning, the chance to notice a violation while reading a diff rather than when the checker
+runs. That is an acceptable trade precisely because the checker is not optional.

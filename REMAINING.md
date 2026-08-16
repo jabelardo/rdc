@@ -106,9 +106,10 @@ Two items remain, and neither blocks the other:
    in use. The plan document holds the inventory and the questions; **the answers are now in
    [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md)** — the target layout, the unidirectional rule
    (shared → features → app), its enforcement (a check script, because oxlint has no
-   `import/no-restricted-paths`), and a four-phase mechanical move. Two decisions in it need
-   sign-off before Phase 1: widening the `@/` alias project-wide, and deleting rather than
-   quarantining the dead GitHub-service cluster.
+   `import/no-restricted-paths`), and a four-phase mechanical move. Both of its decisions
+   were settled on 2026-08-16 — the dead GitHub-service cluster is deleted rather than quarantined,
+   and imports become `./sibling` or `@/` with no third form, enforced by a stock oxlint rule. **The
+   guideline is settled; the move has not started.**
 
 2. **Dialog widths have drifted to six values, and no document says which is right.** Measured
    2026-08-15: `sm:max-w-lg` (512px, the base `DialogContent`/`AlertDialogContent` default that
