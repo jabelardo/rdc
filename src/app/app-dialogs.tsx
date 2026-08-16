@@ -1,4 +1,3 @@
-import { CircleAlert } from "lucide-react";
 import { BranchType, type Branch } from "@/models/branch";
 import type { IRemote } from "@/models/remote";
 import type { Repository } from "@/models/repository";
@@ -15,16 +14,6 @@ import type {
   RunningHookState,
   WorkingTreeStore,
 } from "@/features/changes/stores/working-tree-store";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +52,7 @@ import {
   operationProgressViewModel,
   type OperationProgressViewModel,
 } from "@/lib/operations/operation-presentation";
+import { HookFailureDialog } from "@/features/changes/components/hook-failure-dialog";
 import { AddRemoteDialog } from "@/features/remotes/components/add-remote-dialog";
 import { ManageRemotesDialog } from "@/features/remotes/components/manage-remotes-dialog";
 
@@ -522,45 +512,10 @@ export function AppDialogs({
       )}
 
       {hookFailure !== null && (
-        <AlertDialog open>
-          <AlertDialogContent className="sm:max-w-[600px]">
-            <AlertDialogHeader className="place-items-start text-left">
-              <AlertDialogTitle className="flex items-center gap-2">
-                <CircleAlert className="text-[var(--warning-text)]" aria-hidden />
-                The {hookFailure.hook} hook failed
-              </AlertDialogTitle>
-              <AlertDialogDescription>What would you like to do?</AlertDialogDescription>
-            </AlertDialogHeader>
-            <TerminalOutput output={hookFailure.terminalOutput} />
-            <AlertDialogFooter>
-              {__DARWIN__ ? (
-                <>
-                  <AlertDialogCancel onClick={() => workingTreeStore.resolveHookFailure("abort")}>
-                    Abort
-                  </AlertDialogCancel>
-                  <AlertDialogAction
-                    variant="destructive"
-                    onClick={() => workingTreeStore.resolveHookFailure("ignore")}
-                  >
-                    Ignore and Continue
-                  </AlertDialogAction>
-                </>
-              ) : (
-                <>
-                  <AlertDialogAction
-                    variant="destructive"
-                    onClick={() => workingTreeStore.resolveHookFailure("ignore")}
-                  >
-                    Ignore and Continue
-                  </AlertDialogAction>
-                  <AlertDialogCancel onClick={() => workingTreeStore.resolveHookFailure("abort")}>
-                    Abort
-                  </AlertDialogCancel>
-                </>
-              )}
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <HookFailureDialog
+          failure={hookFailure}
+          onResolve={(resolution) => workingTreeStore.resolveHookFailure(resolution)}
+        />
       )}
 
       {confirmingAbortMerge && (
