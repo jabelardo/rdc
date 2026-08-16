@@ -5,6 +5,7 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { By } from "selenium-webdriver";
 import {
+  clickWhenEnabled,
   commitWorkingTreeBaseline,
   createFixtureRoot,
   createPublisherClone,
@@ -76,23 +77,11 @@ describe("remote pull", () => {
     const localHead = () => git(fixture.canonical, "rev-parse", "HEAD");
     assert.notEqual(localHead(), remoteHead);
 
-    const pullButton = await driver.wait(
-      async () => {
-        try {
-          const button = await driver.findElement(
-            By.xpath(
-              "//section[@aria-label='Remote synchronization']//button[normalize-space()='Pull']",
-            ),
-          );
-          return (await button.isEnabled()) ? button : false;
-        } catch {
-          return false;
-        }
-      },
-      10_000,
+    await clickWhenEnabled(
+      driver,
+      By.xpath("//section[@aria-label='Remote synchronization']//button[normalize-space()='Pull']"),
       "pull did not become available for the tracked branch",
     );
-    await driver.executeScript((element) => element.click(), pullButton);
     await driver.wait(
       () => localHead() === remoteHead,
       10_000,

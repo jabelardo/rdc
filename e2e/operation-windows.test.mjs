@@ -18,6 +18,7 @@ import {
   removeFixtureRoot,
   seedRepositoryFixture,
   startApplication,
+  withElement,
 } from "./harness.mjs";
 
 describe("operation windows", () => {
@@ -290,10 +291,11 @@ describe("operation windows", () => {
       "the commit did not finish after its owner window closed",
     );
     const ownerLossHead = git(fixture.canonical, "rev-parse", "HEAD");
-    const historyView = await driver.findElement(
+    await withElement(
+      driver,
       By.xpath("//nav[@aria-label='Repository views']//button[normalize-space()='History']"),
+      (element) => driver.executeScript((node) => node.click(), element),
     );
-    await driver.executeScript((element) => element.click(), historyView);
     const refreshedCommit = await driver.wait(
       until.elementLocated(By.css(`[data-commit-sha="${ownerLossHead}"]`)),
       10_000,
@@ -318,10 +320,11 @@ describe("operation windows", () => {
       null,
       "the unrelated repository window observed another repository's operation",
     );
-    const unrelatedHistory = await driver.findElement(
+    await withElement(
+      driver,
       By.xpath("//nav[@aria-label='Repository views']//button[normalize-space()='History']"),
+      (element) => driver.executeScript((node) => node.click(), element),
     );
-    await driver.executeScript((element) => element.click(), unrelatedHistory);
     await driver.wait(
       until.elementLocated(By.css("[data-commit-sha]")),
       10_000,

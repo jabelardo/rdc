@@ -5,6 +5,7 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 import { By } from "selenium-webdriver";
 import {
+  clickWhenEnabled,
   commitWorkingTreeBaseline,
   createFixtureRoot,
   git,
@@ -66,23 +67,11 @@ describe("remote push", () => {
   it("pushes an unpublished branch to the local bare remote", async () => {
     assert.equal(remoteHasBranch(fixture.remote, pushBranch), false);
 
-    const pushButton = await driver.wait(
-      async () => {
-        try {
-          const button = await driver.findElement(
-            By.xpath(
-              "//section[@aria-label='Remote synchronization']//button[normalize-space()='Push']",
-            ),
-          );
-          return (await button.isEnabled()) ? button : false;
-        } catch {
-          return false;
-        }
-      },
-      10_000,
+    await clickWhenEnabled(
+      driver,
+      By.xpath("//section[@aria-label='Remote synchronization']//button[normalize-space()='Push']"),
       "push did not become available for the new branch",
     );
-    await driver.executeScript((element) => element.click(), pushButton);
     await driver.wait(
       () => remoteHasBranch(fixture.remote, pushBranch),
       10_000,
@@ -113,23 +102,11 @@ while [ ! -e '${pushRelease}' ]; do sleep 0.01; done
     git(fixture.canonical, "commit", "--quiet", "--no-verify", "-m", "Push unknown outcome");
 
     await driver.navigate().refresh();
-    const pushButton = await driver.wait(
-      async () => {
-        try {
-          const button = await driver.findElement(
-            By.xpath(
-              "//section[@aria-label='Remote synchronization']//button[normalize-space()='Push']",
-            ),
-          );
-          return (await button.isEnabled()) ? button : false;
-        } catch {
-          return false;
-        }
-      },
-      10_000,
+    await clickWhenEnabled(
+      driver,
+      By.xpath("//section[@aria-label='Remote synchronization']//button[normalize-space()='Push']"),
       "Push did not become available for cancellation",
     );
-    await driver.executeScript((element) => element.click(), pushButton);
     await driver.wait(
       () => existsSync(pushReady),
       10_000,

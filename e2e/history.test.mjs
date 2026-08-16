@@ -13,6 +13,7 @@ import {
   openSeededRepository,
   removeFixtureRoot,
   startApplication,
+  withElement,
 } from "./harness.mjs";
 
 describe("history", () => {
@@ -52,10 +53,11 @@ describe("history", () => {
   });
 
   it("shows the commit, its details and its diff", async () => {
-    const historyView = await driver.findElement(
+    await withElement(
+      driver,
       By.xpath("//nav[@aria-label='Repository views']//button[normalize-space()='History']"),
+      (element) => driver.executeScript((node) => node.click(), element),
     );
-    await driver.executeScript((element) => element.click(), historyView);
 
     const committedHistoryItem = await driver.wait(
       until.elementLocated(By.css(`[data-commit-sha="${head}"]`)),
@@ -76,9 +78,14 @@ describe("history", () => {
       /Commit from the real shell.*1 changed file.*working-tree\.txt/s,
     );
 
-    const copyCommitHash = await driver.findElement(By.css('[aria-label="Copy full commit hash"]'));
-    assert.equal(await copyCommitHash.getAttribute("data-tooltip"), head);
-    await driver.executeScript((element) => element.focus(), copyCommitHash);
+    const copyCommitHash = By.css('[aria-label="Copy full commit hash"]');
+    assert.equal(
+      await withElement(driver, copyCommitHash, (element) => element.getAttribute("data-tooltip")),
+      head,
+    );
+    await withElement(driver, copyCommitHash, (element) =>
+      driver.executeScript((node) => node.focus(), element),
+    );
     await driver.wait(
       async () =>
         await driver.executeScript(() => {
@@ -104,7 +111,9 @@ describe("history", () => {
         },
       });
     });
-    await driver.executeScript((element) => element.click(), copyCommitHash);
+    await withElement(driver, copyCommitHash, (element) =>
+      driver.executeScript((node) => node.click(), element),
+    );
     await driver.wait(
       async () => (await driver.executeScript(() => window.__rdcCopiedCommitHash)) === head,
       2_000,
@@ -125,10 +134,11 @@ describe("history", () => {
   // regression that leaves it stuck on 'history' would otherwise go unseen — no other spec
   // opens History and comes back.
   it("returns to the changes workspace from history", async () => {
-    const changesView = await driver.findElement(
+    await withElement(
+      driver,
       By.xpath("//nav[@aria-label='Repository views']//button[normalize-space()='Changes']"),
+      (element) => driver.executeScript((node) => node.click(), element),
     );
-    await driver.executeScript((element) => element.click(), changesView);
     await driver.wait(
       until.elementLocated(By.xpath("//p[normalize-space()='No local changes.']")),
       5_000,
@@ -137,54 +147,66 @@ describe("history", () => {
   });
 
   it("exposes the interactive history controls for a contiguous selection", async () => {
-    const historyView = await driver.findElement(
+    await withElement(
+      driver,
       By.xpath("//nav[@aria-label='Repository views']//button[normalize-space()='History']"),
+      (element) => driver.executeScript((node) => node.click(), element),
     );
-    await driver.executeScript((element) => element.click(), historyView);
 
     await driver.wait(
       until.elementLocated(By.css('[aria-label="Select History operation newest"]')),
       10_000,
     );
-    await driver.executeScript(
-      (element) => element.click(),
-      await driver.findElement(By.css('[aria-label="Select History operation newest"]')),
+    await withElement(driver, By.css('[aria-label="Select History operation newest"]'), (element) =>
+      driver.executeScript((node) => node.click(), element),
     );
-    await driver.executeScript(
-      (element) => element.click(),
-      await driver.findElement(By.css('[aria-label="Select History operation middle"]')),
+    await withElement(driver, By.css('[aria-label="Select History operation middle"]'), (element) =>
+      driver.executeScript((node) => node.click(), element),
     );
 
-    const squash = await driver.findElement(
-      By.xpath("//button[normalize-space()='Squash selected']"),
-    );
-    assert.equal(await squash.getText(), "Squash selected");
-
-    const reorderTarget = await driver.findElement(By.css('[aria-label="Move selected before"]'));
-    const options = await reorderTarget.findElements(By.css("option"));
-    assert.equal(await options[0].getText(), "End of history");
-    assert.match(await options[1].getText(), /Before Commit from the real shell/);
     assert.equal(
-      await driver
-        .findElement(By.xpath("//button[normalize-space()='Reorder selected']"))
-        .isEnabled(),
+      await withElement(
+        driver,
+        By.xpath("//button[normalize-space()='Squash selected']"),
+        (element) => element.getText(),
+      ),
+      "Squash selected",
+    );
+
+    const optionLabels = await withElement(
+      driver,
+      By.css('[aria-label="Move selected before"]'),
+      async (element) =>
+        Promise.all(
+          (await element.findElements(By.css("option"))).map((option) => option.getText()),
+        ),
+    );
+    assert.equal(optionLabels[0], "End of history");
+    assert.match(optionLabels[1], /Before Commit from the real shell/);
+    assert.equal(
+      await withElement(
+        driver,
+        By.xpath("//button[normalize-space()='Reorder selected']"),
+        (element) => element.isEnabled(),
+      ),
       true,
     );
 
     await driver.executeScript(() => {
       window.confirm = () => true;
     });
-    await driver.executeScript(
-      (element) => element.click(),
-      await driver.findElement(By.css('[aria-label="Select History operation middle"]')),
+    await withElement(driver, By.css('[aria-label="Select History operation middle"]'), (element) =>
+      driver.executeScript((node) => node.click(), element),
     );
-    await driver.executeScript(
-      (element) => element.click(),
-      await driver.findElement(By.css('[aria-label="Select Commit from the real shell"]')),
+    await withElement(
+      driver,
+      By.css('[aria-label="Select Commit from the real shell"]'),
+      (element) => driver.executeScript((node) => node.click(), element),
     );
-    await driver.executeScript(
-      (element) => element.click(),
-      await driver.findElement(By.xpath("//button[normalize-space()='Reorder selected']")),
+    await withElement(
+      driver,
+      By.xpath("//button[normalize-space()='Reorder selected']"),
+      (element) => driver.executeScript((node) => node.click(), element),
     );
     await driver.wait(
       () =>
@@ -198,17 +220,18 @@ describe("history", () => {
       until.elementLocated(By.css('[aria-label="Select History operation newest"]')),
       10_000,
     );
-    await driver.executeScript(
-      (element) => element.click(),
-      await driver.findElement(By.css('[aria-label="Select History operation newest"]')),
+    await withElement(driver, By.css('[aria-label="Select History operation newest"]'), (element) =>
+      driver.executeScript((node) => node.click(), element),
     );
-    await driver.executeScript(
-      (element) => element.click(),
-      await driver.findElement(By.css('[aria-label="Select Commit from the real shell"]')),
+    await withElement(
+      driver,
+      By.css('[aria-label="Select Commit from the real shell"]'),
+      (element) => driver.executeScript((node) => node.click(), element),
     );
-    await driver.executeScript(
-      (element) => element.click(),
-      await driver.findElement(By.xpath("//button[normalize-space()='Squash selected']")),
+    await withElement(
+      driver,
+      By.xpath("//button[normalize-space()='Squash selected']"),
+      (element) => driver.executeScript((node) => node.click(), element),
     );
     await driver.wait(
       () => git(fixture.canonical, "rev-list", "--count", "HEAD") === "2",

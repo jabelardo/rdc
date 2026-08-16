@@ -161,7 +161,7 @@ reuses an image containing an older source tree.
 Each product slice owns one spec file (`e2e/shell.test.mjs`, `working-tree`, `history`,
 `branches`, `discard`, `merge-conflicts`, `remote-fetch`, `remote-push`, `remote-pull`, `clone`,
 `restart`, `keyboard`, `visual`, `large-lists`), with the shared fixture and driver helpers in
-`e2e/harness.mjs`. Two rules follow from that and are easy to break by accident:
+`e2e/harness.mjs`. Three rules follow from that and are easy to break by accident:
 
 - **Every file builds its own fixture and its own application session, and establishes its own
   preconditions by CLI.** The suite used to be one file where each test inherited whatever state
@@ -174,6 +174,14 @@ Each product slice owns one spec file (`e2e/shell.test.mjs`, `working-tree`, `hi
 - **Files must not run in parallel.** `run.sh` passes `--test-concurrency=1`; `node --test`
   parallelises files by default, and these specs share a single `tauri-driver` on a fixed port
   while `restart.test.mjs` terminates the app with a process-wide `pkill -x rdc`.
+- **Never hold an element handle across an `await`.** A React rerender replaces the node and every
+  later call against the old handle throws `StaleElementReferenceError`. `const el = await
+  driver.findElement(...)` followed by a click is therefore a race with exactly the state change
+  the test is exercising, and it is timing-dependent: the history reorder spec passed locally for
+  months and only ever failed on CI's slower machine. Locate and act in one step via the harness's
+  `withElement(driver, locator, action)`, or `clickWhenEnabled(driver, locator)` when waiting for a
+  control to become enabled — that wait is the sharpest form of the race, since the control becomes
+  enabled *because* its section rerendered.
 
 The webview's IndexedDB survives application restarts and is shared by every spec file, since the
 container sets one `XDG_DATA_HOME` for the whole run and `tauri-driver` — not the test process —

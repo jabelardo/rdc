@@ -348,17 +348,14 @@ export async function waitForApplicationExit(driver) {
 }
 
 /**
- * @param {string} repositoryPath
- * @param {boolean} [selected] additionally require the row to be the current selection
- */
-/**
  * Runs `action` against a freshly located element, retrying while the DOM keeps replacing it.
  *
  * React rerenders replace nodes, and a WebDriver handle captured before a rerender is dead: every
  * later call against it throws `StaleElementReferenceError`. Holding a handle across an `await` is
  * therefore a race with whatever state change the test is exercising — which is exactly when tests
- * hold them. This has bitten four specs so far (`e2a59f6`, fetch cancellation twice, the keyboard
- * journey), so it is a helper rather than a fourth local workaround.
+ * hold them. This has bitten five specs so far (`e2a59f6`, fetch cancellation twice, the keyboard
+ * journey, and the history reorder that only ever failed on CI's slower machine), so it is a helper
+ * rather than a fifth local workaround.
  *
  * Locates and acts in one step, and treats staleness as "not settled yet" rather than a failure.
  */
@@ -382,6 +379,42 @@ export async function withElement(driver, locator, action, message = "element ne
   return result;
 }
 
+/**
+ * Clicks a control once it is enabled, relocating it on every attempt.
+ *
+ * Waiting for the handle and then clicking it is the same race as above, in its sharpest form:
+ * these controls become enabled *because* their section rerendered, so the test is guaranteed to
+ * capture the handle at the one moment the DOM is churning. Checking enabledness and clicking
+ * inside a single attempt means a replaced node costs one more poll instead of failing the spec.
+ *
+ * @param {string} [message] what to report if the control never becomes enabled
+ */
+export async function clickWhenEnabled(driver, locator, message = "control never became enabled") {
+  await driver.wait(
+    async () => {
+      try {
+        const element = await driver.findElement(locator);
+        if (!(await element.isEnabled())) {
+          return false;
+        }
+        await driver.executeScript((node) => node.click(), element);
+        return true;
+      } catch (error) {
+        if (error.name === "StaleElementReferenceError" || error.name === "NoSuchElementError") {
+          return false;
+        }
+        throw error;
+      }
+    },
+    10_000,
+    message,
+  );
+}
+
+/**
+ * @param {string} repositoryPath
+ * @param {boolean} [selected] additionally require the row to be the current selection
+ */
 export function repositorySelector(repositoryPath, selected = false) {
   return By.css(
     `[data-repository-path="${repositoryPath}"]${selected ? '[aria-current="true"]' : ""}`,
