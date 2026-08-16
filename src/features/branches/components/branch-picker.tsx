@@ -4,7 +4,7 @@ import type { Branch } from "@/models/branch";
 import { Input } from "@/components/ui/input";
 import { formatRelative } from "@/utils/format-relative";
 import { formatTimestamp } from "@/utils/format-timestamp";
-import { Tooltip } from "@/components/tooltip";
+import { Tooltip } from "@/components/tooltip/tooltip";
 import { cn } from "@/lib/utils";
 import { handleListNavigation } from "@/utils/list-navigation";
 

@@ -1,5 +1,7 @@
 import { Children, useCallback, useEffect, useRef, useState, type ReactElement } from "react";
 import { Tooltip as RadixTooltip } from "radix-ui";
+import { gap, margin, titlebarGap } from "./tooltip-metrics";
+import { followsPointer, horizontalAlignOffset, pointerTrackedTop } from "./tooltip-position";
 
 /**
  * Every mounted tooltip's own `hide`, so something outside the component tree can force-close
@@ -34,14 +36,6 @@ export function dismissAllTooltips(): void {
  */
 const boundarySelector = "[data-tooltip-boundary]";
 
-/** Distance between what is being cleared and the bubble. */
-const gap = 7;
-/** Never position a bubble under the native title bar. */
-const titlebarGap = 36;
-/** Keep a bubble off the viewport edges. */
-const margin = 8;
-/** Above this trigger height, the bubble follows the pointer rather than the trigger's edge. */
-const pointerTrackingHeight = 100;
 /**
  * Height alone is the right test, and a narrow trigger needs tracking *most*.
  *
@@ -78,55 +72,6 @@ type Placement = {
  * verified apart from the DOM.
  */
 /**
- * Whether the bubble follows the pointer instead of sitting at one of the trigger's edges.
- *
- * A tall trigger's edges can be most of a window away, which makes an edge-anchored bubble useless.
- * Exported so the rule can be asserted directly: gating this on width as well shipped a bug where a
- * full-height resizer's tooltip appeared in the toolbar.
- */
-export function followsPointer(anchorHeight: number): boolean {
-  return anchorHeight > pointerTrackingHeight;
-}
-
-/** Where a pointer-tracked bubble's top edge goes, clamped to the title bar and viewport bottom. */
-export function pointerTrackedTop(
-  pointerY: number | null,
-  anchorTop: number,
-  anchorHeight: number,
-  bubbleHeight: number,
-  viewportHeight: number,
-): number {
-  const targetY = pointerY ?? anchorTop + anchorHeight / 2;
-  return Math.min(
-    viewportHeight - bubbleHeight - margin,
-    Math.max(titlebarGap, targetY - bubbleHeight / 2),
-  );
-}
-
-export function horizontalAlignOffset(
-  anchorLeft: number,
-  anchorWidth: number,
-  bubbleWidth: number,
-  viewportWidth: number,
-): number {
-  const centred = anchorLeft + anchorWidth / 2 - bubbleWidth / 2;
-  // `max` outermost so an over-wide bubble overflows to the *right*. Clamping the other way round
-  // pushes its left edge off-screen, which loses the beginning of the sentence — the one failure
-  // that makes a tooltip useless rather than merely awkward.
-  const left = Math.max(margin, Math.min(viewportWidth - bubbleWidth - margin, centred));
-  return left - anchorLeft;
-}
-
-type TooltipProps = {
-  readonly label: string;
-  readonly children: ReactElement;
-  /** Milliseconds of hover before the bubble opens. Zero for controls that only ever get hovered. */
-  readonly delay?: number;
-  /** Forces the bubble shut and keeps it shut — for while its trigger is being dragged. */
-  readonly suppressed?: boolean;
-};
-
-/**
  * One application-owned tooltip for pointer and keyboard users.
  *
  * Radix owns what a tooltip primitive should own: open/close semantics, `aria-describedby` wiring,
@@ -144,6 +89,15 @@ type TooltipProps = {
  * trigger's box, and here the bubble must follow `clientY` down a row taller than the bubble. Same
  * mechanism: express the desired top as an offset from the trigger's bottom edge.
  */
+type TooltipProps = {
+  readonly label: string;
+  readonly children: ReactElement;
+  /** Milliseconds of hover before the bubble opens. Zero for controls that only ever get hovered. */
+  readonly delay?: number;
+  /** Forces the bubble shut and keeps it shut — for while its trigger is being dragged. */
+  readonly suppressed?: boolean;
+};
+
 export function Tooltip({ label, children, delay = 0, suppressed = false }: TooltipProps) {
   const child = Children.only(children) as ReactElement<{ readonly disabled?: boolean }>;
   const [open, setOpen] = useState(false);

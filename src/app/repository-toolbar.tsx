@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import type { RemoteState } from "@/features/remotes/stores/remote-store";
 import type { OperationProgressViewModel } from "@/lib/operations/operation-presentation";
-import { Tooltip } from "@/components/tooltip";
+import { Tooltip } from "@/components/tooltip/tooltip";
 
 type RepositoryToolbarProps = {
   readonly remoteState: RemoteState;

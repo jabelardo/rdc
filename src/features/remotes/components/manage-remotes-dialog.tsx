@@ -2,7 +2,7 @@ import { Plus, Server, Trash2 } from "lucide-react";
 import type { IRemote } from "@/models/remote";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
-import { Tooltip } from "@/components/tooltip";
+import { Tooltip } from "@/components/tooltip/tooltip";
 
 type ManageRemotesDialogProps = {
   readonly remotes: ReadonlyArray<IRemote>;

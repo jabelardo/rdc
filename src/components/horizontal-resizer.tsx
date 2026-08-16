@@ -6,7 +6,7 @@ import {
   type PointerEvent,
   type RefObject,
 } from "react";
-import { Tooltip } from "./tooltip";
+import { Tooltip } from "@/components/tooltip/tooltip";
 
 type HorizontalResizerProps = {
   readonly ariaLabel: string;

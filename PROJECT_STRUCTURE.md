@@ -119,6 +119,55 @@ Two things that are *not* in the list, on purpose:
 
 ---
 
+## When does a directory get subfolders?
+
+The rule the first pass was missing, and its absence showed: every directory ended up **half
+grouped** — some subfolders, some loose files, no way to predict which. That is the same "two
+conventions, follows neither" defect that started `CODE_ORGANIZATION_PLAN.md`, reproduced one level
+down.
+
+> **A subfolder names a unit whose parts are used together. A single module stays at the top level.**
+
+Three things qualify as units, and they are all that qualify today:
+
+| Unit | Why |
+|---|---|
+| `components/ui/` | The vendored shadcn set — one tool owns all of it |
+| `components/dialogs/` | The dialog toolkit: confirm, notice, failure, message, actions, opt-out, progress. Built with, and against, each other |
+| `components/tooltip/` | One component that outgrew one file — component, metrics, placement arithmetic, two tests |
+
+And the corollaries, each of which caught a real defect:
+
+- **A one-file folder is not a unit.** `components/operations/` held a single file, and that file was
+  a dialog — grouped by topic while its neighbour was grouped by kind, two axes side by side.
+- **A folder named for a category is not a unit either.** "primitives", "controls", "helpers" answer
+  *what kind of thing is this*, which a reader looking for `virtual-list` already knows. The five
+  single-file components in `components/` stay at the top level rather than acquiring an invented
+  parent.
+- **A file named for a category is the same mistake inside a file.** `mvp-list-rows.tsx` was 300
+  lines holding four components whose only relationship was being rows — and it named a project
+  phase, which stops being true the day the MVP ships.
+- **Every direct child of `lib/` is a subsystem folder.** The one exception is `lib/utils.ts`,
+  because `@/lib/utils` is where shadcn's CLI writes and expects `cn`.
+
+### Sharing is about consumers, not shape
+
+`mvp-list-rows.tsx` is the case worth remembering, because **nothing flagged it**. It sat in
+`components/`, so no boundary rule fired — a shared layer is allowed to be imported by anyone. But
+every one of its four exports had exactly one consumer, and no two shared one:
+
+| Export | Its only consumer |
+|---|---|
+| `RepositoryListRow` | the sidebar → `app/` |
+| `BranchListRow` | the sidebar → `app/` |
+| `WorkingTreeFileRow` | changes → `features/changes/` |
+| `FileStatusIcon` | changes *and* history → genuinely `components/` |
+
+**The checker enforces direction, not cohesion.** A single-consumer module parked in a shared layer
+breaks no rule and is still wrong, and no script will tell you. That is what the decision tree's
+"put it in the feature; sharing is discovered, not predicted" is defending against, and it has to be
+applied by the person writing the code.
+
 ## Where does this file go?
 
 Answer in order; the first match wins.

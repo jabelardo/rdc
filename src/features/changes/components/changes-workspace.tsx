@@ -7,8 +7,8 @@ import type {
   WorkingTreeStore,
 } from "@/features/changes/stores/working-tree-store";
 import { HorizontalResizer } from "@/components/horizontal-resizer";
-import { WorkingTreeFileRow } from "@/components/mvp-list-rows";
-import { Tooltip } from "@/components/tooltip";
+import { WorkingTreeFileRow } from "@/features/changes/components/working-tree-file-row";
+import { Tooltip } from "@/components/tooltip/tooltip";
 import { VirtualList } from "@/components/virtual-list";
 
 function diffLineClassName(type: DiffLineType): string {

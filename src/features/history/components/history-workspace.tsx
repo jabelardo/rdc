@@ -6,8 +6,8 @@ import type { HistoryState, HistoryStore } from "@/features/history/stores/histo
 import type { Commit } from "@/models/commit";
 import { handleListNavigation } from "@/utils/list-navigation";
 import { HorizontalResizer } from "@/components/horizontal-resizer";
-import { FileStatusIcon } from "@/components/mvp-list-rows";
-import { Tooltip } from "@/components/tooltip";
+import { FileStatusIcon } from "@/components/file-status-icon";
+import { Tooltip } from "@/components/tooltip/tooltip";
 import { isContiguousSelection } from "@/features/history/history-operation-selection";
 
 function diffLineClassName(type: DiffLineType): string {

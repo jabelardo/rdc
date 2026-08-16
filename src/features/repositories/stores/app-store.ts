@@ -1,6 +1,6 @@
 import type { Repository } from "@/models/repository";
 import type { RepositoryType } from "@/models/repository-type";
-import { getNumber, setNumber } from "@/lib/local-storage";
+import { getNumber, setNumber } from "@/lib/storage/local-storage";
 import { getRepositoryType } from "@/lib/ipc/misc-ipc";
 import { setWindowSelectedRepository } from "@/platform/window";
 import { RepositoriesStore } from "./repositories-store";

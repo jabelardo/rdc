@@ -1,6 +1,6 @@
 import type { MenuPlatform } from "@/models/menu-platform";
 import { truncateWithEllipsis } from "@/utils/truncate-with-ellipsis";
-import { enableTestMenuItems } from "@/lib/feature-flag";
+import { enableTestMenuItems } from "@/utils/feature-flag";
 import type { IMenu, MenuAction, MenuItem, NativeMenuRole } from "@/models/app-menu";
 import { getAccessKey } from "@/models/app-menu";
 import type { RepoType } from "@/models/github-repository";

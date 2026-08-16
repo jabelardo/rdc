@@ -22,7 +22,7 @@ import {
 } from "@/lib/ipc/stash-ipc";
 import { installApplicationMenu } from "@/app/menu/application-menu";
 import { showContextMenu } from "@/platform/menu";
-import { dismissAllTooltips } from "@/components/tooltip";
+import { dismissAllTooltips } from "@/components/tooltip/tooltip";
 import { currentMenuPlatform } from "@/app/menu/default-menu";
 import { buildRepositoryMenu, createRepositoryMenuEventExecutor } from "@/app/menu/repository-menu";
 import { getMainProcessConfig } from "@/platform/config";

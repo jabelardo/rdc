@@ -16,15 +16,16 @@ import type { AppStoreState } from "@/features/repositories/stores/app-store";
 import type { BranchState, BranchStore } from "@/features/branches/stores/branch-store";
 import type { ConflictState } from "@/features/conflicts/stores/conflict-store";
 import type { OperationProgressViewModel } from "@/lib/operations/operation-presentation";
-import { BranchListRow, RepositoryListRow } from "@/components/mvp-list-rows";
-import { OperationProgressBody } from "@/components/operations/operation-progress-dialog";
+import { BranchListRow } from "@/app/branch-list-row";
+import { RepositoryListRow } from "@/app/repository-list-row";
+import { OperationProgressBody } from "@/components/dialogs/operation-progress-dialog";
 import {
   MvpSidebarCapabilities,
   type SidebarSectionID,
   visibleSidebarSections,
 } from "@/app/sidebar-sections";
 import { VirtualList } from "@/components/virtual-list";
-import { Tooltip } from "@/components/tooltip";
+import { Tooltip } from "@/components/tooltip/tooltip";
 
 const mvpSidebarSections = visibleSidebarSections(MvpSidebarCapabilities);
 type BranchGroup = "default" | "recent" | "other";

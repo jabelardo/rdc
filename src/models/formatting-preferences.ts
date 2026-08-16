@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { enableFormattingPreferences } from "@/lib/feature-flag";
+import { enableFormattingPreferences } from "@/utils/feature-flag";
 
 const localeCountryCode = new URL(location.href).hash.match(/lc=([A-Z]{2})/)?.[1] ?? null;
 

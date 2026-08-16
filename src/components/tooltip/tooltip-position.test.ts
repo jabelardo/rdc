@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { followsPointer, horizontalAlignOffset, pointerTrackedTop } from "./tooltip";
+import { followsPointer, horizontalAlignOffset, pointerTrackedTop } from "./tooltip-position";
 
 /**
  * The offset is relative to the anchor's left edge, so a bubble that lands at viewport x is

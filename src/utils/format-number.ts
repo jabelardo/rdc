@@ -1,6 +1,6 @@
 import { getNumberFormatPreference, INumberFormat } from "@/models/formatting-preferences";
 import { round } from "./round";
-import { enableFormattingPreferences } from "@/lib/feature-flag";
+import { enableFormattingPreferences } from "@/utils/feature-flag";
 
 /**
  * Format a number using the given separator configuration.

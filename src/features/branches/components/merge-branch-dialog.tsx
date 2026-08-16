@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { formatNumber } from "@/utils/format-number";
 import { BranchPicker } from "./branch-picker";
 import { DialogMessage, type DialogMessageTone } from "@/components/dialogs/dialog-message";
-import { OperationProgressDialog } from "@/components/operations/operation-progress-dialog";
+import { OperationProgressDialog } from "@/components/dialogs/operation-progress-dialog";
 import type { OperationProgressViewModel } from "@/lib/operations/operation-presentation";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";

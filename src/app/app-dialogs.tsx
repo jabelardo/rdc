@@ -53,7 +53,7 @@ import {
 } from "@/features/branches/components/rebase-branch-dialog";
 import { NoticeDialog } from "@/components/dialogs/notice-dialog";
 import { RenameBranchDialog } from "@/features/branches/components/rename-branch-dialog";
-import { OperationProgressDialog } from "@/components/operations/operation-progress-dialog";
+import { OperationProgressDialog } from "@/components/dialogs/operation-progress-dialog";
 import { PreferencesDialog } from "@/features/preferences/components/preferences-dialog";
 import { TerminalOutput } from "@/components/terminal-output";
 import type { MergeTreeResult } from "@/models/merge";
