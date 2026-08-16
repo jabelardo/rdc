@@ -147,7 +147,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/add.ts` | `crates/git-ops/src/add.rs` — **done**. Takes plain paths rather than the `Repository`/`WorkingDirectoryFileChange` models, which are frontend concerns. | 2 |
 | `lib/git/config.ts` | `crates/git-ops/src/config.rs` — repository/global get/set/remove + boolean, `addSafeDirectory`/`addGlobalConfigValueIfMissing` (**contains an upstream bug fix — see §8**), and **Phase 4's complete** `GlobalConfig::path` + `get_global_config_path` wrapper, which asks `git config --edit --global` under `GIT_EDITOR=printf %s`. Deferred only: `getConfigValueWithOrigin` + `formatConfigScope`/`formatConfigPath`/`isConditionalInclude`/`getOriginFilePath` (display strings like `"global, via [includeIf]"` → frontend, same reasoning as `getDescriptionForError`). | 2 / 4 / 7 |
 | `lib/git/rev-parse.ts` | `crates/git-ops/src/rev_parse.rs` — **done**: `RepositoryType` (`Regular`/`Bare`/`Missing`/`Unsafe`), `get_repository_type`, and the upstream-ref helpers. | 2 |
-| `lib/git/rev-list.ts` | `crates/git-ops/src/rev_list.rs` — commit lists in replay order and `getAheadBehind`. Split deliberately: the **range builders** (`revRange`, `revRangeInclusive`, `revSymmetricDifference`) are string concatenation, so they are `src/lib/rev-range.ts`; `getBranchAheadBehind` is `src/lib/rev-list-ipc.ts`, because every branch-specific decision in it is one the frontend can make from data it holds; and `doMergeCommitsExistAfterCommit` has no consumer outside `ui/history/**`. | 3 / 7 |
+| `lib/git/rev-list.ts` | `crates/git-ops/src/rev_list.rs` — commit lists in replay order and `getAheadBehind`. Split deliberately: the **range builders** (`revRange`, `revRangeInclusive`, `revSymmetricDifference`) are string concatenation, so they are `src/utils/rev-range.ts`; `getBranchAheadBehind` is `src/lib/ipc/rev-list-ipc.ts`, because every branch-specific decision in it is one the frontend can make from data it holds; and `doMergeCommitsExistAfterCommit` has no consumer outside `ui/history/**`. | 3 / 7 |
 | `lib/helpers/default-branch.ts` (`getDefaultBranch`/`setDefaultBranch`) | **now unblocked** by `config.rs`'s `GlobalConfig`, but still outstanding: the `"main"` fallback is app policy that belongs above the git layer. It lands with its preference/tutorial consumers rather than expanding Phase 3 with an unused command. | 7 |
 | `lib/status-parser.ts` + the status types from `models/status.ts` | `crates/git-ops/src/status_parser.rs` — **done**. **Supersedes the Phase 1 TypeScript port**: `src/lib/status-parser.ts` and its test are deleted, as is `src/lib/split-buffer.ts` (its only consumer was that parser, and it is Node `Buffer`-based so unusable in a webview). Decision recorded in `MIGRATION_PLAN.md` Phase 2: since `lib/git/status.ts` becomes a Rust command, parsing had to move with it, or Rust would ship raw porcelain over IPC for the frontend to interpret. | 2 |
 | `lib/trampoline/**` (11 files) + the vendored `desktop-trampoline` C binary | `src-tauri/crates/trampoline/` — **done**: transport, sidecar, credential protocol, session state, and askpass/credential handlers. Account storage and interactive UI decisions stay behind traits for Phase 7. One Rust crate replaces both the C binary and the TypeScript half. | 2 |
@@ -158,7 +158,7 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/diff.ts` | `crates/git-ops/src/diff.rs` — text and image production **done**: working-directory, commit, range, conflict-resolution, size guards, submodules, binary detection, and scoped `rdc-blob` URLs. `getFilesDiffText` and rendering land with Phase 7 consumers. **Contains an upstream bug fix — see §8.** | 2 / 3 / 7 |
 | `lib/git/git-delimiter-parser.ts` (`createLogParser`) | `crates/git-ops/src/git_delimiter_parser.rs::LogParser` — **done** (needed by `getBinaryPaths`'s `check-attr` parsing). | 2 |
 | `lib/git/branch.ts` | `crates/git-ops/src/branch.rs` — **done**: `create_branch`, `get_branch_names`, `rename_branch` (incl. the case-only-rename retry), `delete_local_branch`, `delete_remote_branch`, `get_branches_pointed_at`, `get_merged_branches`. Remote deletion propagates authentication failures rather than classifying them, which is the original's explicit choice, and cleans up a stale tracking ref when the remote branch is already gone. Proxy support is absent here as everywhere — see `environment.ts`. | 2 |
-| `lib/git/for-each-ref.ts` | `crates/git-ops/src/for_each_ref.rs` — **done**: `get_branches` and `get_branches_differing_from_upstream`. This is the branch *list*; `branch.rs` is the branch *operations*. Hydrated into the `Branch` class by `src/lib/branch-ipc.ts`. Two deliberate improvements — epoch seconds instead of a `new Date()` parse of git's `iso8601`, and a canonicalized worktree-path comparison — see §8. | 2 |
+| `lib/git/for-each-ref.ts` | `crates/git-ops/src/for_each_ref.rs` — **done**: `get_branches` and `get_branches_differing_from_upstream`. This is the branch *list*; `branch.rs` is the branch *operations*. Hydrated into the `Branch` class by `src/lib/ipc/branch-ipc.ts`. Two deliberate improvements — epoch seconds instead of a `new Date()` parse of git's `iso8601`, and a canonicalized worktree-path comparison — see §8. | 2 |
 | `lib/git/environment.ts` | **partially ported, and the one `lib/git` file without a full counterpart.** `envForAuthentication` is `crates/git-ops/src/authentication.rs`; `getFallbackUrlForProxyResolve` and `envForProxy` are **not** ported, because `envForProxy` resolves through Electron's `session.resolveProxy`. There is no Tauri equivalent — it needs reading the OS proxy configuration natively. **Owned by Phase 5c**, with `resolve-proxy`, `getFallbackUrlForProxyResolve` and `lib/parse-pac-string.ts`: `session.resolveProxy` is the same Electron `session` object as `webRequest`, so this is session-level redesign work rather than the platform swap it was first filed as. Consequence, unchanged and now with a named owner: **no remote operation has proxy support today.** | 5c |
 | `lib/git/git-delimiter-parser.ts` | `crates/git-ops/src/git_delimiter_parser.rs` — **done**, including the `%x00` log parser. | 2 |
 | `lib/git/refs.ts` | `crates/git-ops/src/refs.rs` — **done** (`format_as_local_ref`, `get_symbolic_ref`). | 2 |
@@ -172,24 +172,24 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/hooks/config.ts` | **Frontend, not Rust.** Every export reads or writes `localStorage` (`git-hooks-env-enabled`, `git-cache-hooks-env`, `git-hook-env-shell`) behind two feature flags. It is preferences state, so it lands with the Phase 7 settings UI — and note `SupportedHooksEnvShell` names four *Windows* shells, so most of it has no meaning on the primary target. | 7 |
 | `lib/trampoline/trampoline-server.ts` | `crates/trampoline/src/server.rs` | 2 |
 | `lib/ssh/*` (4 files, at `app/src/lib/ssh/`) | **No `ssh/` module was created.** Host-key prompt classification and parsing live in `crates/trampoline/src/handlers.rs` instead, where the askpass handler needs them (`ssh-host-prompt.ts` and its test were deleted). The remaining SSH env work needs an ssh-wrapper binary. | 2 / 7 |
-| `lib/shells/darwin.ts`, `linux.ts`, `shared.ts` | `src-tauri/src/platform/shells.rs` + `shell_model.rs`; typed wrapper at `src/lib/platform/shells.ts` | **Phase 4 complete on Linux/macOS** — discovery, exact terminal launch arguments/cwd behavior, custom launch and selected-shell fallback are done |
+| `lib/shells/darwin.ts`, `linux.ts`, `shared.ts` | `src-tauri/src/platform/shells.rs` + `shell_model.rs`; typed wrapper at `src/platform/shells.ts` | **Phase 4 complete on Linux/macOS** — discovery, exact terminal launch arguments/cwd behavior, custom launch and selected-shell fallback are done |
 | `lib/shells/win32.ts` | `src-tauri/src/platform/shells_windows.rs` (planned); shared labels/order already pinned in `shells.rs` + `src/models/shell.ts` | **Phase 10** — registry/PATH discovery, WSL detection, Windows parsing and `cmd.exe / START` launch; requires Windows CI |
-| `lib/editors/**` | `src-tauri/src/platform/editors.rs` + `commands/editor.rs`; typed wrapper at `src/lib/platform/editors.ts` | **Phase 4 complete on Linux/macOS** — discovery, path validation, and normal/custom launch landed test-first; Windows is Phase 10 |
+| `lib/editors/**` | `src-tauri/src/platform/editors.rs` + `commands/editor.rs`; typed wrapper at `src/platform/editors.ts` | **Phase 4 complete on Linux/macOS** — discovery, path validation, and normal/custom launch landed test-first; Windows is Phase 10 |
 | `lib/helpers/linux.ts` | behavior folded into `src-tauri/src/platform/{editors,shells}.rs` | **Phase 4 complete** — Flatpak host-path conversion, existence checks and `flatpak-spawn --host` live beside their native consumers; no orphan `linux_helpers.rs` |
-| `lib/shell.ts` | `src/lib/platform/files.ts` + `src-tauri/src/platform/files.rs` | **Phase 4 complete on Linux/macOS** — opener/reveal and macOS bundle safety landed; the Windows trailing-backslash executable-name guard is Phase 10 |
+| `lib/shell.ts` | `src/platform/files.ts` + `src-tauri/src/platform/files.rs` | **Phase 4 complete on Linux/macOS** — opener/reveal and macOS bundle safety landed; the Windows trailing-backslash executable-name guard is Phase 10 |
 | `lib/exec-file.ts` | `src-tauri/src/platform/exec.rs` (generic subprocess helper other modules call) | 2 |
 | `lib/file-system.ts`, `path-exists.ts`, `directory-exists.ts`, `large-files.ts`, `get-file-hash.ts`, `compute-bundle-hash.ts` | `src-tauri/src/platform/fs_utils.rs` | 1/2 |
 | `lib/path.ts` **(tentative — verify)** | likely `src-tauri/src/platform/fs_utils.rs`, but confirm it's not pure string manipulation that could stay TS | 1 |
 | `lib/process/win32.ts` | native registry/process responsibilities split across planned `src-tauri/src/platform/windows/{registry,process,cli}.rs` | **Phase 10** — PATH registry value/type preservation, process output/errors and CLI support; no shared Phase 4 module |
-| `lib/custom-integration.ts` | model → `src/models/custom-integration.ts`; stored-format migration and the frontend-facing validation facade → `src/lib/custom-integration.ts`; parsing, validation, placeholder expansion and process launch → `src-tauri/src/platform/custom_integration.rs` + `editors.rs` | **Phase 4 complete on Linux/macOS** — the pure migration preserves the upstream no-update `null` contract, while POSIX parsing, executable/symlink validation, macOS bundle validation, and launch are native; Windows parsing is Phase 10 |
-| `lib/stores/token-store.ts` | `src-tauri/src/platform/credential_store.rs` + credential commands + `src/lib/stores/token-store.ts` | **Phase 4b complete** — `keytar` becomes pinned `keyring` 3.6.3; Apple Keychain / persistent Linux Secret Service are explicit and the mock pins the contract. Native evidence follows an exposed Phase 8b MVP consumer or the Phase 9/10 release targets |
-| `ui/lib/install-cli.ts` + `static/darwin/desktop-plus-cli.sh` | `src-tauri/src/platform/cli_installer.rs` + `resources/rdc-cli` + `src/lib/platform/cli.ts` | **Phase 4b implementation complete** — the rdc-owned `/usr/local/bin/rdc` symlink is installed directly or through an escaped macOS authorization request; packaged prompt and argument routing remain Phase 9 evidence |
-| `lib/copilot/byok.ts` | stays TypeScript; secret calls use `src/lib/stores/token-store.ts` → Phase 4 credential commands | **Phase 7 consumer over the Phase 4-complete TokenStore** — no separate `copilot_byok.rs` command or duplicate keychain API |
+| `lib/custom-integration.ts` | model → `src/models/custom-integration.ts`; stored-format migration and the frontend-facing validation facade → `src/features/preferences/custom-integration.ts`; parsing, validation, placeholder expansion and process launch → `src-tauri/src/platform/custom_integration.rs` + `editors.rs` | **Phase 4 complete on Linux/macOS** — the pure migration preserves the upstream no-update `null` contract, while POSIX parsing, executable/symlink validation, macOS bundle validation, and launch are native; Windows parsing is Phase 10 |
+| `lib/stores/token-store.ts` | `src-tauri/src/platform/credential_store.rs` + credential commands + `src/lib/storage/token-store.ts` | **Phase 4b complete** — `keytar` becomes pinned `keyring` 3.6.3; Apple Keychain / persistent Linux Secret Service are explicit and the mock pins the contract. Native evidence follows an exposed Phase 8b MVP consumer or the Phase 9/10 release targets |
+| `ui/lib/install-cli.ts` + `static/darwin/desktop-plus-cli.sh` | `src-tauri/src/platform/cli_installer.rs` + `resources/rdc-cli` + `src/platform/cli.ts` | **Phase 4b implementation complete** — the rdc-owned `/usr/local/bin/rdc` symlink is installed directly or through an escaped macOS authorization request; packaged prompt and argument routing remain Phase 9 evidence |
+| `lib/copilot/byok.ts` | stays TypeScript; secret calls use `src/lib/storage/token-store.ts` → Phase 4 credential commands | **Phase 7 consumer over the Phase 4-complete TokenStore** — no separate `copilot_byok.rs` command or duplicate keychain API |
 | `lib/copilot-conflict-context.ts` **(tentative)** | `src-tauri/src/commands/copilot_conflict_context.rs` | 2 |
-| `lib/get-architecture.ts`, `get-os.ts` | `src/lib/platform/paths.ts` + `src/lib/platform/system.ts` + `src-tauri/src/platform/system.rs` | **Phase 4 complete on Linux/macOS** — Tauri OS/architecture plus Rosetta detection; Windows version/support policy and WOW64 are Phase 10 |
-| `lib/get-main-guid.ts`, `get-updater-guid.ts` | main/stats ID → `src-tauri/src/platform/install_id.rs` + `src/lib/platform/install-id.ts`; updater rollout identity → Phase 9 release-channel design | **Phase 4 stats install ID complete**; the Squirrel `guid` query parameter is not sent to Tauri's configured signed endpoint, so Phase 9 decides whether rdc's release service needs an equivalent rollout identity |
+| `lib/get-architecture.ts`, `get-os.ts` | `src/platform/paths.ts` + `src/platform/system.ts` + `src-tauri/src/platform/system.rs` | **Phase 4 complete on Linux/macOS** — Tauri OS/architecture plus Rosetta detection; Windows version/support policy and WOW64 are Phase 10 |
+| `lib/get-main-guid.ts`, `get-updater-guid.ts` | main/stats ID → `src-tauri/src/platform/install_id.rs` + `src/platform/install-id.ts`; updater rollout identity → Phase 9 release-channel design | **Phase 4 stats install ID complete**; the Squirrel `guid` query parameter is not sent to Tauri's configured signed endpoint, so Phase 9 decides whether rdc's release service needs an equivalent rollout identity |
 | `lib/find-toast-activator-clsid.ts` | Phase 10 Windows notification packaging/runtime investigation — current `notify-rust` candidate removes the manual activator lookup from shared Phase 4 code, but Windows evidence decides whether packaged identity still needs it | 10 |
-| `lib/main-process-config.ts` | `src-tauri/src/config.rs` + `src-tauri/src/commands/config.rs` + `src/lib/platform/config.ts` | **Phase 4 complete** — startup `titleBarStyle`, typed get/serialized partial update, and live `hideWindowOnQuit` close policy |
+| `lib/main-process-config.ts` | `src-tauri/src/config.rs` + `src-tauri/src/commands/config.rs` + `src/platform/config.ts` | **Phase 4 complete** — startup `titleBarStyle`, typed get/serialized partial update, and live `hideWindowOnQuit` close policy |
 | `lib/logging/get-log-path.ts` | `tauri-plugin-log` path configuration, with crash-log discovery/retention in Phase 6 | **Phase 4 logging mechanism complete / Phase 6 crash consumer** |
 
 **(b) File stays TypeScript; only its internal Node/Electron touch-points get swapped for
@@ -241,9 +241,9 @@ spawning / native OS access — there's no "frontend half" to keep):
 | `lib/git/reset.ts` | `crates/git-ops/src/reset.rs` — **complete**: `unstageAll`, `reset` and `resetPaths`, with `ResetMode` → **`src/models/git-reset-mode.ts`** (an enum crossing IPC is a domain type, as `IndexStatus` was). Paths reach `resetPaths` through `--pathspec-from-file` rather than the original's Windows-only `--stdin` — see §8. | 3 |
 | `lib/git/rm.ts` | `crates/git-ops/src/rm.rs` — **complete**: `removeConflictedFile` and `unstageAllFiles`. The latter is `rm --cached -r -f .`, which is *not* `reset.ts`'s `unstageAll`; upstream keeps them in different files for that reason. | 3 |
 | `lib/ipc-shared.ts` | `rdc/MIGRATION_MAP.md` §7 channel table; hand-written `src/lib/*-ipc.ts` wrappers over native `invoke` (**no** codegen — see §8) | 3 |
-| `lib/app-shell.ts` | facade over `src/lib/platform/files.ts`, `system.ts`, recoverable trash and repository-scoped permanent-delete commands | **Phase 4 mechanism complete; Phase 7b discard facade complete** with a path-validated Rust replacement for Node `fs.rm`; Phase 10 validates Windows opener/Recycle Bin/beep behavior |
+| `lib/app-shell.ts` | facade over `src/platform/files.ts`, `system.ts`, recoverable trash and repository-scoped permanent-delete commands | **Phase 4 mechanism complete; Phase 7b discard facade complete** with a path-validated Rust replacement for Node `fs.rm`; Phase 10 validates Windows opener/Recycle Bin/beep behavior |
 | `lib/stores/app-store.ts` | `rdc/src/lib/stores/app-store.ts` | **Phase 7a MVP implementation complete:** durable repository ownership, selected-ID restoration, native per-window metadata and repository-derived menu updates are live; macOS acceptance remains pending, and later slices extend this store rather than replace it | **7a MVP implementation complete / macOS acceptance pending** |
-| `lib/stores/app-store.ts` preference fields + `ui/preferences/{appearance,integrations,prompts}.tsx` MVP subset | `rdc/src/lib/stores/preferences-store.ts` + the focused Preferences surface in `src/lib/ui/app/app-dialogs.tsx` | **Phase 7e MVP subset complete:** validated/versioned renderer persistence; Light/Dark/System native + document application; upstream-safe repository-removal, recoverable-discard and permanent-discard confirmation defaults; installed editor/shell discovery, stable-identifier fallback, dynamic menu labels and preferred launch actions. Machine paths are rediscovered rather than persisted. Custom integrations and advanced preferences remain 7f. | **7e preferences complete** |
+| `lib/stores/app-store.ts` preference fields + `ui/preferences/{appearance,integrations,prompts}.tsx` MVP subset | `rdc/src/lib/stores/preferences-store.ts` + the focused Preferences surface in `src/app/app-dialogs.tsx` | **Phase 7e MVP subset complete:** validated/versioned renderer persistence; Light/Dark/System native + document application; upstream-safe repository-removal, recoverable-discard and permanent-discard confirmation defaults; installed editor/shell discovery, stable-identifier fallback, dynamic menu labels and preferred launch actions. Machine paths are rediscovered rather than persisted. Custom integrations and advanced preferences remain 7f. | **7e preferences complete** |
 | `lib/stores/repositories-store.ts` + `lib/databases/repositories-database.ts` | same paths in `rdc/src/lib/**` | **Phase 7a local subset complete:** add/get/deduplicate/remove and local repository fields; GitHub association and its schema migrations remain with the post-MVP account consumer | **7a local complete / 7f accounts** |
 | `lib/stores/git-store.ts` | incremental state slices under `rdc/src/lib/stores/`; **Phase 7b MVP working tree, whole-file and partial-line inclusion, partial commit, recoverable whole-file discard with explicit permanent retry, partial-line discard, selected-file diff, minimum commit form, bounded/replaying commit-terminal history and hook-failure Abort/Ignore are live** in `working-tree-store.ts` plus `discard-changes.ts`. Partial discard snapshots the exact displayed diff and selected indices before confirmation, so a concurrent status refresh cannot change the action while the user decides. **Phase 7c MVP is live** across three focused stores: `history-store.ts` owns the first 100 hydrated `HEAD` commits, stable selection, hydrated selected-commit changesets, changed-file selection and read-only first-parent/root-commit diffs; `branch-store.ts` owns hydrated local/remote listing, explicit current-branch state, create-from-HEAD plus checkout, local checkout progress and post-checkout fact refresh; `conflict-store.ts` owns merge visibility and safe staging only after Git reports a marker-free external-editor resolution. **Phase 7d MVP is live** across `remote-store.ts` and `clone-store.ts`: tracked/default-remote choice, serialized fetch/push/pull, aggregate progress, first-publish upstream setup, post-operation fetch, best-effort inactive-branch fast-forward, actionable transport/non-fast-forward/merge errors and stale-operation rejection, plus generic URL/path clone followed by durable repository registration and selection. Failed pulls still refresh conflict and working-tree state. Each focused store converts raw Git facts into view state rather than expanding the IPC contract. Remote checkout naming and advanced history/conflict/account operations remain post-MVP. | **7b / 7c / 7d MVP complete** |
 | `lib/stores/helpers/create-tutorial-repository.ts` | `rdc/src/lib/stores/helpers/create-tutorial-repository.ts` | same | 7 |
@@ -357,16 +357,16 @@ Everything else in `lib/**` not listed above → §2 (portable, stays TS as-is).
 | Old path | Target | Phase |
 |---|---|---|
 | `main.ts` | `src-tauri/src/lib.rs` + platform action routing | **Phase 4 lifecycle/startup complete**; single-instance/deep-link routing is Phase 9, and Windows protocol-launcher/AppUserModelID/runtime arms are Phase 10 |
-| `app-window.ts` | `src-tauri/src/lib.rs` + `src-tauri/src/platform/window.rs` + `src/lib/platform/lifetime.ts` + `src/lib/platform/window-drag-region.ts` + `tauri-plugin-window-state` (replaces `electron-window-state`) | **Phase 4a mechanism done; Phase 7e shell correction done and manually accepted on macOS 2026-07-30** — startup `titleBarStyle`, direct state/zoom wrappers, the `renderer-ready` restore/show gate, frontend-owned preventable close flow, per-window selected-repository metadata, fresh repository-window creation and non-last-window destruction are implemented; persisted geometry/maximization restores before the first visible frame. macOS overlay/future frameless Windows and explicit Linux custom chrome receive a non-interactive Tauri drag strip with only the scoped start-dragging capability, and double-click follows the native macOS policy. |
+| `app-window.ts` | `src-tauri/src/lib.rs` + `src-tauri/src/platform/window.rs` + `src/platform/lifetime.ts` + `src/platform/window-drag-region.ts` + `tauri-plugin-window-state` (replaces `electron-window-state`) | **Phase 4a mechanism done; Phase 7e shell correction done and manually accepted on macOS 2026-07-30** — startup `titleBarStyle`, direct state/zoom wrappers, the `renderer-ready` restore/show gate, frontend-owned preventable close flow, per-window selected-repository metadata, fresh repository-window creation and non-last-window destruction are implemented; persisted geometry/maximization restores before the first visible frame. macOS overlay/future frameless Windows and explicit Linux custom chrome receive a non-interactive Tauri drag strip with only the scoped start-dragging capability, and double-click follows the native macOS policy. |
 | `ipc-main.ts` | *(deleted)* — superseded by `#[tauri::command]` registration | 3 |
 | `ipc-webcontents.ts` | *(deleted)* — superseded by `app.emit()` | 3 |
 | `trusted-ipc-sender.ts` | *(deleted)* — Tauri's IPC has no equivalent "trusted sender" gap to guard against in the same way; confirm no replacement needed | 3 |
 | `crash-window.ts`, `show-uncaught-exception.ts`, `exception-reporting.ts` | **Phase 6a local recovery complete:** an in-window React fatal boundary, global renderer-error logging, a chained Rust panic hook and bounded/revealable logs replace the crash process; unified consent-aware external reporting remains Phase 6b | **6a complete** / 6b |
 | `menu/build-context-menu.ts`, `build-default-menu.ts`, `build-test-menu.ts`, `crash-menu.ts`, `ensure-item-ids.ts`, `get-all-menu-items.ts`, `index.ts`, `menu-event.ts` | structure/model → `src/lib/menu/**` + `src/models/app-menu.ts` (**default/test tree and Linux/Windows dispatcher done**); bindings/persistence → `src-tauri/src/platform/keybindings.rs` (**done**); native macOS → `src-tauri/src/platform/menu.rs` (**mechanism done and manually validated; automation is Linux-only**); general/nested contextual menus → `src-tauri/src/platform/context_menu.rs` + `src/lib/menu/context-menu.ts` (**done; edit placeholder deferred below**). **Phase 7e rdc Help/About identity is complete:** active links target only rdc, About exposes the installed version, and a recursive three-platform executor audit keeps unsupported commands fail-closed. Final public-release URLs may follow in Phase 9. | 4 / **7e identity complete** / 9 |
 | `menu/build-spell-check-menu.ts` + contextual `editMenu` expansion | WebKitGTK suggestions and Wayland-safe edit actions, ported with their text-input consumers | 7 |
-| `notifications.ts` | `src-tauri/src/platform/notification.rs` + `src-tauri/src/commands/notification.rs` + `src/lib/platform/notifications.ts` — **Phase 4b complete** with one Rust click router and a retained `notify-rust` handle; native evidence follows an exposed Phase 8b MVP consumer or the Phase 9/10 release targets | 4 / 8b / 9 / 10 |
-| `squirrel-updater.ts` | *(deleted)* — **Phase 4b complete** via `tauri-plugin-updater` + `src/lib/platform/updater.ts`; signed endpoint/key/mock-server evidence is Phase 9 and Windows installer/apply/relaunch evidence is Phase 10 | 4 / 9 / 10 |
-| `shell.ts` | folded into `src/lib/platform/files.ts` + native opener plugin (merge with `lib/shell.ts`, §3) | **Phase 4 complete on Linux/macOS; Windows safety/runtime Phase 10** |
+| `notifications.ts` | `src-tauri/src/platform/notification.rs` + `src-tauri/src/commands/notification.rs` + `src/platform/notifications.ts` — **Phase 4b complete** with one Rust click router and a retained `notify-rust` handle; native evidence follows an exposed Phase 8b MVP consumer or the Phase 9/10 release targets | 4 / 8b / 9 / 10 |
+| `squirrel-updater.ts` | *(deleted)* — **Phase 4b complete** via `tauri-plugin-updater` + `src/platform/updater.ts`; signed endpoint/key/mock-server evidence is Phase 9 and Windows installer/apply/relaunch evidence is Phase 10 | 4 / 9 / 10 |
+| `shell.ts` | folded into `src/platform/files.ts` + native opener plugin (merge with `lib/shell.ts`, §3) | **Phase 4 complete on Linux/macOS; Windows safety/runtime Phase 10** |
 | `migrate-config-dir.ts` | *(dropped, not ported)* — the "confirm relevance" question has an answer: rdc owes `desktop-plus` no configuration compatibility, per `MIGRATION_PLAN.md` guiding principle 6. Settings formats are rdc's own | 4 |
 | `desktop-console-transport.ts`, `desktop-file-transport.ts`, `log.ts` | **complete for local recovery:** `tauri-plugin-log` writes renderer and Rust records to stdout plus a launch-rotated application log, retaining fourteen sessions at up to 10 MiB each; Phase 6b may add a consent-aware reporting sink | **6a complete** / 6b |
 | `alive-origin-filter.ts`, `same-origin-filter.ts`, `ordered-webrequest.ts`, `authenticated-image-filter.ts` | **Phase 5 redesign, not a port** — **5a complete:** closed production/dev CSP, exact application-document navigation and least-privilege native capability replace the generic filter mechanism for the MVP, which performs no authenticated webview HTTP. Alive origin rewriting, authenticated media and any GitHub API transport remain with their account consumer in 5b; authenticated fetch belongs in Rust rather than behind an HTTPS wildcard | 5a / 5b |
@@ -382,7 +382,7 @@ row since the mapping is mechanical; flagging only what's non-mechanical:
 - `ui/dispatcher/` (3 files) + `app/src/lib/stores/**` — the seam. Keep the shape (Phase 7).
 - The Phase 7a–7e shell now has a component-owned boundary under `src/lib/ui/app/`: the controller
   hook owns orchestration; `app-shell.tsx` composes focused repository sidebar/toolbar, Changes,
-  History, conflict, dialog and window-drag components; and `src/App.tsx` is a nine-line entry point.
+  History, conflict, dialog and window-drag components; and `src/app/app.tsx` is a nine-line entry point.
   Repository add/select/remove, accessible contextual actions and open-in-new-window routing are
   implemented.
   Phase 7d now adds generic Clone plus remote discovery, user-initiated Fetch, normal Push and
@@ -394,8 +394,10 @@ row since the mapping is mechanical; flagging only what's non-mechanical:
   tokens, state selectors, platform behavior and cross-component responsive relationships.
 - `ui/lib/` (104 files) — shared UI helpers/components (list virtualization, filter-list,
   dialog helpers, etc.). Phase 7e's MVP shell now owns focused replacements in
-  `src/lib/ui/modal.tsx` and `list-navigation.ts`; they provide common focus trapping/restoration and
-  Arrow/Home/End routing without pulling in the upstream component graph. React tests and a
+  `src/utils/list-navigation.ts` and, until the Radix migration retired it, a hand-rolled
+  `modal.tsx`; they provide common focus trapping/restoration and Arrow/Home/End routing without
+  pulling in the upstream component graph. Focus trapping is Radix's job now — see
+  `UI_FOUNDATION_PLAN.md`. React tests and a
   keyboard-only Linux WebKit repository/commit/history journey cover the implementation; macOS
   manual acceptance remains Phase 8b. The same focused UI layer now includes a typed sidebar
   capability registry; its live Repositories/Branches panels, whole-sidebar collapse, native
@@ -421,8 +423,8 @@ row since the mapping is mechanical; flagging only what's non-mechanical:
   split button, SHA-plus-ref candidate filtering, persisted `defaultMergeStrategy` preference,
   canned debug previews asserted by `inject-test-state.test.ts`, and the `mergeStates` QA fixture).
   Shared primitives extracted along the way are `dialog-actions.tsx`, `dialog-message.tsx` and the
-  keyboard-correct `branch-picker.tsx`. Also new: `src/lib/format-timestamp.ts`
-  (`formatTimestamp`), `src/lib/validate-branch-name.ts`, `src/models/merge-strategy.ts` and
+  keyboard-correct `branch-picker.tsx`. Also new: `src/utils/format-timestamp.ts`
+  (`formatTimestamp`), `src/features/branches/validate-branch-name.ts`, `src/models/merge-strategy.ts` and
   `src/components/ui/{input,label}.tsx`. The full queue and the four conventions the process
   promoted (messages share one height-holding slot; split controls share one state; a dialog fits
   the viewport in both axes; a list is unambiguous) live in `COMPONENT_MIGRATION_PROCESS.md`.
@@ -477,7 +479,7 @@ FFI binary that doesn't belong in a webview frontend's dependency tree. Revisit 
 Copilot feature is actually migrated; the type could also just be declared locally.
 
 Also ported in Step 2: `diff-parser` → `src/lib/diff-parser.test.ts`, alongside
-`src/lib/diff-parser.ts` and the new `src/lib/diff-hunks.ts` (see §8). Phase 2 later moved parsing
+`src/lib/diff-parser.ts` and the new `src/lib/diff/diff-hunks.ts` (see §8). Phase 2 later moved parsing
 to Rust and deleted both TypeScript parser implementations/tests; these counts are the Phase 1
 closure snapshot, not the current tree.
 
@@ -488,7 +490,7 @@ tests; Phase 3 also supplied `format-commit-message`'s `merge_trailers` command,
 helper/test to Phase 7 with the stores that consume it.
 
 **Recovered (9):**
-- `create-branch` → `src/lib/create-branch.test.ts` (9 tests), by extracting the trailer type out
+- `create-branch` → `src/features/branches/create-branch.test.ts` (9 tests), by extracting the trailer type out
   of the git layer.
 - `pull-request-refs` → `src/lib/pull-request-refs.test.ts` (6 tests), by extracting the
   issue-reference regex constants out of the markdown-filter chain. Its closure now has **no
@@ -496,8 +498,8 @@ helper/test to Phase 7 with the stores that consume it.
   needed; see the correction in `MIGRATION_PLAN.md`.
 - `repository`, `name-of`, `model-type-guards`, `text-token-parser`,
   `wrap-rich-text-commit-message` (5) → by the `Repository` redesign (§8). 45 tests across the five.
-- `format` → `src/lib/rebase.test.ts`, `multi-commit-operation` →
-  `src/lib/multi-commit-operation.test.ts` (20 tests), by decomposing `lib/app-state.ts` into
+- `format` → `src/features/branches/rebase.test.ts`, `multi-commit-operation` →
+  `src/features/history/multi-commit-operation.test.ts` (20 tests), by decomposing `lib/app-state.ts` into
   `src/lib/app-state/` and narrowing two over-specified parameter types (§8).
 
 **Historical checkpoint after `status` landed: still all 15.** Porting git to Rust could not unblock them —
@@ -786,15 +788,15 @@ shape of everything it carries is pinned by a wire-contract test on the Rust sid
 | _(new)_ | request/response | `get_merged_branches` → `getMergedBranches()` | **done** |
 | _(new)_ | request/response | `delete_ref` → `deleteRef()` | **done** |
 | _(new)_ | request/response | `get_symbolic_ref` → `getSymbolicRef()` | **done** |
-| _(none — pure)_ | — | `formatAsLocalRef` → `src/lib/refs.ts` | **done** — a string from a string, so TypeScript rather than a round trip |
+| _(none — pure)_ | — | `formatAsLocalRef` → `src/features/branches/refs.ts` | **done** — a string from a string, so TypeScript rather than a round trip |
 | _(new)_ | request/response | `reset` → `reset()` | **done** |
 | _(new)_ | request/response | `reset_paths` → `resetPaths()` | **done** |
 | _(new)_ | request/response | `unstage_all` → `unstageAll()` | **done** |
 | _(new)_ | request/response | `unstage_all_files` → `unstageAllFiles()` | **done** — `rm --cached`, not a reset |
 | _(new)_ | request/response | `stage_resolved_conflict_files` → `stageResolvedConflictFiles()` | **done** |
 | _(new)_ | request/response | `get_ahead_behind` → `getAheadBehind()` | **done** |
-| _(none — pure)_ | — | `revRange`, `revRangeInclusive`, `revSymmetricDifference` → `src/lib/rev-range.ts` | **done** — string concatenation |
-| _(none — no git)_ | — | `getBranchAheadBehind` → `src/lib/rev-list-ipc.ts` | **done** — answers `null` for a remote or upstream-less branch without asking git |
+| _(none — pure)_ | — | `revRange`, `revRangeInclusive`, `revSymmetricDifference` → `src/utils/rev-range.ts` | **done** — string concatenation |
+| _(none — no git)_ | — | `getBranchAheadBehind` → `src/lib/ipc/rev-list-ipc.ts` | **done** — answers `null` for a remote or upstream-less branch without asking git |
 | _(new)_ | request/response | `get_branch_merge_base_diff` → `getBranchMergeBaseDiff()` | **done** |
 | _(new)_ | request/response | `get_branch_merge_base_changed_files` → `getBranchMergeBaseChangedFiles()` | **done** — `null` for unrelated histories |
 | _(new)_ | request/response | `get_commit_range_changed_files` → `getCommitRangeChangedFiles()` | **done** |
@@ -806,7 +808,7 @@ shape of everything it carries is pinned by a wire-contract test on the Rust sid
 | _(new)_ | request/response | `is_cherry_pick_head_found`, `get_rebase_internal_state` | **done** — both resolve the git directory themselves |
 | _(new)_ | request/response | `checkout_index` → `checkoutIndex()` | **done** |
 | _(new)_ | request/response | `get_trailer_separator_characters`, `parse_trailers`, `merge_trailers` | **done** |
-| _(new)_ | request/response | the six `*_worktree*` commands → `src/lib/worktree-ipc.ts` | **done** — three listing entry points, because a linked worktree's `.git` is a file elsewhere |
+| _(new)_ | request/response | the six `*_worktree*` commands → `src/lib/ipc/worktree-ipc.ts` | **done** — three listing entry points, because a linked worktree's `.git` is a file elsewhere |
 | _(new)_ | request/response + Channel | `push` → `push()` | **done** — Phase 7d normal-push consumer live; force/tags remain later controls |
 | _(new)_ | request/response + Channel | `fetch` → `fetch()` | **done** |
 | _(new)_ | request/response | `fetch_refspec` → `fetchRefspec()` | **done** — no Channel; one ref, and a missing refspec resolves |
@@ -858,9 +860,9 @@ Windows showing other repositories remain usable.
 | Registry: locks, adoption, watchdogs, owner-window clearing | `src-tauri/src/operation_registry.rs` |
 | Query/cancel commands | `src-tauri/src/commands/operation.rs` |
 | Process-tree termination and its cancellation budget | `src-tauri/crates/git-ops/src/exec.rs` |
-| Renderer store | `src/lib/stores/operation-store.ts` |
-| The one view model every progress surface renders from | `src/lib/operation-presentation.ts` |
-| Shared body, and the modal that wraps it | `src/lib/ui/dialogs/operation-progress-dialog.tsx` |
+| Renderer store | `src/lib/operations/operation-store.ts` |
+| The one view model every progress surface renders from | `src/lib/operations/operation-presentation.ts` |
+| Shared body, and the modal that wraps it | `src/components/dialog-kit/operation-progress-dialog.tsx` |
 
 Cancellation is not exposed merely because a process can be killed. Each operation had to prove its
 cancellation and recovery boundary first — process-tree termination, post-cancel inspection, and a
@@ -990,7 +992,7 @@ and the Linux cross-window journey pin the behavior.
 
 Upstream constructs `Electron.MenuItemConstructorOptions` in the main process, attaches click closures,
 then serializes the resulting `Electron.Menu` back to the renderer for the custom Windows/Linux menu.
-rdc builds `src/lib/menu/default-menu.ts` directly as the `src/models/app-menu.ts` tree. Executable
+rdc builds `src/app/menu/default-menu.ts` directly as the `src/models/app-menu.ts` tree. Executable
 items carry a discriminated `MenuAction` value, while keybindings remain a separate Rust-owned map keyed
 by item ID. This is what lets the same state-derived tree drive React and, after `renderer-ready`, the
 native macOS menu without duplicating frontend policy in Rust.
@@ -1010,7 +1012,7 @@ declarations, 50 logical binding IDs, and all 50 IDs present in the TypeScript m
 The surviving macOS `menu-event` changes payload from an upstream `MenuEvent` string to the complete
 structured `MenuAction`. That is necessary for actions such as opening documentation, zoom and quit,
 which Electron previously implemented as main-process closures. Rust stores the action attached to each
-native item ID and emits it unchanged. `src/lib/menu/startup.ts` now replaces the bootstrap from the
+native item ID and emits it unchanged. `src/app/menu/startup.ts` now replaces the bootstrap from the
 current React harness, after registering the action listener. It enables only behavior available today:
 native roles, external links, Select All, zoom, reload and one-window quit. Stateful repository/UI
 actions stay visibly disabled until Phase 7 connects the same action type to its dispatcher. Before
@@ -1128,7 +1130,7 @@ work; Phase 10 supplies and proves the native behavior those consumers call.
 
 Electron set `quitting` and `quittingEvenIfUpdating` flags synchronously in the main process, then
 consulted them during a later `BrowserWindow.close`. Tauri delivers a preventable close request to the
-renderer instead. `src/lib/platform/lifetime.ts` prevents that event before awaiting anything and lets
+renderer instead. `src/platform/lifetime.ts` prevents that event before awaiting anything and lets
 frontend policy resolve it as `quit`, `hide` or `cancel`; repeated close requests coalesce while that
 decision is pending. Explicit quit and restart reach `tauri-plugin-process` only after the caller has
 resolved the same application-state policy.
@@ -1237,10 +1239,10 @@ The plan originally called for `tauri-specta`/`ts-rs` to generate TypeScript fro
 signatures. rdc instead uses **plain `#[tauri::command]` + `invoke`**, with events and Channels for
 the Rust→frontend direction.
 
-The cost is that `src/lib/git-ipc.ts` is hand-written, which is the same manual-contract problem
+The cost is that `src/lib/ipc/git-ipc.ts` is hand-written, which is the same manual-contract problem
 `ipc-shared.ts` had. The mitigation is that **the contract is enforced in Rust**:
 `crates/git-ops/tests/wire_contract.rs` asserts the exact JSON of every type crossing the boundary,
-and `src/App.test.tsx` pins the command name and its camelCase argument names. A rename on either
+and `src/app/app.test.tsx` pins the command name and its camelCase argument names. A rename on either
 side fails a test rather than silently producing `undefined` in the webview.
 
 Two consequences worth knowing before writing more commands:
@@ -1415,7 +1417,7 @@ documented `'*'` would have got silently unhooked git invocations rather than an
 The original's fourth comparison was `this.oldStartLine === other.oldStartLine` — a repeat of the
 first — so **`newLineCount` was never compared**. Two hunk headers differing only in how many lines
 they cover on the new side compared as equal. Present in `desktop-plus` and carried into rdc's Phase 1
-port of `models/diff/raw-diff.ts`; fixed with a regression test in `src/lib/diff-ipc.test.ts`.
+port of `models/diff/raw-diff.ts`; fixed with a regression test in `src/lib/diff/diff-ipc.test.ts`.
 
 ### `createCommit` returns a full SHA, not `"(root-commit)"`
 
@@ -1475,7 +1477,7 @@ the domain model**. That is now a closed loop with no hand-copied JSON:
 
 1. `wire_contract.rs` emits Rust's real serializer output to
    `src/lib/__generated__/wire-snapshot.json` (regenerate with `UPDATE_WIRE_SNAPSHOT=1`).
-2. `src/lib/git-ipc.test.ts` declares fixtures **annotated with the ported types**, so `tsc` rejects
+2. `src/lib/ipc/git-ipc.test.ts` declares fixtures **annotated with the ported types**, so `tsc` rejects
    any shape `src/models/**` would not accept.
 3. That test asserts each fixture equals its snapshot entry, and runs the ported consumers
    (`mapStatus`, `isConflictWithMarkers`) over them.
@@ -1495,24 +1497,25 @@ Every change made to ported code, so nobody has to diff against `desktop-plus` t
 ### Layering-inversion fixes (the cause of the 455-file dependency explosion)
 
 All three are zero-runtime-impact and were required to port `lib/` without dragging in the UI
-tree, Electron, and `lib/stores`:
+tree, Electron, and `lib/stores`. **Paths are as they stood in Phase 1**; some of these files were
+later deleted with the GitHub-service cluster, which is why they no longer resolve:
 
 | File | Was | Now | Why |
 |---|---|---|---|
 | `src/lib/api.ts` | `import { BypassReasonType } from '../ui/secret-scanning/bypass-push-protection-dialog'` | `from '../models/secret-scanning'` | The API client imported a React dialog for one type alias. That single edge pulled all 120 `ui/` files into the API client and every test touching it. |
 | `src/lib/http.ts` | `import * as appProxy from '../ui/lib/app-proxy'`, `appProxy.getVersion()` | `__APP_VERSION__` | `getVersion()` is literally `return __APP_VERSION__`. The import chain reached `ui/main-process-proxy` → `lib/ipc-renderer` → `electron` to read a build-time constant. |
-| `src/lib/format-number.ts` | `import { round } from '../ui/lib/round'` | `from './round'` | `round()` is a dependency-free pure math function that was misfiled under `ui/`. Copied to `src/lib/round.ts`. |
-| `src/lib/diff-parser.ts` (Step 2) | `getHunkHeaderExpansionType` from `ui/diff/text-diff-expansion`, `getLargestLineNumber` from `ui/diff/diff-helpers` | both from `./diff-hunks` | Broke a real **import cycle** (`lib/diff-parser` → `ui/diff/text-diff-expansion` → `lib/diff-parser` for `HiddenBidiCharsRegex`) and stopped the pure text-parsing layer from requiring React (`diff-helpers.tsx` imports React). The pure functions — plus `DefaultDiffExpansionStep` — now live in the new `src/lib/diff-hunks.ts`, importing only `models/diff`. **Phase 7 action:** when `ui/diff/text-diff-expansion.ts` and `ui/diff/diff-helpers.tsx` are ported they must import these from `lib/diff-hunks` (not redefine them), keeping the dependency one-way. `HiddenBidiCharsRegex` remains exported from `diff-parser.ts` for them. |
+| `src/utils/format-number.ts` | `import { round } from '../ui/lib/round'` | `from './round'` | `round()` is a dependency-free pure math function that was misfiled under `ui/`. Copied to `src/utils/round.ts`. |
+| `src/lib/diff-parser.ts` (Step 2) | `getHunkHeaderExpansionType` from `ui/diff/text-diff-expansion`, `getLargestLineNumber` from `ui/diff/diff-helpers` | both from `./diff-hunks` | Broke a real **import cycle** (`lib/diff-parser` → `ui/diff/text-diff-expansion` → `lib/diff-parser` for `HiddenBidiCharsRegex`) and stopped the pure text-parsing layer from requiring React (`diff-helpers.tsx` imports React). The pure functions — plus `DefaultDiffExpansionStep` — now live in the new `src/lib/diff/diff-hunks.ts`, importing only `models/diff`. **Phase 7 action:** when `ui/diff/text-diff-expansion.ts` and `ui/diff/diff-helpers.tsx` are ported they must import these from `lib/diff-hunks` (not redefine them), keeping the dependency one-way. `HiddenBidiCharsRegex` remains exported from `diff-parser.ts` for them. |
 
 ### Other intentional edits
 
 | File | Change | Why |
 |---|---|---|
-| `src/lib/fatal-error.ts` | `assertNever(x: never, …)` → `assertNever(_x: never, …)` | `x` is an unused type-system device. rdc enables `noUnusedParameters` (desktop-plus did not); underscore-prefixing keeps that lint on rather than weakening the config. |
+| `src/utils/fatal-error.ts` | `assertNever(x: never, …)` → `assertNever(_x: never, …)` | `x` is an unused type-system device. rdc enables `noUnusedParameters` (desktop-plus did not); underscore-prefixing keeps that lint on rather than weakening the config. |
 | `src/lib/api.ts` | GitLab `fetchRefCheckRuns` override: `reloadCache` → `_reloadCache` | Same reason. Note this override genuinely ignores the caller's cache-reload request — latent smell, flagged rather than changed. The two *other* `reloadCache` params are used and untouched. |
 | `tsconfig.json` | `esModuleInterop: true`, `useUnknownInCatchVariables: false`, target ES2022 / lib ES2023, `types: ["node"]` | Required for ported code + `import assert from 'node:assert'`; matches desktop-plus's own compiler settings. |
 | `vite.config.ts` | production minification uses Vite 8's Oxc default rather than the scaffold's explicit esbuild override | Vite 8 made esbuild optional and deprecated `build.minify: "esbuild"`. Installing it did not restore the build: esbuild cannot perform the configured Safari 13 destructuring transform. Oxc supports the target, needs no extra install script, and makes `pnpm build` green; debug Tauri builds remain unminified. |
-| `src/lib/fonts/installed-fonts.ts` | `import { uniq } from 'lodash'` → `[...new Set(families)]` | Utility policy is native → Radash → Lodash (see `DEVELOPMENT.md`). A single `uniq()` on a `string[]` doesn't justify the dependency; lodash v4 is a 2016 release with v5 unreleased, so its vulnerability-response time is the real risk. If lodash ever *is* required, pin >= 4.18.1. |
+| `src/features/preferences/fonts/installed-fonts.ts` | `import { uniq } from 'lodash'` → `[...new Set(families)]` | Utility policy is native → Radash → Lodash (see `DEVELOPMENT.md`). A single `uniq()` on a `string[]` doesn't justify the dependency; lodash v4 is a 2016 release with v5 unreleased, so its vulnerability-response time is the real risk. If lodash ever *is* required, pin >= 4.18.1. |
 | `src/models/accessible-message.ts` | added `import type { JSX } from 'react'` | React 19 removed the global `JSX` namespace the file relied on under React 16. `models/banner.ts` has the same issue and will need the same fix whenever it's unblocked. |
 | `crates/git-ops/src/init.rs` (Phase 2) | `init_repository` takes `default_branch` as a parameter; the original `initGitRepository(path)` called `getDefaultBranch()` internally | That helper reads the user's **global** `init.defaultBranch` and falls back to `"main"` — ambient machine configuration plus app policy, reached from inside a low-level git call. It made the function's result depend on the developer's machine, and made the original test tautological: it asserted the branch equalled `getDefaultBranch()`, the very function the code called, so it could not have caught the argument being ignored. Resolution now belongs to the caller; the config lookup + fallback lands with `config.rs`. |
 | `crates/git-ops/src/add.rs` (Phase 2) | test asserts via `git ls-files -u` instead of the app's status parser | The original used `getStatusOrThrow`, and `lib/git/status.ts` isn't ported. Querying git's index directly is the same behavioural claim ("no longer an unmerged entry") while using git as the oracle rather than another unported module. |
@@ -1576,9 +1579,10 @@ tree, Electron, and `lib/stores`:
   -root, drive letters and UNC paths are exactly where hand-rolled path code goes wrong. Resolve it
   with a Rust query or a vetted library, not by hand. Fine under Vitest (which runs in Node) but must
   be settled before that module enters the app bundle.
-- **User-Agent string** still reads `GitHubDesktop/<version>` in `src/lib/http.ts`. Left
-  verbatim on purpose: the GitHub API may treat it as significant, so changing it is a
-  behavior decision, not cleanup.
+- ~~**User-Agent string** reads `GitHubDesktop/<version>` in `lib/http.ts`~~ — **discharged
+  2026-08-16**, not fixed: `http.ts` was in the deleted GitHub-service cluster. The decision it
+  recorded still applies to whatever replaces it in Phase 5b — the GitHub API may treat the
+  User-Agent as significant, so setting it is a behaviour decision rather than cleanup.
 
 ---
 
@@ -1646,7 +1650,7 @@ through shared host resources:
   without that, the matrix's exact viewports silently never apply. The driver applies each state
   **once** on file change and never re-asserts geometry on a timer, so it never fights a human
   resizing the window by hand during a QA session.
-- A **debug-only frontend hook** (`src/lib/ui/app/use-qa-state-driver.ts`) listens for `qa-drive`
+- A **debug-only frontend hook** (`src/testing/use-qa-state-driver.ts`) listens for `qa-drive`
   and applies it through the existing stores. It is gated on `__DEV__` **and** a runtime
   `__TAURI_INTERNALS__` check, so it is dead code in release builds and never subscribes in jsdom
   unit tests (the 952-test gate catches any regression).

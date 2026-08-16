@@ -246,7 +246,7 @@ forgotten:
 
 Several are *surfaces* (Tags, Stashes, Worktrees, Compare) rather than history-menu actions, which
 is why they are listed with the phase that builds their panel — see `MIGRATION_PLAN.md` Phase 7f
-and the sidebar-section registry in `src/lib/ui/sidebar-sections.ts`. This table exists so the
+and the sidebar-section registry in `src/app/sidebar/sidebar-sections.ts`. This table exists so the
 question "is the backend ahead of the UI?" has a one-look answer: **yes, by every row above.**
 
 ---

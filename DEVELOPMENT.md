@@ -6,6 +6,10 @@ according to [`MIGRATION_PLAN.md`](./MIGRATION_PLAN.md) (phases and decisions) a
 for *why* things are structured this way; this document is just *how* to work in the repo
 day to day.
 
+For **where a new file goes**, read [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md). It is short,
+it answers the question in one pass, and its rules are enforced — `pnpm check:module-boundaries` and
+two oxlint rules fail the build rather than leaving a review comment.
+
 For **what is still open** — the next phase, the engineering backlog, carried debt and accepted
 gaps — read [`REMAINING.md`](./REMAINING.md). Plan and map are the historical record and are large;
 `REMAINING.md` is the short forward-looking list, and it is the one to keep current.
@@ -54,7 +58,9 @@ gaps — read [`REMAINING.md`](./REMAINING.md). Plan and map are the historical 
 | `pnpm test` | Run the Vitest suite (frontend unit/component tests) |
 | `pnpm test:watch` | Vitest in watch mode |
 | `pnpm format` / `pnpm format:check` | Apply or check the repository's oxfmt policy |
-| `pnpm lint` | Run the blocking Oxlint correctness and React-hooks rules |
+| `pnpm lint` | Run the blocking Oxlint correctness, React-hooks and import-form rules |
+| `pnpm check:module-boundaries` | Enforce `PROJECT_STRUCTURE.md`: shared → features → app, no barrels, one dialog per module |
+| `pnpm check:bundle-boundary` | Prove no Node builtin reaches the webview |
 | `pnpm test:e2e` | Run the E2E suite — always inside the Linux container, see below |
 | `pnpm qualify:phase8a` | Audit MVP build/package inputs and exercise the deterministic Phase 8b fixture generator |
 | `pnpm fixture:phase8b -- <new-directory>` | Create isolated named Git scenarios for the human QA cycle; see `qa/phase-8b/fixture-scenarios.md` |
@@ -82,14 +88,14 @@ slices; don't quietly add a noisy non-blocking lint job.
 
 ### Frontend shell and styling boundary
 
-`src/App.tsx` is intentionally only the application entry point. State/effect orchestration lives
-in `src/lib/ui/app/use-app-controller.ts`; `app-shell.tsx` composes focused sidebar, toolbar,
+`src/app/app.tsx` is intentionally only the application entry point. State/effect orchestration lives
+in `src/app/use-app-controller.ts`; `app-shell.tsx` composes focused sidebar, toolbar,
 Changes, History, conflict, dialog and window-drag components beside it. Extend the owning component
 instead of rebuilding a monolithic shell in `App.tsx`.
 
 Tailwind 4 runs through the Vite plugin at build time—there is no runtime JIT and therefore no new
 script-evaluation CSP requirement. Extracted components own their local layout primitives with
-Tailwind utility classes. `src/App.css` remains deliberate: it owns the shared visual tokens,
+Tailwind utility classes. `src/styles/app.css` remains deliberate: it owns the shared visual tokens,
 platform behavior such as the draggable title bar, semantic/state selectors and responsive rules
 that coordinate multiple components. Keep that division; do not translate state or platform rules
 into unreadable conditional class strings merely to reduce the stylesheet's line count.

@@ -35,7 +35,9 @@ tests. This is pinned in `.nvmrc`, `engines`, and CI — don't unpin it to make 
 pnpm test                    # Vitest (frontend)
 pnpm exec tsc --noEmit       # typecheck
 pnpm format:check            # oxfmt
-pnpm lint                    # oxlint correctness + React hooks
+pnpm lint                    # oxlint correctness + React hooks + import form
+pnpm check:module-boundaries # shared -> features -> app; no barrels; one dialog per module
+pnpm check:bundle-boundary   # no Node builtin reaches the webview
 pnpm test:e2e                # E2E — always inside the Linux container
 ```
 
@@ -60,10 +62,15 @@ and a command no consumer asks for. Fix the numbers in the plan from its output,
 ## Layout
 
 ```
-src/                      frontend — mirrors desktop-plus/app/src/
-  models/                 ported domain types (TypeScript owns these — see below)
-  lib/                    ported portable logic
-  lib/git-ipc.ts          typed `invoke` wrappers
+src/                      frontend
+  app/                    composition root — shell, dialog host, controller, menu/, sidebar/
+  features/<name>/        one domain slice: stores, components, hooks, domain logic
+  components/             shared components; components/ui/ is vendored shadcn, CLI-owned
+  lib/                    named subsystems: ipc/, operations/, messages/, diff/, resilience/, …
+  models/                 types Rust also knows — the wire contract
+  platform/               the Tauri/OS adapter boundary
+  utils/                  pure helpers
+  testing/                test helpers and the debug state injectors
   lib/__generated__/      emitted by Rust tests; do not hand-edit
 src-tauri/
   src/commands/           #[tauri::command] entry points
@@ -75,10 +82,11 @@ e2e/                      tauri-driver suite, container-only
 Rust module names mirror the original TypeScript file names (`lib/git/status.ts` →
 `crates/git-ops/src/status.rs`) so the two trees can be read side by side.
 
-**The `src/` tree above is what exists today, and it is being reorganized.**
-[`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md) is the target layout and the rule that holds it
-(shared → features → app, no cross-feature imports). Read it before adding a file: it answers
-"where does this go" in one pass, and once the checker lands, answering it wrong fails the build.
+**Read [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md) before adding a file.** It answers "where
+does this go" in one pass, and the answer is enforced: dependencies run shared → features → app,
+imports are `./sibling` or `@/`, and `pnpm check:module-boundaries` plus two oxlint rules fail the
+build on a violation. The rule the checker cannot enforce is the one worth remembering — a module
+with a single consumer parked in a shared layer breaks nothing and is still wrong.
 
 ## Rules that are easy to get wrong
 
@@ -104,7 +112,7 @@ the `GitErrorKind` classification.
 UPDATE_WIRE_SNAPSHOT=1 cargo test -p git-ops --test wire_contract
 ```
 
-`src/lib/__generated__/wire-snapshot.json` is Rust's real serializer output; `src/lib/git-ipc.test.ts`
+`src/lib/__generated__/wire-snapshot.json` is Rust's real serializer output; `src/lib/ipc/git-ipc.test.ts`
 compares it against fixtures that `tsc` checks against `src/models/**`. Both sides must be updated
 together — that pairing is what makes drift impossible.
 

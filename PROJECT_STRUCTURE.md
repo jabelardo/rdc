@@ -1,7 +1,13 @@
 # Project structure — the layout, and the rule that keeps it
 
-**Status:** settled 2026-08-16; the move has not started. Answers the questions
-`CODE_ORGANIZATION_PLAN.md` deliberately left open.
+**Status:** applied and enforced, 2026-08-16. Every phase landed, and
+`scripts/check-module-boundaries.mjs` plus two oxlint rules fail the build on a violation. Answers
+the questions `CODE_ORGANIZATION_PLAN.md` deliberately left open.
+
+**Read this before adding a file.** [Where does this file go?](#where-does-this-file-go) answers it
+in one pass; [The rule](#the-rule) is the one idea everything else follows from. The phase-by-phase
+account of getting here is at the end, kept because several of its findings are the reasoning behind
+rules that would otherwise look arbitrary.
 **Applies to:** `src/` (the renderer). `src-tauri/` has its own settled layout and is out of scope.
 
 Two audiences, one document:
@@ -220,8 +226,8 @@ feature's, or buried in the switchboard. Four rules, and the first two are check
    them, and the shell renders the hosts. `app-dialogs.tsx` keeps only what no feature owns —
    generic operation progress, abort merge, remove repository, About, Preferences.
 
-   This is what fixed the god-component: 103 props and 712 lines became 21 and 141, with the rest
-   distributed across three hosts — 9, 6 and 5 props.
+   This is what fixed the god-component: **103 props and 712 lines became 8 and 137**, with the
+   rest distributed across three hosts — 9, 6 and 5 props.
 
    **Group a dialog's state, and let the group be `null` while it is closed.** The hosts first took
    41, 22 and 26 flat props, which was the same pile in three places. Grouping is what actually
@@ -229,6 +235,8 @@ feature's, or buried in the switchboard. Four rules, and the first two are check
    `mergePickerOpen`-style boolean beside every dialog's fields, and a host reading those fields
    while the flag said closed was a bug the types allowed. Carrying openness in the nullability
    makes the two impossible to disagree, and deleted seven boolean props on its own.
+
+   `AppDialogs`' own remaining 21 got the same treatment last, which is how it reached 8.
 
    Two more disappeared by deriving instead of passing — `mergeProgress` and `rebaseProgress` were
    `branchState.progress` narrowed by kind at the call site — and two stores stopped crossing the
@@ -368,8 +376,8 @@ walking the real import graph, and a barrel makes every consumer of one symbol l
 of all of them. The check that keeps `url.parse()` out of the bundle gets less precise with every
 barrel added.
 
-Two exist today — `src/lib/stores/index.ts` and `src/models/diff/index.ts` — and both are removed by
-the refactor.
+Two existed when this was written — `lib/stores/index.ts` and `models/diff/index.ts`. Both are gone;
+dissolving the second took direct imports across 12 files.
 
 ### Imports
 
@@ -522,7 +530,7 @@ Two things this phase taught:
 
 1. **The convention had a hole.** `import/no-relative-parent-imports` bans `../`, and the rule as
    written says "`./sibling` or `@/`". But `./lib/platform/files` also starts with `./` while
-   leaving the directory, and the linter cannot see it — `src/App.tsx`, `src/lib/discard-changes.ts`
+   leaving the directory, and the linter cannot see it — `src/app/app.tsx`, `src/features/changes/discard-changes.ts`
    and three others were doing exactly that. The conversion used the precise rule instead: **a
    relative import may not leave its own directory**, ascending *or* descending.
    `scripts/check-module-boundaries.mjs` must assert the descending half, since no stock rule does —
@@ -544,11 +552,11 @@ The moves themselves, all pure renames:
 | `src/lib/platform/` | `src/platform/` |
 | `src/lib/logging/`, `src/lib/resilience/`, `src/lib/menu/` | `src/lib/` (unchanged — already correct) |
 | `src/lib/debug/`, `src/test-helpers/` | `src/testing/` |
-| `src/App.css` | `src/styles/app.css` |
-| `src/lib/ui/theme-provider.tsx`, `tooltip.tsx`, `virtual-list.tsx`, `external-link.tsx`, `horizontal-resizer.tsx`, `terminal-output.tsx` | `src/components/` |
-| `src/lib/ui/list-navigation.ts` | `src/utils/` — pure logic; its only import is a React *type* |
-| `src/lib/ui/mvp-list-rows.tsx` | `src/components/` |
-| `src/test-setup.ts` | `src/testing/setup.ts` (and `vite.config.ts`'s `setupFiles`) |
+| `src/styles/app.css` | `src/styles/app.css` |
+| `src/features/preferences/components/theme-provider.tsx`, `tooltip.tsx`, `virtual-list.tsx`, `external-link.tsx`, `horizontal-resizer.tsx`, `terminal-output.tsx` | `src/components/` |
+| `src/utils/list-navigation.ts` | `src/utils/` — pure logic; its only import is a React *type* |
+| `src/lib/ui/mvp-list-rows.tsx` | Split four ways in Phase 3.5 — see [Sharing is about consumers](#sharing-is-about-consumers-not-shape) |
+| `src/testing/setup.ts` | `src/testing/setup.ts` (and `vite.config.ts`'s `setupFiles`) |
 
 ### Phase 2 — create the features and move the vertical slices — **done 2026-08-16**
 

@@ -1,6 +1,6 @@
 # UI foundation — shadcn/Radix adoption
 
-**Status**: Phases 0–3 landed — tooling and the full token migration, the sonner-backed toast and
+**Status**: **Complete.** Phases 0–3 landed — tooling and the full token migration, the sonner-backed toast and
 `useTheme()` provider, every dialog on Radix with the hand-rolled `Modal` deleted, and the Tooltip
 rebuilt on Radix's primitive. **The shadcn/Radix adoption is complete.** See "Stages" below for
 where this sits in the engineering round.
@@ -48,7 +48,7 @@ that a contributor plausibly already knows the pattern.
 against it. Phases 0–3 have since landed; `modal.tsx` no longer exists and `tooltip.tsx` is
 Radix-backed.** Verified by reading the code, not assumed from convention:
 
-- **Tokens**: `src/App.css` defines ~29 distinct `--color-*` custom properties (plus shadow/radius/
+- **Tokens**: `src/styles/app.css` defines ~29 distinct `--color-*` custom properties (plus shadow/radius/
   spacing tokens) under a plain `:root { }` — not wired through Tailwind 4's `@theme` directive,
   just referenced via `var(--color-x)` throughout (172 references in `App.css` alone; 7 more
   `.tsx` files reference them inline via arbitrary Tailwind values). Dark-theme and forced-colors
@@ -59,10 +59,10 @@ Radix-backed.** Verified by reading the code, not assumed from convention:
   provides: focus trap, Tab-cycle between first/last focusable element, Escape-to-dismiss,
   backdrop, `role="dialog"|"alertdialog"`, `aria-modal`. No bespoke business logic beyond that — a
   clean, low-risk swap.
-- **Dialogs** (`src/lib/ui/app/app-dialogs.tsx`) use `<Modal>` **2 times** (preferences,
+- **Dialogs** (`src/app/app-dialogs.tsx`) use `<Modal>` **2 times** (preferences,
   clone); the other 10 call sites have migrated to shadcn's `Dialog`, `AlertDialog`, or the shared
   `ConfirmDialog`/`NoticeDialog` abstractions. Mechanical once the remaining two are done.
-- **Tooltip** (`src/lib/ui/tooltip.tsx`, 234 lines) is **not** a clean swap. Real custom behavior
+- **Tooltip** (`src/components/tooltip/tooltip.tsx`, 234 lines) is **not** a clean swap. Real custom behavior
   Radix doesn't provide identically:
   - Boundary clearance (`data-tooltip-boundary`) — a tooltip clears an entire ancestor element
     (e.g. a whole command bar), not just its own trigger, so it never lands inside the bar's own
@@ -214,7 +214,7 @@ Landed alongside Phase 1, once passing `theme` as a prop into `MessageToasts` su
 question: how does *any* shadcn component get theme-awareness, not just this one. Decided now
 because every phase after this needs the answer.
 
-- `src/lib/ui/theme-provider.tsx` exports `ThemeProvider`/`useTheme()`, matching the shape most
+- `src/features/preferences/components/theme-provider.tsx` exports `ThemeProvider`/`useTheme()`, matching the shape most
   shadcn snippets assume from `next-themes` (`{ theme, resolvedTheme, setTheme }`) — but backed by
   rdc's own `preferences-store.ts` and Tauri-native theme integration, not a second parallel theme
   system. `next-themes` itself was considered and rejected: adopting it would mean two independent
@@ -226,7 +226,7 @@ because every phase after this needs the answer.
   could read "is it actually dark right now" without re-deriving it. `applyTheme`/
   `resolveSystemTheme` (`preferences-store.ts`) now return the resolved value in addition to
   setting the DOM attribute — one source of truth, not two.
-- `<ThemeProvider>` wraps the app once, in `src/App.tsx`. Any component under it — `MessageToasts`
+- `<ThemeProvider>` wraps the app once, in `src/app/app.tsx`. Any component under it — `MessageToasts`
   today, Dialog/Tooltip's shadcn primitives next — calls `useTheme()` directly instead of
   receiving `theme` threaded down as a prop through however many layers separate it from
   `app-shell.tsx`.

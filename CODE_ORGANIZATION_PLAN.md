@@ -3,9 +3,11 @@
 **Status**: **closed 2026-08-16.** The questions below are answered by
 [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md), which is the guideline and the migration plan.
 This document stays as the evidence that produced it — the measurements, and the reasoning about
-what the reachability numbers do and do not prove. Scheduled **after** the dialog migration
-completed, so it moves settled code rather than code still in flight. Raised by Jose on 2026-08-07: the dialogs sit at paths with no
-discernible pattern — not by feature, not by component type, not by anything — and "not only dialogs
+what the reachability numbers do and do not prove.
+
+**Everything below describes the codebase as it stood on 2026-08-07** and is kept in that tense
+deliberately; for how it is laid out now, read `PROJECT_STRUCTURE.md`. Raised by Jose on that date:
+the dialogs sat at paths with no discernible pattern — not by feature, not by component type, not by anything — and "not only dialogs
 are disorganized."
 
 This document exists to hold the evidence while it is fresh. **It decides nothing.** The point of
@@ -30,7 +32,7 @@ documenting a structure nobody chose.
 |---|---|---|
 | `src/components/ui/` | `dialog.tsx`, `alert-dialog.tsx` | Vendored shadcn primitives. Correct — these must stay where the shadcn CLI writes them, or `shadcn add` stops being diffable. |
 | `src/lib/ui/dialogs/` | `confirm-dialog.tsx`, `notice-dialog.tsx`, `rename-branch-dialog.tsx`, `dialog-actions.tsx`, `dialog-message.tsx`, `discard-file-list.tsx`, `confirm-opt-out.tsx` | rdc's own dialog layer. Created during the shadcn migration. |
-| `src/lib/ui/app/app-dialogs.tsx` | Eight dialogs still inline, ~850 lines | The pre-migration home. Shrinking as each dialog is extracted. |
+| `src/app/app-dialogs.tsx` | Eight dialogs still inline, ~850 lines | The pre-migration home. Shrinking as each dialog is extracted. |
 | `src/lib/ui/` | `modal.tsx`, `branch-select.tsx` | The hand-rolled modal being replaced, and a picker used only by a dialog. |
 
 The split is chronological, not architectural: where a thing lives records *when* it was written.

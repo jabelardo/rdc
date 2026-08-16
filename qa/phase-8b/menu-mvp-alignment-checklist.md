@@ -5,7 +5,7 @@ functional journeys. The automated recursive menu contract proves that every vis
 has an executor; this human gate answers the different question: **is the menu surface itself the
 right surface for the MVP?**
 
-Use `src/lib/menu/default-menu.ts` and `src/lib/menu/repository-menu.ts` as the implemented tree,
+Use `src/app/menu/default-menu.ts` and `src/app/menu/repository-menu.ts` as the implemented tree,
 `REMAINING.md` plus the Phase 7f section of `MIGRATION_PLAN.md` as the named post-MVP boundary, and
 the inventory tables below as the concrete per-element expectation.
 
@@ -17,7 +17,7 @@ minus everything that is not ready, plus everything rdc has already implemented.
 1. **Shape authority.** The Linux (and Windows) surface is defined by the legacy upstream app's
    non-Darwin template, `../desktop-plus/app/src/main-process/menu/build-default-menu.ts`
    (`__DARWIN__` false branch): top-level menu set, item order, labels with access keys, separators
-   and accelerators. `src/lib/menu/default-menu.ts` is rdc's faithful port of that template and is
+   and accelerators. `src/app/menu/default-menu.ts` is rdc's faithful port of that template and is
    the reference tree. Do not use the macOS template shape for Linux expectations.
 2. **Membership rule.** An item is in the Linux MVP baseline iff it is upstream-present **and**
    either

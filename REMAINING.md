@@ -160,7 +160,7 @@ to the post-MVP promotion phase along with the rest.
 
 - **Tailwind 4 debug CSS source maps are incomplete.** A debug Tauri/Vite build emits Rolldown's
   `Sourcemap is likely to be incorrect` warning for `@tailwindcss/vite:generate:build` when
-  `src/App.css` contains real Tailwind roots. The production build is quiet, the generated JavaScript
+  `src/styles/app.css` contains real Tailwind roots. The production build is quiet, the generated JavaScript
   map was traced back to both `App.tsx` and `use-app-controller.ts`, and application output is
   unaffected; the missing fidelity is CSS-to-source mapping in development tools. Enabling
   `css.devSourcemap` only moves the warning to Vite's CSS transform and emits no usable standalone

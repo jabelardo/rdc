@@ -121,7 +121,7 @@ a message the user should never have been shown. Those sentences name a git plum
 actual condition is "this repository is gone". So the question is now asked **once, upstream of the
 loads**, in `repositoryIsAvailable` (`use-app-controller.ts`) via the `getRepositoryType` command
 that already existed for adding a repository, and worded once in
-`src/lib/repository-availability.ts`. No store discovers the deletion at all, so there is nothing
+`src/features/repositories/repository-availability.ts`. No store discovers the deletion at all, so there is nothing
 left to coalesce — and coalescing stays as the safety net for genuinely repeated identical events.
 
 Two properties of that gate are deliberate:
@@ -155,7 +155,7 @@ The boundary is therefore:
 `operationError` to the native record and kept `error` for *management* failures (Add/Remove/Set-URL
 remote). Slice 5 below inherits that split rather than re-litigating it.
 
-**State** — `src/lib/stores/message-store.ts`, following the exact convention every other store
+**State** — `src/lib/messages/message-store.ts`, following the exact convention every other store
 already uses (`preferences-store.ts:136-180`: a plain class, a `listeners: Set<(state) => void>`,
 `onDidUpdate` returning an unsubscribe function, no shared base class — there isn't one anywhere
 in this codebase, so this doesn't introduce one either):
@@ -191,9 +191,9 @@ onto `sonner`'s toast calls (or its `<Toaster>` + imperative `toast()` API — s
 wiring in `UI_FOUNDATION_PLAN.md` Phase 1, since that's where the component itself is decided) from
 `app-shell.tsx`.
 
-**Formatting** — `src/lib/remote-error.ts`'s `describeRemoteError` already does the right thing for
+**Formatting** — `src/features/remotes/remote-error.ts`'s `describeRemoteError` already does the right thing for
 remote operations only. Generalize the `CommandError`-aware part into a new
-`src/lib/format-error.ts`:
+`src/utils/format-error.ts`:
 
 ```ts
 export function describeError(error: unknown): string {
@@ -293,7 +293,7 @@ follow-up — without it the decision could not be honoured at the one site that
 
 All four steps landed together, 2026-08-15.
 
-1. **One element.** `DialogFailure` (`src/lib/ui/dialogs/dialog-failure.tsx`) is how a dialog shows
+1. **One element.** `DialogFailure` (`src/components/dialog-kit/dialog-failure.tsx`) is how a dialog shows
    the failure of the action it confirmed — the shape `ConfirmDialog` already had, extracted and
    adopted by the preferences and add-remote dialogs. It stays distinct from `DialogMessage`, and
    the distinction is worth keeping: `DialogMessage` is a height-holding slot for whatever a dialog
@@ -509,7 +509,7 @@ every case.
 
 ## Read before implementing
 
-`src/lib/ui/tooltip.tsx` for the portal + registry pattern this reuses; `src/lib/remote-error.ts`
+`src/components/tooltip/tooltip.tsx` for the portal + registry pattern this reuses; `src/features/remotes/remote-error.ts`
 for the formatting logic being generalized; `src/lib/stores/preferences-store.ts:136-180` for the
 store-class convention to match exactly (no deviation — this is the one place in the codebase where
 introducing a shared base class might look tempting and would be inconsistent with every other

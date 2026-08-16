@@ -964,7 +964,7 @@ slow, cancelling, recovering, cancelled, timed-out, failed, completed-before-can
 unknown-outcome, recovery-required, owner, observer and adopted-control states. The frontend suite
 passes with 130 test files and 1,183 tests.
 
-Refactor `src/lib/ui/dialogs/operation-progress-dialog.tsx` to consume an operation view model rather
+Refactor `src/components/dialog-kit/operation-progress-dialog.tsx` to consume an operation view model rather
 than loose operation-specific props. Extract a shared progress body so background operations can use
 the same content without mounting a dialog.
 

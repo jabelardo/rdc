@@ -1,3 +1,28 @@
+# History Rewrite Plan — obsolete
+
+**Status: obsolete, 2026-08-16. Do not execute.** Kept as a record of the intent, not as a plan.
+
+It proposed squashing a 97-commit history — `729c6b5..1a186d5` — into a smaller set of logical
+per-phase commits, and preparing a `history-rewrite` branch for the rewrite.
+
+Three things ended it:
+
+- **The range is not in the current history.** `1a186d5` is no longer an ancestor of `main`, so the
+  96 commits this plan enumerates are not the commits that exist.
+- **The scale changed.** `main` is 512 commits. A plan written to reorganise 97 says nothing useful
+  about five times that, and its per-phase commit groupings no longer map onto anything.
+- **The `history-rewrite` branch is gone**, and the plan itself already described it as stale and
+  never used.
+
+**If the intent is revived**, it needs writing from scratch against the history that exists. The one
+piece worth carrying over is the reasoning, which has not aged: plan-only commits with no code, and
+cross-cutting fixes scattered through the phase they belong to, are the two patterns that make a
+history hard to read later. Both are better avoided while committing than repaired afterwards — and
+the commits since have largely done that.
+
+<details>
+<summary>The original plan</summary>
+
 # History Rewrite Plan
 
 ## Current state
@@ -133,3 +158,4 @@ git rebase -i 144a7d2 --onto 144a7d2
 - [ ] Delete the stale `history-rewrite` branch
 - [ ] Verify the rewritten history with `git log --oneline --graph` and `git diff main~1 HEAD`
 - [ ] Run all five CI gates before force-pushing
+</details>

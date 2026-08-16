@@ -1,5 +1,10 @@
 # shadcn Migration Guidelines
 
+**Status:** the dialog migration these rules were written for is complete; they stand as the
+conventions new components follow. Where a rule here and
+[`COMPONENT_MIGRATION_PROCESS.md`](./COMPONENT_MIGRATION_PROCESS.md) disagree, that document wins —
+it carries the numbered conventions and the reasoning each was settled with.
+
 **Purpose:** Establish rules for migrating rdc's hand-rolled components to shadcn/Radix primitives. The goal is to adopt shadcn's **component structure** (Radix primitives, accessibility, focus trapping, portal behavior) while preserving rdc's **visual design language** (colors, sizing, fonts, layout) that was established in desktop-plus and refined during Phase 0.
 
 ## Core principle
@@ -54,17 +59,22 @@ desktop-plus used a CSS mask for its alert-triangle icon; rdc uses a real lucide
 
 ### 5. Terminal output
 
-**Use xterm.js** (or `@xterm/xterm`) for terminal output in dialogs — not `<pre>` tags.
+**Use a styled `<pre>`, not xterm.js.** This guideline said the opposite until 2026-08-16, when the
+paths in it were checked and the module it pointed at turned out not to exist.
 
-rdc already has xterm.js as a dependency (used in `src/lib/ui/terminal.tsx`). The Hook failure dialog should use the same `Terminal` component that desktop-plus used, not a plain `<pre>`.
+xterm.js was never ported and is not a dependency. `MIGRATION_MAP.md` records the decision and the
+measurements behind it: xterm exists to render ANSI escape sequences, and rdc's captured hook output
+contains none — hooks are spawned with stderr as a pipe and no `TERM`, so npm, eslint, prettier and
+git all emit plain text. That is 283 KB against no benefit, on a bundle already past Vite's warning
+threshold.
 
-Configuration:
-- `rows`: 15 (or auto-height based on content)
-- `cols`: 80
-- `fontFamily`: monospace (from `getMonospaceFontFamily()`)
-- `fontSize`: 12
-- `convertEol`: true
-- `screenReaderMode`: true (accessibility)
+`src/components/terminal-output.tsx` is what to use: a `<pre>` with
+`commit-terminal-output`, a max height, and horizontal scroll inside its own box. It is what Hook
+failure and the commit progress dialog both render.
+
+Deferred, not rejected — if coloured output is ever wanted, the precondition is one line in
+`hook_environment` (`FORCE_COLOR=1`) and the proportionate answer is a small SGR-to-`<span>` pass,
+not a terminal emulator.
 
 ### 6. Title font
 
@@ -134,7 +144,7 @@ Before migrating each dialog, verify:
 - [ ] Panel has visible border (not ring), correct radius (8px), correct shadow
 - [ ] Padding is 20px (not 16px)
 - [ ] Warning/error dialogs have the circle-exclamation icon in yellow-300
-- [ ] Terminal output uses xterm.js, not `<pre>`
+- [ ] Terminal output uses the shared `TerminalOutput` `<pre>`, not xterm.js (see §5)
 - [ ] Title font is smaller than button font
 - [ ] Button order is platform-specific
 - [ ] Destructive buttons use red tint + red border (not solid red)

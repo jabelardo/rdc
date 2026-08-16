@@ -250,7 +250,7 @@ prompts. Six of the eight rows were already settled — the table shrank exactly
 
 ### Also landed
 
-- **`ExternalLink` (`src/lib/ui/external-link.tsx`)** — new shared component. A webview has no
+- **`ExternalLink` (`src/components/external-link.tsx`)** — new shared component. A webview has no
   chrome to get back from, so an anchor that navigates strands the user; this keeps the `href` (so
   the role stays `link` and the URL is inspectable) but cancels navigation and hands the URL to
   `openExternal`, which guards the scheme. Every future dialog and the message system need this.
@@ -317,7 +317,7 @@ also what Radix announces, so the question belongs there.
 
 ### The abstraction
 
-`ConfirmDialog` (`src/lib/ui/dialogs/confirm-dialog.tsx`) encodes Conventions 1, 2, 4, 5 and 8 once
+`ConfirmDialog` (`src/components/dialog-kit/confirm-dialog.tsx`) encodes Conventions 1, 2, 4, 5 and 8 once
 instead of restating them in four places — the same role desktop-plus's `OkCancelButtonGroup`
 played. `NoticeDialog` covers the refusal case under Conventions 6 and 7. Four dialogs' worth of
 hand-written markup left `app-dialogs.tsx`, and `.destructive-button` left `App.css` with zero
@@ -731,7 +731,7 @@ of the app truthful, so they ride in the control you pressed.
   dialog, while scheduled/background work remains embedded so unrelated repository windows are not
   blocked.
 
-**Landed:** the shared progress dialog is `src/lib/ui/dialogs/operation-progress-dialog.tsx`
+**Landed:** the shared progress dialog is `src/components/dialog-kit/operation-progress-dialog.tsx`
 (undismissable `AlertDialog`, themed `Progress` from `src/components/ui/progress.tsx`, a
 per-operation content slot) with parameters `operation`, `progress.value/title/description`, the
 optional commit-N-of-M, and `children` — so clone, commit and every history operation mount the

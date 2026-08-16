@@ -1,6 +1,10 @@
 # Branch operations — closing the MVP menu gap
 
-**Status**: Slices 1–3 (discard-all ×2, rename + delete, merge initiation) are landed and promoted
+**Status**: **Complete.** Every slice landed; what remains is human verification, not engineering.
+Two carve-outs, both deliberate and tracked elsewhere: native-menu dispatch for each landed item is
+QA cycle 2's (`REMAINING.md`), and `update-from-default` is deferred to Phase 7f.
+
+Slices 1–3 (discard-all ×2, rename + delete, merge initiation) are landed and promoted
 in the menu baseline — code-complete and gated-green. **Slice 4 (abort merge) landed 2026-08-15** — a real gap found checking the MVP exit criteria against the actual code, not a scope
 change to what Slices 1–3 already closed. `update-from-default remains deferred to Phase 7f` by
 the scope decision. Supersedes the "expected disposition" paragraph of F-MENU-001 in
@@ -38,7 +42,7 @@ one layer thick — store methods, UI affordances, menu wiring:
 `branch-store.ts` exposes only `load`, `createAndCheckout`, `checkout`, `clear`.
 `working-tree-store.ts` only `discardFile`, `discardSelectedLines`. Those two files are the work.
 
-The menu *items* already exist in `src/lib/menu/default-menu.ts` (faithful upstream port) and are
+The menu *items* already exist in `src/app/menu/default-menu.ts` (faithful upstream port) and are
 disabled by `withHonestStartupEnablement` because they have no executor. Wiring an executor plus an
 enablement entry promotes them automatically — **do not add items to `default-menu.ts`.**
 
@@ -98,7 +102,7 @@ First **because it is the smallest slice that touches every layer**, so it estab
 pattern — store → confirmation → menu item → accelerator → parity test → E2E → macOS checklist — at
 minimum risk, before the harder guards in Slice 2.
 
-**Store** (`src/lib/stores/working-tree-store.ts`)
+**Store** (`src/features/changes/stores/working-tree-store.ts`)
 
 - `discardAllChanges(permanentlyDelete = false)`, passing the whole `workingDirectory.files` list to
   the existing `discardChanges(path, files, { permanentlyDelete })`. Reuse `discardFile`'s
@@ -141,11 +145,11 @@ minimum risk, before the harder guards in Slice 2.
 
 ## Slice 2 — Rename + Delete
 
-**Store** (`src/lib/stores/branch-store.ts`)
+**Store** (`src/features/branches/stores/branch-store.ts`)
 
 - `renameBranch(from, to)` and `deleteBranch(branch, { includeRemote })`. Reuse the existing
   `finishOperation` reload pattern so `branchState` refreshes.
-- **Validate the new name with `src/lib/sanitize-ref-name.ts`** (already ported, implements git's
+- **Validate the new name with `src/features/branches/sanitize-ref-name.ts`** (already ported, implements git's
   `check-ref-format` rules) and reject collisions with an existing branch, so the failure is a product
   message rather than a raw git error.
 - Delete guards, in priority order:
@@ -222,7 +226,7 @@ and — unlike Slices 1–3's items, which existed disabled — there is no `abo
 anywhere in `default-menu.ts` at all. This is a genuine addition to the menu inventory, not a
 wiring gap.
 
-**Store** (`src/lib/stores/conflict-store.ts`) — `abortMerge()`, calling the existing IPC path.
+**Store** (`src/features/conflicts/stores/conflict-store.ts`) — `abortMerge()`, calling the existing IPC path.
 Refresh `workingTreeState`/`branchState` after, same `finishOperation`-reload pattern the other
 branch operations already use.
 
@@ -295,7 +299,7 @@ update-from-default-branch convenience.
 |---|---|---|
 | Merge commit | complete and wired | none — shipped |
 | Squash and merge | **complete**: `MergeOptions { squash }`, and `merge()` then runs `git commit --no-edit` under the correct second hook set (`prepare-commit-msg`, `commit-msg`, `post-commit`) | `branch-store.ts` calls `mergeBranch(path, target)` with no options |
-| Rebase | `rebase_branch`, `continue_rebase`, `abort_rebase`, `get_rebase_snapshot`, `operation_state.rs` all exist; `rebaseBranch` has a TS wrapper | no store, no UI. `src/lib/rebase.ts` is in the unreachable set measured in `CODE_ORGANIZATION_PLAN.md` |
+| Rebase | `rebase_branch`, `continue_rebase`, `abort_rebase`, `get_rebase_snapshot`, `operation_state.rs` all exist; `rebaseBranch` has a TS wrapper | no store, no UI. `src/features/branches/rebase.ts` is in the unreachable set measured in `CODE_ORGANIZATION_PLAN.md` |
 
 ### 2. Rebase gets its own dialog
 

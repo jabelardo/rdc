@@ -167,7 +167,7 @@ only gate, so keep them low priority relative to Step 2.
 **Step 2 — Unblock `diff-parser-test`. ✅ DONE** — 33 test files / 298 tests green (+1 file,
 +10 tests). `getHunkHeaderExpansionType`, `getLargestLineNumber` and `DefaultDiffExpansionStep`
 were extracted from `ui/diff/text-diff-expansion.ts` and `ui/diff/diff-helpers.tsx` into a new
-`src/lib/diff-hunks.ts` that imports only `models/diff`, then `lib/diff-parser.ts` was ported
+`src/lib/diff/diff-hunks.ts` that imports only `models/diff`, then `lib/diff-parser.ts` was ported
 pointing at it. This **broke a real import cycle** (`lib/diff-parser` →
 `ui/diff/text-diff-expansion` → `lib/diff-parser` for `HiddenBidiCharsRegex`) rather than
 relocating it: the dependency is now one-way, and the diff *parser* no longer needs React to
@@ -367,7 +367,7 @@ cases became 26 Rust tests. `src/models/diff/**` stays — those are the domain 
 Three things worth knowing from it:
 
 - **The frontend must hydrate.** Unlike `AppFileStatus`, `DiffHunk` and `DiffLine` are *classes with
-  methods*, so JSON is not assignable to them however well the fields line up. `src/lib/diff-ipc.ts`
+  methods*, so JSON is not assignable to them however well the fields line up. `src/lib/diff/diff-ipc.ts`
   declares plain wire types and constructs the classes — and that hydration is the compile-time proof
   the shapes match, which is stronger than an assertion.
 - **`DiffLineType` is a numeric enum**, so it serializes as `0`–`3`, and the diff types use
@@ -1244,7 +1244,7 @@ commit model. So the work split:
   pattern as `BypassReasonType` in Phase 1).
 
 **Measured result, matching the prediction exactly:**
-- `create-branch` is **unblocked and ported** — `src/lib/create-branch.test.ts`, 9 tests passing,
+- `create-branch` is **unblocked and ported** — `src/features/branches/create-branch.test.ts`, 9 tests passing,
   along with the `models/commit.ts` → `models/branch.ts` → `models/tip.ts` → `lib/create-branch.ts`
   chain it needed. First of the 15 recovered.
 - `pull-request-refs` is down to **exactly one** blocker, as predicted:
@@ -1711,16 +1711,16 @@ whereas `diff` removes the thing that makes the app unusable. `diff` first, then
   not enough:
 
   - `crates/git-ops/tests/wire_contract.rs` pins the exact JSON of every boundary type, and
-    `src/App.test.tsx` pins the command name and camelCase argument names. This caught a real
+    `src/app/app.test.tsx` pins the command name and camelCase argument names. This caught a real
     mistake immediately — `#[serde(rename_all)]` on an enum renames *variants*, not fields, so the
     conflict types were emitting `conflict_marker_count`.
   - **But pinning Rust against JSON written in the same file is not pinning it against the domain
     model.** A conflict shape passed every one of those assertions while being unusable by
-    `src/lib/status.ts`: the Rust flattened `action`/`us`/`them`, the ported `models/status.ts` nests
+    `src/utils/status.ts`: the Rust flattened `action`/`us`/`them`, the ported `models/status.ts` nests
     them under `entry`, and the Rust, its test, and `git-ipc.ts`'s own redeclared type were all
     wrong together. Two definitions of one domain concept is what made it invisible.
   - The fix closes the loop with no hand-copied JSON: Rust **emits** its real serializer output to
-    `src/lib/__generated__/wire-snapshot.json`, and `src/lib/git-ipc.test.ts` compares it to fixtures
+    `src/lib/__generated__/wire-snapshot.json`, and `src/lib/ipc/git-ipc.test.ts` compares it to fixtures
     annotated with the ported types — so `tsc` checks the shape against `src/models/**` and the
     assertion checks it against Rust. Neither side can drift alone. Verified by reintroducing the
     flattened shape and watching the suite go red.
@@ -1828,7 +1828,7 @@ command: `createBranch`, `renameBranch`, `deleteLocalBranch`, `getBranchesPointe
 `deleteRef`, `getSymbolicRef`. 75 commands. They live in a new `commands/branch.rs`, since branches are their
 own domain in the store layer and `git.rs` was already long.
 
-`formatAsLocalRef` went the other way — into `src/lib/refs.ts` as TypeScript, because it computes a string
+`formatAsLocalRef` went the other way — into `src/features/branches/refs.ts` as TypeScript, because it computes a string
 from a string and a round trip to Rust would buy latency and a wire contract in exchange for nothing. That
 leaves the rule implemented in both languages, which is accepted here and not in the diff-expansion case for a
 reason: it is four lines, and the same cases are asserted on both sides.
@@ -1879,7 +1879,7 @@ staging a file that still has markers would commit them — and a test asserts e
 - **`getAheadBehind`** is the command. `--left-right --count` does the work, and `null` is an answer rather than
   a failure: a ref in the range no longer exists — usually a deleted upstream — so there is nothing to be ahead
   *of*, and a caller with a blank label to fill should not be handling a rejection.
-- **The three range builders** are string concatenation, so they are `src/lib/rev-range.ts`.
+- **The three range builders** are string concatenation, so they are `src/utils/rev-range.ts`.
 - **`getBranchAheadBehind`** is TypeScript too, and that is the call worth explaining: every branch-specific
   decision in it — a remote branch has no upstream of its own, a local one without an upstream has nothing to
   compare against, and the range is two names and three dots — is one the frontend can make from data it
@@ -2262,7 +2262,7 @@ for the updater, so 4a is everything the UI calls and 4b is everything it does n
    another app window exists; the last window still follows the existing macOS hide/non-macOS quit
    policy. Destruction clears both routing metadata and any unclaimed startup action.
 5. **Menus and key bindings.** Per decision 1, and the largest slice in 4a. Five pieces:
-   - `src/lib/menu/default-menu.ts` — the structure, labels and roles ported from `build-default-menu.ts`
+   - `src/app/menu/default-menu.ts` — the structure, labels and roles ported from `build-default-menu.ts`
      **without accelerators**, plus `lib/menu-item.ts`; and `src/models/app-menu.ts`, which is the same
      model minus `menuFromElectronMenu`.
    - `src-tauri/src/platform/keybindings.rs` — the `MenuId → { modifiers, key }` map: 52 source
@@ -2319,7 +2319,7 @@ for the updater, so 4a is everything the UI calls and 4b is everything it does n
 
    **Started:** Linux editor discovery is the first bounded increment. Its Rust tests pin upstream's
    editor ordering, first-existing-path selection, and home-scoped Flatpak/JetBrains/Zed candidates;
-   `get_available_editors` crosses through a typed `src/lib/platform/editors.ts` wrapper and its
+   `get_available_editors` crosses through a typed `src/platform/editors.ts` wrapper and its
    `FoundEditor` serializer shape is in the generated wire snapshot. macOS discovery then landed over
    the real Spotlight metadata query (`mdfind`), with tests pinning bundle-ID fallback order and parsing
    independently of the host's installed applications. Normal and custom editor launch then landed:
@@ -2329,7 +2329,7 @@ for the updater, so 4a is everything the UI calls and 4b is everything it does n
    Custom validation then landed over the OS executable-access check (including symlinks) and macOS
    `mdls` bundle metadata, with the result in the generated wire snapshot; whole-integration validation
    also requires a parseable argument string containing `%TARGET_PATH%`. Finally, the one pure
-   stored-format migration remains in `src/lib/custom-integration.ts`: its type admits the legacy
+   stored-format migration remains in `src/features/preferences/custom-integration.ts`: its type admits the legacy
    argument array that persisted data can really contain, joins it without mutation, and preserves
    upstream's `null` meaning of “no update needed.”
 
@@ -3036,7 +3036,7 @@ section registry names Repositories, Branches, Tags, Stashes, Submodules and Sub
 visible only when its real store and actions exist: the MVP renders Repositories and Branches;
 Tags/Stashes/Submodules/Subtrees remain registered but hidden until their Phase 7f consumers land.
 Flipping visibility without the backing feature is not allowed, preserving the honest-product rule.
-The typed registry and its MVP capability contract are pinned in `src/lib/ui/sidebar-sections.ts`;
+The typed registry and its MVP capability contract are pinned in `src/app/sidebar/sidebar-sections.ts`;
 it contains no placeholder renderers or no-op actions.
 
 The native window title carries the current repository and branch. A toolbar below it consolidates
@@ -3204,7 +3204,7 @@ audits. Fresh no-bundle development builds succeeded on macOS and in the Linux j
 package was produced. Phase 8a is closed again and Phase 8b is next.
 
 One debug-build warning was investigated rather than hidden: with source maps enabled for a Tauri
-debug build, Rolldown reports that `@tailwindcss/vite:generate:build` transformed `src/App.css`
+debug build, Rolldown reports that `@tailwindcss/vite:generate:build` transformed `src/styles/app.css`
 without a complete input map. Production builds do not emit the warning; the generated JavaScript
 map was traced successfully through `App.tsx` and `use-app-controller.ts`; and enabling Vite's CSS
 development maps only moves the warning to the next CSS transform without producing a usable CSS
@@ -3398,14 +3398,14 @@ the four conventions that are now the strongest layout rules the migration produ
   prefix.
 
 Two branch dialogs finished here. **Rename branch**
-(`src/lib/ui/dialogs/rename-branch-dialog.tsx`) was extracted from `app-dialogs.tsx`, closed the
+(`src/features/branches/components/rename-branch-dialog.tsx`) was extracted from `app-dialogs.tsx`, closed the
 `MESSAGE_SYSTEM_PLAN` Slice 1 bug where a rejected rename showed no reason, and added the
 validation that was missing — a space, a tilde or a taken name used to reach git and fail after
 the fact.
 `sanitizedRefName` gained its first caller, collisions are caught before git sees them, and a
 failure/busy message fills the shared slot while every dismissal is blocked. `DialogActions`
 centralises Convention 2's platform ordering for ordinary form dialogs. **Merge**
-(`src/lib/ui/dialogs/merge-branch-dialog.tsx` + `strategy-actions.tsx`) replaces the abandoned WIP
+(`src/features/branches/components/merge-branch-dialog.tsx` + `strategy-actions.tsx`) replaces the abandoned WIP
 — four features were written and commented out, which read to a user as a broken feature, not
 unfinished work. It covers merge and squash as two strategies from a split button whose label names
 the whole sentence ("Merge into main"), matches on **SHA as well as ref** so one `git branch

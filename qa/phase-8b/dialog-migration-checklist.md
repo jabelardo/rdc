@@ -274,7 +274,7 @@ contract, and it is the thing most likely to drift as one of the two gets adjust
 
 ## Debug Stub-State Mechanism (implemented)
 
-The `src/lib/debug/inject-test-state.ts` module populates every store the dialogs read from with minimal stub data (fake repo, branches, remotes, working-tree files, hook failure). Each debug menu event calls `injectDebugState()` before opening the dialog.
+The `src/testing/inject-test-state.ts` module populates every store the dialogs read from with minimal stub data (fake repo, branches, remotes, working-tree files, hook failure). Each debug menu event calls `injectDebugState()` before opening the dialog.
 
 The real menu events are completely untouched — clicking "Rename branch" from the context menu uses real data, always. Only the **Help → Show Dialog** submenu triggers stub injection via debug-prefixed events (e.g., `debug-show-rename-branch-dialog` instead of `rename-branch`).
 
