@@ -168,6 +168,45 @@ breaks no rule and is still wrong, and no script will tell you. That is what the
 "put it in the feature; sharing is discovered, not predicted" is defending against, and it has to be
 applied by the person writing the code.
 
+## Where a feature's state goes
+
+`use-app-controller.ts` was 2,359 lines with 81 pieces of state and 133 returned members — the last
+god-object, and the one every dialog's state passed through. It is now **1,510 lines and 37 states**,
+with seven hooks owning the rest:
+
+| Hook | Owns |
+|---|---|
+| `features/branches/use-branch-name-dialogs` | Rename, Delete |
+| `features/branches/use-merge-rebase-dialogs` | Merge, Rebase |
+| `features/changes/use-discard-dialogs` | File, selection and whole-tree discard |
+| `features/conflicts/use-abort-merge-dialog` | Abort merge |
+| `features/remotes/use-remote-dialogs` | Manage remotes, Add remote |
+| `features/remotes/use-clone-dialog` | Clone |
+| `features/repositories/use-remove-repository-dialog` | Remove repository |
+
+**A hook takes capabilities, not stores.** Every cross-feature need became a callback the app
+supplies, because the app is the only layer that knows two features. The boundary checker found
+four the compiler was happy with: discard reading two preferences, merge asking whether the working
+tree is dirty, clone registering the repository it produced, and the branch pickers reaching into
+`testing/` for the canned previews that make them reviewable from Show Dialog.
+
+Prefer a function to a value. `beforeDiscard()` rather than a boolean, because the native menu
+controller is installed once — a value captured at render time is the preference as it stood at
+first mount, which is a bug this codebase has already had.
+
+**Each hook resets its own state on repository change**, replacing one 70-line effect that had to
+know every feature's state to do its job. Two hooks deliberately do not reset: clone, because
+cloning is what *produces* a repository, and remove-repository, because the repository being removed
+is usually the selected one and closing the dialog would cancel the action being confirmed. One
+effect resetting everything could not express either exception; it was right about them by accident.
+
+The new resets key on the repository **path** where the original keyed on the `Repository` **object**,
+so a background refresh no longer closes an open dialog. Better behaviour, and a behaviour change —
+recorded in each hook rather than left for someone to discover.
+
+**Debug entries get named seams.** Five of them were setting private state directly, which breaks
+silently the moment that state moves — as it just did, seven times over.
+
 ## Where a dialog goes
 
 Dialog code had drifted into six places, three of them written inline inside a 712-line,
