@@ -182,10 +182,18 @@ feature's, or buried in the switchboard. Four rules, and the first two are check
    generic operation progress, abort merge, remove repository, About, Preferences.
 
    This is what fixed the god-component: 103 props and 712 lines became 21 and 141, with the rest
-   distributed across three focused hosts. **It did not reduce how much state is threaded** — the
-   branch host takes 41 props of its own. What it removed was the single signature every dialog's
-   state had to pass through, so widening one dialog no longer widens the type all the others
-   share.
+   distributed across three hosts — 9, 6 and 5 props.
+
+   **Group a dialog's state, and let the group be `null` while it is closed.** The hosts first took
+   41, 22 and 26 flat props, which was the same pile in three places. Grouping is what actually
+   reduced them, and nullability is the part that earns its keep: the flat form needed a
+   `mergePickerOpen`-style boolean beside every dialog's fields, and a host reading those fields
+   while the flag said closed was a bug the types allowed. Carrying openness in the nullability
+   makes the two impossible to disagree, and deleted seven boolean props on its own.
+
+   Two more disappeared by deriving instead of passing — `mergeProgress` and `rebaseProgress` were
+   `branchState.progress` narrowed by kind at the call site — and two stores stopped crossing the
+   boundary, replaced by the callbacks the hosts actually used.
 2. **`components/ui/`** holds the vendored Radix primitives — `dialog.tsx`, `alert-dialog.tsx`.
    Untouched, CLI-owned.
 3. **`components/dialog-kit/`** holds the shared shapes and the parts that go inside one: Confirm,
