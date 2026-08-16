@@ -43,14 +43,14 @@ const margin = 8;
 /** Above this trigger height, the bubble follows the pointer rather than the trigger's edge. */
 const pointerTrackingHeight = 100;
 /**
- * ...but only if the trigger is also wide enough to be a row.
+ * Height alone is the right test, and a narrow trigger needs tracking *most*.
  *
- * Height alone was the wrong test. A resizer is full-height and about six pixels wide, so it
- * qualified as "tall" and got a bubble that chased the cursor down a control the user was trying to
- * grab. Pointer tracking exists for tall *rows*, where the bubble should not jump to a distant
- * edge; a sliver has no distant edge to jump to.
+ * Briefly gated on width too, on the theory that pointer tracking was for tall rows and a six-pixel
+ * resizer did not qualify. That was backwards and shipped a worse bug: a full-height trigger has no
+ * near edge, so the edge-based branch put the bubble past the bottom of the window, flipped it, and
+ * parked it above the trigger's top — up in the toolbar, a thousand pixels from the pointer. The
+ * furthest-possible edges are exactly why this case tracks.
  */
-const pointerTrackingWidth = 120;
 
 type Placement = {
   readonly side: "top" | "bottom";
@@ -77,6 +77,32 @@ type Placement = {
  * Exported for its own test: jsdom reports every rect as zero, so the arithmetic can only be
  * verified apart from the DOM.
  */
+/**
+ * Whether the bubble follows the pointer instead of sitting at one of the trigger's edges.
+ *
+ * A tall trigger's edges can be most of a window away, which makes an edge-anchored bubble useless.
+ * Exported so the rule can be asserted directly: gating this on width as well shipped a bug where a
+ * full-height resizer's tooltip appeared in the toolbar.
+ */
+export function followsPointer(anchorHeight: number): boolean {
+  return anchorHeight > pointerTrackingHeight;
+}
+
+/** Where a pointer-tracked bubble's top edge goes, clamped to the title bar and viewport bottom. */
+export function pointerTrackedTop(
+  pointerY: number | null,
+  anchorTop: number,
+  anchorHeight: number,
+  bubbleHeight: number,
+  viewportHeight: number,
+): number {
+  const targetY = pointerY ?? anchorTop + anchorHeight / 2;
+  return Math.min(
+    viewportHeight - bubbleHeight - margin,
+    Math.max(titlebarGap, targetY - bubbleHeight / 2),
+  );
+}
+
 export function horizontalAlignOffset(
   anchorLeft: number,
   anchorWidth: number,
@@ -184,11 +210,13 @@ export function Tooltip({ label, children, delay = 0, suppressed = false }: Tool
       window.innerWidth,
     );
 
-    if (anchor.height > pointerTrackingHeight && anchor.width > pointerTrackingWidth) {
-      const targetY = pointerY.current ?? anchor.top + anchor.height / 2;
-      const top = Math.min(
-        window.innerHeight - bubble.height - margin,
-        Math.max(titlebarGap, targetY - bubble.height / 2),
+    if (followsPointer(anchor.height)) {
+      const top = pointerTrackedTop(
+        pointerY.current,
+        anchor.top,
+        anchor.height,
+        bubble.height,
+        window.innerHeight,
       );
       return { side: "bottom", sideOffset: top - anchor.bottom, alignOffset };
     }
@@ -218,17 +246,19 @@ export function Tooltip({ label, children, delay = 0, suppressed = false }: Tool
   const trackPointer = useCallback(
     (clientY: number) => {
       const anchor = triggerRef.current?.getBoundingClientRect();
-      if (
-        anchor === undefined ||
-        anchor.height <= pointerTrackingHeight ||
-        anchor.width <= pointerTrackingWidth
-      ) {
+      if (anchor === undefined || !followsPointer(anchor.height)) {
         return;
       }
       pointerY.current = clientY;
-      reposition();
+      // Record the pointer always, reposition only while something is on screen. A closed tooltip
+      // was re-measuring and re-rendering on every mouse move across a full-height trigger, which
+      // is most of the cost of hovering one and buys nothing — the position it computes is thrown
+      // away, and the value that matters is already saved above for the moment it opens.
+      if (open) {
+        reposition();
+      }
     },
-    [reposition],
+    [open, reposition],
   );
 
   const content = (

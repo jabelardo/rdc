@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { horizontalAlignOffset } from "./tooltip";
+import { followsPointer, horizontalAlignOffset, pointerTrackedTop } from "./tooltip";
 
 /**
  * The offset is relative to the anchor's left edge, so a bubble that lands at viewport x is
@@ -54,5 +54,41 @@ describe("horizontalAlignOffset", () => {
     // anchor's own left edge, making the offset zero for a bubble as wide as its trigger.
     expect(leftEdge(400, offset)).toBe(400);
     expect(offset).toBe(0);
+  });
+});
+
+describe("followsPointer", () => {
+  /**
+   * The regression this pins. A pane resizer is the full height of the window and about six pixels
+   * wide; gating tracking on width as well as height dropped it into the edge-anchored branch,
+   * where "below the bottom edge" is off-screen, so it flipped and parked the bubble above the
+   * trigger's *top* — in the toolbar, a thousand pixels from the pointer.
+   */
+  it("tracks a full-height resizer, however narrow it is", () => {
+    expect(followsPointer(1135)).toBe(true);
+  });
+
+  it("does not track an ordinary control", () => {
+    expect(followsPointer(28)).toBe(false);
+  });
+});
+
+describe("pointerTrackedTop", () => {
+  const viewportHeight = 1290;
+
+  it("centres the bubble on the pointer", () => {
+    expect(pointerTrackedTop(950, 155, 1135, 34, viewportHeight)).toBe(933);
+  });
+
+  it("never lands under the native title bar", () => {
+    expect(pointerTrackedTop(10, 0, 1135, 34, viewportHeight)).toBe(36);
+  });
+
+  it("never runs past the bottom of the viewport", () => {
+    expect(pointerTrackedTop(1285, 155, 1135, 34, viewportHeight)).toBe(viewportHeight - 34 - 8);
+  });
+
+  it("falls back to the trigger's middle before the pointer has been seen", () => {
+    expect(pointerTrackedTop(null, 100, 200, 34, viewportHeight)).toBe(183);
   });
 });
