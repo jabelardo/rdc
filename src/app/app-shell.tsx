@@ -31,6 +31,10 @@ export function AppShell({ controller }: AppShellProps) {
   const {
     appState,
     branchState,
+    renameDialog,
+    deleteDialog,
+    mergeDialog,
+    rebaseDialog,
     branchStore,
     cloneState,
     cloneStore,
@@ -109,18 +113,6 @@ export function AppShell({ controller }: AppShellProps) {
     setDiscardOptOut,
     confirmDiscardAll,
     cancelDiscardAll,
-    branchToRename,
-    renameName,
-    setRenameName,
-    confirmRename,
-    cancelRename,
-    branchToDelete,
-    deleteRefusal,
-    deleteUnmerged,
-    deletePruneTrackingRef,
-    setDeletePruneTrackingRef,
-    confirmDelete,
-    cancelDelete,
     openBranchContextMenu,
     continueHistoryRecovery,
     abortHistoryRecovery,
@@ -134,28 +126,6 @@ export function AppShell({ controller }: AppShellProps) {
     abortMergeError,
     squashSelectedCommits,
     reorderSelectedCommits,
-    mergePickerOpen,
-    mergeTarget,
-    setMergeTarget,
-    mergeMessage,
-    mergeRunning,
-    mergeStatus,
-    mergeCommitCount,
-    mergeStrategy,
-    setMergeStrategy,
-    mergePreviewError,
-    mergedBranches,
-    confirmMerge,
-    cancelMerge,
-    rebasePickerOpen,
-    rebaseTarget,
-    setRebaseTarget,
-    rebaseMessage,
-    rebaseRunning,
-    rebasePreview,
-    rebasePreviewError,
-    confirmRebase,
-    cancelRebase,
     showManageRemotes,
     remoteFilter,
     setRemoteFilter,
@@ -178,6 +148,7 @@ export function AppShell({ controller }: AppShellProps) {
     showBranchCreation,
     setShowBranchCreation,
   } = controller;
+
   const workspaceMinimum = appState.selectedRepository === null ? 490 : 560;
   const hasSelection = appState.selectedRepository !== null;
   const operationLockActive =
@@ -380,47 +351,13 @@ export function AppShell({ controller }: AppShellProps) {
       )}
       <BranchDialogs
         branchState={branchState}
-        branchToRename={branchToRename}
-        renameName={renameName}
-        onRenameNameChange={setRenameName}
-        onConfirmRename={() => void confirmRename()}
-        onCancelRename={cancelRename}
-        branchToDelete={branchToDelete}
-        deleteRefusal={deleteRefusal}
-        deleteUnmerged={deleteUnmerged}
-        deletePruneTrackingRef={deletePruneTrackingRef}
-        onDeletePruneChange={setDeletePruneTrackingRef}
-        onConfirmDelete={() => void confirmDelete()}
-        onCancelDelete={cancelDelete}
-        mergePickerOpen={mergePickerOpen}
-        mergeTarget={mergeTarget}
-        onMergeTargetChange={setMergeTarget}
-        mergeMessage={mergeMessage}
-        mergeRunning={mergeRunning}
-        mergeStatus={mergeStatus}
-        mergeCommitCount={mergeCommitCount}
-        mergeProgress={branchState.progress?.kind === "generic" ? branchState.progress : null}
-        mergeStrategy={mergeStrategy}
-        onMergeStrategyChange={setMergeStrategy}
-        mergePreviewError={mergePreviewError}
-        mergedBranches={mergedBranches}
-        onConfirmMerge={() => void confirmMerge()}
-        onCancelMerge={cancelMerge}
-        rebasePickerOpen={rebasePickerOpen}
-        rebaseTarget={rebaseTarget}
-        onRebaseTargetChange={setRebaseTarget}
-        rebaseMessage={rebaseMessage}
-        rebaseRunning={rebaseRunning}
-        rebasePreview={rebasePreview}
-        rebasePreviewError={rebasePreviewError}
-        onConfirmRebase={() => void confirmRebase()}
-        onCancelRebase={cancelRebase}
+        rename={renameDialog}
+        deletion={deleteDialog}
+        merge={mergeDialog}
+        rebase={rebaseDialog}
         operationViewModel={operationViewModel}
         onCancelOperation={() => void operationStore.requestCancellation()}
         onAdoptCancellation={() => void operationStore.requestCancellation(true)}
-        rebaseProgress={
-          branchState.progress?.kind === "multiCommitOperation" ? branchState.progress : null
-        }
         onDismissOperation={() => operationStore.dismissTerminalOperation()}
       />
       <RemoteDialogs

@@ -14,50 +14,47 @@ import { RenameBranchDialog } from "./rename-branch-dialog";
 
 type BranchDialogsProps = {
   readonly branchState: BranchState;
-
-  readonly branchToRename: Branch | null;
-  readonly renameName: string;
-  readonly onRenameNameChange: (value: string) => void;
-  readonly onConfirmRename: () => void;
-  readonly onCancelRename: () => void;
-
-  readonly branchToDelete: Branch | null;
-  readonly deleteRefusal: string | null;
-  readonly deleteUnmerged: boolean;
-  readonly deletePruneTrackingRef: boolean;
-  readonly onDeletePruneChange: (value: boolean) => void;
-  readonly onConfirmDelete: () => void;
-  readonly onCancelDelete: () => void;
-
-  readonly mergePickerOpen: boolean;
-  readonly mergeTarget: string | null;
-  readonly onMergeTargetChange: (value: string) => void;
-  readonly mergeMessage: string | null;
-  readonly mergeRunning: boolean;
-  readonly mergeStatus: MergeTreeResult | null;
-  readonly mergeCommitCount: number;
-  readonly mergeProgress: Extract<BranchState["progress"], { kind: "generic" }> | null;
-  readonly mergeStrategy: MergeStrategy;
-  readonly onMergeStrategyChange: (value: MergeStrategy) => void;
-  readonly mergePreviewError: string | null;
-  readonly mergedBranches: ReadonlyMap<string, string>;
-  readonly onConfirmMerge: () => void;
-  readonly onCancelMerge: () => void;
-
-  readonly rebasePickerOpen: boolean;
-  readonly rebaseTarget: string | null;
-  readonly onRebaseTargetChange: (value: string) => void;
-  readonly rebaseMessage: string | null;
-  readonly rebaseRunning: boolean;
-  readonly rebaseProgress: Extract<
-    BranchState["progress"],
-    { kind: "multiCommitOperation" }
-  > | null;
-  readonly rebasePreview: RebasePreview | null;
-  readonly rebasePreviewError: string | null;
-  readonly onConfirmRebase: () => void;
-  readonly onCancelRebase: () => void;
-
+  /** Each is `null` while its dialog is closed, so state and openness cannot disagree. */
+  readonly rename: {
+    readonly branch: Branch;
+    readonly name: string;
+    readonly onNameChange: (value: string) => void;
+    readonly onConfirm: () => void;
+    readonly onCancel: () => void;
+  } | null;
+  readonly deletion: {
+    readonly branch: Branch | null;
+    readonly refusal: string | null;
+    readonly unmerged: boolean;
+    readonly pruneTrackingRef: boolean;
+    readonly onPruneChange: (value: boolean) => void;
+    readonly onConfirm: () => void;
+    readonly onCancel: () => void;
+  } | null;
+  readonly merge: {
+    readonly target: string | null;
+    readonly onTargetChange: (value: string) => void;
+    readonly message: string | null;
+    readonly running: boolean;
+    readonly status: MergeTreeResult | null;
+    readonly commitCount: number;
+    readonly strategy: MergeStrategy;
+    readonly onStrategyChange: (value: MergeStrategy) => void;
+    readonly previewError: string | null;
+    readonly mergedBranches: ReadonlyMap<string, string>;
+    readonly onConfirm: () => void;
+    readonly onCancel: () => void;
+  } | null;
+  readonly rebase: {
+    readonly target: string | null;
+    readonly onTargetChange: (value: string) => void;
+    readonly message: string | null;
+    readonly running: boolean;
+    readonly preview: RebasePreview | null;
+    readonly previewError: string | null;
+    readonly onConfirm: () => void;
+    readonly onCancel: () => void;
+  } | null;
   readonly operationViewModel: OperationProgressViewModel | undefined;
   readonly onCancelOperation: () => void;
   readonly onAdoptCancellation: () => void;
@@ -74,47 +71,21 @@ type BranchDialogsProps = {
  */
 export function BranchDialogs({
   branchState,
-  branchToRename,
-  renameName,
-  onRenameNameChange,
-  onConfirmRename,
-  onCancelRename,
-  branchToDelete,
-  deleteRefusal,
-  deleteUnmerged,
-  deletePruneTrackingRef,
-  onDeletePruneChange,
-  onConfirmDelete,
-  onCancelDelete,
-  mergePickerOpen,
-  mergeTarget,
-  onMergeTargetChange,
-  mergeMessage,
-  mergeRunning,
-  mergeStatus,
-  mergeCommitCount,
-  mergeProgress,
-  mergeStrategy,
-  onMergeStrategyChange,
-  mergePreviewError,
-  mergedBranches,
-  onConfirmMerge,
-  onCancelMerge,
-  rebasePickerOpen,
-  rebaseTarget,
-  onRebaseTargetChange,
-  rebaseMessage,
-  rebaseRunning,
-  rebaseProgress,
-  rebasePreview,
-  rebasePreviewError,
-  onConfirmRebase,
-  onCancelRebase,
+  rename,
+  deletion,
+  merge,
+  rebase,
   operationViewModel,
   onCancelOperation,
   onAdoptCancellation,
   onDismissOperation,
 }: BranchDialogsProps) {
+  // Derived rather than passed: both were `branchState.progress` narrowed by kind at the call
+  // site, which made them two props carrying no information the host did not already have.
+  const mergeProgress = branchState.progress?.kind === "generic" ? branchState.progress : null;
+  const rebaseProgress =
+    branchState.progress?.kind === "multiCommitOperation" ? branchState.progress : null;
+
   return (
     <>
       {/*
@@ -122,7 +93,7 @@ export function BranchDialogs({
        * progress dialog in place. This covers the other route in, a rebase continued from the
        * conflict surface, where there is no picker to swap.
        */}
-      {operationViewModel?.operation === "rebase" && !rebasePickerOpen && (
+      {operationViewModel?.operation === "rebase" && rebase === null && (
         <OperationProgressDialog
           viewModel={operationViewModel}
           onCancel={onCancelOperation}
@@ -131,80 +102,80 @@ export function BranchDialogs({
         />
       )}
 
-      {branchToRename !== null && (
+      {rename !== null && (
         <RenameBranchDialog
-          branch={branchToRename}
-          name={renameName}
+          branch={rename.branch}
+          name={rename.name}
           existingNames={branchState.branches
             .filter((branch) => branch.type === BranchType.Local)
             .map((branch) => branch.name)}
           busy={branchState.operation === "renaming"}
           failure={branchState.dialogError}
-          onNameChange={onRenameNameChange}
-          onConfirm={onConfirmRename}
-          onCancel={onCancelRename}
+          onNameChange={rename.onNameChange}
+          onConfirm={rename.onConfirm}
+          onCancel={rename.onCancel}
         />
       )}
 
-      {deleteRefusal !== null ? (
-        <NoticeDialog title="Cannot delete branch" onDismiss={onCancelDelete}>
-          {deleteRefusal}
+      {deletion?.refusal != null ? (
+        <NoticeDialog title="Cannot delete branch" onDismiss={deletion.onCancel}>
+          {deletion.refusal}
         </NoticeDialog>
       ) : (
-        branchToDelete !== null && (
+        deletion?.branch != null && (
           <ConfirmDialog
             title="Delete branch"
             description={
               <>
-                Delete <strong>{branchToDelete.name}</strong>?
-                {branchToDelete.upstream !== null &&
-                  ` This branch tracks ${branchToDelete.upstream}.`}
+                Delete <strong>{deletion.branch.name}</strong>?
+                {deletion.branch.upstream !== null &&
+                  ` This branch tracks ${deletion.branch.upstream}.`}
               </>
             }
             confirmLabel="Delete branch"
-            onConfirm={onConfirmDelete}
-            onCancel={onCancelDelete}
+            onConfirm={deletion.onConfirm}
+            onCancel={deletion.onCancel}
           >
-            {deleteUnmerged && (
+            {deletion.unmerged && (
               <p className="rounded-[var(--radius-small)] border border-[var(--warning-border)] bg-[var(--warning-surface)] px-2.5 py-2 text-[var(--warning-text)]">
                 This branch has commits that are not in the current branch. Deleting it will
                 permanently remove them.
               </p>
             )}
-            {branchToDelete.upstream !== null && (
+            {deletion.branch.upstream !== null && (
               <label className="flex w-fit items-center gap-2">
                 <Checkbox
-                  checked={deletePruneTrackingRef}
-                  onCheckedChange={(value) => onDeletePruneChange(value === true)}
+                  checked={deletion.pruneTrackingRef}
+                  onCheckedChange={(value) => deletion.onPruneChange(value === true)}
                 />
-                Also remove the local record of the remote branch ({branchToDelete.upstream})
+                Also remove the local record of the remote branch ({deletion.branch.upstream})
               </label>
             )}
           </ConfirmDialog>
         )
       )}
 
-      {mergePickerOpen && (
+      {merge !== null && (
         <MergeBranchDialog
           currentBranch={branchState.currentBranch ?? "—"}
           candidates={mergeCandidates(
             branchState.branches,
             branchState.currentBranch,
-            mergedBranches,
+            merge.mergedBranches,
           )}
           defaultBranch={branchState.defaultBranch}
           recentBranches={branchState.recentBranches}
-          selected={branchState.branches.find((branch) => branch.name === mergeTarget) ?? null}
-          strategy={mergeStrategy}
-          status={mergeStatus}
-          commitCount={mergeCommitCount}
-          running={mergeRunning}
+          selected={branchState.branches.find((branch) => branch.name === merge.target) ?? null}
+          strategy={merge.strategy}
+          status={merge.status}
+          commitCount={merge.commitCount}
+          running={merge.running}
           progress={mergeProgress}
-          failure={mergeMessage ?? mergePreviewError}
-          onSelect={(branch) => onMergeTargetChange(branch.name)}
-          onStrategyChange={onMergeStrategyChange}
-          onConfirm={onConfirmMerge}
-          onCancel={onCancelMerge}
+          failure={merge.message ?? merge.previewError}
+          onSelect={(branch) => merge.onTargetChange(branch.name)}
+          onStrategyChange={merge.onStrategyChange}
+          onConfirm={merge.onConfirm}
+          onCancel={merge.onCancel}
           operationViewModel={
             operationViewModel?.operation === "merge" ? operationViewModel : undefined
           }
@@ -213,20 +184,20 @@ export function BranchDialogs({
         />
       )}
 
-      {rebasePickerOpen && (
+      {rebase !== null && (
         <RebaseBranchDialog
           currentBranch={branchState.currentBranch ?? "—"}
           candidates={rebaseCandidates(branchState.branches, branchState.currentBranch)}
           defaultBranch={branchState.defaultBranch}
           recentBranches={branchState.recentBranches}
-          selected={branchState.branches.find((branch) => branch.name === rebaseTarget) ?? null}
-          preview={rebasePreview}
-          running={rebaseRunning}
+          selected={branchState.branches.find((branch) => branch.name === rebase.target) ?? null}
+          preview={rebase.preview}
+          running={rebase.running}
           progress={rebaseProgress}
-          failure={rebaseMessage ?? rebasePreviewError}
-          onSelect={(branch) => onRebaseTargetChange(branch.name)}
-          onConfirm={onConfirmRebase}
-          onCancel={onCancelRebase}
+          failure={rebase.message ?? rebase.previewError}
+          onSelect={(branch) => rebase.onTargetChange(branch.name)}
+          onConfirm={rebase.onConfirm}
+          onCancel={rebase.onCancel}
           operationViewModel={
             operationViewModel?.operation === "rebase" ? operationViewModel : undefined
           }

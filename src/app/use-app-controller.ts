@@ -2084,7 +2084,74 @@ export function useAppController() {
     },
   });
 
+  /**
+   * The branch dialogs, each as one object that is `null` when its dialog is closed.
+   *
+   * Grouping is not cosmetic here. The flat form needed a separate `mergePickerOpen`-style flag
+   * beside every dialog's fields, and a host that read the fields while the flag said closed was a
+   * bug the types allowed. Nullability carries "is it open" instead, so the state and its openness
+   * cannot disagree — and adding a field to one dialog stops widening the signature the others
+   * share.
+   */
+  const renameDialog =
+    branchToRename === null
+      ? null
+      : {
+          branch: branchToRename,
+          name: renameName,
+          onNameChange: setRenameName,
+          onConfirm: confirmRename,
+          onCancel: cancelRename,
+        };
+
+  const deleteDialog =
+    deleteRefusal === null && branchToDelete === null
+      ? null
+      : {
+          branch: branchToDelete,
+          refusal: deleteRefusal,
+          unmerged: deleteUnmerged,
+          pruneTrackingRef: deletePruneTrackingRef,
+          onPruneChange: setDeletePruneTrackingRef,
+          onConfirm: confirmDelete,
+          onCancel: cancelDelete,
+        };
+
+  const mergeDialog = !mergePickerOpen
+    ? null
+    : {
+        target: mergeTarget,
+        onTargetChange: setMergeTarget,
+        message: mergeMessage,
+        running: mergeRunning,
+        status: mergeStatus,
+        commitCount: mergeCommitCount,
+        strategy: mergeStrategy,
+        onStrategyChange: setMergeStrategy,
+        previewError: mergePreviewError,
+        mergedBranches,
+        onConfirm: confirmMerge,
+        onCancel: cancelMerge,
+      };
+
+  const rebaseDialog = !rebasePickerOpen
+    ? null
+    : {
+        target: rebaseTarget,
+        onTargetChange: setRebaseTarget,
+        message: rebaseMessage,
+        running: rebaseRunning,
+        preview: rebasePreview,
+        previewError: rebasePreviewError,
+        onConfirm: confirmRebase,
+        onCancel: cancelRebase,
+      };
+
   return {
+    renameDialog,
+    deleteDialog,
+    mergeDialog,
+    rebaseDialog,
     appState,
     operationState,
     operationStore,
@@ -2182,18 +2249,6 @@ export function useAppController() {
     requestDiscardAll,
     confirmDiscardAll,
     cancelDiscardAll,
-    branchToRename,
-    renameName,
-    setRenameName,
-    confirmRename,
-    cancelRename,
-    branchToDelete,
-    deleteRefusal,
-    deleteUnmerged,
-    deletePruneTrackingRef,
-    setDeletePruneTrackingRef,
-    confirmDelete,
-    cancelDelete,
     requestRename,
     requestDelete,
     renameCurrentBranch,
@@ -2212,29 +2267,7 @@ export function useAppController() {
     abortMergeError,
     squashSelectedCommits,
     reorderSelectedCommits,
-    mergePickerOpen,
-    mergeTarget,
-    setMergeTarget,
-    mergeMessage,
-    mergeRunning,
-    mergeStatus,
-    mergeCommitCount,
-    mergeStrategy,
-    setMergeStrategy,
-    mergePreviewError,
-    mergedBranches,
-    confirmMerge,
-    cancelMerge,
     requestMerge,
-    rebasePickerOpen,
-    rebaseTarget,
-    setRebaseTarget,
-    rebaseMessage,
-    rebaseRunning,
-    rebasePreview,
-    rebasePreviewError,
-    confirmRebase,
-    cancelRebase,
     requestRebase,
     showManageRemotes,
     remoteFilter,
