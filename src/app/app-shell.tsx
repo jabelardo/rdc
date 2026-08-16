@@ -4,6 +4,7 @@ import { showFolderContents } from "@/platform/files";
 import { HorizontalResizer } from "@/components/horizontal-resizer";
 import { AppDialogs } from "./app-dialogs";
 import { BranchDialogs } from "@/features/branches/components/branch-dialogs";
+import { ChangesDialogs } from "@/features/changes/components/changes-dialogs";
 import { RemoteDialogs } from "@/features/remotes/components/remote-dialogs";
 import { ChangesWorkspace } from "@/features/changes/components/changes-workspace";
 import { HistoryWorkspace } from "@/features/history/components/history-workspace";
@@ -450,7 +451,7 @@ export function AppShell({ controller }: AppShellProps) {
         onCancelCloneOperation={() => void cloneStore.requestCancellation()}
         onDismissClone={dismissCloneDialog}
       />
-      <AppDialogs
+      <ChangesDialogs
         discardFile={discardFile}
         permanentlyDiscard={permanentlyDiscard}
         discardSelection={discardSelection}
@@ -459,10 +460,20 @@ export function AppShell({ controller }: AppShellProps) {
         onDiscardOptOutChange={setDiscardOptOut}
         discarding={discarding}
         workingTreeError={workingTreeState.discardError}
-        hookFailure={workingTreeState.hookFailure}
-        runningHook={workingTreeState.runningHook}
+        onCancelDiscard={cancelDiscard}
+        onConfirmDiscard={() => void confirmDiscard()}
+        onCancelDiscardAll={cancelDiscardAll}
+        onConfirmDiscardAll={() => void confirmDiscardAll()}
         commitLoading={workingTreeState.commitLoading}
         commitTerminalOutput={commitTerminalOutput}
+        hookFailure={workingTreeState.hookFailure}
+        runningHook={workingTreeState.runningHook}
+        workingTreeStore={workingTreeStore}
+        operationViewModel={operationViewModel}
+        onCancelOperation={() => void operationStore.requestCancellation()}
+        onAdoptCancellation={() => void operationStore.requestCancellation(true)}
+      />
+      <AppDialogs
         operationViewModel={debugProgressViewModel ?? operationViewModel}
         // A preview has no operation behind it, so every action closes it rather than reaching the
         // registry — cancelling an operation that does not exist is not a preview of anything.
@@ -482,17 +493,12 @@ export function AppShell({ controller }: AppShellProps) {
             ? () => operationStore.dismissTerminalOperation()
             : onDebugDismissOperationProgress
         }
-        workingTreeStore={workingTreeStore}
         repositoryToRemove={repositoryToRemove}
         showAboutDialog={showAboutDialog}
         appArchitecture={appArchitecture}
         showPreferencesDialog={showPreferencesDialog}
         preferencesState={preferencesState}
         preferencesStore={preferencesStore}
-        onCancelDiscard={cancelDiscard}
-        onConfirmDiscard={() => void confirmDiscard()}
-        onCancelDiscardAll={cancelDiscardAll}
-        onConfirmDiscardAll={() => void confirmDiscardAll()}
         confirmingAbortMerge={confirmingAbortMerge}
         abortingMerge={abortingMerge}
         abortMergeError={abortMergeError}
