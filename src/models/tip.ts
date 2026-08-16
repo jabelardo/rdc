@@ -1,5 +1,5 @@
 import { Branch } from "./branch";
-import { assertNever } from "@/lib/fatal-error";
+import { assertNever } from "@/utils/fatal-error";
 
 export enum TipState {
   Unknown = "Unknown",

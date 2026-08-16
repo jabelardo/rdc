@@ -18,16 +18,16 @@ import {
   WorkingDirectoryStatus,
 } from "@/models/status";
 import { DiffSelection, DiffSelectionType } from "@/models/diff/diff-selection";
-import { getDefaultAppStore } from "@/lib/stores/default-app-store";
-import { getDefaultWorkingTreeStore } from "@/lib/stores/default-working-tree-store";
-import { getDefaultBranchStore } from "@/lib/stores/default-branch-store";
-import { getDefaultRemoteStore } from "@/lib/stores/default-remote-store";
+import { getDefaultAppStore } from "@/features/repositories/stores/default-app-store";
+import { getDefaultWorkingTreeStore } from "@/features/changes/stores/default-working-tree-store";
+import { getDefaultBranchStore } from "@/features/branches/stores/default-branch-store";
+import { getDefaultRemoteStore } from "@/features/remotes/stores/default-remote-store";
 import { ComputedAction } from "@/models/computed-action";
 import type { IRemote } from "@/models/remote";
 import type { MergeTreeResult } from "@/models/merge";
 import type { RebasePreview } from "@/models/rebase-preview";
-import { getDefaultCloneStore } from "@/lib/stores/default-clone-store";
-import { getDefaultPreferencesStore } from "@/lib/stores/default-preferences-store";
+import { getDefaultCloneStore } from "@/features/remotes/stores/default-clone-store";
+import { getDefaultPreferencesStore } from "@/features/preferences/stores/default-preferences-store";
 
 // ── Stub data factories ──────────────────────────────────────────────
 

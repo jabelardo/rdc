@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { getDefaultPreferencesStore } from "@/lib/stores/default-preferences-store";
-import type { PreferencesState } from "@/lib/stores/preferences-store";
+import { getDefaultPreferencesStore } from "@/features/preferences/stores/default-preferences-store";
+import type { PreferencesState } from "@/features/preferences/stores/preferences-store";
 import type { ThemeSource } from "@/platform/theme";
 
 type ThemeContextValue = {

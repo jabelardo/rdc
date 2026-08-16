@@ -1,4 +1,4 @@
-import { truncateWithEllipsis } from "@/lib/truncate-with-ellipsis";
+import { truncateWithEllipsis } from "@/utils/truncate-with-ellipsis";
 import { enableTestMenuItems } from "@/lib/feature-flag";
 import type { IMenu, MenuAction, MenuItem, NativeMenuRole } from "@/models/app-menu";
 import { getAccessKey } from "@/models/app-menu";

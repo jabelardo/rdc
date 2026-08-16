@@ -1,4 +1,4 @@
-import { UpdateBranchStrategy } from "@/lib/update-branch-strategy";
+import { UpdateBranchStrategy } from "@/features/branches/update-branch-strategy";
 
 export enum ForkContributionTarget {
   Parent = "parent",

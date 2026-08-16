@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { operationProgressViewModel } from "@/lib/operation-presentation";
+import { operationProgressViewModel } from "@/lib/operations/operation-presentation";
 import {
   OperationPreviewLabel,
   OperationPreviewStates,

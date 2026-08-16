@@ -247,15 +247,15 @@ vi.mock("@/platform/menu", () => ({
   onNativeMenuAction: vi.fn(),
 }));
 vi.mock("@/platform/dialogs", () => ({ showOpenDialog, showSaveDialog }));
-vi.mock("@/lib/git-ipc", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/git-ipc")>()),
+vi.mock("@/lib/ipc/git-ipc", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ipc/git-ipc")>()),
   initRepository,
 }));
 // The controller asks once whether the selected repository is still readable before loading the
 // stores. Answer it here rather than leaning on the gate's fail-open path, so these tests exercise
 // the same route the app takes.
-vi.mock("@/lib/misc-ipc", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/misc-ipc")>()),
+vi.mock("@/lib/ipc/misc-ipc", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/ipc/misc-ipc")>()),
   // Reads the hoisted holder on every call rather than closing over a value, so a test can change
   // the answer without depending on which mock instance it happens to hold a reference to.
   getRepositoryType: vi.fn(async () => repositoryType.current),
@@ -285,22 +285,22 @@ vi.mock("@/platform/window", () => ({
   isWindowMaximized,
 }));
 vi.mock("@/platform/system", () => ({ getAppleActionOnDoubleClick }));
-vi.mock("@/lib/stores/default-app-store", () => ({
+vi.mock("@/features/repositories/stores/default-app-store", () => ({
   getDefaultAppStore: () => appStore,
 }));
-vi.mock("@/lib/stores/default-working-tree-store", () => ({
+vi.mock("@/features/changes/stores/default-working-tree-store", () => ({
   getDefaultWorkingTreeStore: () => workingTreeStore,
 }));
-vi.mock("@/lib/stores/default-history-store", () => ({
+vi.mock("@/features/history/stores/default-history-store", () => ({
   getDefaultHistoryStore: () => historyStore,
 }));
-vi.mock("@/lib/stores/default-branch-store", () => ({
+vi.mock("@/features/branches/stores/default-branch-store", () => ({
   getDefaultBranchStore: () => branchStore,
 }));
-vi.mock("@/lib/stores/default-conflict-store", () => ({
+vi.mock("@/features/conflicts/stores/default-conflict-store", () => ({
   getDefaultConflictStore: () => conflictStore,
 }));
-vi.mock("@/lib/stores/default-preferences-store", () => ({
+vi.mock("@/features/preferences/stores/default-preferences-store", () => ({
   getDefaultPreferencesStore: () => preferencesStore,
 }));
 

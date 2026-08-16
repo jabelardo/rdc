@@ -24,11 +24,7 @@
   },
   "overrides": [
     {
-      "files": [
-        "src/lib/format-number.ts",
-        "src/lib/sanitize-ref-name.ts",
-        "src/lib/text-token-parser.ts"
-      ],
+      "files": ["src/utils/format-number.ts", "src/features/branches/sanitize-ref-name.ts"],
       "rules": {
         "eslint/no-control-regex": "off",
         "eslint/no-useless-escape": "off"

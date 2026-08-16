@@ -1,10 +1,10 @@
 import type { IMenu, MenuItem } from "@/models/app-menu";
 import type { MenuEvent } from "@/models/menu-event";
 import type { Repository } from "@/models/repository";
-import type { AppStoreState } from "@/lib/stores/app-store";
-import type { RemoteState } from "@/lib/stores/remote-store";
-import type { PreferencesState } from "@/lib/stores/preferences-store";
-import { remoteEnablement } from "@/lib/remote-enablement";
+import type { AppStoreState } from "@/features/repositories/stores/app-store";
+import type { RemoteState } from "@/features/remotes/stores/remote-store";
+import type { PreferencesState } from "@/features/preferences/stores/preferences-store";
+import { remoteEnablement } from "@/features/remotes/remote-enablement";
 import { buildStartupMenu } from "./startup";
 import type { MenuPlatform } from "./default-menu";
 

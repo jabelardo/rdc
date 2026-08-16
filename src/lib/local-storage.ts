@@ -1,4 +1,4 @@
-import { parseEnumValue } from "./enum";
+import { parseEnumValue } from "@/utils/enum";
 
 /**
  * Returns the value for the provided key from local storage interpreted as a

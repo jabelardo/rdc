@@ -3,14 +3,23 @@ import { join } from "@tauri-apps/api/path";
 import { BranchType, type Branch } from "@/models/branch";
 import type { Commit } from "@/models/commit";
 import { nameOf, type Repository } from "@/models/repository";
-import { getCloneDirectoryName } from "@/lib/clone-destination";
-import { isContiguousSelection, orderSelectedCommits } from "@/lib/history-operation-selection";
-import { getMergedBranches } from "@/lib/branch-ipc";
-import { abortRebase, continueRebase, initRepository } from "@/lib/git-ipc";
-import { abortRevert, getRepositoryType, revertCommit } from "@/lib/misc-ipc";
-import { repositoryAvailability } from "@/lib/repository-availability";
-import { reportErrorMessage } from "@/lib/format-error";
-import { abortCherryPick, cherryPick, continueCherryPick, reorder, squash } from "@/lib/stash-ipc";
+import { getCloneDirectoryName } from "@/features/remotes/clone-destination";
+import {
+  isContiguousSelection,
+  orderSelectedCommits,
+} from "@/features/history/history-operation-selection";
+import { getMergedBranches } from "@/features/branches/api/branch-ipc";
+import { abortRebase, continueRebase, initRepository } from "@/lib/ipc/git-ipc";
+import { abortRevert, getRepositoryType, revertCommit } from "@/lib/ipc/misc-ipc";
+import { repositoryAvailability } from "@/features/repositories/repository-availability";
+import { reportErrorMessage } from "@/utils/format-error";
+import {
+  abortCherryPick,
+  cherryPick,
+  continueCherryPick,
+  reorder,
+  squash,
+} from "@/lib/ipc/stash-ipc";
 import { installApplicationMenu } from "@/lib/menu/application-menu";
 import { showContextMenu } from "@/platform/menu";
 import { dismissAllTooltips } from "@/components/tooltip";
@@ -28,13 +37,13 @@ import {
   injectPreferencesFailure,
   isDebugStateInjected,
 } from "@/testing/inject-test-state";
-import { deleteBranchRefusal } from "@/lib/delete-branch-refusal";
+import { deleteBranchRefusal } from "@/features/branches/delete-branch-refusal";
 import { showFolderContents } from "@/platform/files";
 import { getAppArchitecture, type Architecture } from "@/platform/paths";
 import { installDefaultCloseRequestHandler } from "@/platform/lifetime";
 import { launchShell } from "@/platform/shells";
 import { onNativeThemeUpdated } from "@/platform/theme";
-import { useQaStateDriver } from "./use-qa-state-driver";
+import { useQaStateDriver } from "@/testing/use-qa-state-driver";
 import {
   getCurrentWindowLabel,
   onWindowFocusChanged,
@@ -44,36 +53,45 @@ import {
 } from "@/platform/window";
 import { shouldShowWindowDragRegion } from "@/platform/window-drag-region";
 import { setWindowZoomFactor } from "@/platform/window";
-import type { AppStoreState } from "@/lib/stores/app-store";
-import type { BranchState } from "@/lib/stores/branch-store";
-import type { MergeInitiationResult, RebaseInitiationResult } from "@/lib/stores/branch-store";
-import type { CloneState } from "@/lib/stores/clone-store";
-import type { ConflictState } from "@/lib/stores/conflict-store";
-import { getDefaultAppStore } from "@/lib/stores/default-app-store";
-import { getDefaultBranchStore } from "@/lib/stores/default-branch-store";
-import { getDefaultCloneStore } from "@/lib/stores/default-clone-store";
-import { describeError, reportError } from "@/lib/format-error";
-import { getDefaultConflictStore } from "@/lib/stores/default-conflict-store";
-import { getDefaultHistoryStore } from "@/lib/stores/default-history-store";
-import { getDefaultMessageStore } from "@/lib/stores/default-message-store";
-import { getDefaultPreferencesStore } from "@/lib/stores/default-preferences-store";
-import { getDefaultRemoteStore } from "@/lib/stores/default-remote-store";
-import { getDefaultWorkingTreeStore } from "@/lib/stores/default-working-tree-store";
-import type { HistoryState } from "@/lib/stores/history-store";
-import type { MessageState } from "@/lib/stores/message-store";
-import type { PreferencesState } from "@/lib/stores/preferences-store";
-import type { RemoteState } from "@/lib/stores/remote-store";
-import type { SelectedLinesDiscard, WorkingTreeState } from "@/lib/stores/working-tree-store";
+import type { AppStoreState } from "@/features/repositories/stores/app-store";
+import type { BranchState } from "@/features/branches/stores/branch-store";
+import type {
+  MergeInitiationResult,
+  RebaseInitiationResult,
+} from "@/features/branches/stores/branch-store";
+import type { CloneState } from "@/features/remotes/stores/clone-store";
+import type { ConflictState } from "@/features/conflicts/stores/conflict-store";
+import { getDefaultAppStore } from "@/features/repositories/stores/default-app-store";
+import { getDefaultBranchStore } from "@/features/branches/stores/default-branch-store";
+import { getDefaultCloneStore } from "@/features/remotes/stores/default-clone-store";
+import { describeError, reportError } from "@/utils/format-error";
+import { getDefaultConflictStore } from "@/features/conflicts/stores/default-conflict-store";
+import { getDefaultHistoryStore } from "@/features/history/stores/default-history-store";
+import { getDefaultMessageStore } from "@/features/messages/stores/default-message-store";
+import { getDefaultPreferencesStore } from "@/features/preferences/stores/default-preferences-store";
+import { getDefaultRemoteStore } from "@/features/remotes/stores/default-remote-store";
+import { getDefaultWorkingTreeStore } from "@/features/changes/stores/default-working-tree-store";
+import type { HistoryState } from "@/features/history/stores/history-store";
+import type { MessageState } from "@/features/messages/stores/message-store";
+import type { PreferencesState } from "@/features/preferences/stores/preferences-store";
+import type { RemoteState } from "@/features/remotes/stores/remote-store";
+import type {
+  SelectedLinesDiscard,
+  WorkingTreeState,
+} from "@/features/changes/stores/working-tree-store";
 import type { SidebarSectionID } from "@/lib/ui/sidebar-sections";
-import { determineMergeability } from "@/lib/misc-ipc";
-import { getAheadBehind } from "@/lib/rev-list-ipc";
-import { revSymmetricDifference } from "@/lib/rev-range";
+import { determineMergeability } from "@/lib/ipc/misc-ipc";
+import { getAheadBehind } from "@/features/history/api/rev-list-ipc";
+import { revSymmetricDifference } from "@/features/branches/rev-range";
 import { ComputedAction } from "@/models/computed-action";
 import type { MergeTreeResult } from "@/models/merge";
 import type { MergeStrategy } from "@/models/merge-strategy";
 import type { RebasePreview } from "@/models/rebase-preview";
-import { OperationStore } from "@/lib/stores/operation-store";
-import { isTerminalOperation, operationProgressViewModel } from "@/lib/operation-presentation";
+import { OperationStore } from "@/lib/operations/operation-store";
+import {
+  isTerminalOperation,
+  operationProgressViewModel,
+} from "@/lib/operations/operation-presentation";
 import {
   operationPreviewRecord,
   type OperationPreviewState,

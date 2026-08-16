@@ -30,12 +30,12 @@ import { GitHubRepository, ForkedGitHubRepository } from "./github-repository";
 import { IAheadBehind } from "./branch";
 import { WorktreeEntry } from "./worktree";
 import { WorkflowPreferences, ForkContributionTarget } from "./workflow-preferences";
-import { UpdateBranchStrategy } from "@/lib/update-branch-strategy";
-import { assertNever, fatalError } from "@/lib/fatal-error";
+import { UpdateBranchStrategy } from "@/features/branches/update-branch-strategy";
+import { assertNever, fatalError } from "@/utils/fatal-error";
 import { createEqualityHash } from "./equality-hash";
-import { isTrustedRemoteHost } from "@/lib/trusted-remote-host";
+import { isTrustedRemoteHost } from "@/features/remotes/trusted-remote-host";
 import { EditorOverride } from "./editor-override";
-import { basename } from "@/lib/path-utils";
+import { basename } from "@/utils/path-utils";
 
 export enum LoginSpecialValue {
   ForceNullLogin = 1,

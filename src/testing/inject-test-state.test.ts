@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ComputedAction } from "@/models/computed-action";
-import { getDefaultCloneStore } from "@/lib/stores/default-clone-store";
+import { getDefaultCloneStore } from "@/features/remotes/stores/default-clone-store";
 import {
   debugMergePreview,
   debugMergedBranches,

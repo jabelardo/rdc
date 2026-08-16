@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import type { RemoteState } from "@/lib/stores/remote-store";
+import type { RemoteState } from "@/features/remotes/stores/remote-store";
 import { RepositoryToolbar } from "./repository-toolbar";
 
 const remoteState: RemoteState = {

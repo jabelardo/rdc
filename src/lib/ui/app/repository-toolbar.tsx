@@ -11,8 +11,8 @@ import {
   Plus,
   Terminal,
 } from "lucide-react";
-import type { RemoteState } from "@/lib/stores/remote-store";
-import type { OperationProgressViewModel } from "@/lib/operation-presentation";
+import type { RemoteState } from "@/features/remotes/stores/remote-store";
+import type { OperationProgressViewModel } from "@/lib/operations/operation-presentation";
 import { Tooltip } from "@/components/tooltip";
 
 type RepositoryToolbarProps = {

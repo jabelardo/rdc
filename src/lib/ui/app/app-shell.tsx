@@ -3,17 +3,20 @@ import { useRef, type CSSProperties } from "react";
 import { showFolderContents } from "@/platform/files";
 import { HorizontalResizer } from "@/components/horizontal-resizer";
 import { AppDialogs } from "./app-dialogs";
-import { ChangesWorkspace } from "./changes-workspace";
-import { HistoryWorkspace } from "./history-workspace";
-import { MergeConflicts } from "./merge-conflicts";
-import { MessageToasts } from "./message-toasts";
-import { RepositorySidebar } from "./repository-sidebar";
+import { ChangesWorkspace } from "@/features/changes/components/changes-workspace";
+import { HistoryWorkspace } from "@/features/history/components/history-workspace";
+import { MergeConflicts } from "@/features/conflicts/components/merge-conflicts";
+import { MessageToasts } from "@/features/messages/components/message-toasts";
+import { RepositorySidebar } from "@/features/repositories/components/repository-sidebar";
 import { RepositoryToolbar } from "./repository-toolbar";
 import type { AppController } from "./use-app-controller";
 import { WindowDragStrip } from "./window-drag-strip";
-import { remoteEnablement } from "@/lib/remote-enablement";
-import { isHistoryMovingOperation, operationProgressViewModel } from "@/lib/operation-presentation";
-import { DebugOperationProgressLauncher } from "@/lib/ui/dialogs/debug-operation-progress-launcher";
+import { remoteEnablement } from "@/features/remotes/remote-enablement";
+import {
+  isHistoryMovingOperation,
+  operationProgressViewModel,
+} from "@/lib/operations/operation-presentation";
+import { DebugOperationProgressLauncher } from "@/testing/debug-operation-progress-launcher";
 
 type AppShellProps = {
   readonly controller: AppController;
