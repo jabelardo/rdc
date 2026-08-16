@@ -106,6 +106,25 @@ export function checkModuleBoundaries() {
     }
   }
 
+  // Dialog definitions used to be in six places, three of them written inline inside a 712-line,
+  // 103-prop app-dialogs.tsx — so finding one meant already knowing whether it was a shared shape, a
+  // feature's, or buried in the switchboard. Two rules keep that from growing back: a module defines
+  // at most one dialog, and the switchboard defines none.
+  const dialogRoot = /<(Dialog|AlertDialog)[\s>]/g;
+  for (const file of walk("src")) {
+    const relative = path.relative("src", file).split(path.sep).join("/");
+    if (!relative.endsWith(".tsx") || /\.test\.tsx$/.test(relative)) continue;
+    if (relative.startsWith("components/ui/")) continue; // the primitives themselves
+    const roots = (readFileSync(file, "utf8").match(dialogRoot) ?? []).length;
+    if (relative === "app/app-dialogs.tsx" && roots > 0) {
+      violations.push(
+        `src/${relative} defines ${roots} dialog(s) — it is a switchboard; give each one its own module`,
+      );
+    } else if (roots > 1) {
+      violations.push(`src/${relative} defines ${roots} dialogs — one dialog per module`);
+    }
+  }
+
   // A re-export-only module makes every consumer of one symbol look like a consumer of all of them,
   // which is precisely what check-bundle-boundary.mjs walks the graph to avoid.
   for (const file of walk("src")) {

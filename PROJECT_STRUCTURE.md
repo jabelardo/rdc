@@ -168,6 +168,33 @@ breaks no rule and is still wrong, and no script will tell you. That is what the
 "put it in the feature; sharing is discovered, not predicted" is defending against, and it has to be
 applied by the person writing the code.
 
+## Where a dialog goes
+
+Dialog code had drifted into six places, three of them written inline inside a 712-line,
+103-prop `app-dialogs.tsx` — so finding one meant already knowing whether it was a shared shape, a
+feature's, or buried in the switchboard. Four rules, and the first two are checked:
+
+1. **One dialog per module**, and **`app/app-dialogs.tsx` defines none.** It is a switchboard:
+   conditional rendering over components, nothing else. Both asserted by
+   `scripts/check-module-boundaries.mjs`.
+2. **`components/ui/`** holds the vendored Radix primitives — `dialog.tsx`, `alert-dialog.tsx`.
+   Untouched, CLI-owned.
+3. **`components/dialog-kit/`** holds the shared shapes and the parts that go inside one: Confirm,
+   Notice, the progress dialog, and `dialog-actions`, `dialog-failure`, `dialog-message`,
+   `confirm-opt-out`. Named `dialog-kit` rather than `dialogs` because "dialogs" collided with the
+   `ui/dialog.tsx` it is built on — one word for two layers, and a reader had to know which was
+   which before looking.
+4. **Every concrete dialog lives with whatever owns its state**: `features/<name>/components/` for a
+   feature's, `app/` for one whose subject is the application itself, like About.
+
+So there are two questions when looking for a dialog, not six: is it a shape, or is it something's?
+
+**Being a component is what makes a dialog reviewable.** An inline dialog cannot be rendered from
+Help → Show Dialog and cannot be given a failing state without provoking a real failure, so the
+three that were inline had no tests at all. Extracting them produced fifteen, including one that
+matters and could not previously be written: after a hook refuses a commit, the action Radix focuses
+must be Abort, because that is the one a keyboard user takes by reflex.
+
 ## Where does this file go?
 
 Answer in order; the first match wins.
