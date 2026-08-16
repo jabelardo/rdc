@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
-import type { IMenu } from "./models/app-menu";
+import type { IMenu } from "@/models/app-menu";
 
 const installApplicationMenu = vi.hoisted(() => vi.fn());
 const replaceApplicationMenu = vi.hoisted(() => vi.fn());
@@ -240,39 +240,39 @@ const preferencesStore = vi.hoisted(() => ({
   onDidUpdate: vi.fn(),
 }));
 
-vi.mock("./lib/menu/application-menu", () => ({ installApplicationMenu }));
-vi.mock("./lib/platform/menu", () => ({
+vi.mock("@/lib/menu/application-menu", () => ({ installApplicationMenu }));
+vi.mock("@/platform/menu", () => ({
   showContextMenu,
   setNativeMenu: vi.fn(),
   onNativeMenuAction: vi.fn(),
 }));
-vi.mock("./lib/platform/dialogs", () => ({ showOpenDialog, showSaveDialog }));
-vi.mock("./lib/git-ipc", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./lib/git-ipc")>()),
+vi.mock("@/platform/dialogs", () => ({ showOpenDialog, showSaveDialog }));
+vi.mock("@/lib/git-ipc", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/git-ipc")>()),
   initRepository,
 }));
 // The controller asks once whether the selected repository is still readable before loading the
 // stores. Answer it here rather than leaning on the gate's fail-open path, so these tests exercise
 // the same route the app takes.
-vi.mock("./lib/misc-ipc", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./lib/misc-ipc")>()),
+vi.mock("@/lib/misc-ipc", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/misc-ipc")>()),
   // Reads the hoisted holder on every call rather than closing over a value, so a test can change
   // the answer without depending on which mock instance it happens to hold a reference to.
   getRepositoryType: vi.fn(async () => repositoryType.current),
 }));
-vi.mock("./lib/platform/config", () => ({ getMainProcessConfig }));
-vi.mock("./lib/platform/files", () => ({ showFolderContents, openExternal }));
-vi.mock("./lib/platform/paths", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./lib/platform/paths")>()),
+vi.mock("@/platform/config", () => ({ getMainProcessConfig }));
+vi.mock("@/platform/files", () => ({ showFolderContents, openExternal }));
+vi.mock("@/platform/paths", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/platform/paths")>()),
   getAppArchitecture,
 }));
-vi.mock("./lib/platform/editors", () => ({ launchExternalEditor }));
-vi.mock("./lib/platform/shells", () => ({ launchShell }));
-vi.mock("./lib/platform/theme", () => ({ onNativeThemeUpdated }));
-vi.mock("./lib/platform/lifetime", () => ({
+vi.mock("@/platform/editors", () => ({ launchExternalEditor }));
+vi.mock("@/platform/shells", () => ({ launchShell }));
+vi.mock("@/platform/theme", () => ({ onNativeThemeUpdated }));
+vi.mock("@/platform/lifetime", () => ({
   installDefaultCloseRequestHandler,
 }));
-vi.mock("./lib/platform/window", () => ({
+vi.mock("@/platform/window", () => ({
   getCurrentWindowLabel,
   onWindowFocusChanged,
   openRepositoryInNewWindow,
@@ -284,23 +284,23 @@ vi.mock("./lib/platform/window", () => ({
   restoreWindow,
   isWindowMaximized,
 }));
-vi.mock("./lib/platform/system", () => ({ getAppleActionOnDoubleClick }));
-vi.mock("./lib/stores/default-app-store", () => ({
+vi.mock("@/platform/system", () => ({ getAppleActionOnDoubleClick }));
+vi.mock("@/lib/stores/default-app-store", () => ({
   getDefaultAppStore: () => appStore,
 }));
-vi.mock("./lib/stores/default-working-tree-store", () => ({
+vi.mock("@/lib/stores/default-working-tree-store", () => ({
   getDefaultWorkingTreeStore: () => workingTreeStore,
 }));
-vi.mock("./lib/stores/default-history-store", () => ({
+vi.mock("@/lib/stores/default-history-store", () => ({
   getDefaultHistoryStore: () => historyStore,
 }));
-vi.mock("./lib/stores/default-branch-store", () => ({
+vi.mock("@/lib/stores/default-branch-store", () => ({
   getDefaultBranchStore: () => branchStore,
 }));
-vi.mock("./lib/stores/default-conflict-store", () => ({
+vi.mock("@/lib/stores/default-conflict-store", () => ({
   getDefaultConflictStore: () => conflictStore,
 }));
-vi.mock("./lib/stores/default-preferences-store", () => ({
+vi.mock("@/lib/stores/default-preferences-store", () => ({
   getDefaultPreferencesStore: () => preferencesStore,
 }));
 

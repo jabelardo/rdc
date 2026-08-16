@@ -1,6 +1,6 @@
 import { DiffHunk } from "./raw-diff";
 import { Image } from "./image";
-import { SubmoduleStatus } from "../status";
+import { SubmoduleStatus } from "@/models/status";
 /**
  * V8 has a limit on the size of string it can create, and unless we want to
  * trigger an unhandled exception we need to do the encoding conversion by hand

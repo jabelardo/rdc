@@ -10,21 +10,21 @@ import {
   Split,
   X,
 } from "lucide-react";
-import { BranchType, type Branch } from "../../../models/branch";
-import type { Repository } from "../../../models/repository";
-import type { AppStoreState } from "../../stores/app-store";
-import type { BranchState, BranchStore } from "../../stores/branch-store";
-import type { ConflictState } from "../../stores/conflict-store";
-import type { OperationProgressViewModel } from "../../operation-presentation";
-import { BranchListRow, RepositoryListRow } from "../mvp-list-rows";
-import { OperationProgressBody } from "../dialogs/operation-progress-dialog";
+import { BranchType, type Branch } from "@/models/branch";
+import type { Repository } from "@/models/repository";
+import type { AppStoreState } from "@/lib/stores/app-store";
+import type { BranchState, BranchStore } from "@/lib/stores/branch-store";
+import type { ConflictState } from "@/lib/stores/conflict-store";
+import type { OperationProgressViewModel } from "@/lib/operation-presentation";
+import { BranchListRow, RepositoryListRow } from "@/components/mvp-list-rows";
+import { OperationProgressBody } from "@/lib/ui/dialogs/operation-progress-dialog";
 import {
   MvpSidebarCapabilities,
   type SidebarSectionID,
   visibleSidebarSections,
-} from "../sidebar-sections";
-import { VirtualList } from "../virtual-list";
-import { Tooltip } from "../tooltip";
+} from "@/lib/ui/sidebar-sections";
+import { VirtualList } from "@/components/virtual-list";
+import { Tooltip } from "@/components/tooltip";
 
 const mvpSidebarSections = visibleSidebarSections(MvpSidebarCapabilities);
 type BranchGroup = "default" | "recent" | "other";

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import snapshot from "../__generated__/wire-snapshot.json";
-import type { MenuKeybindings } from "../../models/keybinding";
+import snapshot from "@/lib/__generated__/wire-snapshot.json";
+import type { MenuKeybindings } from "@/models/keybinding";
 
 const invoke = vi.hoisted(() => vi.fn());
 const listen = vi.hoisted(() => vi.fn());

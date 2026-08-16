@@ -1,4 +1,4 @@
-import { GitErrorKind } from "../models/git-error-kind";
+import { GitErrorKind } from "@/models/git-error-kind";
 import { describeError } from "./format-error";
 import { isCommandError, type ICommandError } from "./git-ipc";
 

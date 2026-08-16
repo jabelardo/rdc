@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { Branch, BranchType } from "../../../models/branch";
-import { ComputedAction } from "../../../models/computed-action";
+import { Branch, BranchType } from "@/models/branch";
+import { ComputedAction } from "@/models/computed-action";
 import { RebaseBranchDialog, rebaseCandidates } from "./rebase-branch-dialog";
 
 function sha(name: string): string {

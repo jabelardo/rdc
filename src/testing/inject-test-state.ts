@@ -10,24 +10,24 @@
  * is never imported outside debug code paths.
  */
 
-import { Repository } from "../../models/repository";
-import { Branch, BranchType } from "../../models/branch";
+import { Repository } from "@/models/repository";
+import { Branch, BranchType } from "@/models/branch";
 import {
   AppFileStatusKind,
   WorkingDirectoryFileChange,
   WorkingDirectoryStatus,
-} from "../../models/status";
-import { DiffSelection, DiffSelectionType } from "../../models/diff/diff-selection";
-import { getDefaultAppStore } from "../stores/default-app-store";
-import { getDefaultWorkingTreeStore } from "../stores/default-working-tree-store";
-import { getDefaultBranchStore } from "../stores/default-branch-store";
-import { getDefaultRemoteStore } from "../stores/default-remote-store";
-import { ComputedAction } from "../../models/computed-action";
-import type { IRemote } from "../../models/remote";
-import type { MergeTreeResult } from "../../models/merge";
-import type { RebasePreview } from "../../models/rebase-preview";
-import { getDefaultCloneStore } from "../stores/default-clone-store";
-import { getDefaultPreferencesStore } from "../stores/default-preferences-store";
+} from "@/models/status";
+import { DiffSelection, DiffSelectionType } from "@/models/diff/diff-selection";
+import { getDefaultAppStore } from "@/lib/stores/default-app-store";
+import { getDefaultWorkingTreeStore } from "@/lib/stores/default-working-tree-store";
+import { getDefaultBranchStore } from "@/lib/stores/default-branch-store";
+import { getDefaultRemoteStore } from "@/lib/stores/default-remote-store";
+import { ComputedAction } from "@/models/computed-action";
+import type { IRemote } from "@/models/remote";
+import type { MergeTreeResult } from "@/models/merge";
+import type { RebasePreview } from "@/models/rebase-preview";
+import { getDefaultCloneStore } from "@/lib/stores/default-clone-store";
+import { getDefaultPreferencesStore } from "@/lib/stores/default-preferences-store";
 
 // ── Stub data factories ──────────────────────────────────────────────
 

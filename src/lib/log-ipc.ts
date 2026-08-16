@@ -13,10 +13,10 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { Commit } from "../models/commit";
-import { CommitIdentity } from "../models/commit-identity";
-import { CommittedFileChange, type AppFileStatus } from "../models/status";
-import type { ITrailer } from "../models/trailer";
+import { Commit } from "@/models/commit";
+import { CommitIdentity } from "@/models/commit-identity";
+import { CommittedFileChange, type AppFileStatus } from "@/models/status";
+import type { ITrailer } from "@/models/trailer";
 
 /** A {@linkcode CommitIdentity} as it arrives over IPC. */
 export interface ICommitIdentityData {

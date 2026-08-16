@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { Commit } from "../../../models/commit";
-import type { HistoryState, HistoryStore } from "../../stores/history-store";
+import { Commit } from "@/models/commit";
+import type { HistoryState, HistoryStore } from "@/lib/stores/history-store";
 import { HistoryWorkspace } from "./history-workspace";
 
 const commit = (sha: string) =>

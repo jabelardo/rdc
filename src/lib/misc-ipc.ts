@@ -5,11 +5,11 @@
  */
 
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { IRevertProgress } from "../models/progress";
-import { CommitIdentity } from "../models/commit-identity";
-import type { MergeTreeResult } from "../models/merge";
-import type { RepositoryType } from "../models/repository-type";
-import type { ITrailer } from "../models/trailer";
+import type { IRevertProgress } from "@/models/progress";
+import { CommitIdentity } from "@/models/commit-identity";
+import type { MergeTreeResult } from "@/models/merge";
+import type { RepositoryType } from "@/models/repository-type";
+import type { ITrailer } from "@/models/trailer";
 import type { IRebaseInternalState } from "./git-ipc";
 import { hydrateCommitIdentity, type ICommitIdentityData } from "./log-ipc";
 

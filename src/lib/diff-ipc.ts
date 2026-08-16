@@ -25,8 +25,8 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { hydrateChangesetData, type IChangesetData, type IChangesetDataWire } from "./log-ipc";
-import type { NoRenameIndexStatus } from "../models/index-status";
-import type { AppFileStatus, SubmoduleStatus } from "../models/status";
+import type { NoRenameIndexStatus } from "@/models/index-status";
+import type { AppFileStatus, SubmoduleStatus } from "@/models/status";
 import { assertNever } from "./fatal-error";
 import {
   DiffHunk,
@@ -40,7 +40,7 @@ import {
   type IDiff,
   type ITextDiff,
   type LineEndingsChange,
-} from "../models/diff";
+} from "@/models/diff";
 
 /** A {@linkcode DiffLine} as it arrives over IPC. */
 export interface IDiffLineData {

@@ -1,18 +1,18 @@
 import type { ReactNode } from "react";
 import { GitBranch, HelpCircle, Palette, Plug } from "lucide-react";
-import type { MergeStrategy } from "../../../models/merge-strategy";
-import { MergeStrategyLabel } from "../../../models/merge-strategy";
-import { setWindowZoomFactor } from "../../platform/window";
-import type { PreferencesState, PreferencesStore } from "../../stores/preferences-store";
-import { Button } from "../../../components/ui/button";
+import type { MergeStrategy } from "@/models/merge-strategy";
+import { MergeStrategyLabel } from "@/models/merge-strategy";
+import { setWindowZoomFactor } from "@/platform/window";
+import type { PreferencesState, PreferencesStore } from "@/lib/stores/preferences-store";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "../../../components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/ui/tabs";
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DialogFailure } from "./dialog-failure";
 
 type PreferencesDialogProps = {

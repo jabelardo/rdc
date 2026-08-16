@@ -23,14 +23,14 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { hookFailureChannel, type IHookProgress } from "./hook-ipc";
 import type { IHookOptions } from "./git-ipc";
-import type { IRemote } from "../models/remote";
-import type { OperationRecord } from "../models/operation";
+import type { IRemote } from "@/models/remote";
+import type { OperationRecord } from "@/models/operation";
 import type {
   ICloneProgress,
   IFetchProgress,
   IPullProgress,
   IPushProgress,
-} from "../models/progress";
+} from "@/models/progress";
 
 /** Options for {@linkcode push}. Both default to off. */
 export interface IPushOptions {

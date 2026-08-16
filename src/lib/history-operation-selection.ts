@@ -1,4 +1,4 @@
-import type { Commit } from "../models/commit";
+import type { Commit } from "@/models/commit";
 
 /** Returns selected commits in the repository's newest-to-oldest history order. */
 export function orderSelectedCommits(

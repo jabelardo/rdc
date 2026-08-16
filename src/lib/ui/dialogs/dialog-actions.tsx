@@ -1,5 +1,5 @@
-import { Button } from "../../../components/ui/button";
-import { DialogFooter } from "../../../components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { DialogFooter } from "@/components/ui/dialog";
 
 type DialogActionsProps = {
   readonly confirmLabel: string;

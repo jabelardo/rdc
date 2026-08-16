@@ -1,9 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, UserAttentionType } from "@tauri-apps/api/window";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import type { ILaunchStats } from "../../models/launch-stats";
-import type { OpenRepositoryAction } from "../../models/cli-action";
-import type { WindowState } from "../../models/window-state";
+import type { ILaunchStats } from "@/models/launch-stats";
+import type { OpenRepositoryAction } from "@/models/cli-action";
+import type { WindowState } from "@/models/window-state";
 
 const windowStateListeners = new Set<(state: WindowState) => void>();
 

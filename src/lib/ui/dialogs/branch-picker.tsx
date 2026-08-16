@@ -1,12 +1,12 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Check, Search } from "lucide-react";
-import type { Branch } from "../../../models/branch";
-import { Input } from "../../../components/ui/input";
-import { formatRelative } from "../../format-relative";
-import { formatTimestamp } from "../../format-timestamp";
-import { Tooltip } from "../tooltip";
-import { cn } from "../../utils";
-import { handleListNavigation } from "../list-navigation";
+import type { Branch } from "@/models/branch";
+import { Input } from "@/components/ui/input";
+import { formatRelative } from "@/lib/format-relative";
+import { formatTimestamp } from "@/lib/format-timestamp";
+import { Tooltip } from "@/components/tooltip";
+import { cn } from "@/lib/utils";
+import { handleListNavigation } from "@/utils/list-navigation";
 
 type BranchGroup = {
   readonly label: string;

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { IRemote } from "../models/remote";
+import type { IRemote } from "@/models/remote";
 import type {
   ICloneProgress,
   IFetchProgress,
   IPullProgress,
   IPushProgress,
-} from "../models/progress";
-import snapshot from "./__generated__/wire-snapshot.json";
+} from "@/models/progress";
+import snapshot from "@/lib/__generated__/wire-snapshot.json";
 
 /**
  * Checks the remote-operation boundary.

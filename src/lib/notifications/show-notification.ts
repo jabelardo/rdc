@@ -1,7 +1,7 @@
 import {
   showNotification as showNativeNotification,
   type NotificationUserInfo,
-} from "../platform/notifications";
+} from "@/platform/notifications";
 import { notificationCallbacks, type NotificationCallbackRegistry } from "./notification-handler";
 
 export interface ShowNotificationOptions {

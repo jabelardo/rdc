@@ -64,7 +64,13 @@ function isNodeBuiltin(specifier) {
  * alone matches the directory itself and the caller then tries to read it.
  */
 function resolveRelative(fromFile, specifier) {
-  const base = path.join(path.dirname(fromFile), specifier);
+  // `@/x` is `src/x`. Resolving it is not optional: PROJECT_STRUCTURE.md's import convention made
+  // the alias the normal way to cross a directory, and a traversal that follows only relative
+  // specifiers stops at the first one. That is not a check that fails — it is a check that silently
+  // reports two reachable modules and passes, which is worse.
+  const base = specifier.startsWith("@/")
+    ? path.join("src", specifier.slice(2))
+    : path.join(path.dirname(fromFile), specifier);
   const candidates = [
     base,
     `${base}.ts`,
@@ -147,7 +153,7 @@ function collectViolations() {
         violations.push({ file, line, specifier });
         continue;
       }
-      if (!specifier.startsWith(".")) {
+      if (!specifier.startsWith(".") && !specifier.startsWith("@/")) {
         continue;
       }
       const resolved = resolveRelative(file, specifier);

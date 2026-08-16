@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ICloneProgress } from "../../models/progress";
-import type { OperationEventEnvelope, OperationRecord } from "../../models/operation";
+import type { ICloneProgress } from "@/models/progress";
+import type { OperationEventEnvelope, OperationRecord } from "@/models/operation";
 import { CloneStore } from "./clone-store";
 
 const noNativeTracking = () => ({

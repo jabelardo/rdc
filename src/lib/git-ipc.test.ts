@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
-import type { AppFileStatus } from "../models/status";
+import type { AppFileStatus } from "@/models/status";
 import {
   AppFileStatusKind,
   GitStatusEntry,
   UnmergedEntrySummary,
   isConflictWithMarkers,
   isManualConflict,
-} from "../models/status";
+} from "@/models/status";
 import { mapStatus } from "./status";
 import { MergeResult, RebaseResult, type IRebaseSnapshot, type IStatusResult } from "./git-ipc";
-import snapshot from "./__generated__/wire-snapshot.json";
-import type { ICheckoutProgress, IMultiCommitOperationProgress } from "../models/progress";
-import type { OperationEvent, OperationEventEnvelope, OperationRecord } from "../models/operation";
+import snapshot from "@/lib/__generated__/wire-snapshot.json";
+import type { ICheckoutProgress, IMultiCommitOperationProgress } from "@/models/progress";
+import type { OperationEvent, OperationEventEnvelope, OperationRecord } from "@/models/operation";
 
 /**
  * Proves the Rust wire shape is usable by the ported domain model.

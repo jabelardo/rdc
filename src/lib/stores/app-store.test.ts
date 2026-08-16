@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { RepositoryType } from "../../models/repository-type";
-import { RepositoriesDatabase } from "../databases/repositories-database";
+import type { RepositoryType } from "@/models/repository-type";
+import { RepositoriesDatabase } from "@/lib/databases/repositories-database";
 import { AppStore } from "./app-store";
 import { RepositoriesStore } from "./repositories-store";
 

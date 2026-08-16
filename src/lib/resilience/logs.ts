@@ -1,5 +1,5 @@
-import { showFolderContents } from "../platform/files";
-import { getPath } from "../platform/paths";
+import { showFolderContents } from "@/platform/files";
+import { getPath } from "@/platform/paths";
 
 /** Reveal the directory containing both renderer and native application logs. */
 export async function showApplicationLogs(): Promise<void> {

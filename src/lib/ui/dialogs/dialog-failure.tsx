@@ -1,4 +1,4 @@
-import { cn } from "../../utils";
+import { cn } from "@/lib/utils";
 
 type DialogFailureProps = {
   /** The failure text, or `null` when the action has not failed. */

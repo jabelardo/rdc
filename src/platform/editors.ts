@@ -2,8 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   ICustomIntegration,
   ICustomIntegrationPathValidation,
-} from "../../models/custom-integration";
-import type { FoundEditor } from "../../models/editor";
+} from "@/models/custom-integration";
+import type { FoundEditor } from "@/models/editor";
 
 /**
  * Resolve supported editors installed on this machine.

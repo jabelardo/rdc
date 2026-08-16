@@ -1,4 +1,4 @@
-import type { RemoteState } from "./stores/remote-store";
+import type { RemoteState } from "@/lib/stores/remote-store";
 
 export type RemoteEnablement = {
   readonly canFetch: boolean;

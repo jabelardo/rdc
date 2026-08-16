@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { MenuItem } from "../../models/app-menu";
+import type { MenuItem } from "@/models/app-menu";
 import { buildStartupMenu, createStartupMenuActionExecutor } from "./startup";
 
 function allItems(items: ReadonlyArray<MenuItem>): ReadonlyArray<MenuItem> {

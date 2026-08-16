@@ -16,12 +16,12 @@ import {
   StashedChangesLoadStates,
   type IStashEntry,
   type StashedFileChanges,
-} from "../models/stash-entry";
-import type { AppFileStatus, CommittedFileChange } from "../models/status";
-import type { ManualConflictResolution } from "../models/manual-conflict-resolution";
-import type { CommitOneLine } from "../models/commit";
-import { SubmoduleEntry } from "../models/submodule";
-import type { IMultiCommitOperationProgress } from "../models/progress";
+} from "@/models/stash-entry";
+import type { AppFileStatus, CommittedFileChange } from "@/models/status";
+import type { ManualConflictResolution } from "@/models/manual-conflict-resolution";
+import type { CommitOneLine } from "@/models/commit";
+import { SubmoduleEntry } from "@/models/submodule";
+import type { IMultiCommitOperationProgress } from "@/models/progress";
 import { RebaseResult, type IFileToStage } from "./git-ipc";
 import { hydrateCommittedFileChange, type ICommittedFileChangeData } from "./log-ipc";
 

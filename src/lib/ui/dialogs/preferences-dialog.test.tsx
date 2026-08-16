@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { PreferencesState, PreferencesStore } from "../../stores/preferences-store";
+import type { PreferencesState, PreferencesStore } from "@/lib/stores/preferences-store";
 import { PreferencesDialog } from "./preferences-dialog";
 
 const state: PreferencesState = {

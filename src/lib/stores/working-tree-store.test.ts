@@ -8,10 +8,10 @@ import {
   DiffSelectionType,
   DiffType,
   type IDiff,
-} from "../../models/diff";
-import { AppFileStatusKind } from "../../models/status";
-import type { createCommit as createCommitCommand, IStatusResult } from "../git-ipc";
-import { TrashDiscardError } from "../discard-changes";
+} from "@/models/diff";
+import { AppFileStatusKind } from "@/models/status";
+import type { createCommit as createCommitCommand, IStatusResult } from "@/lib/git-ipc";
+import { TrashDiscardError } from "@/lib/discard-changes";
 import { WorkingTreeStore } from "./working-tree-store";
 import { getDefaultMessageStore } from "./default-message-store";
 

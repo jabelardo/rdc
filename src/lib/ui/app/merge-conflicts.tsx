@@ -1,4 +1,4 @@
-import type { ConflictState, ConflictStore } from "../../stores/conflict-store";
+import type { ConflictState, ConflictStore } from "@/lib/stores/conflict-store";
 
 type MergeConflictsProps = {
   readonly repositoryPath: string;

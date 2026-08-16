@@ -1,4 +1,4 @@
-import { getInstalledMonospaceFontFamilies } from "../lib/fonts/monospace-font-filter";
+import { getInstalledMonospaceFontFamilies } from "@/lib/fonts/monospace-font-filter";
 
 export type DiffFontFamily = string;
 

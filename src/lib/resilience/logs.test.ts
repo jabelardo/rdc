@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const getPath = vi.hoisted(() => vi.fn());
 const showFolderContents = vi.hoisted(() => vi.fn());
 
-vi.mock("../platform/paths", () => ({ getPath }));
-vi.mock("../platform/files", () => ({ showFolderContents }));
+vi.mock("@/platform/paths", () => ({ getPath }));
+vi.mock("@/platform/files", () => ({ showFolderContents }));
 
 const { showApplicationLogs } = await import("./logs");
 

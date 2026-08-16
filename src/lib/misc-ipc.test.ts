@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CommitIdentity } from "../models/commit-identity";
-import type { IRevertProgress } from "../models/progress";
-import type { MergeTreeResult } from "../models/merge";
-import type { RepositoryType } from "../models/repository-type";
-import type { ITrailer } from "../models/trailer";
-import snapshot from "./__generated__/wire-snapshot.json";
+import { CommitIdentity } from "@/models/commit-identity";
+import type { IRevertProgress } from "@/models/progress";
+import type { MergeTreeResult } from "@/models/merge";
+import type { RepositoryType } from "@/models/repository-type";
+import type { ITrailer } from "@/models/trailer";
+import snapshot from "@/lib/__generated__/wire-snapshot.json";
 
 /**
  * Checks the boundary for the smaller operations.

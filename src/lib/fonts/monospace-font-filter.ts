@@ -1,4 +1,4 @@
-import { parallelWithConcurrencyLimit } from "../promise";
+import { parallelWithConcurrencyLimit } from "@/lib/promise";
 import { getLocalFontFamilies, isFontFamilyInstalled } from "./installed-fonts";
 
 export async function getInstalledMonospaceFontFamilies(): Promise<string[]> {

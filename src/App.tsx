@@ -1,8 +1,8 @@
-import "./App.css";
+import "@/styles/app.css";
 import { LucideProvider } from "lucide-react";
-import { AppShell } from "./lib/ui/app/app-shell";
-import { ThemeProvider } from "./lib/ui/theme-provider";
-import { useAppController } from "./lib/ui/app/use-app-controller";
+import { AppShell } from "@/lib/ui/app/app-shell";
+import { ThemeProvider } from "@/components/theme-provider";
+import { useAppController } from "@/lib/ui/app/use-app-controller";
 
 function App() {
   return (

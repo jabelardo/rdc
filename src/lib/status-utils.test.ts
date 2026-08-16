@@ -6,8 +6,8 @@ import {
   WorkingDirectoryStatus,
   WorkingDirectoryFileChange,
   GitStatusEntry,
-} from "../models/status";
-import { DiffSelection, DiffSelectionType } from "../models/diff";
+} from "@/models/status";
+import { DiffSelection, DiffSelectionType } from "@/models/diff";
 
 function makeFile(path: string, kind: AppFileStatusKind): WorkingDirectoryFileChange {
   const status =

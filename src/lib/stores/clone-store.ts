@@ -1,13 +1,13 @@
-import type { ICloneProgress } from "../../models/progress";
-import type { OperationEventEnvelope, OperationRecord } from "../../models/operation";
+import type { ICloneProgress } from "@/models/progress";
+import type { OperationEventEnvelope, OperationRecord } from "@/models/operation";
 import {
   getActiveOperationForCloneDestination,
   listenToOperationEvents,
   requestOperationCancellation,
-} from "../operation-ipc";
-import { clone as cloneRepository } from "../remote-ipc";
-import { describeRemoteError } from "../remote-error";
-import { describeError } from "../format-error";
+} from "@/lib/operation-ipc";
+import { clone as cloneRepository } from "@/lib/remote-ipc";
+import { describeRemoteError } from "@/lib/remote-error";
+import { describeError } from "@/lib/format-error";
 
 export type CloneState = {
   readonly operation: "clone" | null;

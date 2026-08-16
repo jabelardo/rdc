@@ -1,4 +1,4 @@
-import type { OperationRecord } from "../../models/operation";
+import type { OperationRecord } from "@/models/operation";
 
 /**
  * The lifecycle states `OperationProgressDialog` can render, as previewable cases.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Commit } from "../models/commit";
+import { Commit } from "@/models/commit";
 import { isContiguousSelection, orderSelectedCommits } from "./history-operation-selection";
 
 const commit = (sha: string): Commit =>

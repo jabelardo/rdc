@@ -4,7 +4,7 @@
  * Extracted verbatim from `desktop-plus/app/src/lib/app-state.ts` — see this directory's README.
  */
 
-import { ManualConflictResolution } from "../../models/manual-conflict-resolution";
+import { ManualConflictResolution } from "@/models/manual-conflict-resolution";
 
 export type MultiCommitOperationConflictState = {
   readonly kind: "multiCommitOperation";

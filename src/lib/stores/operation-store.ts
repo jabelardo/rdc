@@ -3,17 +3,17 @@ import type {
   OperationPresentationRole,
   OperationProgress,
   OperationRecord,
-} from "../../models/operation";
+} from "@/models/operation";
 import {
   getActiveOperationForRepository,
   getOperationScopeForRepository,
   listenToOperationEvents,
   requestOperationCancellation,
   type OperationEventEnvelope as OperationEventEnvelopeFromIPC,
-} from "../operation-ipc";
-import { OperationEventRouter } from "../operation-events";
-import { operationPresentationRole } from "../operation-presentation";
-import { describeError } from "../format-error";
+} from "@/lib/operation-ipc";
+import { OperationEventRouter } from "@/lib/operation-events";
+import { operationPresentationRole } from "@/lib/operation-presentation";
+import { describeError } from "@/lib/format-error";
 
 export type OperationStoreState = {
   readonly repositoryPath: string | null;

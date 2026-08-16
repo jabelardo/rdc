@@ -1,10 +1,10 @@
-import { GitResetMode } from "../models/git-reset-mode";
-import { IndexStatus } from "../models/index-status";
-import { AppFileStatusKind, type WorkingDirectoryFileChange } from "../models/status";
+import { GitResetMode } from "@/models/git-reset-mode";
+import { IndexStatus } from "@/models/index-status";
+import { AppFileStatusKind, type WorkingDirectoryFileChange } from "@/models/status";
 import { getIndexChanges } from "./diff-ipc";
 import { resetPaths } from "./git-ipc";
 import { checkoutIndex } from "./misc-ipc";
-import { moveRepositoryPathsToTrash, permanentlyDeleteRepositoryPaths } from "./platform/files";
+import { moveRepositoryPathsToTrash, permanentlyDeleteRepositoryPaths } from "@/platform/files";
 import { listSubmodules, resetSubmodulePaths } from "./stash-ipc";
 
 type DiscardChangesDependencies = {

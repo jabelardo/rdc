@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Branch, BranchType } from "../../models/branch";
-import { ComputedAction } from "../../models/computed-action";
-import type { MergeTreeResult } from "../../models/merge";
-import { MergeResult, rebaseBranch as rebaseBranchCommand, RebaseResult } from "../git-ipc";
+import { Branch, BranchType } from "@/models/branch";
+import { ComputedAction } from "@/models/computed-action";
+import type { MergeTreeResult } from "@/models/merge";
+import { MergeResult, rebaseBranch as rebaseBranchCommand, RebaseResult } from "@/lib/git-ipc";
 import { BranchStore } from "./branch-store";
 import { getDefaultMessageStore } from "./default-message-store";
 

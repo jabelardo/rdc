@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { OperationEventEnvelope, OperationRecord } from "../../models/operation";
+import type { OperationEventEnvelope, OperationRecord } from "@/models/operation";
 import { OperationStore } from "./operation-store";
 
 const record = (

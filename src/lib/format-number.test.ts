@@ -1,7 +1,7 @@
 import { describe, it } from "vitest";
 import * as assert from "node:assert";
 import { formatNumber, formatCompactNumber } from "./format-number";
-import { INumberFormat } from "../models/formatting-preferences";
+import { INumberFormat } from "@/models/formatting-preferences";
 
 // Standard number formats for testing
 const commaThousandsDotDecimal: INumberFormat = {

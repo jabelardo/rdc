@@ -1,12 +1,12 @@
 import { RefreshCw, Search, Settings, Trash2 } from "lucide-react";
 import { useRef, useState, type CSSProperties } from "react";
-import { DiffLineType, DiffType } from "../../../models/diff";
-import type { ConflictStore } from "../../stores/conflict-store";
-import type { WorkingTreeState, WorkingTreeStore } from "../../stores/working-tree-store";
-import { HorizontalResizer } from "../horizontal-resizer";
-import { WorkingTreeFileRow } from "../mvp-list-rows";
-import { Tooltip } from "../tooltip";
-import { VirtualList } from "../virtual-list";
+import { DiffLineType, DiffType } from "@/models/diff";
+import type { ConflictStore } from "@/lib/stores/conflict-store";
+import type { WorkingTreeState, WorkingTreeStore } from "@/lib/stores/working-tree-store";
+import { HorizontalResizer } from "@/components/horizontal-resizer";
+import { WorkingTreeFileRow } from "@/components/mvp-list-rows";
+import { Tooltip } from "@/components/tooltip";
+import { VirtualList } from "@/components/virtual-list";
 
 function diffLineClassName(type: DiffLineType): string {
   switch (type) {

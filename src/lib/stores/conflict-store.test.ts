@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AppFileStatusKind, GitStatusEntry, UnmergedEntrySummary } from "../../models/status";
-import type { IStatusResult } from "../git-ipc";
+import { AppFileStatusKind, GitStatusEntry, UnmergedEntrySummary } from "@/models/status";
+import type { IStatusResult } from "@/lib/git-ipc";
 import { ConflictStore } from "./conflict-store";
 import { getDefaultMessageStore } from "./default-message-store";
 import { RemoteStore } from "./remote-store";

@@ -1,5 +1,5 @@
-import type { AppMenu, ExecutableMenuItem } from "../../models/app-menu";
-import type { Keybinding, KeybindingModifier, MenuKeybindings } from "../../models/keybinding";
+import type { AppMenu, ExecutableMenuItem } from "@/models/app-menu";
+import type { Keybinding, KeybindingModifier, MenuKeybindings } from "@/models/keybinding";
 
 export type KeybindingDisplayPlatform = "macos" | "windows" | "linux";
 

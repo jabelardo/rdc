@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Branch, BranchType, type ITrackingBranch } from "../models/branch";
-import snapshot from "./__generated__/wire-snapshot.json";
+import { Branch, BranchType, type ITrackingBranch } from "@/models/branch";
+import snapshot from "@/lib/__generated__/wire-snapshot.json";
 
 /**
  * Checks the branch boundary.

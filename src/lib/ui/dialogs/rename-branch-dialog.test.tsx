@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { Branch, BranchType } from "../../../models/branch";
+import { Branch, BranchType } from "@/models/branch";
 import { RenameBranchDialog } from "./rename-branch-dialog";
 
 function branch(name: string, upstream: string | null = null): Branch {

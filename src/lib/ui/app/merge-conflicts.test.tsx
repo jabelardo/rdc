@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { ConflictState, ConflictStore } from "../../stores/conflict-store";
-import { AppFileStatusKind, GitStatusEntry, UnmergedEntrySummary } from "../../../models/status";
+import type { ConflictState, ConflictStore } from "@/lib/stores/conflict-store";
+import { AppFileStatusKind, GitStatusEntry, UnmergedEntrySummary } from "@/models/status";
 import { MergeConflicts } from "./merge-conflicts";
 
 const state: ConflictState = {

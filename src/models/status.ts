@@ -1,4 +1,4 @@
-import { DiffSelection, DiffSelectionType } from "./diff";
+import { DiffSelection, DiffSelectionType } from "@/models/diff";
 
 /**
  * The status entry code as reported by Git.

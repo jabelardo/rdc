@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { DiffSelection, DiffSelectionType } from "../models/diff";
-import { GitResetMode } from "../models/git-reset-mode";
-import { IndexStatus } from "../models/index-status";
-import { AppFileStatusKind, WorkingDirectoryFileChange } from "../models/status";
+import { DiffSelection, DiffSelectionType } from "@/models/diff";
+import { GitResetMode } from "@/models/git-reset-mode";
+import { IndexStatus } from "@/models/index-status";
+import { AppFileStatusKind, WorkingDirectoryFileChange } from "@/models/status";
 import { discardChanges, TrashDiscardError } from "./discard-changes";
-import type { PathFailure } from "./platform/files";
+import type { PathFailure } from "@/platform/files";
 
 function file(
   path: string,

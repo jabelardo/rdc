@@ -6,13 +6,13 @@ import {
   DiffLineType,
   DiffType,
   Image,
-} from "../models/diff";
+} from "@/models/diff";
 import {
   getHunkHeaderExpansionType,
   getLargestLineNumber,
   HiddenBidiCharsRegex,
 } from "./diff-hunks";
-import { IndexStatus } from "../models/index-status";
+import { IndexStatus } from "@/models/index-status";
 import {
   dehydrateTextDiff,
   discardChangesFromSelection,
@@ -24,9 +24,9 @@ import {
   getBranchMergeBaseChangedFiles,
   getCommitRangeChangedFiles,
 } from "./diff-ipc";
-import { AppFileStatusKind, CommittedFileChange } from "../models/status";
+import { AppFileStatusKind, CommittedFileChange } from "@/models/status";
 import type { IChangesetDataWire } from "./log-ipc";
-import snapshot from "./__generated__/wire-snapshot.json";
+import snapshot from "@/lib/__generated__/wire-snapshot.json";
 
 const REPO = "/tmp/repo";
 

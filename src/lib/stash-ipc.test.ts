@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { StashedChangesLoadStates } from "../models/stash-entry";
-import { AppFileStatusKind } from "../models/status";
-import { ManualConflictResolution } from "../models/manual-conflict-resolution";
+import { StashedChangesLoadStates } from "@/models/stash-entry";
+import { AppFileStatusKind } from "@/models/status";
+import { ManualConflictResolution } from "@/models/manual-conflict-resolution";
 import { RebaseResult } from "./git-ipc";
-import snapshot from "./__generated__/wire-snapshot.json";
-import { SubmoduleEntry } from "../models/submodule";
+import snapshot from "@/lib/__generated__/wire-snapshot.json";
+import { SubmoduleEntry } from "@/models/submodule";
 import type { ISubmoduleEntryData, IStashEntryData } from "./stash-ipc";
 
 /**

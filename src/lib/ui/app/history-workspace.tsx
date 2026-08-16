@@ -1,13 +1,13 @@
 import { useRef, useState, type CSSProperties } from "react";
-import { DiffLineType, DiffType } from "../../../models/diff";
-import { formatRelative } from "../../format-relative";
-import type { HistoryState, HistoryStore } from "../../stores/history-store";
-import type { Commit } from "../../../models/commit";
-import { handleListNavigation } from "../list-navigation";
-import { HorizontalResizer } from "../horizontal-resizer";
-import { FileStatusIcon } from "../mvp-list-rows";
-import { Tooltip } from "../tooltip";
-import { isContiguousSelection } from "../../history-operation-selection";
+import { DiffLineType, DiffType } from "@/models/diff";
+import { formatRelative } from "@/lib/format-relative";
+import type { HistoryState, HistoryStore } from "@/lib/stores/history-store";
+import type { Commit } from "@/models/commit";
+import { handleListNavigation } from "@/utils/list-navigation";
+import { HorizontalResizer } from "@/components/horizontal-resizer";
+import { FileStatusIcon } from "@/components/mvp-list-rows";
+import { Tooltip } from "@/components/tooltip";
+import { isContiguousSelection } from "@/lib/history-operation-selection";
 
 function diffLineClassName(type: DiffLineType): string {
   switch (type) {

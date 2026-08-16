@@ -1,11 +1,11 @@
-import { BranchType, type Branch, type ITrackingBranch } from "../../models/branch";
-import type { IFetchProgress, IPullProgress, IPushProgress } from "../../models/progress";
-import type { IRemote } from "../../models/remote";
-import type { OperationRecord } from "../../models/operation";
-import { getBranches, getBranchesDifferingFromUpstream } from "../branch-ipc";
-import { getStatus, type IStatusResult } from "../git-ipc";
-import { describeError, reportErrorMessage } from "../format-error";
-import { describeRemoteError } from "../remote-error";
+import { BranchType, type Branch, type ITrackingBranch } from "@/models/branch";
+import type { IFetchProgress, IPullProgress, IPushProgress } from "@/models/progress";
+import type { IRemote } from "@/models/remote";
+import type { OperationRecord } from "@/models/operation";
+import { getBranches, getBranchesDifferingFromUpstream } from "@/lib/branch-ipc";
+import { getStatus, type IStatusResult } from "@/lib/git-ipc";
+import { describeError, reportErrorMessage } from "@/lib/format-error";
+import { describeRemoteError } from "@/lib/remote-error";
 import {
   addRemote as addRemoteCommand,
   fastForwardBranches,
@@ -16,7 +16,7 @@ import {
   push as pushRemote,
   removeRemote as removeRemoteCommand,
   updateRemoteHEAD,
-} from "../remote-ipc";
+} from "@/lib/remote-ipc";
 
 export type RemoteOperation = "fetch" | "pull" | "push";
 

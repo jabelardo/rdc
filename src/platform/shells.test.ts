@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import snapshot from "../__generated__/wire-snapshot.json";
-import { Shell, type FoundShell } from "../../models/shell";
+import snapshot from "@/lib/__generated__/wire-snapshot.json";
+import { Shell, type FoundShell } from "@/models/shell";
 
 const invoke = vi.hoisted(() => vi.fn());
 

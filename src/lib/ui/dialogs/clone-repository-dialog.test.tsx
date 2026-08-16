@@ -2,8 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { OperationRecord } from "../../../models/operation";
-import { operationProgressViewModel } from "../../operation-presentation";
+import type { OperationRecord } from "@/models/operation";
+import { operationProgressViewModel } from "@/lib/operation-presentation";
 import { CloneRepositoryDialog } from "./clone-repository-dialog";
 
 const cloneOperation: OperationRecord = {

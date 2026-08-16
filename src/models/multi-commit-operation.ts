@@ -1,4 +1,4 @@
-import { MultiCommitOperationConflictState } from "../lib/app-state/conflict-state";
+import { MultiCommitOperationConflictState } from "@/lib/app-state/conflict-state";
 import { Branch } from "./branch";
 import { Commit, CommitOneLine, ICommitContext } from "./commit";
 import { GitHubRepository } from "./github-repository";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { MenuItem } from "../../models/app-menu";
-import type { MenuLabelsEvent } from "../../models/menu-labels";
+import type { MenuItem } from "@/models/app-menu";
+import type { MenuLabelsEvent } from "@/models/menu-labels";
 import { buildDefaultMenu, type MenuPlatform } from "./default-menu";
 
 const baseParams: MenuLabelsEvent = {

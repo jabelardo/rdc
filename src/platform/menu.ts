@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { IMenu, MenuAction } from "../../models/app-menu";
+import type { IMenu, MenuAction } from "@/models/app-menu";
 import { getCurrentWindowZoomFactor } from "./window";
 
 export function setNativeMenu(menu: IMenu): Promise<void> {

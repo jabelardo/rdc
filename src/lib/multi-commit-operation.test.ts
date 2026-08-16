@@ -5,9 +5,9 @@ import {
   MultiCommitOperationKind,
   MultiCommitOperationStepKind,
   conflictSteps,
-} from "../models/multi-commit-operation";
+} from "@/models/multi-commit-operation";
 import { isConflictsFlow, getMultiCommitOperationChooseBranchStep } from "./multi-commit-operation";
-import { TipState } from "../models/tip";
+import { TipState } from "@/models/tip";
 
 describe("multi-commit-operation", () => {
   describe("isIdMultiCommitOperation", () => {

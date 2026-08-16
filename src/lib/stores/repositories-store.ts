@@ -1,5 +1,8 @@
-import { Repository } from "../../models/repository";
-import { RepositoriesDatabase, type DatabaseRepository } from "../databases/repositories-database";
+import { Repository } from "@/models/repository";
+import {
+  RepositoriesDatabase,
+  type DatabaseRepository,
+} from "@/lib/databases/repositories-database";
 
 function toRepository(record: DatabaseRepository): Repository {
   if (record.id === undefined) {

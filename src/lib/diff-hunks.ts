@@ -29,7 +29,7 @@
  * expands a hunk. The two implementations are pinned against each other by the wire snapshot.
  */
 
-import { DiffHunk, DiffHunkExpansionType, DiffHunkHeader, DiffLineType } from "../models/diff";
+import { DiffHunk, DiffHunkExpansionType, DiffHunkHeader, DiffLineType } from "@/models/diff";
 
 /** How many new lines will be added to a diff hunk by default. */
 export const DefaultDiffExpansionStep = 20;

@@ -15,7 +15,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { Branch, BranchType, type IBranchTip, type ITrackingBranch } from "../models/branch";
+import { Branch, BranchType, type IBranchTip, type ITrackingBranch } from "@/models/branch";
 
 /** An {@linkcode IBranchTip} as it arrives over IPC. */
 export interface IBranchTipData {

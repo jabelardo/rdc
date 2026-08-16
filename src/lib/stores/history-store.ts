@@ -1,9 +1,9 @@
-import type { Commit } from "../../models/commit";
-import type { IDiff } from "../../models/diff";
-import type { IChangesetData } from "../log-ipc";
-import { getCommitDiff } from "../diff-ipc";
-import { getChangedFiles, getCommits } from "../log-ipc";
-import { describeError, reportErrorMessage } from "../format-error";
+import type { Commit } from "@/models/commit";
+import type { IDiff } from "@/models/diff";
+import type { IChangesetData } from "@/lib/log-ipc";
+import { getCommitDiff } from "@/lib/diff-ipc";
+import { getChangedFiles, getCommits } from "@/lib/log-ipc";
+import { describeError, reportErrorMessage } from "@/lib/format-error";
 
 const CommitBatchSize = 100;
 

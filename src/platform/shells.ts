@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ICustomIntegration } from "../../models/custom-integration";
-import type { FoundShell, Shell } from "../../models/shell";
+import type { ICustomIntegration } from "@/models/custom-integration";
+import type { FoundShell, Shell } from "@/models/shell";
 
 /** Resolve terminal applications installed on this machine. */
 export function getAvailableShells(): Promise<ReadonlyArray<FoundShell>> {

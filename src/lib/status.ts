@@ -7,9 +7,9 @@ import {
   GitStatusEntry,
   isConflictedFileStatus,
   WorkingDirectoryFileChange,
-} from "../models/status";
+} from "@/models/status";
 import { assertNever } from "./fatal-error";
-import { ManualConflictResolution } from "../models/manual-conflict-resolution";
+import { ManualConflictResolution } from "@/models/manual-conflict-resolution";
 
 /**
  * Convert a given `AppFileStatusKind` value to a human-readable string to be

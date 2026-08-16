@@ -1,18 +1,18 @@
 import { useState } from "react";
-import type { GitOperationKind, OperationPresentationRole } from "../../../models/operation";
+import type { GitOperationKind, OperationPresentationRole } from "@/models/operation";
 import {
   OperationPreviewLabel,
   OperationPreviewStates,
   type OperationPreviewState,
-} from "../../debug/operation-progress-preview";
-import { Button } from "../../../components/ui/button";
+} from "@/testing/operation-progress-preview";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "../../../components/ui/dialog";
+} from "@/components/ui/dialog";
 
 const operations: ReadonlyArray<GitOperationKind> = [
   "fetch",

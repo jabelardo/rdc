@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GitErrorKind } from "../models/git-error-kind";
+import { GitErrorKind } from "@/models/git-error-kind";
 import { describeRemoteError, NetworkGuidance } from "./remote-error";
 
 /** A command-shaped rejection. `kind` undefined mimics an unclassified (kind-null) git failure. */

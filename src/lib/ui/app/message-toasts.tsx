@@ -1,9 +1,9 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { Toaster } from "../../../components/ui/sonner";
-import { useTheme } from "../theme-provider";
-import type { Message, MessageSeverity } from "../../stores/message-store";
+import { Toaster } from "@/components/ui/sonner";
+import { useTheme } from "@/components/theme-provider";
+import type { Message, MessageSeverity } from "@/lib/stores/message-store";
 
 type MessageToastsProps = {
   readonly messages: ReadonlyArray<Message>;

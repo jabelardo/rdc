@@ -1,8 +1,8 @@
-import type { Repository } from "../../models/repository";
-import type { RepositoryType } from "../../models/repository-type";
-import { getNumber, setNumber } from "../local-storage";
-import { getRepositoryType } from "../misc-ipc";
-import { setWindowSelectedRepository } from "../platform/window";
+import type { Repository } from "@/models/repository";
+import type { RepositoryType } from "@/models/repository-type";
+import { getNumber, setNumber } from "@/lib/local-storage";
+import { getRepositoryType } from "@/lib/misc-ipc";
+import { setWindowSelectedRepository } from "@/platform/window";
 import { RepositoriesStore } from "./repositories-store";
 
 const LastSelectedRepositoryIDKey = "last-selected-repository-id";

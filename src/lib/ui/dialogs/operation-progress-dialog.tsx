@@ -1,14 +1,10 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import type { IProgress } from "../../../models/progress";
-import type { OperationProgressViewModel } from "../../operation-presentation";
-import type { OperationState } from "../../../models/operation";
-import { Button } from "../../../components/ui/button";
-import { Progress } from "../../../components/ui/progress";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogTitle,
-} from "../../../components/ui/alert-dialog";
+import type { IProgress } from "@/models/progress";
+import type { OperationProgressViewModel } from "@/lib/operation-presentation";
+import type { OperationState } from "@/models/operation";
+import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { AlertDialog, AlertDialogContent, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 const StatusID = "operation-progress-status";
 

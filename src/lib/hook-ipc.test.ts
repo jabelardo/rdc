@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import snapshot from "./__generated__/wire-snapshot.json";
+import snapshot from "@/lib/__generated__/wire-snapshot.json";
 import type { IHookProgress } from "./hook-ipc";
 
 /**

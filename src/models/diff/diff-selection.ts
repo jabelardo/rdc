@@ -1,4 +1,4 @@
-import { assertNever } from "../../lib/fatal-error";
+import { assertNever } from "@/lib/fatal-error";
 
 /**
  * The state of a file's diff selection

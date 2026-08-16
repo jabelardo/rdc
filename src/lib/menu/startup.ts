@@ -1,5 +1,5 @@
-import type { IMenu, MenuAction, MenuItem } from "../../models/app-menu";
-import type { MenuLabelsEvent } from "../../models/menu-labels";
+import type { IMenu, MenuAction, MenuItem } from "@/models/app-menu";
+import type { MenuLabelsEvent } from "@/models/menu-labels";
 import { buildDefaultMenu, currentMenuPlatform, type MenuPlatform } from "./default-menu";
 
 const ZOOM_STEP = 0.05;

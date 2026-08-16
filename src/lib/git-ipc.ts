@@ -18,12 +18,12 @@
 
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { hookFailureChannel, type HookFailureCallback, type IHookProgress } from "./hook-ipc";
-import { GitResetMode } from "../models/git-reset-mode";
-import type { AppFileStatus, GitStatusEntry } from "../models/status";
-import type { ManualConflictResolution } from "../models/manual-conflict-resolution";
-import { GitErrorKind } from "../models/git-error-kind";
-import type { ICheckoutProgress, IMultiCommitOperationProgress } from "../models/progress";
-import type { CommitOneLine } from "../models/commit";
+import { GitResetMode } from "@/models/git-reset-mode";
+import type { AppFileStatus, GitStatusEntry } from "@/models/status";
+import type { ManualConflictResolution } from "@/models/manual-conflict-resolution";
+import { GitErrorKind } from "@/models/git-error-kind";
+import type { ICheckoutProgress, IMultiCommitOperationProgress } from "@/models/progress";
+import type { CommitOneLine } from "@/models/commit";
 
 /** How far ahead/behind a branch is relative to its upstream. */
 export interface IAheadBehind {

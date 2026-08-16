@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { describeError, reportError } from "./format-error";
-import { getDefaultMessageStore } from "./stores/default-message-store";
+import { getDefaultMessageStore } from "@/lib/stores/default-message-store";
 
 describe("describeError", () => {
   it("reads the message off a CommandError-shaped rejection", () => {

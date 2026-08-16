@@ -1,5 +1,5 @@
-import type { TitleBarStyle } from "../../models/main-process-config";
-import type { MenuPlatform } from "../menu/default-menu";
+import type { TitleBarStyle } from "@/models/main-process-config";
+import type { MenuPlatform } from "@/lib/menu/default-menu";
 import { getAppleActionOnDoubleClick } from "./system";
 import { isWindowMaximized, maximizeWindow, minimizeWindow, restoreWindow } from "./window";
 

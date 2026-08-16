@@ -1,4 +1,4 @@
-import { IConstrainedValue } from "./app-state/constrained-value";
+import { IConstrainedValue } from "@/lib/app-state/constrained-value";
 
 /**
  * Helper function to coerce a number into a valid range.

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { AppMenu, type IMenu } from "../../models/app-menu";
-import type { Keybinding, MenuKeybindings } from "../../models/keybinding";
+import { AppMenu, type IMenu } from "@/models/app-menu";
+import type { Keybinding, MenuKeybindings } from "@/models/keybinding";
 import {
   findMenuItemForKeybinding,
   friendlyKeybindingText,

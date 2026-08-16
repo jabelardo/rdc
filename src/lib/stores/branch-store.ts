@@ -1,12 +1,12 @@
-import { BranchType, type Branch } from "../../models/branch";
-import { ComputedAction } from "../../models/computed-action";
+import { BranchType, type Branch } from "@/models/branch";
+import { ComputedAction } from "@/models/computed-action";
 import type {
   ICheckoutProgress,
   IGenericProgress,
   IMultiCommitOperationProgress,
-} from "../../models/progress";
-import type { IRemote } from "../../models/remote";
-import { getBranches } from "../branch-ipc";
+} from "@/models/progress";
+import type { IRemote } from "@/models/remote";
+import { getBranches } from "@/lib/branch-ipc";
 import {
   checkoutBranch,
   getStatus,
@@ -15,17 +15,17 @@ import {
   rebaseBranch as rebaseBranchCommand,
   RebaseResult,
   type IStatusResult,
-} from "../git-ipc";
+} from "@/lib/git-ipc";
 import {
   createBranch,
   deleteLocalBranch,
   deleteRef,
   renameBranch as renameBranchCommand,
-} from "../branch-ipc";
-import { determineMergeability, getRecentBranches } from "../misc-ipc";
-import { getRemoteHEAD, getRemotes } from "../remote-ipc";
-import { testForInvalidChars } from "../sanitize-ref-name";
-import { describeError, reportErrorMessage } from "../format-error";
+} from "@/lib/branch-ipc";
+import { determineMergeability, getRecentBranches } from "@/lib/misc-ipc";
+import { getRemoteHEAD, getRemotes } from "@/lib/remote-ipc";
+import { testForInvalidChars } from "@/lib/sanitize-ref-name";
+import { describeError, reportErrorMessage } from "@/lib/format-error";
 
 export type BranchOperation =
   | "creating"

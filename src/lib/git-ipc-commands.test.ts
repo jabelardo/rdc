@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { GitResetMode } from "../models/git-reset-mode";
-import { AppFileStatusKind, GitStatusEntry } from "../models/status";
-import { ManualConflictResolution } from "../models/manual-conflict-resolution";
+import { GitResetMode } from "@/models/git-reset-mode";
+import { AppFileStatusKind, GitStatusEntry } from "@/models/status";
+import { ManualConflictResolution } from "@/models/manual-conflict-resolution";
 
 /**
  * Pins the command names and argument names of the git commands.

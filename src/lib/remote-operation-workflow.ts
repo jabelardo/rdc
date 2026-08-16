@@ -1,4 +1,4 @@
-import type { RemoteOperation } from "./stores/remote-store";
+import type { RemoteOperation } from "@/lib/stores/remote-store";
 
 export type RemoteWorkflowPhase = {
   readonly offset: number;

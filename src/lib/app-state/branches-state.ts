@@ -5,8 +5,8 @@
  * why that module is being decomposed rather than ported wholesale.
  */
 
-import { Branch } from "../../models/branch";
-import { Tip } from "../../models/tip";
+import { Branch } from "@/models/branch";
+import { Tip } from "@/models/tip";
 
 export interface IBranchesState {
   /**

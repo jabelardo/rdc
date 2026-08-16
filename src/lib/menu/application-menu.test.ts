@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ExecutableMenuItem, IMenu, MenuAction } from "../../models/app-menu";
-import type { MenuKeybindings } from "../../models/keybinding";
+import type { ExecutableMenuItem, IMenu, MenuAction } from "@/models/app-menu";
+import type { MenuKeybindings } from "@/models/keybinding";
 import {
   ApplicationMenuController,
   installApplicationMenu,

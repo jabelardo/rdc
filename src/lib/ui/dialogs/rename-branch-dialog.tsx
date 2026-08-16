@@ -1,8 +1,8 @@
-import type { Branch } from "../../../models/branch";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
-import { Input } from "../../../components/ui/input";
-import { Label } from "../../../components/ui/label";
-import { validateBranchName } from "../../validate-branch-name";
+import type { Branch } from "@/models/branch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { validateBranchName } from "@/lib/validate-branch-name";
 import { DialogActions } from "./dialog-actions";
 import { DialogMessage, type DialogMessageTone } from "./dialog-message";
 

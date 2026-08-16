@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import type { MenuItem } from "../../models/app-menu";
-import type { Repository } from "../../models/repository";
+import type { MenuItem } from "@/models/app-menu";
+import type { Repository } from "@/models/repository";
 import { buildRepositoryMenu, createRepositoryMenuEventExecutor } from "./repository-menu";
-import type { RemoteState } from "../stores/remote-store";
-import type { PreferencesState } from "../stores/preferences-store";
+import type { RemoteState } from "@/lib/stores/remote-store";
+import type { PreferencesState } from "@/lib/stores/preferences-store";
 import { createStartupMenuActionExecutor } from "./startup";
 
 const repository = {

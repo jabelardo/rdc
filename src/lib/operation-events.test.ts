@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OperationEventEnvelope, OperationScope } from "../models/operation";
+import type { OperationEventEnvelope, OperationScope } from "@/models/operation";
 import {
   createOperationEventFilter,
   isOperationEventForScope,

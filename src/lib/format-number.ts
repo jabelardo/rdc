@@ -1,4 +1,4 @@
-import { getNumberFormatPreference, INumberFormat } from "../models/formatting-preferences";
+import { getNumberFormatPreference, INumberFormat } from "@/models/formatting-preferences";
 import { round } from "./round";
 import { enableFormattingPreferences } from "./feature-flag";
 

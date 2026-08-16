@@ -11,18 +11,18 @@ import {
   Trash2,
   TriangleAlert,
 } from "lucide-react";
-import type { Branch } from "../../models/branch";
-import type { Repository } from "../../models/repository";
+import type { Branch } from "@/models/branch";
+import type { Repository } from "@/models/repository";
 import {
   type AppFileStatus,
   AppFileStatusKind,
   type WorkingDirectoryFileChange,
-} from "../../models/status";
-import { mapStatus } from "../status";
-import { handleListNavigation } from "./list-navigation";
+} from "@/models/status";
+import { mapStatus } from "@/lib/status";
+import { handleListNavigation } from "@/utils/list-navigation";
 import { Tooltip } from "./tooltip";
 import type { VirtualListRow } from "./virtual-list";
-import { formatTimestamp } from "../format-timestamp";
+import { formatTimestamp } from "@/lib/format-timestamp";
 
 type RepositoryListRowProps = {
   readonly index: number;

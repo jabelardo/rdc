@@ -1,4 +1,4 @@
-import type { RepositoryType } from "../models/repository-type";
+import type { RepositoryType } from "@/models/repository-type";
 
 /**
  * Whether the selected repository can still be read, and what to say when it cannot.

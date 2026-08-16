@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { WorktreeEntry } from "../models/worktree";
-import { getWorktreeDescription, getWorktreeDisplayName } from "../models/worktree";
-import snapshot from "./__generated__/wire-snapshot.json";
+import type { WorktreeEntry } from "@/models/worktree";
+import { getWorktreeDescription, getWorktreeDisplayName } from "@/models/worktree";
+import snapshot from "@/lib/__generated__/wire-snapshot.json";
 
 const invoke = vi.hoisted(() => vi.fn());
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));

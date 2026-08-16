@@ -1,7 +1,7 @@
 import { describe, it } from "vitest";
 import assert from "node:assert";
 import { Repository, nameOf } from "./repository";
-import { gitHubRepoFixture } from "../test-helpers/github-repo-builder";
+import { gitHubRepoFixture } from "@/testing/github-repo-builder";
 
 const repoPath = "/some/cool/path";
 

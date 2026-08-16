@@ -6,7 +6,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import type { WorktreeEntry } from "../models/worktree";
+import type { WorktreeEntry } from "@/models/worktree";
 
 /**
  * The worktrees a repository has.

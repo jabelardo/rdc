@@ -6,9 +6,9 @@ import type {
   OperationEventEnvelope,
   OperationRecord,
   OperationScope,
-} from "../models/operation";
+} from "@/models/operation";
 
-export type { OperationEventEnvelope } from "../models/operation";
+export type { OperationEventEnvelope } from "@/models/operation";
 
 export function getActiveOperationForRepository(
   repositoryPath: string,

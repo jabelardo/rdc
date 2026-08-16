@@ -96,7 +96,7 @@ export default defineConfig(() => ({
   test: {
     environment: "jsdom",
     globals: true,
-    setupFiles: ["./src/test-setup.ts"],
+    setupFiles: ["./src/testing/setup.ts"],
     css: false,
     // Native WebDriver specs are deliberately container-only; plain Vitest
     // must never discover and run them on the host.

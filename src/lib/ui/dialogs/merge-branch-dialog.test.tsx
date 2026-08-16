@@ -1,8 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { Branch, BranchType } from "../../../models/branch";
-import { ComputedAction } from "../../../models/computed-action";
+import { Branch, BranchType } from "@/models/branch";
+import { ComputedAction } from "@/models/computed-action";
 import { MergeBranchDialog, mergeCandidates } from "./merge-branch-dialog";
 
 /** Distinct per name, so two branches only share a SHA when a test says they do. */

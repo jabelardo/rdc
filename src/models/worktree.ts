@@ -1,4 +1,4 @@
-import { basename } from "../lib/path-utils";
+import { basename } from "@/lib/path-utils";
 import { shortenSHA } from "./commit";
 
 export type WorktreeType = "main" | "linked";

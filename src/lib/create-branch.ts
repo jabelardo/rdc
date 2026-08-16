@@ -1,5 +1,5 @@
-import { TipState, Tip } from "../models/tip";
-import { StartPoint, Branch } from "../models/branch";
+import { TipState, Tip } from "@/models/tip";
+import { StartPoint, Branch } from "@/models/branch";
 
 type BranchInfo = {
   readonly tip: Tip;

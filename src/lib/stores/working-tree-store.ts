@@ -4,18 +4,21 @@ import {
   DiffType,
   type IDiff,
   type ITextDiff,
-} from "../../models/diff";
+} from "@/models/diff";
 import {
   AppFileStatusKind,
   WorkingDirectoryFileChange,
   WorkingDirectoryStatus,
-} from "../../models/status";
-import { caseInsensitiveCompare } from "../compare";
-import { describeError, reportErrorMessage } from "../format-error";
-import { discardChanges as discardWorkingTreeChanges, TrashDiscardError } from "../discard-changes";
-import { discardChangesFromSelection, getWorkingDirectoryDiff } from "../diff-ipc";
-import { createCommit, getStatus, type IFileToStage, type IStatusResult } from "../git-ipc";
-import { abortHook, type HookFailureResolution, type IHookProgress } from "../hook-ipc";
+} from "@/models/status";
+import { caseInsensitiveCompare } from "@/lib/compare";
+import { describeError, reportErrorMessage } from "@/lib/format-error";
+import {
+  discardChanges as discardWorkingTreeChanges,
+  TrashDiscardError,
+} from "@/lib/discard-changes";
+import { discardChangesFromSelection, getWorkingDirectoryDiff } from "@/lib/diff-ipc";
+import { createCommit, getStatus, type IFileToStage, type IStatusResult } from "@/lib/git-ipc";
+import { abortHook, type HookFailureResolution, type IHookProgress } from "@/lib/hook-ipc";
 import { TerminalOutputBuffer } from "./terminal-output-buffer";
 
 export type HookFailureState = {

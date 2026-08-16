@@ -1,11 +1,11 @@
-import { Branch } from "../models/branch";
+import { Branch } from "@/models/branch";
 import {
   ChooseBranchStep,
   conflictSteps,
   MultiCommitOperationStepKind,
-} from "../models/multi-commit-operation";
-import { TipState } from "../models/tip";
-import { IBranchesState } from "./app-state/branches-state";
+} from "@/models/multi-commit-operation";
+import { TipState } from "@/models/tip";
+import { IBranchesState } from "@/lib/app-state/branches-state";
 
 /**
  * MIGRATION NOTE — the two parameter types below were **narrowed to the subset each function

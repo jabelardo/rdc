@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["eslint", "typescript", "unicorn", "oxc", "react"],
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "react", "import"],
   "categories": {
     "correctness": "error"
   },
@@ -10,6 +10,9 @@
     "respectEslintDisableDirectives": false
   },
   "rules": {
+    /* PROJECT_STRUCTURE.md's import convention: `./sibling` or `@/`, and no third form. Chosen
+       because this stock rule expresses it exactly, so the convention needs no bespoke tooling. */
+    "import/no-relative-parent-imports": "error",
     "eslint/no-unused-vars": [
       "error",
       {

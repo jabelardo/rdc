@@ -2,15 +2,15 @@ import {
   isConflictedFileStatus,
   isConflictWithMarkers,
   type ConflictedFileStatus,
-} from "../../models/status";
+} from "@/models/status";
 import {
   abortMerge,
   getStatus,
   stageResolvedConflictFiles,
   type IStatusFileChange,
   type IStatusResult,
-} from "../git-ipc";
-import { describeError, reportErrorMessage } from "../format-error";
+} from "@/lib/git-ipc";
+import { describeError, reportErrorMessage } from "@/lib/format-error";
 
 export type ConflictFile = {
   readonly path: string;

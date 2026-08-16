@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { RepositoriesDatabase } from "../databases/repositories-database";
+import { RepositoriesDatabase } from "@/lib/databases/repositories-database";
 import { RepositoriesStore } from "./repositories-store";
 
 describe("RepositoriesStore", () => {

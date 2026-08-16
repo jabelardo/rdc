@@ -242,7 +242,12 @@ the refactor.
 ### Imports
 
 **Two forms, and no third.** `./sibling` for a file in the same directory; `@/...` for everything
-else. **A `../` import is a lint error anywhere in `src/`.**
+else. Precisely: **a relative import may not leave its own directory**, ascending or descending —
+`./lib/platform/files` is as much a violation as `../platform/files`.
+
+`import/no-relative-parent-imports` makes the ascending half a lint error. The descending half has
+no stock rule and is asserted by `scripts/check-module-boundaries.mjs` instead: any relative
+specifier containing a `/`. Both are build failures.
 
 ```ts
 // inside features/branches/components/rename-branch-dialog.tsx
@@ -370,18 +375,48 @@ dependency-injection note above for why the measurement alone is not sufficient 
 
 </details>
 
-### Phase 1 — lift the layers that already exist
+### Phase 1 — convert the imports, then lift the layers — **done 2026-08-16**
 
-Pure renames, no file splitting.
+**The import conversion moved from Phase 4 to here, and the rest of the plan is cheaper for it.**
+With relative imports, moving a directory means recomputing depth in every importer. With absolute
+ones it is a single string replacement — `@/lib/platform/` becomes `@/platform/` everywhere, and the
+move is done. Phase 4's reason for going last applies to *enabling the boundary checker* (a wall of
+violations that says nothing), not to the conversion.
+
+571 specifiers converted across 158 files, then `import/no-relative-parent-imports` enabled and
+**proven to fire** on a planted `../foo` before being kept.
+
+Two things this phase taught:
+
+1. **The convention had a hole.** `import/no-relative-parent-imports` bans `../`, and the rule as
+   written says "`./sibling` or `@/`". But `./lib/platform/files` also starts with `./` while
+   leaving the directory, and the linter cannot see it — `src/App.tsx`, `src/lib/discard-changes.ts`
+   and three others were doing exactly that. The conversion used the precise rule instead: **a
+   relative import may not leave its own directory**, ascending *or* descending.
+   `scripts/check-module-boundaries.mjs` must assert the descending half, since no stock rule does —
+   flag any relative specifier containing a `/`.
+2. **The conversion silently disarmed `check-bundle-boundary.mjs`.** It resolves relative specifiers
+   only, so once imports became `@/` its traversal stopped at the first one: 163 reachable modules
+   down to **2**, still reporting "clean". A check that passes while checking nothing is worse than
+   one that fails. Fixed by teaching it the alias, then re-verified by planting a `node:path` import
+   in a reachable module and watching it fail. **Any tool that walks the import graph needs the same
+   treatment** — check before assuming a green gate is still a gate.
+
+`sidebar-sections.ts` did not move. It is the sidebar's own chrome configuration rather than a
+shared utility, so it travels with the sidebar in Phase 3.
+
+The moves themselves, all pure renames:
 
 | From | To |
 |---|---|
 | `src/lib/platform/` | `src/platform/` |
 | `src/lib/logging/`, `src/lib/resilience/`, `src/lib/menu/` | `src/lib/` (unchanged — already correct) |
 | `src/lib/debug/`, `src/test-helpers/` | `src/testing/` |
-| `src/App.css` | `src/styles/` |
+| `src/App.css` | `src/styles/app.css` |
 | `src/lib/ui/theme-provider.tsx`, `tooltip.tsx`, `virtual-list.tsx`, `external-link.tsx`, `horizontal-resizer.tsx`, `terminal-output.tsx` | `src/components/` |
-| `src/lib/ui/list-navigation.ts`, `sidebar-sections.ts` | `src/hooks/` or `src/utils/` by the decision tree |
+| `src/lib/ui/list-navigation.ts` | `src/utils/` — pure logic; its only import is a React *type* |
+| `src/lib/ui/mvp-list-rows.tsx` | `src/components/` |
+| `src/test-setup.ts` | `src/testing/setup.ts` (and `vite.config.ts`'s `setupFiles`) |
 
 ### Phase 2 — create the features and move the vertical slices
 
@@ -413,20 +448,16 @@ file.** Splitting it into per-feature hooks composed at the app layer is the nat
 is *not* part of the mechanical move — it is a behaviour-preserving refactor with its own risk, and
 it needs its own commit and its own review.
 
-### Phase 4 — convert the imports, then turn the checks on
+### Phase 4 — turn the boundary checker on
 
-Rewrite every `../` import to `@/`, delete the obsolete scoping comment in `tsconfig.json`, add
-`scripts/check-module-boundaries.mjs`, and enable both oxlint rules.
+The import conversion moved to Phase 1. What remains here is
+`scripts/check-module-boundaries.mjs` and `import/no-cycle`, wired into the gate set.
 
-**564 imports change** — 431 in production modules, 133 in tests, counted by running the rule over
-`src/`. `src/components/ui/` is already clean, since vendored shadcn uses the alias.
+It goes last because the cross-feature rule cannot be asserted until features exist. Turning it on
+the moment they do means the very next commit cannot regress.
 
-Largely mechanical: each violation's replacement is its own path relative to `src/`, so the rewrite
-can be scripted from the linter's own output and reviewed as motion. Do it in one commit; a
-half-converted tree is the state where nobody can tell which convention applies.
-
-The checks go last on purpose. Turning them on before the moves produces a wall of violations that
-says nothing; turning them on immediately after means the very next commit cannot regress.
+Remember the descending half of the import rule — a relative specifier containing a `/` leaves its
+directory and no stock lint rule catches it.
 
 ---
 

@@ -1,4 +1,4 @@
-import { VirtualList } from "../virtual-list";
+import { VirtualList } from "@/components/virtual-list";
 
 /**
  * The question a discard-all confirmation asks.

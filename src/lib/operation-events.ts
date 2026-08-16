@@ -1,4 +1,4 @@
-import type { OperationEventEnvelope, OperationScope } from "../models/operation";
+import type { OperationEventEnvelope, OperationScope } from "@/models/operation";
 
 /** The native lock identity used to route an operation event. */
 export function operationScopeKey(scope: OperationScope): string {

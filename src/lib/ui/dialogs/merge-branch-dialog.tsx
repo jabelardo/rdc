@@ -1,28 +1,28 @@
-import type { Branch } from "../../../models/branch";
-import { ComputedAction } from "../../../models/computed-action";
-import type { MergeTreeResult } from "../../../models/merge";
-import type { IGenericProgress } from "../../../models/progress";
+import type { Branch } from "@/models/branch";
+import { ComputedAction } from "@/models/computed-action";
+import type { MergeTreeResult } from "@/models/merge";
+import type { IGenericProgress } from "@/models/progress";
 import {
   MergeStrategyDescription,
   MergeStrategyLabel,
   type MergeStrategy,
-} from "../../../models/merge-strategy";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
-import { formatNumber } from "../../format-number";
+} from "@/models/merge-strategy";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { formatNumber } from "@/lib/format-number";
 import { BranchPicker } from "./branch-picker";
 import { DialogMessage, type DialogMessageTone } from "./dialog-message";
 import { OperationProgressDialog } from "./operation-progress-dialog";
-import type { OperationProgressViewModel } from "../../operation-presentation";
+import type { OperationProgressViewModel } from "@/lib/operation-presentation";
 import { ChevronDown } from "lucide-react";
-import { Button } from "../../../components/ui/button";
-import { DialogFooter } from "../../../components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { DialogFooter } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
+} from "@/components/ui/dropdown-menu";
 
 const MessageID = "merge-branch-message";
 

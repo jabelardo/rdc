@@ -1,4 +1,4 @@
-import { getDefaultMessageStore } from "./stores/default-message-store";
+import { getDefaultMessageStore } from "@/lib/stores/default-message-store";
 import { isCommandError } from "./git-ipc";
 
 /**

@@ -4,7 +4,7 @@ import type {
   OperationProgress,
   OperationPresentationRole,
   OperationRecord,
-} from "../models/operation";
+} from "@/models/operation";
 
 export type OperationProgressViewModel = {
   readonly operation: GitOperationKind;

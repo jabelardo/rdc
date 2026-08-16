@@ -5,7 +5,7 @@ import { ExternalLink } from "./external-link";
 
 const openExternal = vi.hoisted(() => vi.fn(async () => true));
 
-vi.mock("../platform/files", () => ({ openExternal }));
+vi.mock("@/platform/files", () => ({ openExternal }));
 
 describe("ExternalLink", () => {
   beforeEach(() => {

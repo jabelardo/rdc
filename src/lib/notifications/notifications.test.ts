@@ -4,11 +4,11 @@ const nativeShowNotification = vi.hoisted(() => vi.fn());
 const onNotificationEvent = vi.hoisted(() => vi.fn());
 const focusWindow = vi.hoisted(() => vi.fn());
 
-vi.mock("../platform/notifications", () => ({
+vi.mock("@/platform/notifications", () => ({
   showNotification: nativeShowNotification,
   onNotificationEvent,
 }));
-vi.mock("../platform/window", () => ({ focusWindow }));
+vi.mock("@/platform/window", () => ({ focusWindow }));
 
 const { NotificationCallbackRegistry, initializeNotificationHandler } =
   await import("./notification-handler");

@@ -3,8 +3,8 @@ import {
   onNotificationEvent,
   type NotificationCallback,
   type NotificationUserInfo,
-} from "../platform/notifications";
-import { focusWindow } from "../platform/window";
+} from "@/platform/notifications";
+import { focusWindow } from "@/platform/window";
 
 const MaximumCallbacks = 200;
 

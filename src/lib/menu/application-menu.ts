@@ -1,21 +1,16 @@
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import {
-  AppMenu,
-  type ExecutableMenuItem,
-  type IMenu,
-  type MenuAction,
-} from "../../models/app-menu";
-import type { MenuKeybindings } from "../../models/keybinding";
-import type { MenuEvent } from "../../models/menu-event";
-import { getKeybindings, onKeybindingsChanged } from "../platform/keybindings";
-import { onNativeMenuAction, setNativeMenu } from "../platform/menu";
+import { AppMenu, type ExecutableMenuItem, type IMenu, type MenuAction } from "@/models/app-menu";
+import type { MenuKeybindings } from "@/models/keybinding";
+import type { MenuEvent } from "@/models/menu-event";
+import { getKeybindings, onKeybindingsChanged } from "@/platform/keybindings";
+import { onNativeMenuAction, setNativeMenu } from "@/platform/menu";
 import { currentMenuPlatform, type MenuPlatform } from "./default-menu";
 import { buildStartupMenu, createStartupMenuActionExecutor } from "./startup";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { quitApp } from "../platform/lifetime";
-import { selectAllWindowContents } from "../platform/menu";
-import { setWindowZoomFactor, toggleDevTools } from "../platform/window";
-import { showApplicationLogs } from "../resilience/logs";
+import { quitApp } from "@/platform/lifetime";
+import { selectAllWindowContents } from "@/platform/menu";
+import { setWindowZoomFactor, toggleDevTools } from "@/platform/window";
+import { showApplicationLogs } from "@/lib/resilience/logs";
 
 export type ApplicationMenuDependencies = {
   readonly platform: MenuPlatform;

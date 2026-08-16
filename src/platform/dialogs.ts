@@ -1,5 +1,5 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
-import type { OpenDialogOptions, SaveDialogOptions } from "../../models/dialog";
+import type { OpenDialogOptions, SaveDialogOptions } from "@/models/dialog";
 
 export async function showOpenDialog(options: OpenDialogOptions): Promise<string | null> {
   const properties = new Set(options.properties);

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { openExternal } from "../platform/files";
-import { cn } from "../utils";
+import { openExternal } from "@/platform/files";
+import { cn } from "@/lib/utils";
 
 type ExternalLinkProps = {
   readonly href: string;

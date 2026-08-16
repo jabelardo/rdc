@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PreferencesState } from "../stores/preferences-store";
+import type { PreferencesState } from "@/lib/stores/preferences-store";
 import { ThemeProvider, useTheme } from "./theme-provider";
 
 type Listener = (state: PreferencesState) => void;
@@ -46,7 +46,7 @@ const store = vi.hoisted(() => {
   };
 });
 
-vi.mock("../stores/default-preferences-store", () => ({
+vi.mock("@/lib/stores/default-preferences-store", () => ({
   getDefaultPreferencesStore: () => store,
 }));
 

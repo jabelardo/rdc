@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { IRemote } from "../../../models/remote";
+import type { IRemote } from "@/models/remote";
 import { ManageRemotesDialog } from "./manage-remotes-dialog";
 
 const remotes: ReadonlyArray<IRemote> = [

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { cn } from "../../utils";
+import { cn } from "@/lib/utils";
 
 export type DialogMessageTone = "error" | "warning" | "info";
 

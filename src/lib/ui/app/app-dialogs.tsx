@@ -1,17 +1,17 @@
 import { CircleAlert } from "lucide-react";
-import { BranchType, type Branch } from "../../../models/branch";
-import type { IRemote } from "../../../models/remote";
-import type { Repository } from "../../../models/repository";
-import type { WorkingDirectoryFileChange } from "../../../models/status";
-import type { BranchState } from "../../stores/branch-store";
-import type { CloneState } from "../../stores/clone-store";
-import type { PreferencesState, PreferencesStore } from "../../stores/preferences-store";
-import type { Architecture } from "../../platform/paths";
+import { BranchType, type Branch } from "@/models/branch";
+import type { IRemote } from "@/models/remote";
+import type { Repository } from "@/models/repository";
+import type { WorkingDirectoryFileChange } from "@/models/status";
+import type { BranchState } from "@/lib/stores/branch-store";
+import type { CloneState } from "@/lib/stores/clone-store";
+import type { PreferencesState, PreferencesStore } from "@/lib/stores/preferences-store";
+import type { Architecture } from "@/platform/paths";
 import type {
   HookFailureState,
   RunningHookState,
   WorkingTreeStore,
-} from "../../stores/working-tree-store";
+} from "@/lib/stores/working-tree-store";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +21,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "../../../components/ui/alert-dialog";
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -29,30 +29,30 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "../../../components/ui/dialog";
-import { Button } from "../../../components/ui/button";
-import { ExternalLink } from "../external-link";
-import { Checkbox } from "../../../components/ui/checkbox";
-import { ConfirmDialog } from "../dialogs/confirm-dialog";
-import { ConfirmOptOut } from "../dialogs/confirm-opt-out";
-import { CloneRepositoryDialog } from "../dialogs/clone-repository-dialog";
-import { DiscardFileList, discardAllQuestion } from "../dialogs/discard-file-list";
-import { MergeBranchDialog, mergeCandidates } from "../dialogs/merge-branch-dialog";
-import { RebaseBranchDialog, rebaseCandidates } from "../dialogs/rebase-branch-dialog";
-import { NoticeDialog } from "../dialogs/notice-dialog";
-import { RenameBranchDialog } from "../dialogs/rename-branch-dialog";
-import { OperationProgressDialog } from "../dialogs/operation-progress-dialog";
-import { PreferencesDialog } from "../dialogs/preferences-dialog";
-import { TerminalOutput } from "../terminal-output";
-import type { MergeTreeResult } from "../../../models/merge";
-import type { MergeStrategy } from "../../../models/merge-strategy";
-import type { RebasePreview } from "../../../models/rebase-preview";
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { ExternalLink } from "@/components/external-link";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ConfirmDialog } from "@/lib/ui/dialogs/confirm-dialog";
+import { ConfirmOptOut } from "@/lib/ui/dialogs/confirm-opt-out";
+import { CloneRepositoryDialog } from "@/lib/ui/dialogs/clone-repository-dialog";
+import { DiscardFileList, discardAllQuestion } from "@/lib/ui/dialogs/discard-file-list";
+import { MergeBranchDialog, mergeCandidates } from "@/lib/ui/dialogs/merge-branch-dialog";
+import { RebaseBranchDialog, rebaseCandidates } from "@/lib/ui/dialogs/rebase-branch-dialog";
+import { NoticeDialog } from "@/lib/ui/dialogs/notice-dialog";
+import { RenameBranchDialog } from "@/lib/ui/dialogs/rename-branch-dialog";
+import { OperationProgressDialog } from "@/lib/ui/dialogs/operation-progress-dialog";
+import { PreferencesDialog } from "@/lib/ui/dialogs/preferences-dialog";
+import { TerminalOutput } from "@/components/terminal-output";
+import type { MergeTreeResult } from "@/models/merge";
+import type { MergeStrategy } from "@/models/merge-strategy";
+import type { RebasePreview } from "@/models/rebase-preview";
 import {
   operationProgressViewModel,
   type OperationProgressViewModel,
-} from "../../operation-presentation";
-import { DialogFailure } from "../dialogs/dialog-failure";
-import { ManageRemotesDialog } from "../dialogs/manage-remotes-dialog";
+} from "@/lib/operation-presentation";
+import { DialogFailure } from "@/lib/ui/dialogs/dialog-failure";
+import { ManageRemotesDialog } from "@/lib/ui/dialogs/manage-remotes-dialog";
 
 type AppDialogsProps = {
   readonly discardFile: WorkingDirectoryFileChange | null;

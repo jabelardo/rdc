@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Shell } from "../../models/shell";
+import { Shell } from "@/models/shell";
 import { PreferencesStore, PreferencesStorageKey } from "./preferences-store";
 
 /**

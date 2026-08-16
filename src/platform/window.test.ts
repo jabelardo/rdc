@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ILaunchStats } from "../../models/launch-stats";
-import type { CLIAction } from "../../models/cli-action";
-import type { WindowState } from "../../models/window-state";
+import type { ILaunchStats } from "@/models/launch-stats";
+import type { CLIAction } from "@/models/cli-action";
+import type { WindowState } from "@/models/window-state";
 
 const currentWindow = vi.hoisted(() => ({
   label: "repository-1",

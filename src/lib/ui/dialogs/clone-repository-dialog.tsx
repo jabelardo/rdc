@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react";
-import type { ICloneProgress } from "../../../models/progress";
-import { Button } from "../../../components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../../components/ui/dialog";
-import { Input } from "../../../components/ui/input";
-import { Label } from "../../../components/ui/label";
+import type { ICloneProgress } from "@/models/progress";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { DialogActions } from "./dialog-actions";
 import { DialogMessage } from "./dialog-message";
 import { OperationProgressDialog } from "./operation-progress-dialog";
-import type { OperationProgressViewModel } from "../../operation-presentation";
+import type { OperationProgressViewModel } from "@/lib/operation-presentation";
 
 const MessageID = "clone-repository-message";
 

@@ -1,7 +1,7 @@
 import { Copy, FolderPlus, Plus } from "lucide-react";
 import { useRef, type CSSProperties } from "react";
-import { showFolderContents } from "../../platform/files";
-import { HorizontalResizer } from "../horizontal-resizer";
+import { showFolderContents } from "@/platform/files";
+import { HorizontalResizer } from "@/components/horizontal-resizer";
 import { AppDialogs } from "./app-dialogs";
 import { ChangesWorkspace } from "./changes-workspace";
 import { HistoryWorkspace } from "./history-workspace";
@@ -11,9 +11,9 @@ import { RepositorySidebar } from "./repository-sidebar";
 import { RepositoryToolbar } from "./repository-toolbar";
 import type { AppController } from "./use-app-controller";
 import { WindowDragStrip } from "./window-drag-strip";
-import { remoteEnablement } from "../../remote-enablement";
-import { isHistoryMovingOperation, operationProgressViewModel } from "../../operation-presentation";
-import { DebugOperationProgressLauncher } from "../dialogs/debug-operation-progress-launcher";
+import { remoteEnablement } from "@/lib/remote-enablement";
+import { isHistoryMovingOperation, operationProgressViewModel } from "@/lib/operation-presentation";
+import { DebugOperationProgressLauncher } from "@/lib/ui/dialogs/debug-operation-progress-launcher";
 
 type AppShellProps = {
   readonly controller: AppController;

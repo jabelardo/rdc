@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Branch, BranchType } from "../../models/branch";
-import type { IFetchProgress, IPullProgress, IPushProgress } from "../../models/progress";
-import type { IRemote } from "../../models/remote";
-import type { OperationRecord } from "../../models/operation";
+import { Branch, BranchType } from "@/models/branch";
+import type { IFetchProgress, IPullProgress, IPushProgress } from "@/models/progress";
+import type { IRemote } from "@/models/remote";
+import type { OperationRecord } from "@/models/operation";
 import { RemoteStore } from "./remote-store";
 import { getDefaultMessageStore } from "./default-message-store";
 

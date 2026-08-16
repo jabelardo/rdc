@@ -1,10 +1,10 @@
-import type { FoundEditor } from "../../models/editor";
-import type { MergeStrategy } from "../../models/merge-strategy";
-import { Shell, type FoundShell } from "../../models/shell";
-import { getAvailableEditors } from "../platform/editors";
-import { getAvailableShells } from "../platform/shells";
-import { setNativeThemeSource, shouldUseDarkColors, type ThemeSource } from "../platform/theme";
-import { describeError } from "../format-error";
+import type { FoundEditor } from "@/models/editor";
+import type { MergeStrategy } from "@/models/merge-strategy";
+import { Shell, type FoundShell } from "@/models/shell";
+import { getAvailableEditors } from "@/platform/editors";
+import { getAvailableShells } from "@/platform/shells";
+import { setNativeThemeSource, shouldUseDarkColors, type ThemeSource } from "@/platform/theme";
+import { describeError } from "@/lib/format-error";
 
 export const PreferencesStorageKey = "rdc-preferences-v1";
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { OperationRecord } from "../models/operation";
+import type { OperationRecord } from "@/models/operation";
 import {
   isHistoryMovingOperation,
   isTerminalOperation,

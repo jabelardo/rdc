@@ -1,4 +1,4 @@
-import { RepositoriesDatabase } from "../databases/repositories-database";
+import { RepositoriesDatabase } from "@/lib/databases/repositories-database";
 import { AppStore } from "./app-store";
 import { RepositoriesStore } from "./repositories-store";
 

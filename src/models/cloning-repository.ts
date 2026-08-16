@@ -1,4 +1,4 @@
-import { basename } from "../lib/path-utils";
+import { basename } from "@/lib/path-utils";
 
 /**
  * A sufficiently large number that it's unlikely it'll ever collide with the id

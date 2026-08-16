@@ -1,5 +1,5 @@
-import { GitHubRepository } from "../models/github-repository";
-import { Owner } from "../models/owner";
+import { GitHubRepository } from "@/models/github-repository";
+import { Owner } from "@/models/owner";
 /**
  * Inlined from the deleted GitHub API client, which this fixture needed for one constant. The
  * endpoint is a fixture detail here — `Owner` stores whatever string it is given — so the fixture

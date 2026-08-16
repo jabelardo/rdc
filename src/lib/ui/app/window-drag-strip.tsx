@@ -1,5 +1,5 @@
-import { startWindowDragging } from "../../platform/window";
-import { handleWindowTitleBarDoubleClick } from "../../platform/window-drag-region";
+import { startWindowDragging } from "@/platform/window";
+import { handleWindowTitleBarDoubleClick } from "@/platform/window-drag-region";
 
 /** Native drag affordance for custom/overlay title bars. */
 export function WindowDragStrip() {

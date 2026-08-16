@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { MenuItem } from "../models/app-menu";
-import type { Repository } from "../models/repository";
-import { buildRepositoryMenu } from "./menu/repository-menu";
+import type { MenuItem } from "@/models/app-menu";
+import type { Repository } from "@/models/repository";
+import { buildRepositoryMenu } from "@/lib/menu/repository-menu";
 import { remoteEnablement } from "./remote-enablement";
-import type { RemoteState } from "./stores/remote-store";
+import type { RemoteState } from "@/lib/stores/remote-store";
 
 const repository = { id: 7, name: "rdc", path: "/projects/rdc" } as Repository;
 

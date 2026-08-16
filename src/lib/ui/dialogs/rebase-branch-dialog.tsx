@@ -1,20 +1,20 @@
-import type { Branch } from "../../../models/branch";
-import { ComputedAction } from "../../../models/computed-action";
-import type { RebasePreview } from "../../../models/rebase-preview";
-import type { IMultiCommitOperationProgress } from "../../../models/progress";
-import { Button } from "../../../components/ui/button";
+import type { Branch } from "@/models/branch";
+import { ComputedAction } from "@/models/computed-action";
+import type { RebasePreview } from "@/models/rebase-preview";
+import type { IMultiCommitOperationProgress } from "@/models/progress";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "../../../components/ui/dialog";
-import { formatNumber } from "../../format-number";
+} from "@/components/ui/dialog";
+import { formatNumber } from "@/lib/format-number";
 import { BranchPicker } from "./branch-picker";
 import { DialogMessage, type DialogMessageTone } from "./dialog-message";
 import { OperationProgressDialog } from "./operation-progress-dialog";
-import type { OperationProgressViewModel } from "../../operation-presentation";
+import type { OperationProgressViewModel } from "@/lib/operation-presentation";
 
 const MessageID = "rebase-branch-message";
 

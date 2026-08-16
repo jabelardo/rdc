@@ -1,6 +1,6 @@
-import { IBranchesState } from "./app-state/branches-state";
-import { IAheadBehind } from "../models/branch";
-import { TipState } from "../models/tip";
+import { IBranchesState } from "@/lib/app-state/branches-state";
+import { IAheadBehind } from "@/models/branch";
+import { TipState } from "@/models/tip";
 import { clamp } from "./clamp";
 
 /** Represents the force-push availability state of a branch. */

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import snapshot from "../__generated__/wire-snapshot.json";
-import type { ICustomIntegrationPathValidation } from "../../models/custom-integration";
-import type { FoundEditor } from "../../models/editor";
+import snapshot from "@/lib/__generated__/wire-snapshot.json";
+import type { ICustomIntegrationPathValidation } from "@/models/custom-integration";
+import type { FoundEditor } from "@/models/editor";
 
 const invoke = vi.hoisted(() => vi.fn());
 

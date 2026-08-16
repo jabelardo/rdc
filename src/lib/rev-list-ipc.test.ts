@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Branch, BranchType } from "../models/branch";
+import { Branch, BranchType } from "@/models/branch";
 
 /**
  * Checks the ahead/behind boundary.

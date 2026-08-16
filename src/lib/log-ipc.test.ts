@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Commit } from "../models/commit";
-import { CommitIdentity } from "../models/commit-identity";
-import { AppFileStatusKind, CommittedFileChange } from "../models/status";
-import snapshot from "./__generated__/wire-snapshot.json";
+import { Commit } from "@/models/commit";
+import { CommitIdentity } from "@/models/commit-identity";
+import { AppFileStatusKind, CommittedFileChange } from "@/models/status";
+import snapshot from "@/lib/__generated__/wire-snapshot.json";
 import type { IChangesetDataWire, ICommitData } from "./log-ipc";
 import { hydrateChangesetData, hydrateCommit, hydrateCommitIdentity } from "./log-ipc";
 
