@@ -103,8 +103,12 @@ Two items remain, and neither blocks the other:
    unreferenced (`refs.ts`, `create-branch.ts`, `rebase.ts` have no non-test importer; `api.ts`
    forms a dead cluster with three models). The `src/models/` share of that number is largely a
    false positive — `import type` is erased, so type-only modules read as unreachable while being
-   in use. The plan document holds the inventory and the questions; it deliberately decides
-   nothing yet. **After the dialog migration, which has now landed — so this is unblocked.**
+   in use. The plan document holds the inventory and the questions; **the answers are now in
+   [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md)** — the target layout, the unidirectional rule
+   (shared → features → app), its enforcement (a check script, because oxlint has no
+   `import/no-restricted-paths`), and a four-phase mechanical move. Two decisions in it need
+   sign-off before Phase 1: widening the `@/` alias project-wide, and deleting rather than
+   quarantining the dead GitHub-service cluster.
 
 2. **Dialog widths have drifted to six values, and no document says which is right.** Measured
    2026-08-15: `sm:max-w-lg` (512px, the base `DialogContent`/`AlertDialogContent` default that

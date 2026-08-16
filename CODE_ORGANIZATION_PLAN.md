@@ -1,7 +1,10 @@
 # Code organization — establishing a structure worth defending
 
-**Status**: not started. Scheduled **after** the dialog migration completes, so it moves settled code
-rather than code still in flight. Raised by Jose on 2026-08-07: the dialogs sit at paths with no
+**Status**: the questions below are answered by
+[`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md), which is the guideline and the migration plan.
+This document stays as the evidence that produced it — the measurements, and the reasoning about
+what the reachability numbers do and do not prove. Scheduled **after** the dialog migration
+completed, so it moves settled code rather than code still in flight. Raised by Jose on 2026-08-07: the dialogs sit at paths with no
 discernible pattern — not by feature, not by component type, not by anything — and "not only dialogs
 are disorganized."
 

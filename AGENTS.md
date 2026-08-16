@@ -75,6 +75,11 @@ e2e/                      tauri-driver suite, container-only
 Rust module names mirror the original TypeScript file names (`lib/git/status.ts` →
 `crates/git-ops/src/status.rs`) so the two trees can be read side by side.
 
+**The `src/` tree above is what exists today, and it is being reorganized.**
+[`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md) is the target layout and the rule that holds it
+(shared → features → app, no cross-feature imports). Read it before adding a file: it answers
+"where does this go" in one pass, and once the checker lands, answering it wrong fails the build.
+
 ## Rules that are easy to get wrong
 
 **1. If it ran on Node, it probably belongs in Rust — not in ported TypeScript.**
