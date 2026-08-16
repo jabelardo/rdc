@@ -534,6 +534,21 @@ mod process_group {
         job: HANDLE,
     }
 
+    // SAFETY: a job object HANDLE is a kernel handle, valid process-wide and not bound to the
+    // thread that created it — unlike, say, a window handle. Every use here is `AssignProcess-
+    // ToJobObject`, `TerminateJobObject` or `CloseHandle`, all of which accept a handle from any
+    // thread. The Unix arm is a unit struct and therefore `Send` already, which is why the two
+    // targets disagreed: an operation future holds its `ProcessTree` across an await, and
+    // `tokio::spawn` requires that future to be `Send`.
+    unsafe impl Send for ProcessTree {}
+
+    // SAFETY: `Sync` for the same reason, and it is needed because the future holds a
+    // `&ProcessTree` across an await — `&T: Send` requires `T: Sync`. A shared reference can only
+    // read the handle and hand it to `AssignProcessToJobObject` or `TerminateJobObject`, both
+    // thread-safe. The one call that invalidates it, `CloseHandle`, is in `Drop` and so needs
+    // ownership; it cannot race a shared read.
+    unsafe impl Sync for ProcessTree {}
+
     impl Drop for ProcessTree {
         fn drop(&mut self) {
             if !self.job.is_null() {

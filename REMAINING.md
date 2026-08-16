@@ -31,18 +31,24 @@ zero, from 17. Abort merge is reachable from the conflict banner and the
 Branch menu, so MVP exit criterion 3 — recovering from a conflict without being stranded — is
 satisfied in-app.
 
-| Gate | State (2026-08-15) |
+| Gate | State (2026-08-16) |
 |---|---|
-| `pnpm test` (Vitest) | 1,269 passing / 143 files |
+| `pnpm test` (Vitest) | 1,123 passing / 128 files |
 | `pnpm exec tsc --noEmit` | clean |
 | `pnpm format:check` / `pnpm lint` | clean |
-| `pnpm build` / `pnpm check:bundle-boundary` | clean; 160 browser-reachable modules, no Node built-ins |
+| `pnpm build` / `pnpm check:bundle-boundary` | clean; 181 browser-reachable modules, no Node built-ins |
+| `pnpm check:module-boundaries` | clean |
 | `cargo test --workspace` | 1,274 passing |
 | `cargo clippy --workspace --all-targets -- -D warnings` | clean |
 | `cargo fmt --check` | clean |
-| Windows `git-ops --all-targets` compile guard | clean |
+| Windows `git-ops --all-targets` compile guard | clean (was failing; see below) |
 | `pnpm test:e2e` (Linux container) | 42 tests / 19 suites passing |
 | `pnpm qualify:phase8a` | green, `"errors": []` |
+
+**The Vitest count fell from 1,269 and that is deletion, not loss.** 22 test files went with the
+GitHub-service cluster and the dead conflict-status logic; 8 were added. Nothing is skipped: the
+suite has zero `.skip`, `.only` or `todo`, and every one of the 125 test files under `src/` plus 3
+under `scripts/` runs.
 
 ---
 
