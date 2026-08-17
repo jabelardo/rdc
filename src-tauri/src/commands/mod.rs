@@ -19,6 +19,10 @@
 //! `git_ops` and may not name `crate::platform`; [`platform`] adapts `crate::platform` and may not
 //! name `git_ops`. Both directions are checked by `tests/structure.rs`.
 //!
+//! Commands translate the wire API and may coordinate app-owned operation state, cancellation,
+//! recovery, channels, and credential sessions. Reusable git and OS domain logic stays below this
+//! layer.
+//!
 //! [`error`] and [`operations`] are neither, and stay here as single modules: the error contract
 //! belongs to the whole surface, and the operation registry is the app's own service rather than
 //! git's or the OS's.

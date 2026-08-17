@@ -73,7 +73,7 @@ src/                      frontend
   testing/                test helpers and the debug state injectors
   lib/__generated__/      emitted by Rust tests; do not hand-edit
 src-tauri/
-  src/commands/git/       #[tauri::command] entry points, one module per frontend feature
+  src/commands/git/       #[tauri::command] entry points, one module per frontend capability
   src/commands/platform/  the OS-facing half of the same surface
   src/platform/           the Tauri/OS adapter; *_model.rs holds the cfg-free wire types
   crates/git-ops/         git plumbing (the bulk of the Rust); mirrors desktop-plus lib/git/**
@@ -86,9 +86,9 @@ Rust module names mirror the original TypeScript file names (`lib/git/status.ts`
 
 **Read [`BACKEND_STRUCTURE.md`](./BACKEND_STRUCTURE.md) before adding a Rust file.** Dependencies
 run `crates/` → app services → `commands/` → Tauri; the crates know nothing about Tauri; a command
-module is named for the frontend feature that calls it, not the git subcommand it runs. Five
+module is named for the frontend capability that calls it, not the git subcommand it runs. Seven
 assertions in `src-tauri/tests/structure.rs` fail the build on a violation. It also records why
-`crates/git-ops/` is frozen: 53 of its 63 modules carry the name of the desktop-plus module they
+`crates/git-ops/` is frozen: 54 of its 63 modules carry the name of the desktop-plus module they
 port, and `MIGRATION_MAP.md` keys on those names.
 
 **Read [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md) before adding a frontend file.** It answers "where

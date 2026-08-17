@@ -4,22 +4,20 @@
 //! because this runs under `cargo test --workspace` — already a CI gate, and already the command a
 //! Rust change runs locally. It needs no new wiring and cannot be forgotten.
 //!
-//! Every assertion here was verified by planting a violation and watching it fail, and two of them
-//! turned out to need a more careful violation than the obvious one:
+//! The original assertions were verified by planting a violation and watching them fail. Review
+//! then closed three blind spots: duplicate wire names were hidden by sets, multiline return types
+//! were inspected one line at a time, and two documented boundaries had no assertion at all.
 //!
 //! - Registering a command that does not exist is a **compile** error, not a test failure —
 //!   `generate_handler!` expands to a reference to `tags::__cmd__invent_a_tag`. rustc owns that
 //!   direction; the assertion below is kept because it states the intent, not because it is what
 //!   protects you.
-//! - The error-contract check only fires on a command that is *self-consistently* stringly-typed.
-//!   Changing a return type to `String` while the body still produces `CommandError` does not
-//!   compile, so the realistic failure — a new command written with `Result<T, String>` throughout
-//!   — is the one the probe had to use.
 //!
-//! What none of them can defend is the rule that `commands/` holds no logic: a helper function in a
-//! command module breaks nothing mechanical. The checker enforces direction, not cohesion.
+//! What none of them can defend is the distinction between IPC-specific orchestration and reusable
+//! domain logic: a misplaced helper function breaks nothing mechanical. The checker enforces
+//! direction, not cohesion.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -36,7 +34,9 @@ fn rust_files(path: &Path) -> Vec<PathBuf> {
             let entry = entry.expect("directory entry should be readable");
             let path = entry.path();
             if path.is_dir() {
-                stack.push(path);
+                if path.file_name().is_none_or(|name| name != "target") {
+                    stack.push(path);
+                }
             } else if path.extension().is_some_and(|extension| extension == "rs") {
                 found.push(path);
             }
@@ -66,34 +66,56 @@ fn read(path: &Path) -> String {
         .unwrap_or_else(|error| panic!("{} should be readable: {error}", path.display()))
 }
 
-/// Names of every function carrying `#[tauri::command]`.
-fn declared_commands() -> BTreeSet<String> {
-    let mut names = BTreeSet::new();
+#[derive(Debug)]
+struct CommandDeclaration {
+    name: String,
+    file: PathBuf,
+    signature: String,
+}
+
+/// Every function carrying `#[tauri::command]`, including its complete signature.
+fn declared_commands() -> Vec<CommandDeclaration> {
+    let mut commands = Vec::new();
     for file in rust_files(&crate_root().join("src/commands")) {
         let source = read(&file);
         let lines: Vec<&str> = source.lines().collect();
         for (index, line) in lines.iter().enumerate() {
-            if line.trim() != "#[tauri::command]" {
+            let marker = line.trim();
+            if !marker.starts_with("#[tauri::command") || !marker.ends_with(']') {
                 continue;
             }
             // Attributes and comments may sit between the marker and the signature — `pull`
             // carries an `#[allow(clippy::too_many_arguments)]` with a comment explaining it,
             // because a command's parameter list is its wire API and grouping the parameters to
             // satisfy the lint would change what the frontend sends.
-            let signature = lines[index + 1..]
+            let signature_start = lines[index + 1..]
                 .iter()
-                .find(|candidate| {
+                .position(|candidate| {
                     let candidate = candidate.trim_start();
                     !candidate.is_empty()
                         && !candidate.starts_with('#')
                         && !candidate.starts_with("//")
                 })
+                .map(|offset| index + 1 + offset)
                 .unwrap_or_else(|| {
                     panic!(
                         "{}: #[tauri::command] with no item after it",
                         file.display()
                     )
                 });
+            let signature = lines[signature_start..]
+                .iter()
+                .scan(false, |finished, line| {
+                    if *finished {
+                        return None;
+                    }
+                    if line.contains('{') {
+                        *finished = true;
+                    }
+                    Some(*line)
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
             let name = signature
                 .split("fn ")
                 .nth(1)
@@ -101,14 +123,18 @@ fn declared_commands() -> BTreeSet<String> {
                 .unwrap_or_else(|| {
                     panic!("{}: cannot read a name from {signature:?}", file.display())
                 });
-            names.insert(name.trim().to_owned());
+            commands.push(CommandDeclaration {
+                name: name.trim().to_owned(),
+                file: file.clone(),
+                signature,
+            });
         }
     }
-    names
+    commands
 }
 
 /// Names listed in `lib.rs`'s `generate_handler!`.
-fn registered_commands() -> BTreeSet<String> {
+fn registered_commands() -> Vec<String> {
     let source = read(&crate_root().join("src/lib.rs"));
     let start = source
         .find("invoke_handler(tauri::generate_handler![")
@@ -139,14 +165,46 @@ fn every_command_is_registered_and_every_registration_resolves() {
         declared.len()
     );
 
-    let unregistered: Vec<_> = declared.difference(&registered).collect();
+    let mut declaration_counts = BTreeMap::new();
+    for command in &declared {
+        declaration_counts
+            .entry(command.name.as_str())
+            .or_insert_with(Vec::new)
+            .push(command.file.display().to_string());
+    }
+    let duplicate_declarations: Vec<_> = declaration_counts
+        .iter()
+        .filter(|(_, files)| files.len() > 1)
+        .collect();
+    assert!(
+        duplicate_declarations.is_empty(),
+        "Tauri command wire names must be unique, but these are declared more than once: \
+         {duplicate_declarations:?}"
+    );
+
+    let mut registration_counts = BTreeMap::new();
+    for name in &registered {
+        *registration_counts.entry(name.as_str()).or_insert(0usize) += 1;
+    }
+    let duplicate_registrations: Vec<_> = registration_counts
+        .iter()
+        .filter(|(_, count)| **count > 1)
+        .collect();
+    assert!(
+        duplicate_registrations.is_empty(),
+        "generate_handler! must register each command once: {duplicate_registrations:?}"
+    );
+
+    let declared_names: BTreeSet<_> = declared.iter().map(|command| &command.name).collect();
+    let registered_names: BTreeSet<_> = registered.iter().collect();
+    let unregistered: Vec<_> = declared_names.difference(&registered_names).collect();
     assert!(
         unregistered.is_empty(),
         "these commands are declared but never reach generate_handler!, so the frontend cannot \
          call them: {unregistered:?}"
     );
 
-    let unresolved: Vec<_> = registered.difference(&declared).collect();
+    let unresolved: Vec<_> = registered_names.difference(&declared_names).collect();
     assert!(
         unresolved.is_empty(),
         "generate_handler! lists these, but no #[tauri::command] declares them: {unresolved:?}"
@@ -180,8 +238,8 @@ fn git_commands_do_not_reach_for_the_platform_layer() {
     }
     assert!(
         offenders.is_empty(),
-        "commands/git/ may not name crate::platform — a command that needs both is composing, and \
-         composition belongs in lib.rs: {offenders:?}"
+        "commands/git/ may not name crate::platform — split cross-boundary work at an app-service \
+         seam: {offenders:?}"
     );
 }
 
@@ -211,8 +269,8 @@ fn the_crates_know_nothing_about_tauri() {
             );
         }
 
-        let sources = crate_root().join("crates").join(crate_name).join("src");
-        for file in rust_files(&sources) {
+        let crate_directory = crate_root().join("crates").join(crate_name);
+        for file in rust_files(&crate_directory) {
             assert!(
                 !code_only(&read(&file)).contains("tauri"),
                 "{} names tauri; the crates must not depend on the app's framework",
@@ -222,23 +280,71 @@ fn the_crates_know_nothing_about_tauri() {
     }
 }
 
-/// `.map_err(|e| e.to_string())` discards the `GitErrorKind` classification and leaves the frontend
-/// pattern-matching on English prose. `CommandError` exists so it does not have to.
+/// The app composes the two crates; neither lower-level crate may take on that responsibility.
 #[test]
-fn commands_return_the_error_contract_rather_than_strings() {
+fn the_crates_do_not_depend_on_each_other() {
+    for (crate_name, forbidden_dependency) in [("git-ops", "trampoline"), ("trampoline", "git-ops")]
+    {
+        let manifest_path = crate_root()
+            .join("crates")
+            .join(crate_name)
+            .join("Cargo.toml");
+        let manifest = code_only(&read(&manifest_path));
+        let package_alias = format!("package = \"{forbidden_dependency}\"");
+        let dependency_lines: Vec<_> = manifest
+            .lines()
+            .map(str::trim)
+            .filter(|line| {
+                line.strip_prefix(forbidden_dependency)
+                    .is_some_and(|rest| rest.trim_start().starts_with('=') || rest.starts_with('.'))
+                    || line.contains(&package_alias)
+            })
+            .collect();
+        assert!(
+            dependency_lines.is_empty(),
+            "{crate_name} may not depend on {forbidden_dependency}; the app composes the crates: \
+             {dependency_lines:?}"
+        );
+    }
+}
+
+/// `CommandError` preserves the machine-readable classification that a string return discards.
+#[test]
+fn every_command_returns_the_error_contract() {
     let mut offenders = Vec::new();
-    for file in rust_files(&crate_root().join("src/commands")) {
-        let source = code_only(&read(&file));
-        for (number, line) in source.lines().enumerate() {
-            let stringly = line.contains("e.to_string()") && line.contains("map_err");
-            let returns_string = line.contains("Result<") && line.contains(", String>");
-            if stringly || returns_string {
-                offenders.push(format!("{}:{}", file.display(), number + 1));
-            }
+    for command in declared_commands() {
+        let signature: String = command.signature.split_whitespace().collect();
+        if !signature.contains("->Result<") || !signature.contains(",CommandError>") {
+            offenders.push(format!("{}: {}", command.file.display(), command.signature));
         }
     }
     assert!(
         offenders.is_empty(),
-        "commands must return CommandError, never a String — see commands/error.rs: {offenders:?}"
+        "every command must return Result<_, CommandError> — see commands/error.rs: {offenders:?}"
+    );
+}
+
+/// Platform wire types must exist on every target even when their OS implementation does not.
+#[test]
+fn platform_models_are_cfg_free() {
+    let platform = crate_root().join("src/platform");
+    let mut offenders = Vec::new();
+    for file in rust_files(&platform) {
+        let is_model = file
+            .file_name()
+            .and_then(|name| name.to_str())
+            .is_some_and(|name| name.ends_with("_model.rs"));
+        if is_model
+            && read(&file)
+                .lines()
+                .any(|line| line.trim_start().starts_with("#[cfg"))
+        {
+            offenders.push(file);
+        }
+    }
+    assert!(
+        offenders.is_empty(),
+        "platform *_model.rs files must remain cfg-free so their wire types exist on every target: \
+         {offenders:?}"
     );
 }

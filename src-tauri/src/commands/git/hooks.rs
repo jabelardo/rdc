@@ -3,6 +3,7 @@
 //! Running hooks is `git_ops::hooks`; holding the abort handles is `crate::hook_state`. These two
 //! commands are how the frontend answers a hook that paused.
 
+use crate::commands::CommandError;
 use crate::hook_state::HookFailureResolution;
 use crate::hook_state::HookRegistry;
 use tauri::State;
@@ -17,8 +18,8 @@ use tauri::State;
 /// and the operation carried on. Kills the `git hook run` process; a hook that spawned children of its own
 /// may leave them running, as upstream's `AbortController` also did.
 #[tauri::command]
-pub fn abort_hook(hooks: State<'_, HookRegistry>, id: u64) -> bool {
-    hooks.abort(id)
+pub fn abort_hook(hooks: State<'_, HookRegistry>, id: u64) -> Result<bool, CommandError> {
+    Ok(hooks.abort(id))
 }
 
 /// Answers the prompt for a failed hook. A stale id is harmless and returns `false`.
@@ -27,6 +28,6 @@ pub fn resolve_hook_failure(
     hooks: State<'_, HookRegistry>,
     id: u64,
     resolution: HookFailureResolution,
-) -> bool {
-    hooks.resolve_failure(id, resolution)
+) -> Result<bool, CommandError> {
+    Ok(hooks.resolve_failure(id, resolution))
 }

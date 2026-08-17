@@ -54,11 +54,13 @@ Three consequences, and they are the whole guideline:
    — `git_ops::authentication` defines the *shape* of the environment git needs, and the app is what
    fills it in from a `trampoline::Session`. This is the same rule as the frontend's "a feature may
    not import another feature", holding one level up, at the crate boundary.
-3. **`commands/` holds no logic.** A command translates arguments, adapts errors, and drives the
-   operation registry. Anything worth testing on its own belongs in a crate, where it can be tested
-   without a Tauri app. The old `commands/git.rs` already claimed this in its doc comment; what
-   makes it a rule rather than one module's aspiration is that the split measured it — see
-   [Phase 4](#phase-4--split-stashrs-rename-the-rest-done-2026-08-17).
+3. **`commands/` holds no reusable git or OS domain logic.** A command translates arguments, adapts
+   errors, and composes Tauri inputs with app-owned state and the lower layers. Command-specific
+   orchestration — operation locks, cancellation, recovery, channels and credential sessions — may
+   live here and may need tests. Logic that can be expressed without the IPC boundary belongs in a
+   crate or app service, where it can be tested without a Tauri app. The old `commands/git.rs`
+   claimed a stricter version in its doc comment, but its own recovery tests already disproved that
+   wording; the split made the actual boundary visible.
 
 ### And the rule `commands/` was missing
 
@@ -66,13 +68,14 @@ The layer rule above says what `commands/` may *depend on*. It says nothing abou
 commands are distributed across modules, and that absence is the whole defect this document was
 written to fix.
 
-> **A command module is named for the frontend feature that calls it.**
+> **A command module is named for the frontend capability that calls it.**
 
 Not for the git subcommand it runs — that is `git-ops`' axis, and reusing it here would give two
 modules the same name and different contents. Not for how many lines it takes, not for whether it
-needs credentials. The frontend's `src/features/` vocabulary is the vocabulary, because a command
-exists precisely to serve one of those features, and "which file is this command in" should have the
-same answer as "which part of the UI calls it".
+needs credentials. Start with the vocabulary in `src/features/`; smaller IPC-only capabilities such
+as `gitignore`, `lfs`, `tags` and `trailers` keep their established frontend vocabulary rather than
+being forced into an unrelated top-level feature. A command exists to serve a frontend capability,
+so "which file is this command in" should have the same answer as "which part of the UI calls it".
 
 ---
 
@@ -253,8 +256,9 @@ the map.
 
 Answer in order; the first match wins.
 
-1. **Does it run `git`?** → `crates/git-ops/`, in the module named after the desktop-plus file it
-   ports, or after the git subcommand if there is none. Never a new subfolder.
+1. **Does it implement a git invocation or parse git's output?** → `crates/git-ops/`, in the module
+   named after the desktop-plus file it ports, or after the git subcommand if there is none. Never a
+   new subfolder. An IPC adapter that calls this API continues to step 5.
 2. **Does it answer a credential or host-key prompt that git made?** → `crates/trampoline/`.
 3. **Does it talk to the OS** — windows, native menus, notifications, the trash, editors, shells,
    keybindings, the keychain? → `src/platform/`, and its serialized types go in the `*_model.rs`
@@ -262,17 +266,19 @@ Answer in order; the first match wins.
 4. **Is it long-lived state the app `.manage()`s?** → a named module at `src/`. There are five
    today and they are enough of a set to recognize: `operation_registry`, `hook_state`,
    `trampoline_state`, `blob_protocol`, and the `*State` types that live beside their commands.
-5. **Is it a `#[tauri::command]`?** → `src/commands/git/<feature>.rs` if it reaches for `git_ops`,
-   `src/commands/platform/<adaptee>.rs` if it reaches for `crate::platform`. The feature name comes
-   from `src/features/`, not from the git subcommand.
+5. **Is it a `#[tauri::command]`?** → `src/commands/git/<capability>.rs` if it reaches for
+   `git_ops`, `src/commands/platform/<adaptee>.rs` if it reaches for `crate::platform`. Start with
+   the `src/features/` vocabulary; use the narrower established frontend capability when there is
+   no top-level feature for it.
 6. **Does it wire the application together** — a plugin, managed state, the handler list, a URI
    scheme, a window event? → `src/lib.rs`, which is the composition root and the only place that
    knows all of the above.
 
-> **"It calls git *and* it touches the OS."** Then it is two things and belongs in two places. The
-> worked example is remote operations: `git_ops::push` runs git, `trampoline` answers the prompt git
-> makes, and `commands/git/remotes.rs` is the only place those two meet. A command is allowed to
-> compose; a crate is not.
+> **"It calls git *and* needs an app-owned service."** A command is allowed to compose them; a crate
+> is not. Remote operations are the worked example: `git_ops::push` runs git, `trampoline` answers
+> the prompt git makes, and `commands/git/remotes.rs` is the only place those two meet. Direct use of
+> both `git_ops` and the OS adapter is instead split at an app-service seam, preserving the checked
+> boundary between `commands/git/` and `commands/platform/`.
 
 ---
 
@@ -282,7 +288,7 @@ Answer in order; the first match wins.
 |---|---|---|
 | `crates/git-ops/` | Everything that runs `git`, plus the parsers for what it prints | Anything that knows Tauri exists, or a subfolder that breaks the mirror |
 | `crates/trampoline/` | The askpass/credential bridge, both ends of it | Policy about *which* account applies — that is the app's, injected through `CredentialProvider` |
-| `src/commands/` | Argument translation, error adaptation, operation-registry lifecycle | Logic. If it is worth a unit test of its own, it is in the wrong layer |
+| `src/commands/` | Argument translation, error adaptation, and IPC-specific orchestration | Reusable git or OS domain logic that can be expressed below the IPC boundary |
 | `src/platform/` | The OS adapter surface, and the `cfg`-free wire types for it | Git domain logic. "It's an OS call" is the test, not "it's not git" |
 | `src/*.rs` (root) | Named app-wide subsystems: the operation registry, hook and trampoline state, the blob scheme, config, panic logging, navigation policy | A drawer. Nine named modules is a set; if it reaches twenty, revisit |
 | `src/lib.rs` | The composition root | Domain logic of any kind |
@@ -297,7 +303,7 @@ Answer in order; the first match wins.
 |---|---|---|
 | Modules and files | `snake_case.rs` | `operation_registry.rs`, `blob_protocol.rs` |
 | A `git-ops` module | The upstream desktop-plus file name, or the git subcommand | `for_each_ref.rs`, `rev_parse.rs` |
-| A `commands/git` module | The **plural** frontend feature name | `branches.rs`, `remotes.rs`, `repositories.rs` |
+| A `commands/git` module | The frontend capability name, plural where that is its established vocabulary | `branches.rs`, `gitignore.rs`, `lfs.rs` |
 | A `commands/platform` module | The `src/platform/` module it adapts | `commands/platform/window.rs` → `platform/window.rs` |
 | Platform wire types | `<thing>_model.rs`, and no `cfg` inside | `menu_model.rs` |
 
@@ -316,7 +322,8 @@ A panic must never cross the IPC boundary.
 Tauri converts by default, so a Rust `repository_path` parameter is sent as `repositoryPath`. A
 command's parameter list **is** its wire API: `#[allow(clippy::too_many_arguments)]` is the right
 answer when the lint fires, because grouping the parameters to satisfy it would change what the
-frontend sends. `commands/remote.rs`'s `pull` carries that allow with the reason written next to it.
+frontend sends. `commands/git/remotes.rs`'s `pull` carries that allow with the reason written next
+to it.
 
 ### Declare the Cargo features you use
 
@@ -345,23 +352,28 @@ wiring and cannot be forgotten.
 
 It asserts:
 
-1. **Every `#[tauri::command]` in `src/commands/**` appears in `generate_handler!`, and every entry
-   in `generate_handler!` resolves to one.** An unregistered command compiles silently and is dead
-   from the frontend's point of view — the failure mode with the least evidence at the crash site.
+1. **Every `#[tauri::command]` in `src/commands/**` appears exactly once in `generate_handler!`,
+   every entry resolves to one, and command wire names are unique.** An unregistered command
+   compiles silently and is dead from the frontend's point of view — the failure mode with the least
+   evidence at the crash site.
 2. **No module under `commands/platform/` names `git_ops`.**
 3. **No module under `commands/git/` names `crate::platform`.**
-4. **Neither crate manifest names `tauri`** — consequence 1 of [the rule](#the-rule), which is true
-   today and has nothing keeping it true.
-5. **No `Result<_, String>` and no `map_err(|e| e.to_string())` under `commands/`.**
+4. **Neither crate manifest nor any of its Rust targets names `tauri`** — consequence 1 of [the
+   rule](#the-rule), which is true today and otherwise had nothing keeping it true.
+5. **Neither workspace crate depends on the other.**
+6. **Every command returns `Result<_, CommandError>`, including multiline signatures.**
+7. **Every platform `*_model.rs` stays free of `#[cfg]`.**
 
-Each assertion was verified by planting a violation and watching it fail. A violation is a build
-failure, not a review comment.
+The original five assertions were verified by planting a violation and watching it fail. The review
+checks were added from concrete blind spots in those assertions; the complete return-signature check
+immediately found and fixed two bare-`bool` commands. A violation is a build failure, not a review
+comment.
 
 **What no check can defend**, and so has to be held by whoever writes the code: rule 3 of
-[the rule](#the-rule) — that `commands/` holds no logic. A helper function in a command module
-breaks nothing mechanical. The frontend guideline records the same limit about single-consumer
-modules in shared layers, and it is worth repeating here: *the checker enforces direction, not
-cohesion.*
+[the rule](#the-rule) — the distinction between IPC-specific orchestration and reusable domain
+logic. A reusable helper in a command module breaks nothing mechanical. The frontend guideline
+records the same limit about single-consumer modules in shared layers, and it is worth repeating
+here: *the checker enforces direction, not cohesion.*
 
 ---
 
@@ -439,12 +451,13 @@ Cherry-pick, squash and reorder are history rewriting and joined `history`; subm
 module; stash kept its eight and went from 961 lines to 162. `remote.rs` → `remotes.rs` and
 `operation.rs` → `operations.rs`.
 
-**The measurement that came out of this phase is the one worth keeping.** Every domain module has
-*zero* test lines — branches 688, history 552, changes 539, all implementation — and all 1,323 test
-lines under `commands/` are in `operation_lifecycle.rs`. The rule that `commands/` holds no logic
-already held everywhere except that one cluster, and the tests are what show it. That is also why
-the cluster needed a name: it was the only part of `commands/` that was worth testing, sitting in a
-module named for none of its callers.
+**The measurement that came out of this phase is the one worth keeping.** The three largest modules
+created by the split — branches 688, history 552, changes 539 — have no test blocks of their own;
+their shared recovery machinery and most of its tests moved to `operation_lifecycle.rs`. Existing
+IPC-orchestration tests also remain in `remotes.rs`, `worktree.rs`, `repositories.rs`,
+`operations.rs`, and platform `config.rs`. That is the actual boundary: git and OS domain logic
+belongs below commands, while operation locks, recovery, Tauri state and channels are app-owned
+orchestration and stay at the IPC layer.
 
 ### Phase 5 — lift `commands/git/` — **done 2026-08-17**
 
@@ -458,7 +471,9 @@ check from here on.
 
 ### Phase 6 — turn the checks on — **done 2026-08-17**
 
-`src-tauri/tests/structure.rs`, five assertions, each verified by planting a violation.
+`src-tauri/tests/structure.rs`, initially five assertions, each verified by planting a violation.
+Review added duplicate-aware command registration plus checks for crate independence, complete
+command return signatures, and cfg-free platform models.
 
 **Two of the five needed a more careful violation than the obvious one, and that is the finding.**
 Registering a command that does not exist turns out to be a *compile* error — `generate_handler!`
