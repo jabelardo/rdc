@@ -557,7 +557,7 @@ Details preserved with their reasons:
 
 **The cancelled-prompt translation is now wired up**, which is what `is_cancelled_authentication`
 existed for. A declining credential helper makes git give up with "could not read Username … terminal
-prompts disabled" — accurate and useless. `commands/remote.rs` recognises that, combined with an
+prompts disabled" — accurate and useless. `commands/git/remotes.rs` recognises that, combined with an
 endpoint the session recorded as rejected, and reports an authentication failure instead. It is also
 why the session is held for the whole operation rather than dropped once its environment is read:
 rejections accumulate on it while git runs.
@@ -1825,7 +1825,7 @@ will be an ordinary command returning a string.
 
 **Slice 3 begins with branch operations**, the largest group the store layer needs and none of which had a
 command: `createBranch`, `renameBranch`, `deleteLocalBranch`, `getBranchesPointedAt`, `getMergedBranches`,
-`deleteRef`, `getSymbolicRef`. 75 commands. They live in a new `commands/branch.rs`, since branches are their
+`deleteRef`, `getSymbolicRef`. 75 commands. They live in `commands/git/branches.rs`, since branches are their
 own domain in the store layer and `git.rs` was already long.
 
 `formatAsLocalRef` went the other way — into `src/features/branches/refs.ts` as TypeScript, because it computes a string

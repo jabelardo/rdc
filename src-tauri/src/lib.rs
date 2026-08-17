@@ -1,3 +1,7 @@
+// Doc comments carry the layout's reasoning in this crate, so a link that silently stops resolving
+// is a real loss. No other gate sees them: `cargo test`, `clippy` and `fmt` never run rustdoc.
+#![deny(rustdoc::broken_intra_doc_links)]
+
 // The IPC surface lives in `commands`; see that module for the conventions.
 mod commands;
 use tauri::{webview::PageLoadEvent, Emitter, Manager};

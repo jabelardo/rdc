@@ -1,6 +1,7 @@
-//! Stash and cherry-pick commands.
+//! Stash commands.
 //!
-//! Both are local operations, so unlike `commands::remote` they need no credential session.
+//! Local operations, so unlike [`super::remotes`] they need no credential session. Cherry-pick was
+//! here too, on those grounds; it is history rewriting and lives in [`super::history`] now.
 
 use crate::commands::git::operation_lifecycle::{finish_stash_mutation, start_short_mutation};
 use crate::commands::CommandError;

@@ -9,6 +9,7 @@
 //! test-by-test, and `MIGRATION_MAP.md` tracks which are done.
 
 #![warn(clippy::all)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 pub mod add;
 pub mod apply;

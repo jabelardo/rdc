@@ -1,17 +1,22 @@
 //! Starting, finishing and recovering an operation against the registry.
 //!
 //! Not commands — the layer between the domain modules above and
-//! [`crate::commands::operation`], which owns the generic registry calls. What lives here is the
+//! [`crate::commands::operations`], which owns the generic registry calls. What lives here is the
 //! per-operation-kind machinery: what a terminated checkout, commit, merge or rebase left behind,
 //! and what has to be undone before the repository lock can be released.
 //!
 //! Extracted from `git.rs` because it was already shared and the sharing was invisible:
 //! `recover_merge_termination` and `recover_rebase_termination` were `pub(crate)` and called from
-//! `remote.rs` and `stash.rs` while sitting in a module named for neither. Giving the family a
+//! what are now [`super::remotes`] and [`super::stash`] while sitting in a module named for
+//! neither. Giving the family a
 //! module of its own is what lets the domain modules stay thin, which is the rule
 //! BACKEND_STRUCTURE.md states for `commands/`.
 //!
 //! Every test in `git.rs` was a test of these functions, so they came too.
+//!
+//! Only what a sibling module actually calls is `pub(crate)`. The rest is private, so rustc's
+//! dead-code detection still applies to it — widening the whole family on the move would have
+//! switched that off for ten functions.
 
 use crate::commands::CommandError;
 use crate::operation::GitOperationKind;
@@ -80,7 +85,7 @@ pub(crate) async fn finish_commit_termination(
     Err(CommandError::message(message))
 }
 
-pub(crate) fn finish_commit_recovery_failure(
+fn finish_commit_recovery_failure(
     registry: &OperationRegistry,
     operation_id: &str,
     error: git_ops::GitError,
@@ -182,7 +187,7 @@ pub(crate) async fn run_cancellable_branch_checkout(
     }
 }
 
-pub(crate) async fn recover_checkout_termination(
+async fn recover_checkout_termination(
     registry: &OperationRegistry,
     operation_id: &str,
     repository_path: &str,
@@ -410,7 +415,7 @@ pub(crate) async fn recover_merge_termination(
     }
 }
 
-pub(crate) fn merge_termination_details(
+fn merge_termination_details(
     reason: git_ops::TerminationReason,
 ) -> (OperationState, OperationErrorKind, &'static str) {
     match reason {
@@ -427,7 +432,7 @@ pub(crate) fn merge_termination_details(
     }
 }
 
-pub(crate) fn finish_merge_recovery_failure(
+fn finish_merge_recovery_failure(
     registry: &OperationRegistry,
     operation_id: &str,
     error: git_ops::GitError,
@@ -503,7 +508,7 @@ pub(crate) async fn recover_rebase_termination(
     }
 }
 
-pub(crate) fn rebase_termination_details(
+fn rebase_termination_details(
     reason: git_ops::TerminationReason,
 ) -> (OperationState, OperationErrorKind, &'static str) {
     match reason {
@@ -520,7 +525,7 @@ pub(crate) fn rebase_termination_details(
     }
 }
 
-pub(crate) fn finish_rebase_recovery_failure(
+fn finish_rebase_recovery_failure(
     registry: &OperationRegistry,
     operation_id: &str,
     error: git_ops::GitError,
@@ -1372,7 +1377,7 @@ pub(crate) async fn finish_revert_termination(
     }
 }
 
-pub(crate) fn revert_termination_details(
+fn revert_termination_details(
     reason: git_ops::TerminationReason,
 ) -> (OperationState, OperationErrorKind, &'static str) {
     match reason {
@@ -1389,7 +1394,7 @@ pub(crate) fn revert_termination_details(
     }
 }
 
-pub(crate) fn finish_revert_recovery_failure(
+fn finish_revert_recovery_failure(
     registry: &OperationRegistry,
     operation_id: &str,
     error: git_ops::GitError,
@@ -1949,7 +1954,7 @@ pub(crate) async fn finish_cherry_pick_termination(
     }
 }
 
-pub(crate) fn cherry_pick_termination_details(
+fn cherry_pick_termination_details(
     reason: git_ops::TerminationReason,
 ) -> (OperationState, OperationErrorKind, &'static str) {
     match reason {
@@ -1966,7 +1971,7 @@ pub(crate) fn cherry_pick_termination_details(
     }
 }
 
-pub(crate) fn finish_cherry_pick_recovery_failure(
+fn finish_cherry_pick_recovery_failure(
     registry: &OperationRegistry,
     operation_id: &str,
     error: git_ops::GitError,

@@ -66,6 +66,31 @@ fn read(path: &Path) -> String {
         .unwrap_or_else(|error| panic!("{} should be readable: {error}", path.display()))
 }
 
+/// Whether comment-stripped source reaches for `crate::platform`, in any spelling.
+///
+/// Searching for the literal `crate::platform` is not enough, and the gap is not hypothetical: a
+/// grouped import splits the token, so
+/// `use crate::{commands::CommandError, platform::window::WindowZoomState};` never contains it
+/// contiguously. Seven modules under `commands/platform/` already write their imports that way, so
+/// the evasion matches the tree's own prevailing style rather than requiring anyone to be clever.
+///
+/// `platform` is a single module in this crate, and a git command module has no legitimate reason
+/// to name it in any form, so matching the segment wherever it appears is both sufficient and safe.
+/// Matching is case-sensitive on purpose: `HostPlatform::current()` and `MenuPlatform` are types,
+/// not this module.
+fn names_the_platform_layer(source: &str) -> bool {
+    let condensed: String = source.chars().filter(|c| !c.is_whitespace()).collect();
+    condensed.contains("platform::")
+        // `use crate::platform;` and the tail of a group: `..., platform};`
+        || condensed.contains("::platform;")
+        || condensed.contains("::platform,")
+        || condensed.contains("::platform}")
+        || condensed.contains(",platform}")
+        || condensed.contains(",platform,")
+        || condensed.contains("{platform,")
+        || condensed.contains("{platform}")
+}
+
 #[derive(Debug)]
 struct CommandDeclaration {
     name: String,
@@ -232,7 +257,7 @@ fn platform_commands_do_not_reach_for_git() {
 fn git_commands_do_not_reach_for_the_platform_layer() {
     let mut offenders = Vec::new();
     for file in rust_files(&crate_root().join("src/commands/git")) {
-        if code_only(&read(&file)).contains("crate::platform") {
+        if names_the_platform_layer(&code_only(&read(&file))) {
             offenders.push(file);
         }
     }

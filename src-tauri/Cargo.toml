@@ -33,7 +33,7 @@ name = "rdc_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [features]
-# Declares the feature used by commands::window::toggle_devtools so clippy's
+# Declares the feature used by commands::platform::window::toggle_devtools so clippy's
 # check-cfg accepts the conditional. Debug builds compile the inspector call via
 # `debug_assertions`; release builds need this flag, matching tauri's own
 # `devtools` feature.

@@ -62,7 +62,7 @@ async fn default_divergent_branch_arguments(repository: &Path) -> Vec<String> {
 
 /// Pulls from `remote_name`.
 ///
-/// `rebase.backend=merge` is pinned for the same reason as in [`crate::rebase`]: a pull may rebase, and
+/// `rebase.backend=merge` is pinned for the same reason as in [`mod@crate::rebase`]: a pull may rebase, and
 /// the state files the rest of the app reads are the merge backend's. Relying on a user's
 /// `rebase.backend=apply` would silently produce a different layout.
 ///

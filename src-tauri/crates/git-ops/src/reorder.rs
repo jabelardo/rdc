@@ -4,7 +4,7 @@
 //!
 //! # The point of the algorithm
 //!
-//! Like [`crate::squash`], this works by handing git an interactive-rebase todo list, so all the work is
+//! Like [`mod@crate::squash`], this works by handing git an interactive-rebase todo list, so all the work is
 //! in building it.
 //!
 //! Given history `A, B, C, D, E` (oldest first) and a request to move `A` and `E` before `C`, the result

@@ -219,7 +219,7 @@ Added later than Slices 1–3, from a gap found checking rdc's actual code again
 criteria rather than against this plan's own claims: criterion 3 requires recovering from a merge
 conflict "without being stranded," but there is no way to back out of one in-app today — only to
 complete it. `abort_merge` exists and is tested at the git-ops/Tauri-command layer
-(`src-tauri/src/commands/git.rs:364` → `git_ops::merge::abort_merge`, wrapped at
+(`src-tauri/src/commands/git/conflicts.rs` → `git_ops::merge::abort_merge`, wrapped at
 `src/lib/git-ipc.ts:371`, unit-tested in `git-ipc-commands.test.ts:305`) but nothing above that
 layer consumes it: `conflict-store.ts` has no method for it, `merge-conflicts.tsx` has no button,
 and — unlike Slices 1–3's items, which existed disabled — there is no `abort-merge` menu id

@@ -74,6 +74,13 @@ jobs:
       - name: cargo test
         working-directory: src-tauri
         run: cargo test --workspace
+      # Doc comments carry the layout's reasoning in this repo, and nothing above reads them:
+      # fmt, clippy and test never run rustdoc. Three links had already rotted when this was added,
+      # one of them from a module rename two commits earlier. The crates deny
+      # rustdoc::broken_intra_doc_links; this is what makes the deny run.
+      - name: cargo doc (intra-doc links)
+        working-directory: src-tauri
+        run: cargo doc --workspace --no-deps --document-private-items
       # Each crate must build on its own, not just as part of the workspace. `cargo check
       # --workspace` unifies Cargo features across the graph, so a crate can use an API whose
       # feature it never declared and still compile because a sibling enabled it. That is not

@@ -1,13 +1,14 @@
 //! The ephemeral popup menu behind `show_context_menu_at`.
 //!
-//! Deliberately separate from `menu.rs`'s app-level [`MenuAction`]/`NativeMenuState`: those model
+//! Deliberately separate from `menu.rs`'s app-level [`crate::platform::menu_model::MenuAction`]
+//! and [`crate::platform::menu::NativeMenuState`]: those model
 //! a single persistent menu whose items always act on "whatever is currently selected" (the
 //! checked-out branch, the selected repository). A context menu is invoked per-row and has to act
 //! on *that* row regardless of what's selected elsewhere, so its items carry no action of their
 //! own — the frontend keeps the per-invocation closure and this module only relays back which id
 //! was picked.
 //!
-//! Linux drives GTK directly rather than going through muda; see [`popup_non_blocking`].
+//! Linux drives GTK directly rather than going through muda; see `popup_non_blocking` below.
 
 use serde::{Deserialize, Serialize};
 #[cfg(not(target_os = "linux"))]

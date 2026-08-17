@@ -2,8 +2,8 @@
 //!
 //! Ported from `desktop-plus/app/src/lib/git/rebase.ts`. The core start/continue/abort flow lives
 //! here, with progress streaming over a Tauri Channel. Interactive rebase lives in
-//! [`rebase_interactive`](crate::rebase::rebase_interactive) and is what [`crate::squash`] and
-//! [`crate::reorder`] drive.
+//! [`rebase_interactive`](crate::rebase::rebase_interactive) and is what [`mod@crate::squash`] and
+//! [`mod@crate::reorder`] drive.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};

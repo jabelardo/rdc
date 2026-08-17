@@ -36,6 +36,7 @@
 //! `push`/`pull`/`fetch` cannot authenticate without.
 
 #![warn(clippy::all)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 pub mod client;
 pub mod credential;

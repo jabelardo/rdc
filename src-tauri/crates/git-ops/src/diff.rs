@@ -7,7 +7,8 @@
 //! Text and image diff production: working-directory, commit, range, branch/merge-base, and
 //! conflict-resolution queries; renderability guards; submodule diffs; and `get_binary_paths`
 //! (ported earlier because `status` needed it). Image contents are represented by scoped
-//! [`BlobUrl`] capability URLs, so raw bytes do not enter JSON IPC.
+//! `BlobUrls` capability URLs, so raw bytes do not enter JSON IPC. Deliberately not a doc link:
+//! that type is `rdc`'s, and this crate must not know the app exists.
 //!
 //! # What is deferred, and why
 //!

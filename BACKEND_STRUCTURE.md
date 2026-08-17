@@ -357,12 +357,27 @@ It asserts:
    compiles silently and is dead from the frontend's point of view — the failure mode with the least
    evidence at the crash site.
 2. **No module under `commands/platform/` names `git_ops`.**
-3. **No module under `commands/git/` names `crate::platform`.**
+3. **No module under `commands/git/` names `crate::platform`, in any spelling.** Matching the
+   literal `crate::platform` was not enough and the gap was demonstrated rather than argued: a
+   grouped import splits the token, so
+   `use crate::{commands::CommandError, platform::window::WindowZoomState};` never contains it
+   contiguously and passed the check. Seven modules under `commands/platform/` already write their
+   imports that way, so the evasion matched the tree's own prevailing style. The check now strips
+   whitespace and matches the `platform` path segment; five spellings were each planted and
+   confirmed to fire.
 4. **Neither crate manifest nor any of its Rust targets names `tauri`** — consequence 1 of [the
    rule](#the-rule), which is true today and otherwise had nothing keeping it true.
 5. **Neither workspace crate depends on the other.**
 6. **Every command returns `Result<_, CommandError>`, including multiline signatures.**
 7. **Every platform `*_model.rs` stays free of `#[cfg]`.**
+
+**An eighth check lives outside that file.** All three crates deny
+`rustdoc::broken_intra_doc_links`, and CI runs `cargo doc --workspace --no-deps
+--document-private-items` to make the deny fire. Nothing else reads doc comments — `fmt`, `clippy`
+and `test` never run rustdoc — and in a repo where the doc comments carry the layout's reasoning
+that is a real gap. Turning it on found four broken links and five ambiguous ones: one from the
+`operation` → `operations` rename two commits earlier, and the rest already rotted, including a
+`git-ops` comment linking to a type in the app crate that `git-ops` is forbidden to know about.
 
 The original five assertions were verified by planting a violation and watching it fail. The review
 checks were added from concrete blind spots in those assertions; the complete return-signature check
