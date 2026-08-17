@@ -11,7 +11,7 @@ use tauri::{Emitter, Manager, State, WebviewWindow};
 
 use crate::platform::notification::{self, NotificationState};
 
-use super::CommandError;
+use crate::commands::CommandError;
 
 const NOTIFICATION_EVENT: &str = "notification-event";
 

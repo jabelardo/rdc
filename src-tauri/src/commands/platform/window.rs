@@ -9,7 +9,7 @@ use crate::{
     },
 };
 
-use super::CommandError;
+use crate::commands::CommandError;
 
 const ZOOM_FACTOR_CHANGED_EVENT: &str = "zoom-factor-changed";
 const LAUNCH_TIMING_STATS_EVENT: &str = "launch-timing-stats";

@@ -1,4 +1,4 @@
-use super::CommandError;
+use crate::commands::CommandError;
 use crate::platform::custom_integration_model::CustomIntegration;
 use crate::platform::shells::FoundShell;
 use std::path::PathBuf;

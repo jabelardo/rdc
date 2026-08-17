@@ -3,7 +3,7 @@ use tauri::AppHandle;
 #[cfg(target_os = "macos")]
 use crate::platform::application_folder;
 
-use super::CommandError;
+use crate::commands::CommandError;
 
 #[tauri::command]
 pub fn is_in_application_folder() -> Result<Option<bool>, CommandError> {

@@ -1,4 +1,4 @@
-use super::CommandError;
+use crate::commands::CommandError;
 use crate::platform::custom_integration::{
     expand_target_path_argument, is_valid_custom_integration as validate_integration,
     parse_custom_integration_arguments,

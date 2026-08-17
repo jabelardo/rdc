@@ -2,7 +2,7 @@ use tauri::AppHandle;
 #[cfg(target_os = "macos")]
 use tauri::Manager;
 
-use super::CommandError;
+use crate::commands::CommandError;
 
 #[tauri::command]
 pub async fn install_darwin_cli(app: AppHandle) -> Result<(), CommandError> {

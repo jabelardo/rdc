@@ -5,7 +5,7 @@ use crate::platform::{
     system,
 };
 
-use super::CommandError;
+use crate::commands::CommandError;
 
 #[tauri::command]
 pub async fn classify_folder_open(path: PathBuf) -> Result<Option<FolderOpenAction>, CommandError> {

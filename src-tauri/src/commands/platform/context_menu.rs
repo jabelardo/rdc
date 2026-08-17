@@ -2,7 +2,7 @@ use tauri::WebviewWindow;
 
 use crate::platform::context_menu::ContextMenuItemModel;
 
-use super::CommandError;
+use crate::commands::CommandError;
 
 /// Pop up a context menu built fresh for this one invocation.
 ///

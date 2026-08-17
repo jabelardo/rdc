@@ -12,28 +12,24 @@
 //! - Every command returns `Result<T, CommandError>`; the error type must implement `Serialize`, and
 //!   a panic must never cross the boundary.
 //! - Commands doing IO are `async`, so they run off the main thread and can't freeze the UI.
+//!
+//! # Layout
+//!
+//! The surface is split by what a command reaches for — see BACKEND_STRUCTURE.md. [`platform`]
+//! adapts `crate::platform` and may not name `git_ops`; the git modules use `git_ops` and may not
+//! name `crate::platform`. [`error`] and [`operation`] are neither, and stay here as single
+//! modules.
 
-pub mod application_folder;
+pub mod platform;
+
 pub mod branch;
-pub mod cli_installer;
-pub mod config;
-pub mod context_menu;
-pub mod credential_store;
-pub mod editor;
 pub mod error;
-pub mod files;
 pub mod git;
-pub mod install_id;
-pub mod keybindings;
 pub mod log;
-pub mod menu;
 pub mod misc;
-pub mod notification;
 pub mod operation;
 pub mod remote;
-pub mod shell;
 pub mod stash;
-pub mod window;
 pub mod worktree;
 
 pub use error::CommandError;
