@@ -3,8 +3,8 @@
 //! Two commands, and they were in `stash.rs` — grouped there on the grounds that neither needs a
 //! credential session, which is true of most of the surface and so grouped nothing.
 
-use super::CommandError;
-use crate::commands::operation_lifecycle::finish_stash_mutation;
+use crate::commands::git::operation_lifecycle::finish_stash_mutation;
+use crate::commands::CommandError;
 use crate::operation::GitOperationKind;
 use crate::operation_registry::OperationRegistry;
 use tauri::State;

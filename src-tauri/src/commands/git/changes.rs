@@ -3,10 +3,10 @@
 //! Staging, unstaging, discarding and committing. Reading the diff of what is uncommitted lives in
 //! [`super::diffs`] with the other diff queries.
 
-use crate::commands::operation_lifecycle::finish_checkout_mutation;
-use crate::commands::operation_lifecycle::finish_commit_termination;
-use crate::commands::operation_lifecycle::finish_short_mutation;
-use crate::commands::operation_lifecycle::start_short_mutation;
+use crate::commands::git::operation_lifecycle::finish_checkout_mutation;
+use crate::commands::git::operation_lifecycle::finish_commit_termination;
+use crate::commands::git::operation_lifecycle::finish_short_mutation;
+use crate::commands::git::operation_lifecycle::start_short_mutation;
 use crate::commands::CommandError;
 use crate::hook_state::support_for_operation;
 use crate::hook_state::HookFailurePrompt;

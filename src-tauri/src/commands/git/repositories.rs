@@ -1,7 +1,7 @@
 //! Commands about a repository as a whole: creating one, and what git says it is.
 
-use crate::commands::operation_lifecycle::finish_short_mutation;
-use crate::commands::operation_lifecycle::start_short_mutation;
+use crate::commands::git::operation_lifecycle::finish_short_mutation;
+use crate::commands::git::operation_lifecycle::start_short_mutation;
 use crate::commands::CommandError;
 use crate::operation_registry::OperationRegistry;
 use git_ops::log::CommitIdentity;

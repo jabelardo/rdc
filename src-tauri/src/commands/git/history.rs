@@ -7,10 +7,10 @@
 //! arguments* of the TypeScript `Commit`/`CommittedFileChange` classes; `src/lib/log-ipc.ts` builds
 //! the objects, so the fields those constructors derive have exactly one implementation.
 
-use crate::commands::operation_lifecycle::abort_revert_operation;
-use crate::commands::operation_lifecycle::finish_revert_termination;
-use crate::commands::operation_lifecycle::run_cancellable_commit_checkout;
-use crate::commands::operation_lifecycle::{
+use crate::commands::git::operation_lifecycle::abort_revert_operation;
+use crate::commands::git::operation_lifecycle::finish_revert_termination;
+use crate::commands::git::operation_lifecycle::run_cancellable_commit_checkout;
+use crate::commands::git::operation_lifecycle::{
     finish_cherry_pick_result, finish_cherry_pick_termination, finish_rebase_result,
 };
 use crate::commands::CommandError;
@@ -476,7 +476,7 @@ pub async fn squash(
     .await;
     watchdog.abort();
     if let Err(git_ops::GitError::OperationTerminated { reason, .. }) = &result {
-        return crate::commands::operation_lifecycle::recover_rebase_termination(
+        return crate::commands::git::operation_lifecycle::recover_rebase_termination(
             &registry,
             &operation.id,
             &repository_path,
@@ -539,7 +539,7 @@ pub async fn reorder(
     .await;
     watchdog.abort();
     if let Err(git_ops::GitError::OperationTerminated { reason, .. }) = &result {
-        return crate::commands::operation_lifecycle::recover_rebase_termination(
+        return crate::commands::git::operation_lifecycle::recover_rebase_termination(
             &registry,
             &operation.id,
             &repository_path,

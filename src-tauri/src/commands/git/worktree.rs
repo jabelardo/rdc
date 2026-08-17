@@ -3,7 +3,7 @@
 //! Thin wrappers over `git_ops::worktree`. Its own module because the store treats worktrees as a domain of
 //! their own, and because the three listing entry points need explaining together.
 
-use super::CommandError;
+use crate::commands::CommandError;
 use crate::operation::GitOperationKind;
 use crate::operation::OperationError;
 use crate::operation::OperationErrorKind;

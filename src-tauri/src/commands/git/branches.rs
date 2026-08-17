@@ -5,16 +5,16 @@
 //! This module previously carried a note explaining that branch commands were split across three
 //! files — listing in `git.rs`, mutation here, remote deletion in `remote.rs`. Two of those are
 //! fixed: everything a branch does locally is now here. Deleting a *remote* branch is still
-//! [`super::remote`], because it pushes and so needs a credential session.
+//! [`super::remotes`], because it pushes and so needs a credential session.
 //!
 //! Merge and rebase live here rather than in [`super::conflicts`]: starting one is a branch
 //! operation, and only what happens after it stops with conflicts belongs to that module.
 
-use crate::commands::operation_lifecycle::finish_short_mutation;
-use crate::commands::operation_lifecycle::recover_merge_termination;
-use crate::commands::operation_lifecycle::recover_rebase_termination;
-use crate::commands::operation_lifecycle::run_cancellable_branch_checkout;
-use crate::commands::operation_lifecycle::start_short_mutation;
+use crate::commands::git::operation_lifecycle::finish_short_mutation;
+use crate::commands::git::operation_lifecycle::recover_merge_termination;
+use crate::commands::git::operation_lifecycle::recover_rebase_termination;
+use crate::commands::git::operation_lifecycle::run_cancellable_branch_checkout;
+use crate::commands::git::operation_lifecycle::start_short_mutation;
 use crate::commands::CommandError;
 use crate::hook_state::support_for_operation;
 use crate::hook_state::HookFailurePrompt;

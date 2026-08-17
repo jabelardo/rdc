@@ -15,31 +15,18 @@
 //!
 //! # Layout
 //!
-//! The surface is split by what a command reaches for — see BACKEND_STRUCTURE.md. [`platform`]
-//! adapts `crate::platform` and may not name `git_ops`; the git modules use `git_ops` and may not
-//! name `crate::platform`. [`error`] and [`operation`] are neither, and stay here as single
-//! modules.
+//! The surface is split by what a command reaches for — see BACKEND_STRUCTURE.md. [`git`] uses
+//! `git_ops` and may not name `crate::platform`; [`platform`] adapts `crate::platform` and may not
+//! name `git_ops`. Both directions are checked by `tests/structure.rs`.
+//!
+//! [`error`] and [`operations`] are neither, and stay here as single modules: the error contract
+//! belongs to the whole surface, and the operation registry is the app's own service rather than
+//! git's or the OS's.
 
+pub mod git;
 pub mod platform;
 
-pub mod branches;
-pub mod changes;
-pub mod conflicts;
-pub mod diffs;
-pub mod gitignore;
-pub mod history;
-pub mod hooks;
-pub mod lfs;
-pub mod remotes;
-pub mod repositories;
-pub mod stash;
-pub mod submodules;
-pub mod tags;
-pub mod trailers;
-pub mod worktree;
-
 pub mod error;
-pub mod operation_lifecycle;
 pub mod operations;
 
 pub use error::CommandError;

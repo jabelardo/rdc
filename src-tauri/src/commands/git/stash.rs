@@ -2,8 +2,8 @@
 //!
 //! Both are local operations, so unlike `commands::remote` they need no credential session.
 
-use super::CommandError;
-use crate::commands::operation_lifecycle::{finish_stash_mutation, start_short_mutation};
+use crate::commands::git::operation_lifecycle::{finish_stash_mutation, start_short_mutation};
+use crate::commands::CommandError;
 use crate::operation::GitOperationKind;
 use crate::operation_registry::OperationRegistry;
 use git_ops::stash::StashEntry;

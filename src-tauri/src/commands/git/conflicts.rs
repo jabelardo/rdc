@@ -3,7 +3,7 @@
 //! Both commands run only while a merge is in progress. Starting the merge is [`super::branches`];
 //! what the conflict recovery does when one is terminated is [`super::operation_lifecycle`].
 
-use crate::commands::operation_lifecycle::finish_checkout_mutation;
+use crate::commands::git::operation_lifecycle::finish_checkout_mutation;
 use crate::commands::CommandError;
 use crate::operation::GitOperationKind;
 use crate::operation::OperationError;

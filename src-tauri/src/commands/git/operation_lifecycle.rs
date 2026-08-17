@@ -2314,7 +2314,7 @@ mod cherry_pick_recovery_tests {
                 )
                 .expect("operation should reserve the repository");
 
-            let result = crate::commands::operation_lifecycle::recover_rebase_termination(
+            let result = crate::commands::git::operation_lifecycle::recover_rebase_termination(
                 &registry,
                 &operation.id,
                 &repository_path,
