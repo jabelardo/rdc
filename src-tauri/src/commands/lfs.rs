@@ -1,9 +1,11 @@
 //! Git LFS: detecting it, and installing its filters and hooks.
 
-use crate::commands::operation_lifecycle::{finish_short_mutation, start_short_mutation};
+use crate::commands::operation_lifecycle::finish_short_mutation;
+use crate::commands::operation_lifecycle::start_short_mutation;
 use crate::commands::CommandError;
 use crate::operation_registry::OperationRegistry;
-use tauri::{State, WebviewWindow};
+use tauri::State;
+use tauri::WebviewWindow;
 
 /// Installs LFS's global filters, so `git lfs` works for every repository.
 ///

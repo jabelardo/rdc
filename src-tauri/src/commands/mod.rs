@@ -30,15 +30,16 @@ pub mod gitignore;
 pub mod history;
 pub mod hooks;
 pub mod lfs;
-pub mod remote;
+pub mod remotes;
 pub mod repositories;
 pub mod stash;
+pub mod submodules;
 pub mod tags;
 pub mod trailers;
 pub mod worktree;
 
 pub mod error;
-pub mod operation;
 pub mod operation_lifecycle;
+pub mod operations;
 
 pub use error::CommandError;

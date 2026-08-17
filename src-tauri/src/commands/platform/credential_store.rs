@@ -1,9 +1,8 @@
-use std::sync::Arc;
-
 use crate::{
     commands::CommandError,
     platform::credential_store::{CredentialStore, KeyringCredentialStore},
 };
+use std::sync::Arc;
 use tauri::State;
 
 pub struct CredentialStoreState {

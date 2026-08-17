@@ -3,7 +3,8 @@
 //! Running hooks is `git_ops::hooks`; holding the abort handles is `crate::hook_state`. These two
 //! commands are how the frontend answers a hook that paused.
 
-use crate::hook_state::{HookFailureResolution, HookRegistry};
+use crate::hook_state::HookFailureResolution;
+use crate::hook_state::HookRegistry;
 use tauri::State;
 
 /// Stops a hook that is still running.

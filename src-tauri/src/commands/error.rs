@@ -10,7 +10,8 @@
 //! what makes it safe to keep the user-facing wording in the frontend, per the
 //! `getDescriptionForError` decision in `MIGRATION_MAP.md`.
 
-use git_ops::{GitError, GitErrorKind};
+use git_ops::GitError;
+use git_ops::GitErrorKind;
 use serde::Serialize;
 
 /// A command failure, as the frontend sees it.

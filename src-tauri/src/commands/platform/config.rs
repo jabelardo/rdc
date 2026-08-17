@@ -2,7 +2,9 @@ use crate::{
     commands::CommandError,
     config::{self, MainProcessConfig, MainProcessConfigUpdate},
 };
-use tauri::{AppHandle, Manager, State};
+use tauri::AppHandle;
+use tauri::Manager;
+use tauri::State;
 use tokio::sync::Mutex;
 
 pub struct MainProcessConfigState {

@@ -2,7 +2,9 @@ use crate::{
     commands::CommandError,
     platform::install_id::{self, InstallIdState},
 };
-use tauri::{AppHandle, Manager, State};
+use tauri::AppHandle;
+use tauri::Manager;
+use tauri::State;
 
 #[tauri::command]
 pub async fn get_guid(

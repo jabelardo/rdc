@@ -10,31 +10,40 @@
 //! Merge and rebase live here rather than in [`super::conflicts`]: starting one is a branch
 //! operation, and only what happens after it stops with conflicts belongs to that module.
 
-use crate::commands::operation_lifecycle::{finish_short_mutation, start_short_mutation};
-use crate::commands::operation_lifecycle::{
-    recover_merge_termination, recover_rebase_termination, run_cancellable_branch_checkout,
-};
+use crate::commands::operation_lifecycle::finish_short_mutation;
+use crate::commands::operation_lifecycle::recover_merge_termination;
+use crate::commands::operation_lifecycle::recover_rebase_termination;
+use crate::commands::operation_lifecycle::run_cancellable_branch_checkout;
+use crate::commands::operation_lifecycle::start_short_mutation;
 use crate::commands::CommandError;
-use crate::hook_state::{support_for_operation, HookFailurePrompt, HookRegistry};
-use crate::operation::{
-    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
-};
+use crate::hook_state::support_for_operation;
+use crate::hook_state::HookFailurePrompt;
+use crate::hook_state::HookRegistry;
+use crate::operation::GitOperationKind;
+use crate::operation::OperationError;
+use crate::operation::OperationErrorKind;
+use crate::operation::OperationOutcome;
+use crate::operation::OperationState;
 use crate::operation_registry::OperationRegistry;
 use crate::operation_registry::WatchdogPolicy;
 use git_ops::checkout::CheckoutProgress;
 use git_ops::checkout::CheckoutTarget;
-use git_ops::for_each_ref::{Branch, TrackingBranch};
+use git_ops::for_each_ref::Branch;
+use git_ops::for_each_ref::TrackingBranch;
 use git_ops::hooks::runner::HookProgressUpdate;
-use git_ops::merge::{MergeOptions, MergeResult};
+use git_ops::merge::MergeOptions;
+use git_ops::merge::MergeResult;
 use git_ops::merge_tree::MergeTreeResult;
 use git_ops::operation_state::RebaseInternalState;
-use git_ops::rebase::{
-    ManualResolution, MultiCommitOperationProgress, RebaseResult, RebaseSnapshot,
-};
+use git_ops::rebase::ManualResolution;
+use git_ops::rebase::MultiCommitOperationProgress;
+use git_ops::rebase::RebaseResult;
+use git_ops::rebase::RebaseSnapshot;
 use git_ops::update_index::FileToStage;
 use std::collections::HashMap;
 use tauri::ipc::Channel;
-use tauri::{State, WebviewWindow};
+use tauri::State;
+use tauri::WebviewWindow;
 
 /// Creates a branch, without checking it out.
 ///
@@ -288,7 +297,7 @@ pub async fn merge_branch(
     on_hook_progress: Channel<HookProgressUpdate>,
     on_hook_failure: Channel<HookFailurePrompt>,
 ) -> Result<MergeResult, CommandError> {
-    let operation = crate::commands::operation::start_cancellable_repository_operation(
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -401,7 +410,7 @@ pub async fn rebase_branch(
     target_branch: String,
     on_progress: Channel<MultiCommitOperationProgress>,
 ) -> Result<RebaseResult, CommandError> {
-    let operation = crate::commands::operation::start_cancellable_repository_operation(
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -481,7 +490,7 @@ pub async fn continue_rebase(
     on_progress: Channel<MultiCommitOperationProgress>,
 ) -> Result<RebaseResult, CommandError> {
     let operation =
-        crate::commands::operation::active_repository_operation(&registry, &repository_path)
+        crate::commands::operations::active_repository_operation(&registry, &repository_path)
             .await?
             .ok_or_else(|| {
                 CommandError::message("no active rebase operation owns this repository")
@@ -536,7 +545,7 @@ pub async fn abort_rebase(
     repository_path: String,
 ) -> Result<(), CommandError> {
     let operation =
-        crate::commands::operation::active_repository_operation(&registry, &repository_path)
+        crate::commands::operations::active_repository_operation(&registry, &repository_path)
             .await?;
     let result = git_ops::rebase::abort_rebase(&repository_path).await;
     match result {

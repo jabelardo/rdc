@@ -5,12 +5,15 @@
 
 use crate::commands::operation_lifecycle::finish_checkout_mutation;
 use crate::commands::CommandError;
-use crate::operation::{
-    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
-};
+use crate::operation::GitOperationKind;
+use crate::operation::OperationError;
+use crate::operation::OperationErrorKind;
+use crate::operation::OperationOutcome;
+use crate::operation::OperationState;
 use crate::operation_registry::OperationRegistry;
 use git_ops::stage::ResolvedConflict;
-use tauri::{State, WebviewWindow};
+use tauri::State;
+use tauri::WebviewWindow;
 
 /// Aborts an in-progress merge.
 #[tauri::command]
@@ -19,7 +22,7 @@ pub async fn abort_merge(
     repository_path: String,
 ) -> Result<(), CommandError> {
     let operation =
-        crate::commands::operation::active_repository_operation(&registry, &repository_path)
+        crate::commands::operations::active_repository_operation(&registry, &repository_path)
             .await?;
     let squash = git_ops::merge::is_squash_merge_in_progress(&repository_path).await;
     let result = match squash {
@@ -80,7 +83,7 @@ pub async fn stage_resolved_conflict_files(
     repository_path: String,
     files: Vec<ResolvedConflict>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operations::start_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),

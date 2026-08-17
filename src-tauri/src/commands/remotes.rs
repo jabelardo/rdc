@@ -8,24 +8,33 @@
 //! Every command here takes it, and passing `true` for anything the user didn't initiate is what
 //! stops a credential prompt appearing unbidden. It can't be inferred from the call.
 
-use tauri::ipc::Channel;
-use tauri::{State, WebviewWindow};
-
-use git_ops::clone::{CloneOptions, CloneProgress};
-use git_ops::fetch::FetchProgress;
-use git_ops::pull::PullProgress;
-use git_ops::push::{PushOptions, PushProgress, PushTarget};
-use git_ops::remote::Remote;
-
 use super::CommandError;
-use crate::hook_state::{support_for_operation, HookFailurePrompt, HookRegistry};
-use crate::operation::{
-    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationProgress,
-    OperationRecord, OperationRefresh, OperationState,
-};
+use crate::hook_state::support_for_operation;
+use crate::hook_state::HookFailurePrompt;
+use crate::hook_state::HookRegistry;
+use crate::operation::GitOperationKind;
+use crate::operation::OperationError;
+use crate::operation::OperationErrorKind;
+use crate::operation::OperationOutcome;
+use crate::operation::OperationProgress;
+use crate::operation::OperationRecord;
+use crate::operation::OperationRefresh;
+use crate::operation::OperationState;
 use crate::operation_registry::OperationRegistry;
-use crate::trampoline_state::{RemoteSession, TrampolineState};
+use crate::trampoline_state::RemoteSession;
+use crate::trampoline_state::TrampolineState;
+use git_ops::clone::CloneOptions;
+use git_ops::clone::CloneProgress;
+use git_ops::fetch::FetchProgress;
 use git_ops::hooks::runner::HookProgressUpdate;
+use git_ops::pull::PullProgress;
+use git_ops::push::PushOptions;
+use git_ops::push::PushProgress;
+use git_ops::push::PushTarget;
+use git_ops::remote::Remote;
+use tauri::ipc::Channel;
+use tauri::State;
+use tauri::WebviewWindow;
 
 /// Turns a bind failure into a command error.
 ///
@@ -280,7 +289,7 @@ pub async fn push(
     on_hook_progress: Channel<HookProgressUpdate>,
     on_hook_failure: Channel<HookFailurePrompt>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_cancellable_repository_operation(
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -459,7 +468,7 @@ pub async fn delete_remote_branch(
     remote_branch_name: String,
     is_background_task: Option<bool>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operations::start_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -536,7 +545,7 @@ pub async fn fetch(
     is_background_task: Option<bool>,
     on_progress: Channel<FetchProgress>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_cancellable_repository_operation(
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -660,7 +669,7 @@ pub async fn fetch_workflow(
         ));
     }
 
-    let operation = crate::commands::operation::start_cancellable_repository_operation(
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -1529,7 +1538,7 @@ pub async fn fetch_refspec(
     refspec: String,
     is_background_task: Option<bool>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operations::start_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -1612,7 +1621,7 @@ pub async fn pull(
     on_hook_progress: Channel<HookProgressUpdate>,
     on_hook_failure: Channel<HookFailurePrompt>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_cancellable_repository_operation(
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -1773,7 +1782,7 @@ pub async fn fast_forward_branches(
     repository_path: String,
     branches: Vec<(String, String)>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operations::start_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -2132,7 +2141,7 @@ async fn start_remote_config_operation(
     registry: &OperationRegistry,
     repository_path: &str,
 ) -> Result<crate::operation::OperationRecord, CommandError> {
-    crate::commands::operation::start_repository_operation(
+    crate::commands::operations::start_repository_operation(
         registry,
         repository_path,
         Some(window.label().to_owned()),
@@ -2197,7 +2206,7 @@ pub async fn update_remote_head(
     name: String,
     is_background_task: Option<bool>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operations::start_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),

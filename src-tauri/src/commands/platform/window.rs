@@ -1,6 +1,4 @@
-use tauri::{AppHandle, Emitter, State, WebviewWindow};
-use tauri_plugin_window_state::{StateFlags, WindowExt};
-
+use crate::commands::CommandError;
 use crate::{
     create_window_from_main_template,
     platform::{
@@ -8,8 +6,12 @@ use crate::{
         window_model::WindowStartupAction,
     },
 };
-
-use crate::commands::CommandError;
+use tauri::AppHandle;
+use tauri::Emitter;
+use tauri::State;
+use tauri::WebviewWindow;
+use tauri_plugin_window_state::StateFlags;
+use tauri_plugin_window_state::WindowExt;
 
 const ZOOM_FACTOR_CHANGED_EVENT: &str = "zoom-factor-changed";
 const LAUNCH_TIMING_STATS_EVENT: &str = "launch-timing-stats";

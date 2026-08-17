@@ -14,13 +14,16 @@
 //! Every test in `git.rs` was a test of these functions, so they came too.
 
 use crate::commands::CommandError;
-use crate::operation::{
-    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
-};
+use crate::operation::GitOperationKind;
+use crate::operation::OperationError;
+use crate::operation::OperationErrorKind;
+use crate::operation::OperationOutcome;
+use crate::operation::OperationState;
 use crate::operation_registry::OperationRegistry;
 use crate::operation_registry::WatchdogPolicy;
 use git_ops::checkout::CheckoutProgress;
 use git_ops::checkout::CheckoutTarget;
+use git_ops::cherry_pick::CherryPickResult;
 use git_ops::merge::MergeResult;
 use git_ops::rebase::RebaseResult;
 use tauri::ipc::Channel;
@@ -103,7 +106,7 @@ pub(crate) async fn run_cancellable_branch_checkout(
     target: CheckoutTarget<'_>,
     on_progress: Channel<CheckoutProgress>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_cancellable_repository_operation(
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
         registry,
         repository_path,
         owner_window,
@@ -264,7 +267,7 @@ pub(crate) async fn run_cancellable_commit_checkout(
     commit: &str,
     on_progress: Channel<CheckoutProgress>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_cancellable_repository_operation(
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
         registry,
         repository_path,
         owner_window,
@@ -1413,7 +1416,7 @@ pub(crate) async fn abort_revert_operation(
     // survived an app restart — so the lock holder is not necessarily this revert. Ending someone
     // else's Fetch here would release a lock while its transport is still running.
     let active =
-        crate::commands::operation::active_repository_operation(registry, repository_path).await?;
+        crate::commands::operations::active_repository_operation(registry, repository_path).await?;
     if let Some(record) = &active {
         if record.operation != GitOperationKind::Revert {
             return Err(CommandError::message(format!(
@@ -1492,7 +1495,7 @@ pub(crate) async fn start_short_mutation(
     registry: &OperationRegistry,
     repository_path: &str,
 ) -> Result<crate::operation::OperationRecord, CommandError> {
-    crate::commands::operation::start_repository_operation(
+    crate::commands::operations::start_repository_operation(
         registry,
         repository_path,
         Some(window.label().to_owned()),
@@ -1754,7 +1757,7 @@ mod revert_recovery_tests {
 
         let repository_path = directory.path().to_string_lossy().into_owned();
         let registry = OperationRegistry::new();
-        let operation = crate::commands::operation::start_cancellable_repository_operation(
+        let operation = crate::commands::operations::start_cancellable_repository_operation(
             &registry,
             &repository_path,
             Some("test-window".to_owned()),
@@ -1808,7 +1811,7 @@ mod revert_recovery_tests {
 
         let repository_path = directory.path().to_string_lossy().into_owned();
         let registry = OperationRegistry::new();
-        let operation = crate::commands::operation::start_cancellable_repository_operation(
+        let operation = crate::commands::operations::start_cancellable_repository_operation(
             &registry,
             &repository_path,
             Some("test-window".to_owned()),
@@ -1853,7 +1856,7 @@ mod revert_recovery_tests {
 
         let repository_path = directory.path().to_string_lossy().into_owned();
         let registry = OperationRegistry::new();
-        let fetch = crate::commands::operation::start_cancellable_repository_operation(
+        let fetch = crate::commands::operations::start_cancellable_repository_operation(
             &registry,
             &repository_path,
             Some("test-window".to_owned()),
@@ -1882,5 +1885,452 @@ mod revert_recovery_tests {
             Some(fetch.id),
             "the unrelated operation must keep its repository lock"
         );
+    }
+}
+
+pub(crate) async fn finish_cherry_pick_termination(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    repository_path: &str,
+    pre_operation_head: &str,
+    reason: git_ops::TerminationReason,
+) -> Result<CherryPickResult, CommandError> {
+    // A stop request can race with Git's final commit. Only abort while the sequencer still exists;
+    // otherwise an unconditional `cherry-pick --abort` would undo a pick that already completed.
+    let snapshot = git_ops::cherry_pick::get_cherry_pick_snapshot(repository_path)
+        .await
+        .map_err(|error| finish_cherry_pick_recovery_failure(registry, operation_id, error))?;
+    let marker_present = git_ops::cherry_pick::is_cherry_pick_in_progress(repository_path)
+        .await
+        .map_err(|error| finish_cherry_pick_recovery_failure(registry, operation_id, error))?;
+    if snapshot.is_none() && !marker_present {
+        let current_head = git_ops::get_head_sha(repository_path)
+            .await
+            .map_err(|error| finish_cherry_pick_recovery_failure(registry, operation_id, error))?;
+        if current_head != pre_operation_head {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            return Ok(CherryPickResult::CompletedWithoutError);
+        }
+
+        let (state, kind, verb) = cherry_pick_termination_details(reason);
+        let message = format!("Cherry-pick {verb} before it changed the repository");
+        let _ = registry.finish(
+            operation_id,
+            state,
+            OperationOutcome::Unchanged,
+            Some(OperationError {
+                kind,
+                message: message.clone(),
+                recoverable: true,
+            }),
+        );
+        return Err(CommandError::message(message));
+    }
+
+    let recovery = git_ops::cherry_pick::abort_cherry_pick(repository_path).await;
+    match recovery {
+        Ok(()) => {
+            let (state, _, verb) = cherry_pick_termination_details(reason);
+            let _ = registry.finish(operation_id, state, OperationOutcome::Recovered, None);
+            Err(CommandError::message(format!(
+                "Cherry-pick {verb} and recovered"
+            )))
+        }
+        Err(error) => Err(finish_cherry_pick_recovery_failure(
+            registry,
+            operation_id,
+            error,
+        )),
+    }
+}
+
+pub(crate) fn cherry_pick_termination_details(
+    reason: git_ops::TerminationReason,
+) -> (OperationState, OperationErrorKind, &'static str) {
+    match reason {
+        git_ops::TerminationReason::Cancelled => (
+            OperationState::Cancelled,
+            OperationErrorKind::Cancelled,
+            "cancelled",
+        ),
+        git_ops::TerminationReason::TimedOut => (
+            OperationState::TimedOut,
+            OperationErrorKind::TimedOut,
+            "timed out",
+        ),
+    }
+}
+
+pub(crate) fn finish_cherry_pick_recovery_failure(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    error: git_ops::GitError,
+) -> CommandError {
+    let message = error.to_string();
+    let _ = registry.finish(
+        operation_id,
+        OperationState::Failed,
+        OperationOutcome::Unknown,
+        Some(OperationError {
+            kind: OperationErrorKind::RecoveryFailed,
+            message: message.clone(),
+            recoverable: false,
+        }),
+    );
+    CommandError::message(message)
+}
+
+pub(crate) fn finish_stash_mutation<T>(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    result: Result<T, git_ops::GitError>,
+) -> Result<T, CommandError> {
+    match result {
+        Ok(value) => {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(value)
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message,
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
+}
+
+pub(crate) fn finish_cherry_pick_result(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    result: Result<CherryPickResult, git_ops::GitError>,
+) -> Result<CherryPickResult, CommandError> {
+    match result {
+        Ok(
+            result @ (CherryPickResult::ConflictsEncountered
+            | CherryPickResult::OutstandingFilesNotStaged),
+        ) => {
+            let _ = registry.enter_recovery(operation_id);
+            Ok(result)
+        }
+        Ok(result) => {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(result)
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message,
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
+}
+
+pub(crate) fn finish_rebase_result(
+    registry: &OperationRegistry,
+    operation_id: &str,
+    result: Result<RebaseResult, git_ops::GitError>,
+) -> Result<RebaseResult, CommandError> {
+    match result {
+        Ok(
+            result @ (RebaseResult::ConflictsEncountered | RebaseResult::OutstandingFilesNotStaged),
+        ) => {
+            let _ = registry.enter_recovery(operation_id);
+            Ok(result)
+        }
+        Ok(result) => {
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Completed,
+                OperationOutcome::Completed,
+                None,
+            );
+            Ok(result)
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            let _ = registry.finish(
+                operation_id,
+                OperationState::Failed,
+                OperationOutcome::Unknown,
+                Some(OperationError {
+                    kind: OperationErrorKind::Failed,
+                    message,
+                    recoverable: true,
+                }),
+            );
+            Err(command_error)
+        }
+    }
+}
+
+#[cfg(test)]
+mod cherry_pick_termination_tests {
+    use super::*;
+
+    #[test]
+    fn classifies_cherry_pick_cancellation_and_timeout() {
+        assert_eq!(
+            cherry_pick_termination_details(git_ops::TerminationReason::Cancelled),
+            (
+                OperationState::Cancelled,
+                OperationErrorKind::Cancelled,
+                "cancelled"
+            )
+        );
+        assert_eq!(
+            cherry_pick_termination_details(git_ops::TerminationReason::TimedOut),
+            (
+                OperationState::TimedOut,
+                OperationErrorKind::TimedOut,
+                "timed out"
+            )
+        );
+    }
+}
+
+#[cfg(test)]
+mod cherry_pick_recovery_tests {
+    use super::*;
+    use crate::operation::{CancellationCapability, OperationScope};
+    use std::path::Path;
+    use std::process::Command;
+
+    fn run_git(repository: &Path, args: &[&str]) -> String {
+        let output = Command::new("git")
+            .args(args)
+            .current_dir(repository)
+            .output()
+            .expect("git should start");
+        assert!(
+            output.status.success(),
+            "git {:?} failed: {}",
+            args,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        String::from_utf8_lossy(&output.stdout).trim().to_owned()
+    }
+
+    #[tokio::test]
+    async fn command_recovery_aborts_a_conflicted_cherry_pick_and_releases_the_lock() {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        run_git(directory.path(), &["init", "-q", "-b", "main"]);
+        run_git(directory.path(), &["config", "user.name", "Slice 13 Test"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "slice13@example.test"],
+        );
+        std::fs::write(directory.path().join("conflict.txt"), "base\n")
+            .expect("base file should be written");
+        run_git(directory.path(), &["add", "."]);
+        run_git(directory.path(), &["commit", "-qm", "base"]);
+        run_git(directory.path(), &["checkout", "-qb", "feature"]);
+        std::fs::write(directory.path().join("conflict.txt"), "feature\n")
+            .expect("feature file should be written");
+        run_git(directory.path(), &["commit", "-qam", "feature change"]);
+        let feature_head = run_git(directory.path(), &["rev-parse", "HEAD"]);
+        run_git(directory.path(), &["checkout", "-q", "main"]);
+        std::fs::write(directory.path().join("conflict.txt"), "main\n")
+            .expect("main file should be written");
+        run_git(directory.path(), &["commit", "-qam", "main change"]);
+        let original_head = run_git(directory.path(), &["rev-parse", "HEAD"]);
+        let cherry_pick = Command::new("git")
+            .args(["cherry-pick", &feature_head])
+            .current_dir(directory.path())
+            .output()
+            .expect("cherry-pick should start");
+        assert!(
+            !cherry_pick.status.success(),
+            "cherry-pick should stop with a conflict"
+        );
+
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation = registry
+            .start(
+                OperationScope::Repository {
+                    lock_key: repository_path.clone(),
+                    repository_path: repository_path.clone(),
+                },
+                Some("test-window".to_owned()),
+                GitOperationKind::CherryPick,
+                CancellationCapability::Available {
+                    label: "Cancel cherry-pick".to_owned(),
+                },
+            )
+            .expect("operation should reserve the repository");
+
+        let result = finish_cherry_pick_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &original_head,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await;
+
+        assert!(
+            result.is_err(),
+            "cancellation should be reported to the caller"
+        );
+        assert_eq!(
+            run_git(directory.path(), &["rev-parse", "HEAD"]),
+            original_head
+        );
+        assert_eq!(
+            std::fs::read_to_string(directory.path().join("conflict.txt"))
+                .expect("worktree file should be readable"),
+            "main\n"
+        );
+        assert_eq!(
+            run_git(directory.path(), &["diff", "--cached", "--quiet"]),
+            ""
+        );
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path: repository_path.clone(),
+            })
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn command_recovery_treats_a_late_cherry_pick_stop_as_completed() {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        run_git(directory.path(), &["init", "-q", "-b", "main"]);
+        run_git(directory.path(), &["config", "user.name", "Slice 13 Test"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "slice13@example.test"],
+        );
+        std::fs::write(directory.path().join("file.txt"), "one\n")
+            .expect("first file should be written");
+        run_git(directory.path(), &["add", "."]);
+        run_git(directory.path(), &["commit", "-qm", "first"]);
+        let pre_operation_head = run_git(directory.path(), &["rev-parse", "HEAD"]);
+        std::fs::write(directory.path().join("file.txt"), "two\n")
+            .expect("second file should be written");
+        run_git(directory.path(), &["commit", "-qam", "second"]);
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+        let operation = registry
+            .start(
+                OperationScope::Repository {
+                    lock_key: repository_path.clone(),
+                    repository_path: repository_path.clone(),
+                },
+                Some("test-window".to_owned()),
+                GitOperationKind::CherryPick,
+                CancellationCapability::Available {
+                    label: "Cancel cherry-pick".to_owned(),
+                },
+            )
+            .expect("operation should reserve the repository");
+
+        let result = finish_cherry_pick_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &pre_operation_head,
+            git_ops::TerminationReason::Cancelled,
+        )
+        .await
+        .expect("a changed HEAD should win the cancellation race");
+
+        assert_eq!(result, CherryPickResult::CompletedWithoutError);
+        assert!(registry
+            .active_for_scope(&OperationScope::Repository {
+                lock_key: repository_path.clone(),
+                repository_path: repository_path.clone(),
+            })
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn command_recovery_treats_late_squash_and_reorder_stops_as_completed() {
+        let directory = tempfile::tempdir().expect("temporary repository should be created");
+        run_git(directory.path(), &["init", "-q", "-b", "main"]);
+        run_git(directory.path(), &["config", "user.name", "Slice 13 Test"]);
+        run_git(
+            directory.path(),
+            &["config", "user.email", "slice13@example.test"],
+        );
+        std::fs::write(directory.path().join("file.txt"), "one\n")
+            .expect("first file should be written");
+        run_git(directory.path(), &["add", "."]);
+        run_git(directory.path(), &["commit", "-qm", "first"]);
+        let repository_path = directory.path().to_string_lossy().into_owned();
+        let registry = OperationRegistry::new();
+
+        for (message, label) in [("second", "Cancel squash"), ("third", "Cancel reorder")] {
+            let pre_operation_head = run_git(directory.path(), &["rev-parse", "HEAD"]);
+            std::fs::write(directory.path().join("file.txt"), format!("{message}\n"))
+                .expect("next file should be written");
+            run_git(directory.path(), &["commit", "-qam", message]);
+            let operation = registry
+                .start(
+                    OperationScope::Repository {
+                        lock_key: repository_path.clone(),
+                        repository_path: repository_path.clone(),
+                    },
+                    Some("test-window".to_owned()),
+                    GitOperationKind::Rebase,
+                    CancellationCapability::Available {
+                        label: label.to_owned(),
+                    },
+                )
+                .expect("operation should reserve the repository");
+
+            let result = crate::commands::operation_lifecycle::recover_rebase_termination(
+                &registry,
+                &operation.id,
+                &repository_path,
+                &pre_operation_head,
+                git_ops::TerminationReason::Cancelled,
+            )
+            .await
+            .expect("a changed HEAD should win the cancellation race");
+
+            assert_eq!(result, RebaseResult::CompletedWithoutError);
+            assert!(registry
+                .active_for_scope(&OperationScope::Repository {
+                    lock_key: repository_path.clone(),
+                    repository_path: repository_path.clone(),
+                })
+                .is_none());
+        }
     }
 }

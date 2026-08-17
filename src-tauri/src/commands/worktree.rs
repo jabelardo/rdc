@@ -3,14 +3,17 @@
 //! Thin wrappers over `git_ops::worktree`. Its own module because the store treats worktrees as a domain of
 //! their own, and because the three listing entry points need explaining together.
 
-use git_ops::worktree::{AddWorktreeOptions, WorktreeEntry};
-use tauri::{State, WebviewWindow};
-
 use super::CommandError;
-use crate::operation::{
-    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
-};
+use crate::operation::GitOperationKind;
+use crate::operation::OperationError;
+use crate::operation::OperationErrorKind;
+use crate::operation::OperationOutcome;
+use crate::operation::OperationState;
 use crate::operation_registry::OperationRegistry;
+use git_ops::worktree::AddWorktreeOptions;
+use git_ops::worktree::WorktreeEntry;
+use tauri::State;
+use tauri::WebviewWindow;
 
 /// Worktree administration writes the *common* git directory — `worktrees/<name>`, and a ref when
 /// `createBranch` is used — so it takes the source repository's lock, not the new worktree's. The
@@ -21,7 +24,7 @@ async fn start_worktree_operation(
     repository_path: &str,
     owner_window: Option<String>,
 ) -> Result<crate::operation::OperationRecord, CommandError> {
-    crate::commands::operation::start_repository_operation(
+    crate::commands::operations::start_repository_operation(
         registry,
         repository_path,
         owner_window,
@@ -233,7 +236,7 @@ mod lock_tests {
             .await
             .expect("the worktree operation should reserve the repository");
 
-        let conflict = crate::commands::operation::start_repository_operation(
+        let conflict = crate::commands::operations::start_repository_operation(
             &registry,
             &repository_path,
             Some("peer-window".to_owned()),
@@ -248,7 +251,7 @@ mod lock_tests {
         finish_worktree_mutation(&registry, &operation.id, Ok(()))
             .expect("a successful worktree mutation reports completion");
 
-        crate::commands::operation::start_repository_operation(
+        crate::commands::operations::start_repository_operation(
             &registry,
             &repository_path,
             Some("peer-window".to_owned()),

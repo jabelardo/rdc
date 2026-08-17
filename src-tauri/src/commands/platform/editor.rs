@@ -1,12 +1,10 @@
 use crate::commands::CommandError;
-use crate::platform::custom_integration::{
-    expand_target_path_argument, is_valid_custom_integration as validate_integration,
-    parse_custom_integration_arguments,
-    validate_custom_integration_path as validate_integration_path,
-};
-use crate::platform::custom_integration_model::{
-    CustomIntegration, CustomIntegrationPathValidation,
-};
+use crate::platform::custom_integration::expand_target_path_argument;
+use crate::platform::custom_integration::is_valid_custom_integration as validate_integration;
+use crate::platform::custom_integration::parse_custom_integration_arguments;
+use crate::platform::custom_integration::validate_custom_integration_path as validate_integration_path;
+use crate::platform::custom_integration_model::CustomIntegration;
+use crate::platform::custom_integration_model::CustomIntegrationPathValidation;
 use crate::platform::editors::FoundEditor;
 use std::path::PathBuf;
 

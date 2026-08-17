@@ -1,3 +1,4 @@
+use super::keybindings::KeybindingState;
 use crate::{
     commands::CommandError,
     platform::{
@@ -6,10 +7,9 @@ use crate::{
         menu_model::MenuModel,
     },
 };
-
-use tauri::{AppHandle, Manager, State};
-
-use super::keybindings::KeybindingState;
+use tauri::AppHandle;
+use tauri::Manager;
+use tauri::State;
 
 #[tauri::command]
 pub async fn set_native_menu(

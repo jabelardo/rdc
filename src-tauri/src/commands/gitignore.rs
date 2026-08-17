@@ -3,10 +3,12 @@
 //! One module rather than four commands filed under `repositories`: they are all about a single
 //! file, and both the Changes view's "ignore this" action and repository settings reach for them.
 
-use crate::commands::operation_lifecycle::{finish_short_mutation, start_short_mutation};
+use crate::commands::operation_lifecycle::finish_short_mutation;
+use crate::commands::operation_lifecycle::start_short_mutation;
 use crate::commands::CommandError;
 use crate::operation_registry::OperationRegistry;
-use tauri::{State, WebviewWindow};
+use tauri::State;
+use tauri::WebviewWindow;
 
 /// Reads the repository's root `.gitignore`, or `null` if there isn't one.
 #[tauri::command]

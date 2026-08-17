@@ -6,7 +6,10 @@ use crate::{
     },
 };
 use std::collections::BTreeMap;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::AppHandle;
+use tauri::Emitter;
+use tauri::Manager;
+use tauri::State;
 use tokio::sync::Mutex;
 
 const CHANGED_EVENT: &str = "keybindings-changed";

@@ -1,14 +1,13 @@
 //! Operation lifecycle queries used by windows joining an existing operation.
 
-use git_ops::operation_identity::resolve_repository_identity;
-use tauri::{State, WebviewWindow};
-
+use super::CommandError;
 use crate::{
     operation::{OperationEvent, OperationRecord, OperationScope},
     operation_registry::OperationRegistry,
 };
-
-use super::CommandError;
+use git_ops::operation_identity::resolve_repository_identity;
+use tauri::State;
+use tauri::WebviewWindow;
 
 fn cancellation_is_authorized(
     owner_window: Option<&str>,

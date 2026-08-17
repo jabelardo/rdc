@@ -1,3 +1,6 @@
+use crate::commands::CommandError;
+use crate::platform::notification::{self, NotificationState};
+use serde_json::Value;
 use std::{
     collections::HashSet,
     sync::{
@@ -5,13 +8,10 @@ use std::{
         Arc,
     },
 };
-
-use serde_json::Value;
-use tauri::{Emitter, Manager, State, WebviewWindow};
-
-use crate::platform::notification::{self, NotificationState};
-
-use crate::commands::CommandError;
+use tauri::Emitter;
+use tauri::Manager;
+use tauri::State;
+use tauri::WebviewWindow;
 
 const NOTIFICATION_EVENT: &str = "notification-event";
 

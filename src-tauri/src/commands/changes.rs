@@ -3,13 +3,19 @@
 //! Staging, unstaging, discarding and committing. Reading the diff of what is uncommitted lives in
 //! [`super::diffs`] with the other diff queries.
 
-use crate::commands::operation_lifecycle::{finish_checkout_mutation, finish_commit_termination};
-use crate::commands::operation_lifecycle::{finish_short_mutation, start_short_mutation};
+use crate::commands::operation_lifecycle::finish_checkout_mutation;
+use crate::commands::operation_lifecycle::finish_commit_termination;
+use crate::commands::operation_lifecycle::finish_short_mutation;
+use crate::commands::operation_lifecycle::start_short_mutation;
 use crate::commands::CommandError;
-use crate::hook_state::{support_for_operation, HookFailurePrompt, HookRegistry};
-use crate::operation::{
-    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
-};
+use crate::hook_state::support_for_operation;
+use crate::hook_state::HookFailurePrompt;
+use crate::hook_state::HookRegistry;
+use crate::operation::GitOperationKind;
+use crate::operation::OperationError;
+use crate::operation::OperationErrorKind;
+use crate::operation::OperationOutcome;
+use crate::operation::OperationState;
 use crate::operation_registry::OperationRegistry;
 use git_ops::commit::CommitOptions;
 use git_ops::diff::TextDiffData;
@@ -22,7 +28,8 @@ use git_ops::status::StatusResult;
 use git_ops::update_index::FileToStage;
 use git_ops::MultiOperationTerminalOutput;
 use tauri::ipc::Channel;
-use tauri::{State, WebviewWindow};
+use tauri::State;
+use tauri::WebviewWindow;
 
 /// Reads the status of the repository at `repository_path`.
 ///
@@ -91,7 +98,7 @@ pub async fn create_commit(
     on_hook_failure: Channel<HookFailurePrompt>,
     on_terminal_output: Channel<String>,
 ) -> Result<String, CommandError> {
-    let operation = crate::commands::operation::start_cancellable_repository_operation(
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -223,7 +230,7 @@ pub async fn create_merge_commit(
     manual_resolutions: Vec<ManualResolution>,
 ) -> Result<String, CommandError> {
     let operation =
-        crate::commands::operation::active_repository_operation(&registry, &repository_path)
+        crate::commands::operations::active_repository_operation(&registry, &repository_path)
             .await?
             .ok_or_else(|| {
                 CommandError::message("no active merge operation owns this repository")
@@ -271,7 +278,7 @@ pub async fn checkout_paths(
     repository_path: String,
     paths: Vec<String>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operations::start_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -324,7 +331,7 @@ pub async fn reset(
     mode: ResetMode,
     ref_name: String,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operations::start_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -357,7 +364,7 @@ pub async fn reset_paths(
     ref_name: String,
     paths: Vec<String>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operations::start_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -385,7 +392,7 @@ pub async fn unstage_all(
     registry: State<'_, OperationRegistry>,
     repository_path: String,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operations::start_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -413,7 +420,7 @@ pub async fn unstage_all_files(
     registry: State<'_, OperationRegistry>,
     repository_path: String,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operations::start_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -476,7 +483,7 @@ pub async fn discard_changes_from_selection(
     diff: TextDiffData,
     selected_lines: Vec<u32>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_repository_operation(
+    let operation = crate::commands::operations::start_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),

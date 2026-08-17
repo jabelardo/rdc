@@ -7,20 +7,35 @@
 //! arguments* of the TypeScript `Commit`/`CommittedFileChange` classes; `src/lib/log-ipc.ts` builds
 //! the objects, so the fields those constructors derive have exactly one implementation.
 
+use crate::commands::operation_lifecycle::abort_revert_operation;
+use crate::commands::operation_lifecycle::finish_revert_termination;
 use crate::commands::operation_lifecycle::run_cancellable_commit_checkout;
-use crate::commands::operation_lifecycle::{abort_revert_operation, finish_revert_termination};
-use crate::commands::CommandError;
-use crate::operation::{
-    GitOperationKind, OperationError, OperationErrorKind, OperationOutcome, OperationState,
+use crate::commands::operation_lifecycle::{
+    finish_cherry_pick_result, finish_cherry_pick_termination, finish_rebase_result,
 };
+use crate::commands::CommandError;
+use crate::operation::GitOperationKind;
+use crate::operation::OperationError;
+use crate::operation::OperationErrorKind;
+use crate::operation::OperationOutcome;
+use crate::operation::OperationState;
 use crate::operation_registry::OperationRegistry;
 use crate::operation_registry::WatchdogPolicy;
 use git_ops::checkout::CheckoutProgress;
-use git_ops::log::{ChangesetData, Commit};
+use git_ops::cherry_pick::CherryPickResult;
+use git_ops::cherry_pick::CherryPickSnapshot;
+use git_ops::log::ChangesetData;
+use git_ops::log::Commit;
+use git_ops::rebase::MultiCommitOperationProgress;
+use git_ops::rebase::RebaseResult;
+use git_ops::rev_list::CommitOneLine;
 use git_ops::revert::RevertProgress;
+use git_ops::stage::ManualConflictResolution;
 use git_ops::status::AheadBehind;
+use git_ops::status::AppFileStatus;
 use tauri::ipc::Channel;
-use tauri::{State, WebviewWindow};
+use tauri::State;
+use tauri::WebviewWindow;
 
 /// Reads commits, most recent first.
 ///
@@ -150,7 +165,7 @@ pub async fn revert_commit(
     parent_count: usize,
     on_progress: Channel<RevertProgress>,
 ) -> Result<(), CommandError> {
-    let operation = crate::commands::operation::start_cancellable_repository_operation(
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
         &registry,
         &repository_path,
         Some(window.label().to_owned()),
@@ -249,4 +264,289 @@ pub async fn is_cherry_pick_head_found(repository_path: String) -> Result<bool, 
         .map_err(CommandError::from)?;
 
     Ok(git_ops::operation_state::is_cherry_pick_head_found(git_dir).await)
+}
+
+/// Cherry-picks commits onto the current branch, oldest first.
+///
+/// ```js
+/// await invoke('cherry_pick', {
+///   repositoryPath,
+///   commits: [{ sha, summary }],
+///   onProgress,
+/// })
+/// ```
+///
+/// Resolves to a `CherryPickResult` string rather than rejecting on conflicts — conflicts are an
+/// expected outcome the UI drives to resolution.
+#[tauri::command]
+pub async fn cherry_pick(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+    commits: Vec<CommitOneLine>,
+    on_progress: Channel<MultiCommitOperationProgress>,
+) -> Result<CherryPickResult, CommandError> {
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::CherryPick,
+        "Cancel cherry-pick",
+    )
+    .await?;
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let pre_operation_head = git_ops::get_head_sha(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
+    let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
+    let result = git_ops::cherry_pick::cherry_pick_controlled(
+        &repository_path,
+        &commits,
+        Some(|progress: MultiCommitOperationProgress| {
+            let _ = on_progress.send(progress);
+        }),
+        Some(control),
+    )
+    .await;
+    watchdog.abort();
+    if let Err(git_ops::GitError::OperationTerminated { reason, .. }) = &result {
+        return finish_cherry_pick_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &pre_operation_head,
+            *reason,
+        )
+        .await;
+    }
+    finish_cherry_pick_result(&registry, &operation.id, result)
+}
+
+/// Reconstructs an interrupted cherry-pick, or `null` if none is in progress.
+///
+/// Lets a reopened frontend recover state it never saw the Channel events for.
+#[tauri::command]
+pub async fn get_cherry_pick_snapshot(
+    repository_path: String,
+) -> Result<Option<CherryPickSnapshot>, CommandError> {
+    git_ops::cherry_pick::get_cherry_pick_snapshot(&repository_path)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Continues a cherry-pick once conflicts are resolved.
+///
+/// ```js
+/// await invoke('continue_cherry_pick', {
+///   repositoryPath,
+///   files: [['f.txt', { kind: 'Modified' }]],
+///   manualResolutions: [['f.txt', 'theirs']],
+///   onProgress,
+/// })
+/// ```
+///
+/// `files` is `[path, status]` pairs — pairs because a path is an arbitrary string. Untracked entries
+/// are excluded automatically, so unrelated work isn't swept into the commit.
+#[tauri::command]
+pub async fn continue_cherry_pick(
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+    files: Vec<(String, AppFileStatus)>,
+    manual_resolutions: Option<Vec<(String, ManualConflictResolution)>>,
+    on_progress: Channel<MultiCommitOperationProgress>,
+) -> Result<CherryPickResult, CommandError> {
+    let operation =
+        crate::commands::operations::active_repository_operation(&registry, &repository_path)
+            .await?
+            .ok_or_else(|| {
+                CommandError::message("no active cherry-pick operation owns this repository")
+            })?;
+    let result = git_ops::cherry_pick::continue_cherry_pick(
+        &repository_path,
+        &files,
+        &manual_resolutions.unwrap_or_default(),
+        Some(|progress: MultiCommitOperationProgress| {
+            let _ = on_progress.send(progress);
+        }),
+    )
+    .await;
+    finish_cherry_pick_result(&registry, &operation.id, result)
+}
+
+/// Abandons the cherry-pick, restoring the branch to where it started.
+#[tauri::command]
+pub async fn abort_cherry_pick(
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+) -> Result<(), CommandError> {
+    let operation =
+        crate::commands::operations::active_repository_operation(&registry, &repository_path)
+            .await?;
+    let result = git_ops::cherry_pick::abort_cherry_pick(&repository_path).await;
+    match result {
+        Ok(()) => {
+            if let Some(operation) = operation {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Cancelled,
+                    OperationOutcome::Recovered,
+                    None,
+                );
+            }
+            Ok(())
+        }
+        Err(error) => {
+            let message = error.to_string();
+            let command_error = CommandError::from(error);
+            if let Some(operation) = operation {
+                let _ = registry.finish(
+                    &operation.id,
+                    OperationState::Failed,
+                    OperationOutcome::Unknown,
+                    Some(OperationError {
+                        kind: OperationErrorKind::RecoveryFailed,
+                        message: message.clone(),
+                        recoverable: false,
+                    }),
+                );
+            }
+            Err(command_error)
+        }
+    }
+}
+
+/// Squashes commits together.
+///
+/// ```js
+/// await invoke('squash', {
+///   repositoryPath,
+///   toSquash: [sha1, sha2],
+///   squashOnto: sha3,
+///   lastRetainedCommitRef: sha0,   // null reaches the root of the branch
+///   commitMessage: 'combined',
+///   onProgress,
+/// })
+/// ```
+///
+/// The replay order is the **log's**, not the order `toSquash` is given in — so squashing the last two
+/// commits gives the same result whichever the user selects as the target.
+///
+/// Resolves to a `RebaseResult` string. A validation failure — an empty list, a target that is also in
+/// the list, a target not in the log — comes back as `Error` rather than rejecting.
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub async fn squash(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+    to_squash: Vec<String>,
+    squash_onto: String,
+    last_retained_commit_ref: Option<String>,
+    commit_message: Option<String>,
+    on_progress: Channel<MultiCommitOperationProgress>,
+) -> Result<RebaseResult, CommandError> {
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Rebase,
+        "Cancel squash",
+    )
+    .await?;
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let pre_operation_head = git_ops::get_head_sha(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
+    let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
+    let result = git_ops::squash::squash_controlled(
+        &repository_path,
+        &to_squash,
+        &squash_onto,
+        last_retained_commit_ref.as_deref(),
+        commit_message.as_deref().unwrap_or_default(),
+        Some(|progress: MultiCommitOperationProgress| {
+            let _ = on_progress.send(progress);
+        }),
+        Some(control),
+    )
+    .await;
+    watchdog.abort();
+    if let Err(git_ops::GitError::OperationTerminated { reason, .. }) = &result {
+        return crate::commands::operation_lifecycle::recover_rebase_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &pre_operation_head,
+            *reason,
+        )
+        .await;
+    }
+    finish_rebase_result(&registry, &operation.id, result)
+}
+
+/// Moves commits so they sit immediately before another.
+///
+/// ```js
+/// await invoke('reorder', {
+///   repositoryPath,
+///   toMove: [sha1],
+///   before: sha2,                  // null moves them to the end of history
+///   lastRetainedCommitRef: sha0,
+///   onProgress,
+/// })
+/// ```
+///
+/// The moved commits keep their relative log order regardless of how `toMove` is ordered.
+#[tauri::command]
+pub async fn reorder(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+    to_move: Vec<String>,
+    before: Option<String>,
+    last_retained_commit_ref: Option<String>,
+    on_progress: Channel<MultiCommitOperationProgress>,
+) -> Result<RebaseResult, CommandError> {
+    let operation = crate::commands::operations::start_cancellable_repository_operation(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        GitOperationKind::Rebase,
+        "Cancel reorder",
+    )
+    .await?;
+    let control = registry
+        .control(&operation.id)
+        .map_err(|error| CommandError::message(error.to_string()))?;
+    let pre_operation_head = git_ops::get_head_sha(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
+    let watchdog = registry.spawn_watchdog(operation.id.clone(), WatchdogPolicy::default());
+    let result = git_ops::reorder::reorder_controlled(
+        &repository_path,
+        &to_move,
+        before.as_deref(),
+        last_retained_commit_ref.as_deref(),
+        Some(|progress: MultiCommitOperationProgress| {
+            let _ = on_progress.send(progress);
+        }),
+        Some(control),
+    )
+    .await;
+    watchdog.abort();
+    if let Err(git_ops::GitError::OperationTerminated { reason, .. }) = &result {
+        return crate::commands::operation_lifecycle::recover_rebase_termination(
+            &registry,
+            &operation.id,
+            &repository_path,
+            &pre_operation_head,
+            *reason,
+        )
+        .await;
+    }
+    finish_rebase_result(&registry, &operation.id, result)
 }

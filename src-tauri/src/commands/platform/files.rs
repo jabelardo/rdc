@@ -1,11 +1,9 @@
-use std::path::PathBuf;
-
+use crate::commands::CommandError;
 use crate::platform::{
     files::{self, FolderOpenAction, PathFailure},
     system,
 };
-
-use crate::commands::CommandError;
+use std::path::PathBuf;
 
 #[tauri::command]
 pub async fn classify_folder_open(path: PathBuf) -> Result<Option<FolderOpenAction>, CommandError> {
