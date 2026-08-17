@@ -30,7 +30,7 @@ will otherwise assume the disagreements were oversights.
 | Source | Followed | Departed, and why |
 |---|---|---|
 | [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md) | The **method**: name one rule, derive everything from it, enforce the direction with a check that fails the build, move in mechanical commits, and record the reasoning rather than only the outcome | Most of its **content** does not transfer. Rust gets no `models/`, keeps its facades, and puts tests inside the file being tested — each for a reason specific to the language or to this repo. All four are itemised [below](#where-the-frontend-guideline-does-not-transfer) |
-| `desktop-plus/app/src/lib/git/**` | `crates/git-ops/` mirrors it **file for file**: 53 of its 63 modules carry the upstream module's name. AGENTS.md already states the rule; this document records what depends on it and freezes it | Not for `src-tauri/src/`. desktop-plus's IPC was a single flat `ipc-main.ts` plus `ipc-shared.ts` — a channel list, not a layout. There was nothing there to mirror, which is exactly why `commands/` drifted |
+| `desktop-plus/app/src/lib/git/**` | `crates/git-ops/` mirrors it **file for file**: 54 of its 63 modules carry the upstream module's name. AGENTS.md already states the rule; this document records what depends on it and freezes it | Not for `src-tauri/src/`. desktop-plus's IPC was a single flat `ipc-main.ts` plus `ipc-shared.ts` — a channel list, not a layout. There was nothing there to mirror, which is exactly why `commands/` drifted |
 | The `tauri-setup` skill | `commands/` as the IPC surface, `#[tauri::command]`, managed state, `Result<T, E: Serialize>` | Its **prescribed tree** — `db/`, `git/`, `types.rs`, `error.rs` at the crate root — describes an app that never existed here. rdc has no database, and its git layer is a separate crate an order of magnitude larger than the app. That stub was this file's entire previous contents |
 
 **The one thing all three agree on:** the layer that talks to the outside world must hold no logic
@@ -56,12 +56,13 @@ Three consequences, and they are the whole guideline:
    not import another feature", holding one level up, at the crate boundary.
 3. **`commands/` holds no logic.** A command translates arguments, adapts errors, and drives the
    operation registry. Anything worth testing on its own belongs in a crate, where it can be tested
-   without a Tauri app. `commands/git.rs` already says this in its doc comment; this makes it the
-   rule rather than one module's aspiration.
+   without a Tauri app. The old `commands/git.rs` already claimed this in its doc comment; what
+   makes it a rule rather than one module's aspiration is that the split measured it — see
+   [Phase 4](#phase-4--split-stashrs-rename-the-rest-done-2026-08-17).
 
 ### And the rule `commands/` was missing
 
-The layer rule above says what `commands/` may *depend on*. It says nothing about how the 152
+The layer rule above says what `commands/` may *depend on*. It says nothing about how the 153
 commands are distributed across modules, and that absence is the whole defect this document was
 written to fix.
 
@@ -118,8 +119,8 @@ API. `git-ops`' 140-line facade stays.
 upstream file is `lib/git/branch.ts` and the acceptance spec is `test/unit/git/branch-test.ts`,
 which is the exact information the port is organized around. The flat re-export erases it.
 
-Measured 2026-08-17: **249 call sites use the module path, 150 use the facade** — so this codifies
-what the code already mostly does rather than imposing something new. The 150 are not worth a sweep;
+Measured 2026-08-17: **243 call sites use the module path, 138 use the facade** — so this codifies
+what the code already mostly does rather than imposing something new. The 138 are not worth a sweep;
 the pervasive error types (`git_ops::GitError`, `git_ops::TerminationReason`) read better flat
 anyway, and everything else can convert as it is touched.
 
@@ -130,8 +131,9 @@ The frontend puts `validate-branch-name.test.ts` beside `validate-branch-name.ts
 private items — a sibling file would be a separate crate-external integration test and could only
 reach the public API.
 
-The consequence to expect, since it distorts every measurement of this codebase: **roughly 45% of
-the Rust is tests.** `git-ops/src/diff.rs` is 2,807 lines and 1,331 of them are tests;
+The consequence to expect, since it distorts every measurement of this codebase: **45% of the Rust
+is tests** — 28,813 lines of 62,753, measured 2026-08-17.
+`git-ops/src/diff.rs` is 2,807 lines and 1,331 of them are tests;
 `operation_registry.rs` is 1,305 and 796 are. Never judge a module's size from `wc -l` — the
 `#[cfg(test)]` block is usually the larger half.
 
@@ -215,13 +217,15 @@ stays where it is.**
 A first read of `crates/git-ops/src/` shows 63 modules flat in one directory and suggests the same
 reorganization the frontend just went through. The measurement below is the reason not to.
 
-53 of those 63 modules carry the name of the desktop-plus module they port:
+54 of its 63 top-level modules carry the name of the desktop-plus module they port:
 
 | | Count |
 |---|---|
-| Mirrors `desktop-plus/app/src/lib/git/*.ts` | 50 |
+| Mirrors `desktop-plus/app/src/lib/git/*.ts` | 51 |
 | Mirrors `desktop-plus/app/src/lib/*.ts` one level up (`diff-parser`, `status-parser`, `patch-formatter`) | 3 |
-| rdc's own, with no upstream counterpart | 10 |
+| rdc's own, with no upstream counterpart | 9 |
+
+Measured 2026-08-17, plus the `hooks/` subfolder.
 
 Three things depend on that mirror. AGENTS.md rule 4 makes the original's `app/test/unit/git/**` the
 specification, `MIGRATION_MAP.md` tracks the port module by module against it, and the workflow is
@@ -231,8 +235,8 @@ reader the ability to find `status.ts`, and costs the map its keys.
 **So the rule for `crates/git-ops/` is: mirror the upstream module name.** New modules with no
 upstream counterpart are named for the git subcommand they wrap. Do not introduce subfolders.
 
-The ten rdc-invented modules are the substrate dugite provided and the port had to write: `exec` and
-`error` (replacing `core.ts`, `spawn.ts`, `environment.ts`), `git_error_kind`, `progress` (which
+The nine rdc-invented modules are the substrate dugite provided and the port had to write: `exec`
+and `error` (replacing `core.ts`, `spawn.ts`, `environment.ts`), `git_error_kind`, `progress` (which
 collapses desktop-plus's 10-file `lib/progress/` folder), `remote_progress`, `terminal_output`,
 `operation_identity`, `operation_state`, and `test_support`.
 
