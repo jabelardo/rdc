@@ -1,7 +1,8 @@
 # Backend structure — the layout, and the rule that keeps it
 
-**Status:** written 2026-08-17. The guideline is settled; the `commands/` reorganization it
-prescribes is in progress, phase by phase, at the end of this document.
+**Status:** applied and enforced, 2026-08-17. Every phase landed and `src-tauri/tests/structure.rs`
+fails the build on a violation. `commands/` went from 23 modules on four grouping axes to `git/`,
+`platform/` and the two that are neither.
 
 **Read this before adding a Rust file.** [Where does this file go?](#where-does-this-file-go)
 answers it in one pass; [The rule](#the-rule) is the one idea everything else follows from.
@@ -194,9 +195,10 @@ src/commands/
 ├── error.rs                    # CommandError — the error contract
 ├── operations.rs               # the operation registry's own commands
 ├── git/                        # may use git_ops; may not use crate::platform
-│   ├── branches.rs   changes.rs   conflicts.rs   history.rs
-│   ├── remotes.rs    repositories.rs   stash.rs   worktree.rs
-│   ├── submodules.rs   tags.rs   lfs.rs   trailers.rs   hooks.rs
+│   ├── branches.rs   changes.rs      conflicts.rs   history.rs
+│   ├── remotes.rs    repositories.rs stash.rs       worktree.rs
+│   ├── diffs.rs      gitignore.rs    hooks.rs       lfs.rs
+│   ├── submodules.rs tags.rs         trailers.rs
 │   └── operation_lifecycle.rs  # start/finish/recover against the registry, shared
 └── platform/                   # may use crate::platform; may not use git_ops
     └── one module per src/platform/ module it adapts
@@ -392,37 +394,75 @@ Named up front so nobody reads the omission as an oversight:
   smaller instance of the same one. `operation.rs` and `operation_registry.rs` could become an
   `operation/` folder; that would change no import outside the two files.
 
-### Phase 1 — lift `commands/platform/`
+### Phase 1 — lift `commands/platform/` — **done 2026-08-17**
 
 Move the 13 OS-facing command modules into `src/commands/platform/`. Pure file moves plus the paths
 in `lib.rs` and `commands/mod.rs`; no function moves, no command changes address in
 `generate_handler!` beyond its module prefix.
 
-### Phase 2 — lift `commands/git/`
+### Phase 2 — split `git.rs` by domain — **done 2026-08-17**
 
-The same for the git-facing modules. `error.rs` and the operation commands stay at the top level.
+**The phase order changed here, and the original would not have compiled.** Lifting `commands/git/`
+second, as first planned, meant moving `git.rs` into a folder of the same name. Splitting first and
+lifting last costs nothing and avoids the collision entirely — so the split moved to Phase 2 and the
+lift to Phase 5.
 
-### Phase 3 — dissolve `misc.rs`
+33 commands across seven domains, plus `branch.rs` and `log.rs` merged in. Item boundaries came from
+a brace-matching parse rather than line ranges, so an item moved with its doc comment, attributes and
+body or not at all.
 
-29 commands across ten domains, grouped by nothing but each being small. They go to `tags`,
-`trailers`, `lfs`, `repositories`, `history` and `branches`. The module ceases to exist.
+### Phase 3 — dissolve `misc.rs` — **done 2026-08-17**
 
-### Phase 4 — split `git.rs` by domain
+29 commands across ten domains, grouped by nothing but each being small. Four new modules — `tags`,
+`gitignore`, `lfs`, `trailers` — and 16 commands appended to existing ones.
 
-33 commands across seven domains — the largest single piece, and **the one phase that is not pure
-motion.** The module's ~14 operation-lifecycle helpers (`start_*_operation`, `finish_*_mutation`,
-`recover_*_termination`, `*_termination_details`) are shared across the boundaries the split
-introduces: the checkout family is called by branches, history *and* changes. They go to
-`commands/git/operation_lifecycle.rs` rather than travelling with any one domain, and their
-visibility widens from private to `pub(super)`.
+**Dissolving it surfaced a duplicate the old grouping had hidden.** `start_misc_operation` /
+`finish_misc_mutation` and `branch.rs`'s `start_branch_operation` / `finish_branch_mutation` were
+byte-identical apart from their names, and Phase 4 found a third copy in `stash.rs`. Three copies of
+"take the repository write lock for a short mutation, then release it", written because the modules
+were grouped by axes that put the same job in three places. They are one `start_short_mutation` /
+`finish_short_mutation` now.
 
-### Phase 5 — split `stash.rs`, rename the rest
+Two things about that pair are worth knowing and were deliberately not changed in a motion phase: it
+labels its work `GitOperationKind::Checkout` whatever the command actually does, and it reports every
+failure as `recoverable: true`.
 
-`stash.rs` holds stash, cherry-pick, squash, reorder and submodules — five things, on the stated
-grounds that none of them needs a credential session. Cherry-pick, squash and reorder are history
-rewriting and go to `history.rs`; submodules get their own module. `remote.rs` → `remotes.rs` and
-`operation.rs` → `operations.rs`, for the plural feature vocabulary.
+### Phase 4 — split `stash.rs`, rename the rest — **done 2026-08-17**
 
-### Phase 6 — turn the checks on
+`stash.rs` held stash, cherry-pick, squash, reorder and submodules, grouped on the stated grounds
+that none of them needs a credential session — true of most of the surface, so it grouped nothing.
+Cherry-pick, squash and reorder are history rewriting and joined `history`; submodules got their own
+module; stash kept its eight and went from 961 lines to 162. `remote.rs` → `remotes.rs` and
+`operation.rs` → `operations.rs`.
 
-`src-tauri/tests/structure.rs`, with each assertion verified by planting a violation.
+**The measurement that came out of this phase is the one worth keeping.** Every domain module has
+*zero* test lines — branches 688, history 552, changes 539, all implementation — and all 1,323 test
+lines under `commands/` are in `operation_lifecycle.rs`. The rule that `commands/` holds no logic
+already held everywhere except that one cluster, and the tests are what show it. That is also why
+the cluster needed a name: it was the only part of `commands/` that was worth testing, sitting in a
+module named for none of its callers.
+
+### Phase 5 — lift `commands/git/` — **done 2026-08-17**
+
+Pure motion, done last so no module was named `git` when the folder appeared. 16 modules changed
+directory, 4 rewrote one import line.
+
+The boundary was verified before the folder existed rather than asserted after: no git module named
+`crate::platform`, and nothing under `commands/platform/` named `git_ops`. Both already held. The
+split records a boundary the code had kept without being asked, which is what makes it cheap to
+check from here on.
+
+### Phase 6 — turn the checks on — **done 2026-08-17**
+
+`src-tauri/tests/structure.rs`, five assertions, each verified by planting a violation.
+
+**Two of the five needed a more careful violation than the obvious one, and that is the finding.**
+Registering a command that does not exist turns out to be a *compile* error — `generate_handler!`
+expands to a reference to `tags::__cmd__invent_a_tag` — so rustc owns that direction and the
+assertion only states the intent. And the error-contract check does not fire on a return type
+changed to `String` in isolation, because the body then fails to compile; it fires on a command
+written self-consistently stringly-typed, which is the realistic way the mistake gets made.
+
+A check that passes because the thing it looks for cannot be expressed is indistinguishable from a
+check that works. This repo has already been bitten once — `check-bundle-boundary.mjs` went from 163
+reachable modules to 2 and kept reporting clean. Plant the violation.

@@ -73,8 +73,10 @@ src/                      frontend
   testing/                test helpers and the debug state injectors
   lib/__generated__/      emitted by Rust tests; do not hand-edit
 src-tauri/
-  src/commands/           #[tauri::command] entry points
-  crates/git-ops/         git plumbing (the bulk of the Rust)
+  src/commands/git/       #[tauri::command] entry points, one module per frontend feature
+  src/commands/platform/  the OS-facing half of the same surface
+  src/platform/           the Tauri/OS adapter; *_model.rs holds the cfg-free wire types
+  crates/git-ops/         git plumbing (the bulk of the Rust); mirrors desktop-plus lib/git/**
   crates/trampoline/      credential bridge (GIT_ASKPASS/SSH_ASKPASS)
 e2e/                      tauri-driver suite, container-only
 ```
@@ -82,7 +84,14 @@ e2e/                      tauri-driver suite, container-only
 Rust module names mirror the original TypeScript file names (`lib/git/status.ts` →
 `crates/git-ops/src/status.rs`) so the two trees can be read side by side.
 
-**Read [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md) before adding a file.** It answers "where
+**Read [`BACKEND_STRUCTURE.md`](./BACKEND_STRUCTURE.md) before adding a Rust file.** Dependencies
+run `crates/` → app services → `commands/` → Tauri; the crates know nothing about Tauri; a command
+module is named for the frontend feature that calls it, not the git subcommand it runs. Five
+assertions in `src-tauri/tests/structure.rs` fail the build on a violation. It also records why
+`crates/git-ops/` is frozen: 53 of its 63 modules carry the name of the desktop-plus module they
+port, and `MIGRATION_MAP.md` keys on those names.
+
+**Read [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md) before adding a frontend file.** It answers "where
 does this go" in one pass, and the answer is enforced: dependencies run shared → features → app,
 imports are `./sibling` or `@/`, and `pnpm check:module-boundaries` plus two oxlint rules fail the
 build on a violation. The rule the checker cannot enforce is the one worth remembering — a module
