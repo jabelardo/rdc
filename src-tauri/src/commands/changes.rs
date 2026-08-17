@@ -4,6 +4,7 @@
 //! [`super::diffs`] with the other diff queries.
 
 use crate::commands::operation_lifecycle::{finish_checkout_mutation, finish_commit_termination};
+use crate::commands::operation_lifecycle::{finish_short_mutation, start_short_mutation};
 use crate::commands::CommandError;
 use crate::hook_state::{support_for_operation, HookFailurePrompt, HookRegistry};
 use crate::operation::{
@@ -492,5 +493,40 @@ pub async fn discard_changes_from_selection(
             &LineSelection::new(selected_lines),
         )
         .await,
+    )
+}
+
+/// Deletes untracked files and directories.
+///
+/// **Irreversible** — these files are not in git. Ignored files are left alone.
+#[tauri::command]
+pub async fn clean_untracked_files(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+) -> Result<(), CommandError> {
+    let operation = start_short_mutation(&window, &registry, &repository_path).await?;
+    finish_short_mutation(
+        &registry,
+        &operation.id,
+        git_ops::clean::clean_untracked_files(&repository_path).await,
+    )
+}
+
+/// Copies the given paths out of the index into the working tree.
+///
+/// An empty `paths` is a no-op rather than "check out everything", which is what the bare command would do.
+#[tauri::command]
+pub async fn checkout_index(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+    paths: Vec<String>,
+) -> Result<(), CommandError> {
+    let operation = start_short_mutation(&window, &registry, &repository_path).await?;
+    finish_short_mutation(
+        &registry,
+        &operation.id,
+        git_ops::checkout_index::checkout_index(&repository_path, &paths).await,
     )
 }

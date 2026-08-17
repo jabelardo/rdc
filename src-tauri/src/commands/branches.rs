@@ -10,6 +10,7 @@
 //! Merge and rebase live here rather than in [`super::conflicts`]: starting one is a branch
 //! operation, and only what happens after it stops with conflicts belongs to that module.
 
+use crate::commands::operation_lifecycle::{finish_short_mutation, start_short_mutation};
 use crate::commands::operation_lifecycle::{
     recover_merge_termination, recover_rebase_termination, run_cancellable_branch_checkout,
 };
@@ -25,6 +26,8 @@ use git_ops::checkout::CheckoutTarget;
 use git_ops::for_each_ref::{Branch, TrackingBranch};
 use git_ops::hooks::runner::HookProgressUpdate;
 use git_ops::merge::{MergeOptions, MergeResult};
+use git_ops::merge_tree::MergeTreeResult;
+use git_ops::operation_state::RebaseInternalState;
 use git_ops::rebase::{
     ManualResolution, MultiCommitOperationProgress, RebaseResult, RebaseSnapshot,
 };
@@ -51,8 +54,8 @@ pub async fn create_branch(
     start_point: Option<String>,
     no_track: Option<bool>,
 ) -> Result<(), CommandError> {
-    let operation = start_branch_operation(&window, &registry, &repository_path).await?;
-    finish_branch_mutation(
+    let operation = start_short_mutation(&window, &registry, &repository_path).await?;
+    finish_short_mutation(
         &registry,
         &operation.id,
         git_ops::branch::create_branch(
@@ -83,8 +86,8 @@ pub async fn rename_branch(
     new_name: String,
     force: Option<bool>,
 ) -> Result<(), CommandError> {
-    let operation = start_branch_operation(&window, &registry, &repository_path).await?;
-    finish_branch_mutation(
+    let operation = start_short_mutation(&window, &registry, &repository_path).await?;
+    finish_short_mutation(
         &registry,
         &operation.id,
         git_ops::branch::rename_branch(&repository_path, &current_name, &new_name, force).await,
@@ -106,8 +109,8 @@ pub async fn delete_local_branch(
     repository_path: String,
     branch_name: String,
 ) -> Result<(), CommandError> {
-    let operation = start_branch_operation(&window, &registry, &repository_path).await?;
-    finish_branch_mutation(
+    let operation = start_short_mutation(&window, &registry, &repository_path).await?;
+    finish_short_mutation(
         &registry,
         &operation.id,
         git_ops::branch::delete_local_branch(&repository_path, &branch_name).await,
@@ -180,59 +183,12 @@ pub async fn delete_ref(
     ref_name: String,
     reason: Option<String>,
 ) -> Result<(), CommandError> {
-    let operation = start_branch_operation(&window, &registry, &repository_path).await?;
-    finish_branch_mutation(
+    let operation = start_short_mutation(&window, &registry, &repository_path).await?;
+    finish_short_mutation(
         &registry,
         &operation.id,
         git_ops::update_ref::delete_ref(&repository_path, &ref_name, reason.as_deref()).await,
     )
-}
-
-async fn start_branch_operation(
-    window: &WebviewWindow,
-    registry: &OperationRegistry,
-    repository_path: &str,
-) -> Result<crate::operation::OperationRecord, CommandError> {
-    crate::commands::operation::start_repository_operation(
-        registry,
-        repository_path,
-        Some(window.label().to_owned()),
-        GitOperationKind::Checkout,
-    )
-    .await
-}
-
-fn finish_branch_mutation(
-    registry: &OperationRegistry,
-    operation_id: &str,
-    result: Result<(), git_ops::GitError>,
-) -> Result<(), CommandError> {
-    match result {
-        Ok(()) => {
-            let _ = registry.finish(
-                operation_id,
-                OperationState::Completed,
-                OperationOutcome::Completed,
-                None,
-            );
-            Ok(())
-        }
-        Err(error) => {
-            let message = error.to_string();
-            let command_error = CommandError::from(error);
-            let _ = registry.finish(
-                operation_id,
-                OperationState::Failed,
-                OperationOutcome::Unknown,
-                Some(OperationError {
-                    kind: OperationErrorKind::Failed,
-                    message,
-                    recoverable: true,
-                }),
-            );
-            Err(command_error)
-        }
-    }
 }
 
 /// What a symbolic ref points at, or `null` if it isn't one.
@@ -662,6 +618,62 @@ pub async fn get_branches_differing_from_upstream(
     repository_path: String,
 ) -> Result<Vec<TrackingBranch>, CommandError> {
     git_ops::for_each_ref::get_branches_differing_from_upstream(&repository_path)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// The most recently checked-out branches, newest first.
+#[tauri::command]
+pub async fn get_recent_branches(
+    repository_path: String,
+    limit: usize,
+) -> Result<Vec<String>, CommandError> {
+    git_ops::reflog::get_recent_branches(&repository_path, limit)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// When each branch was last checked out, for checkouts at or after `after`.
+///
+/// `after` is epoch **seconds**, and the results are `[branch, epochSeconds]` pairs.
+#[tauri::command]
+pub async fn get_branch_checkouts(
+    repository_path: String,
+    after: i64,
+) -> Result<Vec<(String, i64)>, CommandError> {
+    git_ops::reflog::get_branch_checkouts(&repository_path, after)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// The branch and tip a rebase is replaying, or `null` when none is in progress.
+#[tauri::command]
+pub async fn get_rebase_internal_state(
+    repository_path: String,
+) -> Result<Option<RebaseInternalState>, CommandError> {
+    let git_dir = git_ops::rev_parse::resolve_git_dir(&repository_path)
+        .await
+        .map_err(CommandError::from)?;
+
+    Ok(git_ops::operation_state::get_rebase_internal_state(git_dir).await)
+}
+
+/// Whether two revisions would merge cleanly, without touching the index or the working tree.
+///
+/// ```js
+/// await invoke('determine_mergeability', { repositoryPath, ours: 'main', theirs: 'topic' })
+/// // -> { kind: 'clean' } | { kind: 'conflicts', conflictedFiles: 3 } | { kind: 'invalid' }
+/// ```
+///
+/// `merge-tree --write-tree` answers this in the object database, so asking is free of side effects — the
+/// user's checkout is untouched. `invalid` covers unrelated histories, which have no merge to describe.
+#[tauri::command]
+pub async fn determine_mergeability(
+    repository_path: String,
+    ours: String,
+    theirs: String,
+) -> Result<MergeTreeResult, CommandError> {
+    git_ops::merge_tree::determine_mergeability(&repository_path, &ours, &theirs)
         .await
         .map_err(CommandError::from)
 }

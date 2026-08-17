@@ -26,13 +26,15 @@ pub mod branches;
 pub mod changes;
 pub mod conflicts;
 pub mod diffs;
+pub mod gitignore;
 pub mod history;
 pub mod hooks;
-pub mod repositories;
-
-pub mod misc;
+pub mod lfs;
 pub mod remote;
+pub mod repositories;
 pub mod stash;
+pub mod tags;
+pub mod trailers;
 pub mod worktree;
 
 pub mod error;
