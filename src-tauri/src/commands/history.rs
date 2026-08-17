@@ -1,12 +1,20 @@
 //! History commands exposed to the frontend.
 //!
-//! Thin wrappers over `git_ops::log`, as in [`super::git`]. The returned types carry the *constructor
+//! Reading the commit graph, and checking a commit out. Diffs between commits are
+//! [`super::diffs`].
+//!
+//! Thin wrappers over `git_ops::log`, as elsewhere. The returned types carry the *constructor
 //! arguments* of the TypeScript `Commit`/`CommittedFileChange` classes; `src/lib/log-ipc.ts` builds
 //! the objects, so the fields those constructors derive have exactly one implementation.
 
+use crate::commands::operation_lifecycle::run_cancellable_commit_checkout;
+use crate::commands::CommandError;
+use crate::operation_registry::OperationRegistry;
+use git_ops::checkout::CheckoutProgress;
 use git_ops::log::{ChangesetData, Commit};
-
-use super::CommandError;
+use git_ops::status::AheadBehind;
+use tauri::ipc::Channel;
+use tauri::{State, WebviewWindow};
 
 /// Reads commits, most recent first.
 ///
@@ -67,6 +75,52 @@ pub async fn get_changed_files(
     sha: String,
 ) -> Result<ChangesetData, CommandError> {
     git_ops::log::get_changed_files(&repository_path, &sha)
+        .await
+        .map_err(CommandError::from)
+}
+
+/// Checks out a commit, leaving `HEAD` detached.
+///
+/// ```js
+/// await invoke('checkout_commit', { repositoryPath, commit: sha })
+/// ```
+#[tauri::command]
+pub async fn checkout_commit(
+    window: WebviewWindow,
+    registry: State<'_, OperationRegistry>,
+    repository_path: String,
+    commit: String,
+    on_progress: Channel<CheckoutProgress>,
+) -> Result<(), CommandError> {
+    run_cancellable_commit_checkout(
+        &registry,
+        &repository_path,
+        Some(window.label().to_owned()),
+        &commit,
+        on_progress,
+    )
+    .await
+}
+
+/// How many commits each side of `range` has that the other does not.
+///
+/// ```js
+/// await invoke('get_ahead_behind', { repositoryPath, range: 'main...origin/main' })
+/// // -> { ahead: 1, behind: 2 }
+/// ```
+///
+/// The range is built by the caller — `revRange`, `revSymmetricDifference` in `src/lib/rev-range.ts` — because
+/// it is string concatenation and needs no round trip.
+///
+/// `null` means the question cannot be asked: a ref in the range no longer exists, most often a deleted
+/// upstream. That is an answer rather than a failure, since a caller with nothing to put in a label should not
+/// be handling an error.
+#[tauri::command]
+pub async fn get_ahead_behind(
+    repository_path: String,
+    range: String,
+) -> Result<Option<AheadBehind>, CommandError> {
+    git_ops::rev_list::get_ahead_behind(&repository_path, &range)
         .await
         .map_err(CommandError::from)
 }

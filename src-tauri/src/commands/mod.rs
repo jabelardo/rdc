@@ -22,14 +22,21 @@
 
 pub mod platform;
 
-pub mod branch;
-pub mod error;
-pub mod git;
-pub mod log;
+pub mod branches;
+pub mod changes;
+pub mod conflicts;
+pub mod diffs;
+pub mod history;
+pub mod hooks;
+pub mod repositories;
+
 pub mod misc;
-pub mod operation;
 pub mod remote;
 pub mod stash;
 pub mod worktree;
+
+pub mod error;
+pub mod operation;
+pub mod operation_lifecycle;
 
 pub use error::CommandError;

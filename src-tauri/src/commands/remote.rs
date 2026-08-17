@@ -1096,7 +1096,9 @@ mod pull_cancellation_tests {
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
 
-    use super::super::git::{recover_merge_termination, recover_rebase_termination};
+    use crate::commands::operation_lifecycle::{
+        recover_merge_termination, recover_rebase_termination,
+    };
     use crate::operation::{
         CancellationCapability, GitOperationKind, OperationOutcome, OperationScope,
     };
@@ -1706,7 +1708,7 @@ pub async fn pull(
             Err(recover_terminated_fetch(&registry, &operation.id, &repository_path, reason).await)
         }
         Err(git_ops::GitError::OperationTerminated { name, reason, .. }) if name == "pullMerge" => {
-            match crate::commands::git::recover_merge_termination(
+            match crate::commands::operation_lifecycle::recover_merge_termination(
                 &registry,
                 &operation.id,
                 &repository_path,
@@ -1723,7 +1725,7 @@ pub async fn pull(
         Err(git_ops::GitError::OperationTerminated { name, reason, .. })
             if name == "pullRebase" =>
         {
-            match crate::commands::git::recover_rebase_termination(
+            match crate::commands::operation_lifecycle::recover_rebase_termination(
                 &registry,
                 &operation.id,
                 &repository_path,

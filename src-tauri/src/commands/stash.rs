@@ -608,7 +608,7 @@ pub async fn squash(
     .await;
     watchdog.abort();
     if let Err(git_ops::GitError::OperationTerminated { reason, .. }) = &result {
-        return crate::commands::git::recover_rebase_termination(
+        return crate::commands::operation_lifecycle::recover_rebase_termination(
             &registry,
             &operation.id,
             &repository_path,
@@ -671,7 +671,7 @@ pub async fn reorder(
     .await;
     watchdog.abort();
     if let Err(git_ops::GitError::OperationTerminated { reason, .. }) = &result {
-        return crate::commands::git::recover_rebase_termination(
+        return crate::commands::operation_lifecycle::recover_rebase_termination(
             &registry,
             &operation.id,
             &repository_path,
@@ -939,7 +939,7 @@ mod cherry_pick_recovery_tests {
                 )
                 .expect("operation should reserve the repository");
 
-            let result = crate::commands::git::recover_rebase_termination(
+            let result = crate::commands::operation_lifecycle::recover_rebase_termination(
                 &registry,
                 &operation.id,
                 &repository_path,
